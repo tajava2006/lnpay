@@ -19,5 +19,13 @@
     "service_worker": "src/background/index.ts",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://mc.coupang.com/ssr/desktop/order/*"],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_start"
+    }
+  ],
+  "host_permissions": ["https://mc.coupang.com/*"],
   "permissions": ["activeTab", "storage"]
 }

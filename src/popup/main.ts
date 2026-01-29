@@ -1,2 +1,2 @@
 // Popup script
-console.log('Web Parser popup loaded');
+console.log('Web Parser popup loaded2');

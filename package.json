@@ -1,0 +1,25 @@
+{
+  "name": "web-parser",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts,.tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "generate:icons": "node scripts/generate-icons.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.5",
+    "@crxjs/vite-plugin": "^2.0.0-beta.28",
+    "@types/chrome": "^0.0.287",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2"
+  }
+}

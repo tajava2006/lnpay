@@ -1,50 +1,81 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+==================
+Version change: N/A → 1.0.0 (initial)
+Added sections: Core Principles (5), Technology Stack, Development Workflow, Governance
+Removed sections: None (initial creation)
+Templates requiring updates:
+  ✅ .specify/templates/plan-template.md - no changes needed
+  ✅ .specify/templates/spec-template.md - no changes needed
+  ✅ .specify/templates/tasks-template.md - no changes needed
+Follow-up TODOs: None
+-->
+
+# Web Parser Chrome Extension Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. TypeScript First
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+모든 코드는 TypeScript로 작성한다.
+- 모든 소스 파일은 `.ts` 또는 `.tsx` 확장자 사용 필수
+- `strict` 모드 활성화 필수 (`tsconfig.json`)
+- `any` 타입 사용 금지 (불가피한 경우 `unknown` + 타입 가드 사용)
+- 외부 라이브러리는 `@types/*` 패키지가 있는 것 우선 선택
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Manifest V3
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+Chrome Extension Manifest V3 API를 사용한다.
+- Service Worker 기반 background script 사용 (persistent background page 금지)
+- `chrome.scripting` API로 content script 주입
+- 권한은 필요한 최소한만 요청 (`activeTab` 우선, `<all_urls>` 지양)
+- CSP(Content Security Policy) 준수
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Test Required
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+핵심 비즈니스 로직은 반드시 테스트한다.
+- 파싱 로직, 데이터 변환, 유틸리티 함수는 단위 테스트 필수
+- UI 컴포넌트 테스트는 선택적
+- 테스트 프레임워크: Vitest 권장
+- 테스트 커버리지 목표: 핵심 로직 80% 이상
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Modular Architecture
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+역할별로 모듈을 분리한다.
+- `src/background/` - Service Worker (이벤트 처리, 스토리지 관리)
+- `src/content/` - Content Script (DOM 조작, 페이지 파싱)
+- `src/popup/` - Popup UI (사용자 인터페이스)
+- `src/shared/` - 공유 타입, 유틸리티, 상수
+- 각 모듈 간 통신은 `chrome.runtime.sendMessage` 사용
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. Security First
+
+보안을 최우선으로 고려한다.
+- 사용자 데이터는 `chrome.storage.local`에만 저장
+- 외부 서버 통신 시 HTTPS 필수
+- `eval()`, `innerHTML` 직접 사용 금지
+- 민감 정보(API 키 등)는 코드에 하드코딩 금지
+
+## Technology Stack
+
+- **Language**: TypeScript 5.x
+- **Build Tool**: Vite + CRXJS (Chrome Extension 빌드 지원)
+- **Package Manager**: pnpm
+- **Testing**: Vitest
+- **Linting**: ESLint + Prettier
+- **Target**: Chrome 120+ (Manifest V3)
+
+## Development Workflow
+
+1. **기능 개발 시작 전**: spec.md 작성으로 요구사항 명확화
+2. **구현 전**: plan.md로 기술적 설계 수립
+3. **구현 중**: tasks.md 체크박스로 진행 상황 추적
+4. **PR 전**: 테스트 통과 확인, 린트 에러 없음
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- 이 Constitution은 모든 개발 결정의 최상위 기준이다
+- 원칙 수정 시 MAJOR 버전 변경 및 문서화 필수
+- 예외 상황 발생 시 해당 PR에 사유 명시
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-01-28 | **Last Amended**: 2026-01-28

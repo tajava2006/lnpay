@@ -2,7 +2,7 @@
 // 쿠팡 주문 상세 페이지에서 JSON API를 직접 호출하여 데이터 추출 및 저장
 
 import { getOrder, saveOrder, updateOrderStatus } from '../shared/storage';
-import { isTargetOrder, extractAmount, isPaid } from '../shared/filter';
+import { isTargetOrder, extractAmount, extractProductName, isPaid } from '../shared/filter';
 import type { TrackedOrder, CoupangOrderData } from '../shared/types';
 
 async function fetchOrderData() {
@@ -62,7 +62,7 @@ async function fetchOrderData() {
     // 이미 추적 중인 주문 - 상태 변경 확인
     console.log('[Web Parser] Existing order found:', existingOrder);
 
-    if (existingOrder.status === 'pending' && isPaid(orderData)) {
+    if (existingOrder.status === 'pending' && isPaid(orderData, orderId)) {
       // 입금 완료됨!
       await updateOrderStatus(orderId, 'paid');
       console.log('[Web Parser] 🎉 조르기 성공! 그분이 사주셨군요!');
@@ -70,10 +70,11 @@ async function fetchOrderData() {
     }
   } else {
     // 신규 주문 - 대상인지 확인 후 저장
-    if (isTargetOrder(orderData)) {
+    if (isTargetOrder(orderData, orderId)) {
       const newOrder: TrackedOrder = {
         orderId,
-        amount: extractAmount(orderData),
+        productName: extractProductName(orderData, orderId),
+        amount: extractAmount(orderData, orderId),
         status: 'pending',
         createdAt: Date.now(),
         updatedAt: Date.now(),

@@ -20,7 +20,7 @@ async function renderDashboard() {
   if (orderArray.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="empty-state">추적 중인 주문이 없습니다</td>
+        <td colspan="6" class="empty-state">추적 중인 주문이 없습니다</td>
       </tr>
     `;
     return;
@@ -52,6 +52,7 @@ function createTableRow(order: TrackedOrder): string {
       <td>
         <a href="${orderUrl}" target="_blank" class="order-link">${order.orderId}</a>
       </td>
+      <td>${order.productName}</td>
       <td>${amount}</td>
       <td><span class="order-status ${statusClass}">${statusText}</span></td>
       <td>${date}</td>

@@ -31,9 +31,12 @@ function createOrderCard(order: TrackedOrder): string {
 
   return `
     <div class="order-card">
-      <div class="order-id">주문번호: ${order.orderId}</div>
+      <div class="order-name">${order.productName}</div>
       <div class="order-amount">${amount}</div>
-      <span class="order-status ${statusClass}">${statusText}</span>
+      <div class="order-meta">
+        <span class="order-id">#${order.orderId}</span>
+        <span class="order-status ${statusClass}">${statusText}</span>
+      </div>
     </div>
   `;
 }

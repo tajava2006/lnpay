@@ -52,22 +52,35 @@
         padding: 12px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       }
-      .order-id {
-        font-size: 12px;
-        color: #666;
+      .order-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
         margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .order-amount {
         font-size: 16px;
         font-weight: 600;
-        color: #333;
+        color: #4F46E5;
+        margin-bottom: 6px;
+      }
+      .order-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .order-id {
+        font-size: 11px;
+        color: #999;
       }
       .order-status {
         display: inline-block;
         padding: 2px 8px;
         border-radius: 4px;
         font-size: 11px;
-        margin-top: 6px;
       }
       .status-pending {
         background: #FEF3C7;

@@ -48,11 +48,20 @@ export const ORDER_STATUS_META: Record<OrderStatus, OrderStatusMeta> = {
   },
   claimed: {
     code: 'claimed',
-    label: '응답 대기',
-    description: '누군가 사주겠다고 응답했습니다. 입금을 기다리는 중입니다',
+    label: '클레임 접수',
+    description: '누군가 사주겠다고 응답했습니다. 선택을 기다리는 중입니다',
     bgColor: '#DBEAFE', // blue-100
     textColor: '#1E40AF', // blue-800
     cssClass: 'status-claimed',
+    isFinal: false,
+  },
+  selected: {
+    code: 'selected',
+    label: '선택 완료',
+    description: '클레이머를 선택했습니다. 입금을 기다리는 중입니다',
+    bgColor: '#FEE2E2', // rose-100
+    textColor: '#991B1B', // rose-800
+    cssClass: 'status-selected',
     isFinal: false,
   },
   paid: {
@@ -66,8 +75,8 @@ export const ORDER_STATUS_META: Record<OrderStatus, OrderStatusMeta> = {
   },
   cancelled: {
     code: 'cancelled',
-    label: '취소됨',
-    description: '주문이 취소되었거나 직접 입금했습니다',
+    label: '주문 취소',
+    description: '쿠팡에서 주문이 취소되었습니다',
     bgColor: '#F3F4F6', // gray-100
     textColor: '#374151', // gray-700
     cssClass: 'status-cancelled',

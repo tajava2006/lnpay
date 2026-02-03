@@ -6,27 +6,31 @@
  * 주문의 상태를 나타내는 타입
  *
  * 상태 흐름:
- * detected → requested → claimed → paid
- *    ↓          ↓           ↓
- * cancelled  cancelled  cancelled
+ * detected → requested → claimed → selected → paid
+ *    ↓          ↓           ↓          ↓
+ *   paid    cancelled   cancelled  cancelled
+ *    ↓                      ↓          ↓
+ * cancelled              requested  requested
  *
  * - detected: 주문 감지됨 (무통장입금 주문 발견)
  * - requested: 사줘 요청함 (다른 사람에게 입금 요청 전송)
  * - claimed: 누군가 사주겠다고 응답함
+ * - selected: 클레이머 중 한 명을 선택함 (이 사람에게 사달라고 확정)
  * - paid: 입금 완료됨
- * - cancelled: 취소됨 (직접 입금 또는 주문 취소)
+ * - cancelled: 취소됨 (쿠팡에서 주문 자체를 취소, 자동 감지)
  */
-export type OrderStatus = 'detected' | 'requested' | 'claimed' | 'paid' | 'cancelled';
+export type OrderStatus = 'detected' | 'requested' | 'claimed' | 'selected' | 'paid' | 'cancelled';
 
 /**
  * 허용된 상태 전이 맵
  * key: 현재 상태, value: 전이 가능한 상태 목록
  */
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  detected: ['requested', 'cancelled'],
+  detected: ['requested', 'paid', 'cancelled'], // paid: 앱 없이 직접 입금
   requested: ['claimed', 'cancelled'],
-  claimed: ['paid', 'requested', 'cancelled'], // claimed → requested: claimer가 취소한 경우
-  paid: [], // 최종 상태
+  claimed: ['selected', 'requested', 'cancelled'], // selected: 클레이머 선택, requested: 클레이머 거절
+  selected: ['paid', 'requested', 'cancelled'], // requested: 특정 조건 하에 재요청 가능
+  paid: [], // 최종 상태: 사줘 미션 완료
   cancelled: [], // 최종 상태
 };
 

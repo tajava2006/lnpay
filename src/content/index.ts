@@ -63,8 +63,8 @@ async function fetchOrderData() {
     // 이미 추적 중인 주문 - 상태 변경 확인
     console.log('[Web Parser] Existing order found:', existingOrder);
 
-    // claimed 상태에서 입금 완료 확인 (누군가 사주겠다고 한 상태)
-    if (existingOrder.status === 'claimed' && isPaid(orderData, orderId)) {
+    // selected 상태에서 입금 완료 확인 (클레이머를 선택한 상태)
+    if (existingOrder.status === 'selected' && isPaid(orderData, orderId)) {
       const result = await transitionOrderWithRetry(orderId, 'paid');
       if (result.success) {
         console.log('[Web Parser] 🎉 조르기 성공! 그분이 사주셨군요!');

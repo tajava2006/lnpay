@@ -129,4 +129,13 @@ if (document.readyState === 'loading') {
   fetchOrderData();
 }
 
+// Background Script에서 SPA 네비게이션 감지 시 메시지 수신
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'URL_CHANGED') {
+    console.log('[Web Parser] URL changed via SPA navigation:', message.url);
+    // 약간의 딜레이 후 실행 (페이지 데이터 로드 대기)
+    setTimeout(fetchOrderData, 500);
+  }
+});
+
 console.log('[Web Parser] Content script loaded on:', window.location.href);

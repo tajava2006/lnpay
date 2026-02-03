@@ -210,7 +210,14 @@ export async function transitionBatch(
   const updatedOrders: TrackedOrder[] = [];
   const errors: Array<{ orderId: string; error: TransitionError }> = [];
 
-  // 1. 모든 전이 검증 (dry run)
+  // 1. 모든 전이 검증 (dry run) 및 검증 통과한 전이 수집
+  const validTransitions: Array<{
+    orderId: string;
+    toStatus: OrderStatus;
+    options?: TransitionOptions;
+    order: TrackedOrder;
+  }> = [];
+
   for (const { orderId, toStatus, options } of transitions) {
     const order = orders[orderId];
 
@@ -234,6 +241,8 @@ export async function transitionBatch(
       });
       continue;
     }
+
+    validTransitions.push({ orderId, toStatus, options, order });
   }
 
   // 2. 에러가 있으면 전체 실패
@@ -242,9 +251,7 @@ export async function transitionBatch(
   }
 
   // 3. 모든 전이 적용
-  for (const { orderId, toStatus, options } of transitions) {
-    const order = orders[orderId];
-
+  for (const { orderId, toStatus, options, order } of validTransitions) {
     const updatedOrder: TrackedOrder = {
       ...order,
       status: toStatus,

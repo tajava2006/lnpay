@@ -1,9 +1,10 @@
 // Content Script
 // 쿠팡 주문 상세 페이지에서 JSON API를 직접 호출하여 데이터 추출 및 저장
 
-import { getOrder, saveOrder, updateOrderStatus } from '../shared/storage';
+import { getOrder, createOrder } from '../shared/storage';
+import { transitionOrderWithRetry } from '../shared/state-machine';
 import { isTargetOrder, extractAmount, extractProductName, isPaid } from '../shared/filter';
-import type { TrackedOrder, CoupangOrderData } from '../shared/types';
+import type { CoupangOrderData } from '../shared/types';
 
 async function fetchOrderData() {
   // 1. 현재 URL에서 orderId 추출
@@ -62,25 +63,25 @@ async function fetchOrderData() {
     // 이미 추적 중인 주문 - 상태 변경 확인
     console.log('[Web Parser] Existing order found:', existingOrder);
 
-    if (existingOrder.status === 'pending' && isPaid(orderData, orderId)) {
-      // 입금 완료됨!
-      await updateOrderStatus(orderId, 'paid');
-      console.log('[Web Parser] 🎉 조르기 성공! 그분이 사주셨군요!');
-      showSuccessNotification();
+    // claimed 상태에서 입금 완료 확인 (누군가 사주겠다고 한 상태)
+    if (existingOrder.status === 'claimed' && isPaid(orderData, orderId)) {
+      const result = await transitionOrderWithRetry(orderId, 'paid');
+      if (result.success) {
+        console.log('[Web Parser] 🎉 조르기 성공! 그분이 사주셨군요!');
+        showSuccessNotification();
+      } else {
+        console.error('[Web Parser] Failed to transition to paid:', result.error);
+      }
     }
   } else {
     // 신규 주문 - 대상인지 확인 후 저장
     if (isTargetOrder(orderData, orderId)) {
-      const newOrder: TrackedOrder = {
+      const newOrder = await createOrder({
         orderId,
         productName: extractProductName(orderData, orderId),
         amount: extractAmount(orderData, orderId),
-        status: 'pending',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
+      });
 
-      await saveOrder(newOrder);
       console.log('[Web Parser] New order saved:', newOrder);
     } else {
       console.log('[Web Parser] Order is not a target (not bank transfer or already completed)');

@@ -1,16 +1,17 @@
 import { getAllOrders, deleteOrder, clearAllOrders } from '../shared/storage';
+import { getStatusMeta, isFinalStatus } from '../shared/order-states';
 import type { TrackedOrder } from '../shared/types';
 
 async function renderDashboard() {
   const orders = await getAllOrders();
   const orderArray = Object.values(orders).sort((a, b) => b.updatedAt - a.updatedAt);
 
-  // 통계 업데이트
-  const pendingCount = orderArray.filter((o) => o.status === 'pending').length;
-  const paidCount = orderArray.filter((o) => o.status === 'paid').length;
+  // 통계 업데이트 (활성 주문 vs 완료 주문)
+  const activeCount = orderArray.filter((o) => !isFinalStatus(o.status)).length;
+  const completedCount = orderArray.filter((o) => isFinalStatus(o.status)).length;
 
-  document.getElementById('pendingCount')!.textContent = String(pendingCount);
-  document.getElementById('paidCount')!.textContent = String(paidCount);
+  document.getElementById('activeCount')!.textContent = String(activeCount);
+  document.getElementById('completedCount')!.textContent = String(completedCount);
   document.getElementById('totalCount')!.textContent = String(orderArray.length);
 
   // 테이블 렌더링
@@ -41,8 +42,7 @@ async function renderDashboard() {
 }
 
 function createTableRow(order: TrackedOrder): string {
-  const statusClass = order.status === 'paid' ? 'status-paid' : 'status-pending';
-  const statusText = order.status === 'paid' ? '입금 완료' : '입금 대기';
+  const statusMeta = getStatusMeta(order.status);
   const amount = order.amount > 0 ? `${order.amount.toLocaleString()}원` : '금액 미확인';
   const date = new Date(order.createdAt).toLocaleDateString('ko-KR');
   const orderUrl = `https://mc.coupang.com/ssr/desktop/order/${order.orderId}`;
@@ -54,7 +54,11 @@ function createTableRow(order: TrackedOrder): string {
       </td>
       <td>${order.productName}</td>
       <td>${amount}</td>
-      <td><span class="order-status ${statusClass}">${statusText}</span></td>
+      <td>
+        <span class="order-status" style="background: ${statusMeta.bgColor}; color: ${statusMeta.textColor};">
+          ${statusMeta.label}
+        </span>
+      </td>
       <td>${date}</td>
       <td class="actions">
         <button class="btn btn-danger btn-delete" data-order-id="${order.orderId}">삭제</button>

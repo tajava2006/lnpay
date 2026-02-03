@@ -1,4 +1,5 @@
 import { getAllOrders } from '../shared/storage';
+import { getStatusMeta } from '../shared/order-states';
 import type { TrackedOrder } from '../shared/types';
 
 const MAX_DISPLAY_ORDERS = 5;
@@ -25,8 +26,7 @@ async function renderOrders() {
 }
 
 function createOrderCard(order: TrackedOrder): string {
-  const statusClass = order.status === 'paid' ? 'status-paid' : 'status-pending';
-  const statusText = order.status === 'paid' ? '입금 완료' : '입금 대기';
+  const statusMeta = getStatusMeta(order.status);
   const amount = order.amount > 0 ? `${order.amount.toLocaleString()}원` : '금액 미확인';
 
   return `
@@ -35,7 +35,9 @@ function createOrderCard(order: TrackedOrder): string {
       <div class="order-amount">${amount}</div>
       <div class="order-meta">
         <span class="order-id">#${order.orderId}</span>
-        <span class="order-status ${statusClass}">${statusText}</span>
+        <span class="order-status" style="background: ${statusMeta.bgColor}; color: ${statusMeta.textColor};">
+          ${statusMeta.label}
+        </span>
       </div>
     </div>
   `;

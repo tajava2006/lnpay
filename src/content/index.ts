@@ -6,6 +6,21 @@ import { transitionOrderWithRetry } from '../shared/state-machine';
 import { isTargetOrder, extractAmount, extractProductName, isPaid } from '../shared/filter';
 import type { CoupangOrderData } from '../shared/types';
 
+/**
+ * __NEXT_DATA__ 스크립트가 나타날 때까지 대기
+ * Next.js 앱에서 DOM 로드 후에도 스크립트가 파싱되기까지 시간이 걸릴 수 있음
+ */
+async function waitForNextData(maxAttempts = 20, interval = 100): Promise<HTMLElement | null> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const script = document.getElementById('__NEXT_DATA__');
+    if (script) {
+      return script;
+    }
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+  return null;
+}
+
 async function fetchOrderData() {
   // 1. 현재 URL에서 orderId 추출
   const match = window.location.pathname.match(/\/order\/(\d+)/);
@@ -16,10 +31,10 @@ async function fetchOrderData() {
   const orderId: string = match[1];
   console.log('[Web Parser] Order ID:', orderId);
 
-  // 2. __NEXT_DATA__에서 buildId 추출
-  const nextDataScript = document.getElementById('__NEXT_DATA__');
+  // 2. __NEXT_DATA__가 나타날 때까지 대기 (최대 2초)
+  const nextDataScript = await waitForNextData();
   if (!nextDataScript) {
-    console.error('[Web Parser] __NEXT_DATA__ not found');
+    console.warn('[Web Parser] __NEXT_DATA__ not found after waiting');
     return;
   }
 

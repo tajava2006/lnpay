@@ -23,7 +23,7 @@
     {
       "matches": ["https://mc.coupang.com/ssr/desktop/order/*"],
       "js": ["src/content/index.ts"],
-      "run_at": "document_start"
+      "run_at": "document_idle"
     }
   ],
   "host_permissions": ["https://mc.coupang.com/*"],

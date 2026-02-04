@@ -56,6 +56,21 @@ Chrome Extension Manifest V3 API를 사용한다.
 - `eval()`, `innerHTML` 직접 사용 금지
 - 민감 정보(API 키 등)는 코드에 하드코딩 금지
 
+### VI. Nostr Protocol
+
+탈중앙화 통신 프로토콜 Nostr를 사용한다.
+- 모든 사용자 간 통신은 Nostr 이벤트를 통해 수행
+- 라이브러리: `nostr-tools` (latest)
+- 개인키는 안전하게 저장 (chrome.storage.local, 암호화 권장)
+- 릴레이 연결 실패 시 graceful degradation 처리
+- Nostr 관련 코드는 `src/shared/nostr/` 디렉토리에 모듈화
+
+## System Context
+
+이 레포지토리는 "사줘 트래커" 시스템의 **고객용 앱**이다.
+- 전체 시스템 아키텍처: `../ARCHITECTURE.md` 참조
+- 관련 레포: `sponsor/` (후원자용), `admin/` (관리자용)
+
 ## Technology Stack
 
 - **Language**: TypeScript 5.x
@@ -64,6 +79,7 @@ Chrome Extension Manifest V3 API를 사용한다.
 - **Testing**: Vitest
 - **Linting**: ESLint + Prettier
 - **Target**: Chrome 120+ (Manifest V3)
+- **Communication**: Nostr (nostr-tools 2.x)
 
 ## Development Workflow
 
@@ -78,4 +94,4 @@ Chrome Extension Manifest V3 API를 사용한다.
 - 원칙 수정 시 MAJOR 버전 변경 및 문서화 필수
 - 예외 상황 발생 시 해당 PR에 사유 명시
 
-**Version**: 1.0.0 | **Ratified**: 2026-01-28 | **Last Amended**: 2026-01-28
+**Version**: 1.1.0 | **Ratified**: 2026-01-28 | **Last Amended**: 2026-02-04

@@ -1,0 +1,791 @@
+{
+    "pageProps": {
+        "domains": {
+            "abtest": {
+                "abTestMap": {
+                    "7421": "A",
+                    "45794": "A",
+                    "45796": "A",
+                    "49412": "B",
+                    "52504": "A",
+                    "55837": "A",
+                    "63038": "A",
+                    "79065": "A",
+                    "91861": "A",
+                    "95321": "A",
+                    "95740": "B"
+                }
+            },
+            "member": {
+                "memberId": "987654321",
+                "name": "장*민",
+                "membershipStatus": "MEMBER",
+                "blockStatus": "NON_BLOCK",
+                "loyalty": true,
+                "accountType": "UNKNOWN",
+                "corporateName": null,
+                "loyaltyLastJoinDate": 1759679592000,
+                "wowCardStatus": "NONE_WITHOUT_ALL_CARD",
+                "wowCardApplicationStatus": "NONE",
+                "userCreditCardStatus": "NONE_WITHOUT_ALL_CARD",
+                "membershipBenefits": {
+                    "WOW_CARD_ISSUANCE": {
+                        "attributeByKey": {},
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "CARD_ISSUANCE.WOW"
+                    },
+                    "UNKNOWN": {
+                        "attributeByKey": {},
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "WOW_PRICE.WOW_ONLY_COUPON"
+                    },
+                    "EATS": {
+                        "attributeByKey": {
+                            "potential.benefit.unit": "MONETARY",
+                            "potential.benefit.amount": "3000",
+                            "potential.benefit.amount.currency": "KRW"
+                        },
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "EATS"
+                    },
+                    "FAST_DELIVERY_DAWN": {
+                        "attributeByKey": {
+                            "potential.benefit.unit": "MONETARY",
+                            "potential.benefit.amount": "3000",
+                            "potential.benefit.amount.currency": "KRW"
+                        },
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "FAST_DELIVERY.DAWN"
+                    },
+                    "FAST_DELIVERY_PDD": {
+                        "attributeByKey": {},
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "FAST_DELIVERY.PDD"
+                    },
+                    "FAST_DELIVERY_SAME_DAY": {
+                        "attributeByKey": {
+                            "potential.benefit.unit": "MONETARY",
+                            "potential.benefit.amount": "3000",
+                            "potential.benefit.amount.currency": "KRW"
+                        },
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "FAST_DELIVERY.SAME_DAY"
+                    },
+                    "FREE_RETURN_FARFETCH": {
+                        "attributeByKey": {},
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "FREE_RETURN.FARFETCH"
+                    },
+                    "FREE_RETURN_ROCKET": {
+                        "attributeByKey": {
+                            "potential.benefit.unit": "MONETARY",
+                            "potential.benefit.amount": "5000",
+                            "potential.benefit.amount.currency": "KRW"
+                        },
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "FREE_RETURN.ROCKET"
+                    },
+                    "FREE_SHIPPING_ROCKET": {
+                        "attributeByKey": {
+                            "potential.benefit.unit": "MONETARY",
+                            "potential.benefit.amount": "3000",
+                            "potential.benefit.amount.currency": "KRW"
+                        },
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "FREE_SHIPPING.ROCKET"
+                    },
+                    "WOW": {
+                        "attributeByKey": {
+                            "membership.enablement.status": "MEMBER"
+                        },
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "MEMBERSHIP_ENABLEMENT.WOW"
+                    },
+                    "PLAY": {
+                        "attributeByKey": {},
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "PLAY"
+                    },
+                    "PURCHASE_FRESH": {
+                        "attributeByKey": {
+                            "potential.benefit.unit": "MONETARY",
+                            "potential.benefit.amount": "3000",
+                            "potential.benefit.amount.currency": "KRW"
+                        },
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "PURCHASE.FRESH"
+                    },
+                    "WOW_PRICE_BASIC": {
+                        "attributeByKey": {},
+                        "granted": true,
+                        "sourceMembershipIds": [
+                            "WOW"
+                        ],
+                        "type": "WOW_PRICE.BASIC"
+                    }
+                }
+            },
+            "order": {
+                "entity": {
+                    "entities": {
+                        "123456789": {
+                            "orderId": 123456789,
+                            "memberId": "987654321",
+                            "title": "샌디스크 메모리 256기가, 1개",
+                            "orderedAt": 1770371936000,
+                            "hiddenOrder": false,
+                            "canHide": false,
+                            "orderTypeAttribute": {
+                                "gift": null,
+                                "telco": null,
+                                "relation": false,
+                                "rocketHomeFitting": false,
+                                "pickup": {
+                                    "pickupType": "NOT",
+                                    "pickupGroup": "NOT_SUPPORT",
+                                    "pickupBranch": {
+                                        "pickupBranchId": "",
+                                        "pickupBranchName": ""
+                                    }
+                                },
+                                "reOrderNudgeInfo": null
+                            },
+                            "canReview": false,
+                            "canReceiptWarrantyService": false,
+                            "canBulkAddToCart": false,
+                            "baseDeliveryPrice": 0,
+                            "chargeReceived": false,
+                            "remoteAreaDelivery": false,
+                            "remoteAreaDeliveryPrice": 0,
+                            "totalProductPrice": 27500,
+                            "payedCashableCoupangCash": false,
+                            "totalHeavyOrderFee": 0,
+                            "totalImportTax": 0,
+                            "orderCurrencyType": "KRW",
+                            "allCanceled": false,
+                            "allReceipted": false,
+                            "giftOrderOrNot": false,
+                            "giftCardOrderOrNot": false,
+                            "rocketHomeFittingOrderOrNot": false,
+                            "showPurchaseConfirmNotification": false,
+                            "deliveryGroupList": [
+                                {
+                                    "shipmentBoxId": "",
+                                    "invoiceNumber": "",
+                                    "invoiceStatus": "NON_TRACKING",
+                                    "selfService": {
+                                        "allCanceledInDeliveryBox": false,
+                                        "cancelReturnBundleId": null,
+                                        "nonTrackingSelfService": false,
+                                        "universalFlowTrigger": false,
+                                        "cancelFlowTrigger": true,
+                                        "returnableDay": 40,
+                                        "freshReturnableDay": 7,
+                                        "canContactVendor": true,
+                                        "canContactDeliveryMan": false,
+                                        "showDeliveryTracking": false,
+                                        "doubleCheckCReturnRiskPolicy": false,
+                                        "vendorFlexVendorName": null,
+                                        "canChangeOrderDeliveryDate": false,
+                                        "canManualDeliveryComplete": false
+                                    },
+                                    "groupStatus": {
+                                        "paymentExpiredAt": 1770458336000,
+                                        "status": "WAIT_PAYMENT",
+                                        "notPayed": true
+                                    },
+                                    "pddMessage": {
+                                        "message": "2/10(화) 도착 예정",
+                                        "description": null,
+                                        "highlightLevel": 0
+                                    },
+                                    "enableWeekendDelivery": true,
+                                    "allOOS": false,
+                                    "allReceipted": false,
+                                    "canceledByPaymentError": false,
+                                    "delayedDelivery": false,
+                                    "twoHourDelivery": false,
+                                    "slackDelivery": false,
+                                    "estimatedDeliveryDate": 1770735599000,
+                                    "promisedDeliveryDate": 1770735599000,
+                                    "deliveredDate": null,
+                                    "rocketHomeFittingReturnDate": null,
+                                    "deliveryCompany": null,
+                                    "rocketMerchantV2": false,
+                                    "vendor": {
+                                        "vendorName": "eldxzckvjlczx",
+                                        "vendorId": "y87tyg*YTYFG",
+                                        "businessNumber": "238947",
+                                        "repPhoneNum": "+298374932",
+                                        "repPersonName": "kevin low",
+                                        "repAddr2": "234",
+                                        "repAddr1": "CHINA",
+                                        "overseasVendor": false,
+                                        "coupang": false,
+                                        "thirdParty": true
+                                    },
+                                    "productList": [
+                                        {
+                                            "productId": 8989914168,
+                                            "vendorItemId": 3478598347,
+                                            "vendorItemPackageId": -1,
+                                            "itemId": 27698423134,
+                                            "productName": "샌디스크 메모리 256기가",
+                                            "vendorItemName": "샌디스크 메모리 256기가, 1개",
+                                            "quantity": 1,
+                                            "quantityInBox": 0,
+                                            "unitPrice": 27500,
+                                            "discountedUnitPrice": 22950,
+                                            "combinedUnitPrice": 22950,
+                                            "badgeImageType": "NONE",
+                                            "badgeImageUrl": null,
+                                            "extraBadgeImageType": "NONE",
+                                            "extraBadgeImageUrl": null,
+                                            "imagePath": "",
+                                            "divisionType": "GOODS",
+                                            "cancelReturnBundleId": null,
+                                            "cancelReturnStatus": null,
+                                            "partialCanceled": false,
+                                            "allCanceled": false,
+                                            "allReceipted": false,
+                                            "cancelQuantity": 0,
+                                            "oosCancelQuantity": 0,
+                                            "cancelReceiptQuantity": 0,
+                                            "returnReceiptQuantity": 0,
+                                            "partialOOS": false,
+                                            "allOOS": false,
+                                            "exchanged": false,
+                                            "exchangeId": null,
+                                            "returnReceipted": false,
+                                            "disableMoveToSDP": false,
+                                            "disableSingleItemAddCart": false,
+                                            "canAddCart": true,
+                                            "bulkAddToCartTargetItem": true,
+                                            "digital": false,
+                                            "tradeIn": false,
+                                            "tradeInProgram": "",
+                                            "hasTradeInFundedPrice": false,
+                                            "modelNo": null,
+                                            "itemModelId": null,
+                                            "itemSeparated": false,
+                                            "skuSeparated": false,
+                                            "skuSeparatedFirst": false,
+                                            "offerCondition": null,
+                                            "productType": "NORMAL",
+                                            "purchaseConfirmEnable": false,
+                                            "deliveryMethod": null,
+                                            "exchangeSummary": null,
+                                            "importTax": 0,
+                                            "extraMessages": [],
+                                            "warrantyServiceReceiptId": null,
+                                            "digitalProductId": null,
+                                            "subscriptionItem": false,
+                                            "subscriptionDescription": null,
+                                            "searchMatchingProduct": false,
+                                            "freebie": false,
+                                            "brandInfo": null,
+                                            "selectedTradeInPreviewModelId": null,
+                                            "farfetchProduct": false,
+                                            "telcoDevice": false,
+                                            "relationInfo": {
+                                                "relationList": [],
+                                                "relationType": "NONE",
+                                                "primaryRelationTargetVID": null,
+                                                "partialReturnable": false,
+                                                "partialExchangeable": false,
+                                                "relationKey": null
+                                            },
+                                            "warranty": false,
+                                            "warrantyTargetProductName": "",
+                                            "esgRecycleNotice": false,
+                                            "exchangeRelation": null,
+                                            "bundleInfo": null,
+                                            "showPurchaseProof": false
+                                        }
+                                    ],
+                                    "thirdPartyDomestic": true,
+                                    "coupangGlobal": false,
+                                    "inhouseDeliver": false,
+                                    "logisticsType": "MERCHANT",
+                                    "coupangGlobalCountry": "NONE",
+                                    "isReship": false,
+                                    "divisionType": "GOODS",
+                                    "thirdPL": false,
+                                    "productGroupType": "SELLER",
+                                    "vendorItemIdsString": "9879823479",
+                                    "deliveryDone": false
+                                }
+                            ],
+                            "deliveryCancelBundleList": [],
+                            "couponGroupList": [],
+                            "travelGroupList": [],
+                            "deliveryDestination": {
+                                "zipCode": "2342354",
+                                "address": "제주도",
+                                "addressMain": "제주도",
+                                "addressDetail": "108동 304호",
+                                "coolerBagRequested": false,
+                                "showModify": true,
+                                "addressModifyType": "CAN_MODIFY_ADDRESS",
+                                "shippingMessage": {
+                                    "changeable": false,
+                                    "normalMessage": "문 앞",
+                                    "dawnMessage": "문 앞 (자유 출입가능)",
+                                    "preferenceType": "NORMAL"
+                                },
+                                "addressLabel": null,
+                                "deliveryTip": null,
+                                "addressSnapshotId": null,
+                                "deliveryAddressEditableStatus": true
+                            },
+                            "bundleReceiptList": [
+                                {
+                                    "importTax": {
+                                        "importTaxCase": "NOT_CLEARED",
+                                        "coupangGlobalCountry": "NONE",
+                                        "vendorItemIdList": [],
+                                        "estimatedPriceEx": null,
+                                        "beforeCancelPriceEx": null,
+                                        "beforeCustomsClearancePriceEx": null,
+                                        "collectedAt": null,
+                                        "collectedPriceEx": null,
+                                        "calculatedOverCollectedRefundPriceEx": null,
+                                        "overCollectedRefundPriceEx": null,
+                                        "refundedPriceEx": null
+                                    },
+                                    "vendorItems": [
+                                        {
+                                            "vendorItemId": 3478598347,
+                                            "vendorItemName": "샌디스크 메모리 256기가, 1개",
+                                            "quantity": 1,
+                                            "unitPrice": 27500,
+                                            "heavyOrderFee": 0,
+                                            "tariffQuotaRequired": false
+                                        }
+                                    ],
+                                    "vendorItemIds": [
+                                        3478598347
+                                    ],
+                                    "shippingFee": 0,
+                                    "remoteAreaShippingFee": 0,
+                                    "remoteAreaShipping": false,
+                                    "bundleImportTax": 0,
+                                    "currencyType": "KRW"
+                                }
+                            ],
+                            "hasCoupangCashExchangeable": false,
+                            "redeemWithCoupangCash": false,
+                            "orderAsyncPayment": {
+                                "status": "NONE",
+                                "finalProgress": false,
+                                "progressStatus": false,
+                                "repaymentCutOffTime": null,
+                                "repaymentReasonCode": "NONE",
+                                "repaymentReasonMessage": null,
+                                "systemRetry": false,
+                                "deliveryType": "DELIVERY_AFTER_PAYMENT",
+                                "requiredManualRepayment": false,
+                                "temporarilyUnavailablePaymentSystem": false
+                            },
+                            "needRecover": false,
+                            "giftWrappingAttribute": {
+                                "giftWrapping": false,
+                                "giftWrappingPrice": null,
+                                "giftWrappingCancelPrice": null
+                            },
+                            "paymentReceiptInfo": {
+                                "vendorIds": [
+                                    "A01616568"
+                                ],
+                                "overseaVendorIds": [],
+                                "paymentReceiptVisible": true,
+                                "allOverseasProduct": false,
+                                "hasOverseasProduct": false
+                            },
+                            "wowCardRewardCash": 0,
+                            "forwardTradeIn": null,
+                            "samsungFti": false,
+                            "showEInvoice": false,
+                            "showMarketPlaceEguiMsg": false,
+                            "orderItemLevelTradeIn": false,
+                            "installmentDetail": null,
+                            "eguiInvoiceNumber": null
+                        }
+                    },
+                    "ids": [
+                        123456789
+                    ],
+                    "hiddenOrderIds": [],
+                    "partial": false
+                },
+                "list": {
+                    "loading": false,
+                    "error": null,
+                    "activeOrderId": 123456789,
+                    "currentOrderListIds": [],
+                    "prevRequest": [],
+                    "orderPagination": {},
+                    "freshFirstOrderId": null,
+                    "requestTimeMap": {}
+                }
+            },
+            "payment": {
+                "ids": [
+                    123456789
+                ],
+                "entities": {
+                    "123456789": {
+                        "orderId": 123456789,
+                        "mainPayType": "VCNT",
+                        "notPayedPayment": {
+                            "expirationDate": 1770458336000,
+                            "bankName": "농협은행",
+                            "bankCode": "BK11",
+                            "accountNumber": "79014990131620",
+                            "depositor": "쿠팡",
+                            "depositPrice": 22950
+                        },
+                        "payedPayment": {
+                            "cardPayment": null,
+                            "gpCardPayment": null,
+                            "phonePayment": null,
+                            "realtimeBankTransferPayment": null,
+                            "virtualAccountPayment": {
+                                "bankName": "농협은행",
+                                "payed": true,
+                                "payedPrice": 0,
+                                "refundPrice": null
+                            },
+                            "rocketBankPayment": null,
+                            "rocketBalancePayment": null,
+                            "rocketPhonePayment": null,
+                            "rocketCardPayment": null,
+                            "internationalCardPayment": null,
+                            "coupangCashPayment": null,
+                            "couponPayment": {
+                                "payedPrice": 4550,
+                                "refundPrice": null
+                            },
+                            "payLaterPayment": null,
+                            "applepayPayment": null,
+                            "linepayPayment": null,
+                            "cashOnDeliveryPayment": null,
+                            "creditCardInstantDiscountPayment": null,
+                            "instantDiscount": {
+                                "discountType": "UNKNOWN",
+                                "discountAmount": 0
+                            }
+                        },
+                        "rewardCash": null,
+                        "slackRewardPrice": 0,
+                        "paymentWaiting": false,
+                        "paidAt": 1770371936000,
+                        "billingDate": null,
+                        "totalPayedAmount": 0,
+                        "totalOrderAmount": 22950,
+                        "totalCancelAmount": 0,
+                        "totalLaterPayAmount": 0,
+                        "oneTouchPaid": false,
+                        "wowBenefit": {
+                            "wowBenefitTypes": [],
+                            "instantDiscountPrice": 0,
+                            "quantityDiscountCouponPrice": 0,
+                            "amountDiscountCouponPrice": 0,
+                            "creditCardInstantDiscountPrice": 0
+                        },
+                        "asyncPayment": {
+                            "status": "NONE",
+                            "finalProgress": false,
+                            "progressStatus": false,
+                            "repaymentCutOffTime": null,
+                            "repaymentReasonCode": "NONE",
+                            "repaymentReasonMessage": null,
+                            "systemRetry": false,
+                            "deliveryType": "DELIVERY_AFTER_PAYMENT",
+                            "requiredManualRepayment": false,
+                            "temporarilyUnavailablePaymentSystem": false
+                        },
+                        "notRocketWithPgPayment": true,
+                        "giftWrappingAttribute": {
+                            "giftWrapping": false,
+                            "giftWrappingPrice": null,
+                            "giftWrappingCancelPrice": null
+                        },
+                        "postPurchaseWowDiscount": false,
+                        "payed": false
+                    }
+                },
+                "loading": false,
+                "error": null
+            }
+        },
+        "ui": {
+            "page": {
+                "referer": "https://mc.coupang.com/ssr/desktop/order/list",
+                "features": {
+                    "TW_allow_address_change": true,
+                    "mycoupang_address_validation": false,
+                    "mycoupang_address_read": false,
+                    "allow_exchange_delivery_address_change": true,
+                    "benefits_migration_my_coupang": false,
+                    "mycoupang_cf_add_to_cart_logic_change": true,
+                    "cancellation_price_change_warning": true,
+                    "change_rocket_install_winions_schedule": true,
+                    "change_validation_for_delivery_pdd_description": true,
+                    "consent_change_cx_display_period_thank_you_tc": false,
+                    "synchronize_consent_between_signup_mycoupang": true,
+                    "contact_us_fix": false,
+                    "EE_CO_APP_LOGIN_SOCIAL": false,
+                    "corrected_delivery_parity": true,
+                    "debug": false,
+                    "add-csrf-inquiry-to-mycoupang": false,
+                    "delivery_destination_migration": true,
+                    "TW_delivery_preference_allow": true,
+                    "delivery_preference_update": true,
+                    "mycoupang_delivery_private_data_cache_control": true,
+                    "delivery_tip_removed": false,
+                    "disable_faqlist_link": false,
+                    "disable_recently_viewed_menu": true,
+                    "disable_recently_viewed_menu_rlux": true,
+                    "mycoupang_disable_reship": false,
+                    "tc_parity_mycoupang_in_flight": true,
+                    "EE_CO_MAS_REGULATORY": false,
+                    "EE_CO_LOCALIZATION_FEATURE_TW_ONLY": false,
+                    "enable_wow_benefit_free_shipping": true,
+                    "enable_blaze_mvp_feature": true,
+                    "enable_blaze_mvp_feature_wow_customer": true,
+                    "keep_disparity_blaze_new_badge": false,
+                    "enable_wow_benefit_post_mvp": true,
+                    "EE_CO_CX_TRADE_IN": true,
+                    "mycoupang_fm_return": false,
+                    "enable_contact_vendor_form": false,
+                    "enable_ios_thankyou_nudge_fix": true,
+                    "merge_active_content_orders": false,
+                    "enable_multiple_parcels_return_phase_2": false,
+                    "enable_orderbox_press_styles": false,
+                    "enable_order_ownership_validation": true,
+                    "returnPhotosFlowFeatureFlag": false,
+                    "enable_secondary_region": false,
+                    "enable_shopping_voucher_warning": false,
+                    "mycoupang_use_creturn_expiredate": false,
+                    "enable_wow_benefit_cashback": true,
+                    "enable_wow_benefit_eats": true,
+                    "enable_wow_benefit_fresh": true,
+                    "Global_WOW_Card_FF": true,
+                    "enable_wow_benefit_wow_promotion": true,
+                    "enable_wow_membership": true,
+                    "mycoupang_app_error_propagation": true,
+                    "uf_exchange_action_renaming": false,
+                    "tc_use_server_value_for_exposure_address_edit_btn": true,
+                    "extend_wow_post_purchase_discount_to_3P": true,
+                    "mycoupang_external_api_validation_check": true,
+                    "mycoupang_faq_phase_2": false,
+                    "farfetch_duties_drawback": false,
+                    "EE_CO_FARFETCH_IN_RLUX": true,
+                    "mycoupang_flow_selfservice_rules_log": true,
+                    "forward_destination_delivery_address_change": true,
+                    "global_ccid_installment_web_parity": false,
+                    "tc_ga4_gtm_web": false,
+                    "han_book_notice": true,
+                    "HideReceiverPhoneNumberInGiftOrder": false,
+                    "vi_resolution_size_120x120_mycoupang": true,
+                    "incident-31514-cooler-bag-masking-show": true,
+                    "mycoupang_validation_of_invoice_resend_button": true,
+                    "mycoupang_kakao_sdk_async_handling": true,
+                    "keep_disparity_blaze_cancel_return_refund_policy": false,
+                    "tc_parity_mc_37_language_setting": false,
+                    "low_asp_suppression": false,
+                    "membership_loyalty_migration": false,
+                    "loyalty_api_migration": true,
+                    "multiple_parcel_return_enabled": true,
+                    "mycoupang_lingo_english_message": true,
+                    "mycoupang_lingo": true,
+                    "mycoupang_lingo_hardcode_notice": true,
+                    "mycoupang_lingo_language_setting": true,
+                    "mycoupang_on_web_request_returns": false,
+                    "mycoupang_remove_faq_survey_etc": true,
+                    "mycoupang_wowcard_cashback_fix_monthly_reward_tc": false,
+                    "order_list_delete_order": false,
+                    "mycoupang_pii_single_write_log": true,
+                    "mycoupang_ppe_shiptrack_logic_change": true,
+                    "tc_parity_mycoupang_addressbook_web": true,
+                    "parity_mycoupang_contact_address_collapsed": true,
+                    "parity_mycoupang_contact_inquiry_editable": true,
+                    "parity_mycoupang_disabled_contact_24": false,
+                    "parity_discount_coupon": true,
+                    "parity_enable_contact_main": true,
+                    "tc_parity_feature_flag_is_alive": true,
+                    "tc_parity_mclp_coupay_money": true,
+                    "tc_parity_mclp_menu_as": false,
+                    "tc_parity_mclp_menu_address_entry": false,
+                    "EE_CO_MKT_AFF_ENTRY": false,
+                    "tc_parity_mclp_menu_coupang_cash": false,
+                    "tc_parity_mclp_menu_coupang_cash_gift_card": true,
+                    "tc_parity_mclp_menu_coupang_cash_gift_card_point": true,
+                    "tc_parity_mclp_menu_coupay": true,
+                    "parity_mc_menu_display": false,
+                    "tc_parity_mclp_menu_fbi": false,
+                    "tc_parity_mclp_menu": false,
+                    "tc_parity_mclp_menu_fresh_bag": true,
+                    "tc_parity_mclp_menu_fresh_bag_instruction": true,
+                    "tc_parity_mclp_menu_gift_box": true,
+                    "tc_parity_mclp_menu_payment": true,
+                    "tc_parity_mclp_menu_reward_program": false,
+                    "tc_parity_mclp_menu_rocket_wow": false,
+                    "tc_parity_mclp_menu_sns": true,
+                    "tc_parity_mclp_menu_setting": false,
+                    "tc_parity_mclp_menu_wow_card": false,
+                    "tc_parity_mc_3_manage_info": false,
+                    "tc_parity_order_detail_hide_view_receipt_button_if_COD": false,
+                    "parity_order_list": false,
+                    "parity_mycoupang_ship_track_company_invoice": true,
+                    "parity_mycoupang_ship_track_show_ads": true,
+                    "pii_mask_flag": true,
+                    "mycoupang_pii_tokenize": true,
+                    "pii_voucher_banner": true,
+                    "csnps_ppe_score_enable_flag": true,
+                    "product_details_full_cancel": true,
+                    "product_details_return_fix": true,
+                    "mycoupang_received_gift_display_condition": false,
+                    "reco_secondary_region": false,
+                    "reco_unfinished_journey": false,
+                    "redirect_to_thank_you_page": false,
+                    "mc_refund_return_policy_1": false,
+                    "resolution_center_mycoupang": false,
+                    "resolution_center_tech_launch_mycoupang": true,
+                    "retail_faq_self_service_button_mycoupang": true,
+                    "mycoupang_return_contact_logic_change": true,
+                    "return_risk_control": false,
+                    "mycoupang_returnable_over_day_after_order_complete": true,
+                    "rlux_mycoupang_block_interaction_of_3p": false,
+                    "rocket_merchat_v2_exchange_plus": true,
+                    "tc_member_biometric_login": false,
+                    "tc_my_coupang_on_web_my_account": false,
+                    "tc_mycoupang_on_web_cre_tabs": false,
+                    "tc_my_coupang_on_web_cs": false,
+                    "tc_my_coupang_on_web_orders": false,
+                    "tc_mycoupang_on_web_return_policy": false,
+                    "shipping_promotion_coupon_cx_update": false,
+                    "tc_ty_wow_confidential_for_existing_wow": true,
+                    "tc_fm_as_default_3p_delivery_company": false,
+                    "trial_replacement_region_switch": true,
+                    "image_upload_required": true,
+                    "cross_check_reasoncode_faultType": true,
+                    "mycoupang_wow_membership_check": true,
+                    "mycoupang_write_active_customer": true,
+                    "xchange_plus_feature_flag": true
+                },
+                "featuresOriginalValues": {},
+                "query": {
+                    "orderId": "123456789"
+                },
+                "pageName": "order_detail",
+                "loggingDomain": "MyCoupang"
+            }
+        },
+        "context": {
+            "isLogin": true,
+            "loginUri": "/login/sso/login.pang",
+            "timestamp": 1770371980030,
+            "sorryUser": false,
+            "needRedirectLogin": false,
+            "isApp": false,
+            "isPC": true,
+            "coupangAppHeader": "",
+            "device": {
+                "deviceType": "UNKNOWN",
+                "clientType": "PC_WEB",
+                "appVersion": "",
+                "osVersion": "",
+                "ttiSection": "browser",
+                "networkState": "",
+                "platformType": "web",
+                "androidAppInstallMarketInfo": "com.android.vending"
+            },
+            "useMobileWebLayout": true,
+            "usePCWebLayout": true,
+            "useLnbOnlyPCWebLayout": false,
+            "useSimplePCWebLayout": false,
+            "abTestMap": {
+                "7421": "A",
+                "45794": "A",
+                "45796": "A",
+                "49412": "B",
+                "52504": "A",
+                "55837": "A",
+                "63038": "A",
+                "79065": "A",
+                "91861": "A",
+                "95321": "A",
+                "95740": "B"
+            },
+            "coupangVdc": "VDC_KR",
+            "revampPcTemplate": true,
+            "webAppTypeA": false,
+            "webAppTypeAV2": false,
+            "isTypeAUseSubHeader": false,
+            "isTypeAUseLnbMenu": false,
+            "rLux": false,
+            "isGlobalApp": false,
+            "site": {
+                "site": "KR",
+                "locale": "ko-KR",
+                "timezone": "+09:00",
+                "currency": {
+                    "code": "KRW",
+                    "digitFraction": 0,
+                    "unit": "원",
+                    "layout": "price-unit"
+                }
+            },
+            "defaultLang": "ko-KR",
+            "currentLang": "ko-KR",
+            "i18nNameSpace": [
+                "common",
+                "order"
+            ],
+            "frontScale": 1,
+            "ssrTime": {}
+        },
+        "timestamp": 1770371980030,
+        "_sentryTraceData": "93b38fe972a248628f317a7a5be2faa9-53a3a68911197977-0",
+        "_sentryBaggage": "sentry-environment=production,sentry-public_key=48ba128316037d286190e437ec31d285,sentry-release=3ab1555ae895750e64fe4f8a13bdb5fd8f010f3c,sentry-sample_rate=0.01,sentry-sampled=false,sentry-trace_id=93b38fe972a248628f317a7a5be2faa9"
+    },
+    "__N_SSP": true
+}

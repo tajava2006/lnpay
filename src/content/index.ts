@@ -3,7 +3,7 @@
 
 import { getOrder, createOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
-import { isTargetOrder, extractAmount, extractProductName, isPaid } from '../shared/filter';
+import { isTargetOrder, extractAmount, extractProductName, extractVirtualAccount, isPaid } from '../shared/filter';
 import type { CoupangOrderData } from '../shared/types';
 
 /**
@@ -91,10 +91,17 @@ async function fetchOrderData() {
   } else {
     // 신규 주문 - 대상인지 확인 후 저장
     if (isTargetOrder(orderData, orderId)) {
+      const virtualAccount = extractVirtualAccount(orderData, orderId);
+      if (!virtualAccount) {
+        console.error('[Web Parser] Failed to extract virtual account info');
+        return;
+      }
+
       const newOrder = await createOrder({
         orderId,
         productName: extractProductName(orderData, orderId),
         amount: extractAmount(orderData, orderId),
+        virtualAccount,
       });
 
       console.log('[Web Parser] New order saved:', newOrder);

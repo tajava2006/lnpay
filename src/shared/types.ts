@@ -38,9 +38,28 @@ export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 // 추적 주문 (Tracked Order)
 // ============================================================
 
+/**
+ * 무통장입금 계좌 정보
+ */
+export interface VirtualAccountInfo {
+  /** 은행명 (e.g., "농협은행") */
+  bankName: string;
+  /** 은행 코드 (e.g., "BK11") */
+  bankCode: string;
+  /** 계좌번호 */
+  accountNumber: string;
+  /** 예금주 (e.g., "쿠팡") */
+  depositor: string;
+  /** 입금해야 할 금액 */
+  depositPrice: number;
+  /** 입금 기한 (timestamp) */
+  expirationDate: number;
+}
+
 export interface TrackedOrder {
   orderId: string;
   productName: string;
+  /** 총 결제 금액 (쿠폰 할인 등 적용 전) */
   amount: number;
   status: OrderStatus;
   createdAt: number;
@@ -51,6 +70,12 @@ export interface TrackedOrder {
    * 상태 전이 시 현재 버전과 일치해야만 업데이트 가능
    */
   version: number;
+
+  /**
+   * 무통장입금 계좌 정보
+   * 후원자에게 전달할 입금 정보
+   */
+  virtualAccount: VirtualAccountInfo;
 
   /**
    * 사줘 요청을 수락한 사람의 ID (claimed 상태일 때)
@@ -93,6 +118,43 @@ export type TransitionError =
 // 쿠팡 API 응답 타입
 // ============================================================
 
+/**
+ * 무통장입금 미결제 정보 (notPayedPayment)
+ * mainPayType === "VCNT" 일 때만 존재
+ */
+export interface CoupangNotPayedPayment {
+  /** 입금 기한 (timestamp) */
+  expirationDate: number;
+  /** 은행명 */
+  bankName: string;
+  /** 은행 코드 */
+  bankCode: string;
+  /** 계좌번호 */
+  accountNumber: string;
+  /** 예금주 */
+  depositor: string;
+  /** 입금해야 할 금액 */
+  depositPrice: number;
+}
+
+/**
+ * 결제 완료 정보 (payedPayment)
+ */
+export interface CoupangPayedPayment {
+  cardPayment: unknown | null;
+  virtualAccountPayment: {
+    bankName: string;
+    payed: boolean;
+    payedPrice: number;
+    refundPrice: number | null;
+  } | null;
+  couponPayment: {
+    payedPrice: number;
+    refundPrice: number | null;
+  } | null;
+  // 기타 결제 수단들은 필요 시 추가
+}
+
 export interface CoupangOrderData {
   pageProps: {
     domains: {
@@ -103,14 +165,19 @@ export interface CoupangOrderData {
             {
               orderId: number;
               title: string;
+              totalProductPrice: number;
+              allCanceled: boolean;
               deliveryGroupList: Array<{
                 groupStatus: {
-                  status: string;
+                  status: string; // "WAIT_PAYMENT", "PAYMENT_COMPLETE" 등
                   notPayed: boolean;
+                  paymentExpiredAt?: number;
                 };
                 productList: Array<{
                   productName: string;
+                  unitPrice: number;
                   discountedUnitPrice: number;
+                  quantity: number;
                 }>;
               }>;
             }
@@ -122,16 +189,18 @@ export interface CoupangOrderData {
           string,
           {
             orderId: number;
+            /** 결제 수단: "VCNT" = 무통장입금, "CARD" = 카드 등 */
             mainPayType: string;
+            /** 이미 결제된 총 금액 */
             totalPayedAmount: number;
+            /** 총 주문 금액 */
+            totalOrderAmount: number;
+            /** 결제 완료 여부 */
             payed: boolean;
-            notPayedPayment: {
-              virtualAccountPayment?: {
-                bankName: string;
-                accountNumber: string;
-                paymentExpireDate: number;
-              };
-            } | null;
+            /** 미결제 정보 (무통장입금 시 계좌 정보 포함) */
+            notPayedPayment: CoupangNotPayedPayment | null;
+            /** 결제 완료 정보 */
+            payedPayment: CoupangPayedPayment | null;
           }
         >;
       };

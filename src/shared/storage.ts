@@ -5,7 +5,7 @@
  * 상태 전이는 state-machine.ts를 통해 수행
  */
 
-import type { TrackedOrder } from './types';
+import type { TrackedOrder, VirtualAccountInfo } from './types';
 
 const STORAGE_KEY = 'orders';
 
@@ -36,13 +36,14 @@ export async function getOrder(orderId: string): Promise<TrackedOrder | null> {
 /**
  * 신규 주문 생성
  *
- * @param orderData 주문 기본 정보 (orderId, productName, amount)
+ * @param orderData 주문 기본 정보 (orderId, productName, amount, virtualAccount)
  * @returns 생성된 주문 객체
  */
 export async function createOrder(orderData: {
   orderId: string;
   productName: string;
   amount: number;
+  virtualAccount: VirtualAccountInfo;
 }): Promise<TrackedOrder> {
   const orders = await getAllOrders();
 
@@ -57,6 +58,7 @@ export async function createOrder(orderData: {
     orderId: orderData.orderId,
     productName: orderData.productName,
     amount: orderData.amount,
+    virtualAccount: orderData.virtualAccount,
     status: 'detected', // 초기 상태
     version: 1, // 초기 버전
     createdAt: now,

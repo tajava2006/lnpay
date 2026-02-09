@@ -1,28 +1,11 @@
 {
-  "name": "web-parser",
-  "version": "0.0.1",
+  "name": "sajwo-tracker",
   "private": true,
-  "type": "module",
+  "description": "사줘 트래커 - 쿠팡 무통장입금 주문 추적 및 대리결제 요청 시스템",
   "scripts": {
-    "dev": "vite build --watch",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "vitest",
-    "lint": "eslint src --ext .ts,.tsx",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
-    "generate:icons": "node scripts/generate-icons.js"
-  },
-  "devDependencies": {
-    "@crxjs/vite-plugin": "^2.0.0-beta.28",
-    "@types/chrome": "^0.0.287",
-    "eslint": "^9.18.0",
-    "prettier": "^3.4.2",
-    "sharp": "^0.33.5",
-    "typescript": "^5.7.3",
-    "vite": "^6.0.7",
-    "vitest": "^2.1.8"
-  },
-  "dependencies": {
-    "nostr-tools": "^2.23.0"
+    "dev:customer": "pnpm --filter @sajwo-tracker/customer dev",
+    "build:customer": "pnpm --filter @sajwo-tracker/customer build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
   }
 }

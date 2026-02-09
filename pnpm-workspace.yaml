@@ -1,1 +1,4 @@
-onlyBuiltDependencies: sharp esbuild
+packages:
+  - 'customer'
+  - 'sponsor'
+  - 'admin'

@@ -3,7 +3,7 @@
 
 import { getOrder, createOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
-import { isTargetOrder, extractAmount, extractProductName, extractVirtualAccount, isPaid } from '../shared/filter';
+import { isTargetOrder, extractAmount, extractProductName, extractVirtualAccount, isPaid, isCancelled } from '../shared/filter';
 import type { CoupangOrderData } from '../shared/types';
 
 /**
@@ -78,12 +78,31 @@ async function fetchOrderData() {
     // 이미 추적 중인 주문 - 상태 변경 확인
     console.log('[Web Parser] Existing order found:', existingOrder);
 
-    // selected 상태에서 입금 완료 확인 (클레이머를 선택한 상태)
-    if (existingOrder.status === 'selected' && isPaid(orderData, orderId)) {
+    // 최종 상태면 더 이상 확인할 필요 없음
+    if (existingOrder.status === 'paid' || existingOrder.status === 'cancelled') {
+      console.log('[Web Parser] Order already in final state:', existingOrder.status);
+      return;
+    }
+
+    // 취소 감지 (모든 비-최종 상태에서 가능)
+    if (isCancelled(orderData, orderId)) {
+      const result = await transitionOrderWithRetry(orderId, 'cancelled');
+      if (result.success) {
+        console.log('[Web Parser] Order cancelled detected');
+      } else {
+        console.error('[Web Parser] Failed to transition to cancelled:', result.error);
+      }
+      return;
+    }
+
+    // 입금 완료 감지 (모든 비-최종 상태에서 가능)
+    if (isPaid(orderData, orderId)) {
       const result = await transitionOrderWithRetry(orderId, 'paid');
       if (result.success) {
-        console.log('[Web Parser] 🎉 조르기 성공! 그분이 사주셨군요!');
-        showSuccessNotification();
+        console.log('[Web Parser] 🎉 입금 완료 감지!');
+        if (existingOrder.status === 'selected') {
+          showSuccessNotification();
+        }
       } else {
         console.error('[Web Parser] Failed to transition to paid:', result.error);
       }

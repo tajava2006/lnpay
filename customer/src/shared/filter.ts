@@ -70,19 +70,30 @@ export function extractVirtualAccount(
 }
 
 /**
- * 주문이 입금 완료 상태인지 확인
+ * 주문이 취소된 상태인지 확인
+ *
+ * 쿠팡 데이터 특이사항: 취소된 무통장입금 주문도 payed === true로 내려옴.
+ * order entity의 allCanceled도 true가 되지만, payment entity의
+ * 금액 기반 판별이 더 일관적임.
+ * - totalCancelAmount === totalOrderAmount: 전체 취소
+ * - notPayedPayment === null: 결제 대기 정보 사라짐
  */
-export function isPaid(orderData: CoupangOrderData, orderId: string): boolean {
+export function isCancelled(orderData: CoupangOrderData, orderId: string): boolean {
   const payment = getPaymentEntity(orderData, orderId);
-  return payment?.payed === true;
+  if (!payment) return false;
+
+  return payment.totalCancelAmount > 0 && payment.totalCancelAmount === payment.totalOrderAmount;
 }
 
 /**
- * 주문이 취소된 상태인지 확인
- * TODO: 실제 취소 샘플 데이터 확보 후 정확한 조건 구현
+ * 주문이 입금 완료 상태인지 확인
+ *
+ * 주의: 쿠팡에서 취소된 주문도 payed === true 이므로
+ * 반드시 취소 여부를 먼저 확인해야 함
  */
-export function isCancelled(orderData: CoupangOrderData, orderId: string): boolean {
-  const order = getOrderEntity(orderData, orderId);
-  // allCanceled 필드 또는 groupStatus.status 확인 필요
-  return order?.allCanceled === true;
+export function isPaid(orderData: CoupangOrderData, orderId: string): boolean {
+  const payment = getPaymentEntity(orderData, orderId);
+  if (!payment) return false;
+
+  return payment.payed === true && !isCancelled(orderData, orderId);
 }

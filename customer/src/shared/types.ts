@@ -195,7 +195,9 @@ export interface CoupangOrderData {
             totalPayedAmount: number;
             /** 총 주문 금액 */
             totalOrderAmount: number;
-            /** 결제 완료 여부 */
+            /** 취소된 금액 (전체 취소 시 totalOrderAmount와 동일) */
+            totalCancelAmount: number;
+            /** 결제 완료 여부 (주의: 취소된 주문도 true가 됨!) */
             payed: boolean;
             /** 미결제 정보 (무통장입금 시 계좌 정보 포함) */
             notPayedPayment: CoupangNotPayedPayment | null;

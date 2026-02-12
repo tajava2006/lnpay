@@ -44,6 +44,7 @@ export async function createOrder(orderData: {
   productName: string;
   amount: number;
   virtualAccount: VirtualAccountInfo;
+  orderedAt: number;
 }): Promise<TrackedOrder> {
   const orders = await getAllOrders();
 
@@ -61,7 +62,7 @@ export async function createOrder(orderData: {
     virtualAccount: orderData.virtualAccount,
     status: 'detected', // 초기 상태
     version: 1, // 초기 버전
-    createdAt: now,
+    createdAt: orderData.orderedAt,
     updatedAt: now,
   };
 

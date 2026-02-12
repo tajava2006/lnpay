@@ -3,7 +3,7 @@
 
 import { getOrder, createOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
-import { isTargetOrder, extractAmount, extractProductName, extractVirtualAccount, isPaid, isCancelled } from '../shared/filter';
+import { isTargetOrder, extractAmount, extractProductName, extractVirtualAccount, extractOrderedAt, isPaid, isCancelled } from '../shared/filter';
 import type { CoupangOrderData } from '../shared/types';
 
 /**
@@ -121,6 +121,7 @@ async function fetchOrderData() {
         productName: extractProductName(orderData, orderId),
         amount: extractAmount(orderData, orderId),
         virtualAccount,
+        orderedAt: extractOrderedAt(orderData, orderId),
       });
 
       console.log('[Web Parser] New order saved:', newOrder);

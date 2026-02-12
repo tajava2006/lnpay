@@ -70,6 +70,14 @@ export function extractVirtualAccount(
 }
 
 /**
+ * 쿠팡 주문 시각 추출 (milliseconds timestamp)
+ */
+export function extractOrderedAt(orderData: CoupangOrderData, orderId: string): number {
+  const order = getOrderEntity(orderData, orderId);
+  return order?.orderedAt ?? Date.now();
+}
+
+/**
  * 주문이 취소된 상태인지 확인
  *
  * 쿠팡 데이터 특이사항: 취소된 무통장입금 주문도 payed === true로 내려옴.

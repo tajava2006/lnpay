@@ -62,6 +62,7 @@ export interface TrackedOrder {
   /** 총 결제 금액 (쿠폰 할인 등 적용 전) */
   amount: number;
   status: OrderStatus;
+  /** 쿠팡 주문 시각 (milliseconds timestamp) */
   createdAt: number;
   updatedAt: number;
 
@@ -95,6 +96,22 @@ export interface TrackedOrder {
 
 export interface StorageData {
   orders: Record<string, TrackedOrder>;
+}
+
+// ============================================================
+// Nostr 관련 타입
+// ============================================================
+
+/** chrome.storage.local에 저장되는 Nostr 키페어 (Uint8Array는 직렬화 불가하므로 number[] 사용) */
+export interface NostrKeypair {
+  secretKey: number[];
+  publicKey: string;
+}
+
+/** 캐싱된 릴레이 목록 */
+export interface CachedRelayList {
+  relays: string[];
+  fetchedAt: number;
 }
 
 // ============================================================
@@ -165,6 +182,7 @@ export interface CoupangOrderData {
             {
               orderId: number;
               title: string;
+              orderedAt: number;
               totalProductPrice: number;
               allCanceled: boolean;
               deliveryGroupList: Array<{

@@ -63,11 +63,31 @@
    └─> 쿠팡에서 입금 확인, 상태 업데이트
 ```
 
+### 릴레이 모델 (NIP-65 Outbox)
+
+```
+                    앱 pubkey의 kind 10002에서 read relay 파싱
+                                    │
+                                    ▼
+              ┌──────────────────────────────────────┐
+              │         App의 Read Relays             │
+              │  (wss://relay1.com, wss://relay2.com) │
+              └──────────────────────────────────────┘
+                    ▲                        │
+                    │                        │
+              Customer WRITE           Sponsor READ
+              (사줘 요청 발행)          (사줘 요청 구독)
+```
+
+- Admin이 앱 pubkey의 kind 10002 이벤트를 업데이트하면 릴레이 목록이 변경된다.
+- Customer는 10분마다 갱신하여 변경을 반영한다.
+- 이벤트 프로토콜 상세는 [PROTOCOL.md](PROTOCOL.md) 참조.
+
 ### 사용 라이브러리
 
 - **nostr-tools**: Nostr 프로토콜 구현 라이브러리
   - 버전: 2.23.0+
-  - 설치: `pnpm add nostr-tools`
+  - `nostr-tools/pure` (키 생성/서명), `nostr-tools/pool` (SimplePool)
 
 ## 각 앱별 역할
 
@@ -75,9 +95,28 @@
 
 - 쿠팡 주문 페이지 파싱 및 무통장입금 주문 감지
 - 주문 상태 관리 (상태 머신 기반)
-- Nostr를 통한 사줘 요청 발송
+- Nostr를 통한 사줘 요청 발송 (kind 30078 addressable event)
 - 클레이머 응답 수신 및 선택
 - 입금 완료 자동 감지
+
+#### Customer 모듈 구조
+
+```
+customer/src/
+  background/index.ts   - Nostr 초기화, 릴레이 갱신 알람, 메시지 핸들러
+  content/index.ts      - 쿠팡 페이지 파싱, 주문 감지
+  nostr/
+    constants.ts        - 앱 pubkey, kind 번호, 상수
+    keys.ts             - 키페어 생성/저장/조회
+    relays.ts           - NIP-65 릴레이 디스커버리, 캐싱
+    events.ts           - 사줘 요청 이벤트 빌드 (NIP-33, NIP-40)
+    publish.ts          - SimplePool 기반 브로드캐스트
+  shared/
+    types.ts            - TrackedOrder, 상태 전이 타입 등
+    storage.ts          - chrome.storage.local CRUD
+    state-machine.ts    - 상태 전이 (optimistic locking)
+    filter.ts           - 쿠팡 데이터 파싱
+```
 
 ### Sponsor App (후원자용)
 
@@ -105,13 +144,7 @@
 | 저장소 | chrome.storage.local |
 | 테스트 | Vitest |
 
-## 향후 계획
+## 관련 문서
 
-- [ ] DM (Direct Message) 기능 - 1:1 암호화 메시지
-- [ ] 다중 릴레이 지원
-- [ ] 평판 시스템
-- [ ] 결제 확인 자동화
-
----
-
-**Last Updated**: 2026-02-04
+- [PROTOCOL.md](PROTOCOL.md) - Nostr 이벤트 프로토콜 명세 (3개 앱 공통)
+- [TODO.md](TODO.md) - 향후 구현 계획

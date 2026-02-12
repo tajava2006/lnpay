@@ -95,7 +95,7 @@
 
 - 쿠팡 주문 페이지 파싱 및 무통장입금 주문 감지
 - 주문 상태 관리 (상태 머신 기반)
-- Nostr를 통한 사줘 요청 발송 (kind 30078 addressable event)
+- Nostr를 통한 사줘 요청 발송 (kind 30402 NIP-99 Classified Listing)
 - 클레이머 응답 수신 및 선택
 - 입금 완료 자동 감지
 

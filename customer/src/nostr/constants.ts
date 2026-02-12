@@ -1,8 +1,11 @@
 /** 사줘 트래커 앱 pubkey - NIP-65 릴레이 디스커버리에 사용 */
 export const APP_PUBKEY = '658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5';
 
-/** 사줘 요청 이벤트 kind (NIP-78 Application-specific data, addressable) */
-export const SAJWO_REQUEST_KIND = 30078;
+/** 사줘 요청 이벤트 kind (NIP-99 Classified Listing, addressable) */
+export const SAJWO_REQUEST_KIND = 30402;
+
+/** 클라이언트 식별 태그 (다른 30402 이벤트와 구분) */
+export const CLIENT_TAG = 'sajwo-tracker';
 
 /** chrome.storage.local 키 */
 export const STORAGE_KEYS = {

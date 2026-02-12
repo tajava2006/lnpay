@@ -45,12 +45,12 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 
 ### Kind
 
-**30078** (NIP-78 Application-specific data, addressable event)
+**30402** (NIP-99 Classified Listing, addressable event)
 
 ### Addressable Event 주소 체계
 
 ```
-30078:<customer-pubkey>:<orderId>
+30402:<customer-pubkey>:<orderId>
 ```
 
 같은 pubkey + kind + d-tag 조합의 이벤트는 최신 것만 유지된다.
@@ -61,48 +61,49 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 | Tag | Value | 설명 |
 |-----|-------|------|
 | `d` | orderId | NIP-33 addressable identifier |
-| `status` | `detected` \| `requested` \| `claimed` \| `selected` \| `paid` \| `cancelled` | 현재 주문 상태 |
-| `amount` | 금액 (string), `KRW` | 입금해야 할 금액과 통화 |
+| `status` | `active` \| `sold` | NIP-99 리스팅 상태. 내부 상태(detected~selected)는 `active`, 최종 상태(paid/cancelled)는 `sold` |
+| `price` | 금액 (string), `KRW` | NIP-99 가격 태그. 입금해야 할 금액과 통화 |
 | `expiration` | unix timestamp (seconds) | NIP-40: 무통장입금 기한. 이 시각 이후 릴레이가 이벤트를 삭제할 수 있음 |
+| `t` | `sajwo-tracker` | 클라이언트 식별. 다른 30402 이벤트와 구분하기 위한 필수 태그 |
+| `p` | 앱 pubkey | 어드민이 `#p` 필터로 모든 이벤트를 조회할 수 있도록 |
+
+### 상태 매핑
+
+| 내부 상태 (TrackedOrder.status) | Nostr status 태그 | 의미 |
+|------|------|------|
+| `detected` | `active` | 아직 사줘 요청 발송 안 함 (보통 이벤트 발행 전) |
+| `requested` | `active` | 사줘 요청 중 |
+| `claimed` | `active` | 누군가 사주겠다고 응답 |
+| `selected` | `active` | 후원자 선택 완료 |
+| `paid` | `sold` | 입금 완료 (최종) |
+| `cancelled` | `sold` | 주문 취소 (최종) |
+
+세부 상태(claimed, selected 등)는 요청자의 내부 DB에서 관리하며, Nostr 이벤트에는 노출하지 않는다.
+후원자는 `active`인 리스팅만 보면 되고, 세부 상태는 1:1 통신(추후 구현)을 통해 전달한다.
 
 ### Content
 
-`TrackedOrder` 객체의 JSON 문자열:
+빈 문자열 (`""`). 모든 정보는 태그로 전달된다.
 
-```json
-{
-  "orderId": "123456789",
-  "productName": "샌디스크 메모리 256기가, 1개",
-  "amount": 22950,
-  "status": "requested",
-  "createdAt": 1770371936000,
-  "updatedAt": 1770372000000,
-  "version": 2,
-  "virtualAccount": {
-    "bankName": "농협은행",
-    "bankCode": "BK11",
-    "accountNumber": "79140000000000",
-    "depositor": "쿠팡",
-    "depositPrice": 22950,
-    "expirationDate": 1770458336000
-  }
-}
-```
+계좌 정보(bankName, accountNumber 등)는 후원자가 선택(selected)된 이후
+해당 후원자에게만 별도 전달한다 (DM 등, 추후 구현).
 
 ### 이벤트 예시
 
 ```json
 {
-  "kind": 30078,
+  "kind": 30402,
   "pubkey": "<customer-pubkey>",
   "created_at": 1770372000,
   "tags": [
     ["d", "123456789"],
-    ["status", "requested"],
-    ["amount", "22950", "KRW"],
+    ["status", "active"],
+    ["price", "22950", "KRW"],
+    ["t", "sajwo-tracker"],
+    ["p", "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
     ["expiration", "1770458336"]
   ],
-  "content": "{\"orderId\":\"123456789\",\"productName\":\"샌디스크 메모리 256기가, 1개\",\"amount\":22950,...}",
+  "content": "",
   "id": "<event-id>",
   "sig": "<signature>"
 }
@@ -110,21 +111,37 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 
 ## 구독 필터 (Sponsor/Admin용)
 
-### 활성 사줘 요청 목록 조회
+### Sponsor: 활성 사줘 요청 목록
 
 ```json
 {
-  "kinds": [30078],
-  "#status": ["requested"]
+  "kinds": [30402],
+  "#t": ["sajwo-tracker"],
+  "#status": ["active"]
 }
 ```
 
-### 특정 유저의 모든 주문 조회
+`#t` 필터로 사줘 트래커 이벤트만 조회한다. 다른 NIP-99 Classified Listing과 섞이지 않는다.
+
+### Admin: 모든 사줘 이벤트
 
 ```json
 {
-  "kinds": [30078],
-  "authors": ["<customer-pubkey>"]
+  "kinds": [30402],
+  "#t": ["sajwo-tracker"],
+  "#p": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"]
+}
+```
+
+`#p` 필터로 앱 pubkey가 태깅된 모든 이벤트를 조회한다 (active + sold 모두).
+
+### 특정 유저의 주문 조회
+
+```json
+{
+  "kinds": [30402],
+  "authors": ["<customer-pubkey>"],
+  "#t": ["sajwo-tracker"]
 }
 ```
 
@@ -132,7 +149,7 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 
 ```json
 {
-  "kinds": [30078],
+  "kinds": [30402],
   "authors": ["<customer-pubkey>"],
   "#d": ["123456789"]
 }
@@ -153,4 +170,4 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 | NIP-33 | Addressable event (kind 30000-40000, d-tag) |
 | NIP-40 | Expiration Timestamp (`['expiration', timestamp]`) |
 | NIP-65 | Relay List Metadata (kind 10002, outbox model) |
-| NIP-78 | Application-specific data (kind 30078) |
+| NIP-99 | Classified Listing (kind 30402, status/price 태그) |

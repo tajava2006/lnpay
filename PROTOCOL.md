@@ -111,17 +111,20 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 
 ## 구독 필터 (Sponsor/Admin용)
 
-### Sponsor: 활성 사줘 요청 목록
+### Sponsor: 사줘 요청 목록
 
 ```json
 {
   "kinds": [30402],
-  "#t": ["sajwo-tracker"],
-  "#status": ["active"]
+  "#t": ["sajwo-tracker"]
 }
 ```
 
 `#t` 필터로 사줘 트래커 이벤트만 조회한다. 다른 NIP-99 Classified Listing과 섞이지 않는다.
+
+> **주의**: `#status` 같은 다중 문자 태그 필터는 NIP-01에서 릴레이 인덱싱을 보장하지 않는다.
+> 한 글자 태그(`#t`, `#p`, `#d` 등)만 모든 릴레이에서 동작이 보장되므로,
+> `status` 필터링은 클라이언트 사이드에서 수행한다 (active → 표시, sold → 삭제).
 
 ### Admin: 모든 사줘 이벤트
 
@@ -157,8 +160,11 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 
 ## 유저 키 관리
 
-- Customer 앱 설치 시 `generateSecretKey()`로 랜덤 키페어 생성
-- `chrome.storage.local`에 저장 (secret key는 `number[]`로 변환)
+- Customer/Sponsor 모두 최초 실행 시 `generateSecretKey()`로 랜덤 키페어 생성
+- Secret key는 `number[]`로 변환하여 영구저장소에 보관
+  - Customer: `chrome.storage.local` (Chrome Extension API)
+  - Sponsor: `localStorage` (Web Storage API)
+- 키 관리 로직은 `@sajwo-tracker/shared`의 `ensureKeypair(storage)`로 통일
 - NIP-07/NIP-46 등 기존 Nostr 로그인 시스템은 사용하지 않음
 - 일반 유저 대상이므로 Nostr의 존재를 노출하지 않음
 

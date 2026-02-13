@@ -39,6 +39,14 @@ async function renderDashboard() {
       }
     });
   });
+
+  // 사줘 요청 버튼 이벤트 연결
+  tbody.querySelectorAll('.btn-publish').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const orderId = (e.target as HTMLElement).dataset.orderId;
+      if (orderId) publishOrder(orderId, e.target as HTMLButtonElement);
+    });
+  });
 }
 
 function createTableRow(order: TrackedOrder): string {
@@ -46,6 +54,7 @@ function createTableRow(order: TrackedOrder): string {
   const amount = order.amount > 0 ? `${order.amount.toLocaleString()}원` : '금액 미확인';
   const date = new Date(order.createdAt).toLocaleDateString('ko-KR');
   const orderUrl = `https://mc.coupang.com/ssr/desktop/order/${order.orderId}`;
+  const showPublish = order.status === 'detected';
 
   return `
     <tr>
@@ -61,10 +70,36 @@ function createTableRow(order: TrackedOrder): string {
       </td>
       <td>${date}</td>
       <td class="actions">
+        ${showPublish ? `<button class="btn btn-publish" data-order-id="${order.orderId}">사줘</button>` : ''}
         <button class="btn btn-danger btn-delete" data-order-id="${order.orderId}">삭제</button>
       </td>
     </tr>
   `;
+}
+
+async function publishOrder(orderId: string, btn: HTMLButtonElement) {
+  btn.disabled = true;
+  btn.textContent = '요청 중...';
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'PUBLISH_ORDER',
+      orderId,
+    });
+
+    if (response?.success) {
+      btn.textContent = '완료';
+      // storage 변경 리스너가 리렌더를 트리거함
+    } else {
+      btn.textContent = '실패';
+      btn.disabled = false;
+      console.error('[Dashboard] Publish failed:', response?.error);
+    }
+  } catch (err) {
+    btn.textContent = '실패';
+    btn.disabled = false;
+    console.error('[Dashboard] Publish error:', err);
+  }
 }
 
 // 전체 삭제 버튼

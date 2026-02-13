@@ -5,6 +5,8 @@
   "scripts": {
     "dev:customer": "pnpm --filter @sajwo-tracker/customer dev",
     "build:customer": "pnpm --filter @sajwo-tracker/customer build",
+    "dev:sponsor": "pnpm --filter @sajwo-tracker/sponsor dev",
+    "build:sponsor": "pnpm --filter @sajwo-tracker/sponsor build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint"
   }

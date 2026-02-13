@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Event } from 'nostr-tools/core';
-import { getRelays } from '../nostr/relays';
+import { getRelays } from '@sajwo-tracker/shared';
+import { storage } from '../nostr/storage';
 import { subscribeSajwoRequests } from '../nostr/subscribe';
 import { getAllOrders, upsertOrder, deleteOrder } from '../storage';
 import { parseEvent, type SajwoRequest } from '../types';
@@ -39,7 +40,7 @@ export function OrderBook() {
 
     async function init() {
       try {
-        const relays = await getRelays();
+        const relays = await getRelays(storage);
         if (cancelled) return;
 
         const cleanup = subscribeSajwoRequests(relays, {

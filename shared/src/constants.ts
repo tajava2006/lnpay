@@ -7,11 +7,10 @@ export const SAJWO_REQUEST_KIND = 30402;
 /** 클라이언트 식별 태그 (다른 30402 이벤트와 구분) */
 export const CLIENT_TAG = 'sajwo-tracker';
 
-/** localStorage 키 */
+/** 영구저장소 키 (키페어, 릴레이 캐시) */
 export const STORAGE_KEYS = {
   KEYPAIR: 'nostr:keys',
   RELAYS: 'nostr:relays',
-  ORDERS: 'nostr:orders',
 } as const;
 
 /** 릴레이 리스트 갱신 주기 (밀리초) */

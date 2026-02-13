@@ -1,10 +1,11 @@
-import { STORAGE_KEYS } from './nostr/constants';
 import type { SajwoRequest } from './types';
+
+const ORDERS_KEY = 'nostr:orders';
 
 type OrderMap = Record<string, SajwoRequest>;
 
 function loadOrders(): OrderMap {
-  const stored = localStorage.getItem(STORAGE_KEYS.ORDERS);
+  const stored = localStorage.getItem(ORDERS_KEY);
   if (!stored) return {};
 
   try {
@@ -15,7 +16,7 @@ function loadOrders(): OrderMap {
 }
 
 function saveOrders(orders: OrderMap): void {
-  localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
 }
 
 /** 저장된 모든 주문을 반환한다. */

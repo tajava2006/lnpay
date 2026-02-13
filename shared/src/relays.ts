@@ -1,12 +1,12 @@
 import { SimplePool } from 'nostr-tools/pool';
 import {
-  STORAGE_KEYS,
   APP_PUBKEY,
   DISCOVERY_RELAYS,
   FALLBACK_RELAYS,
-  RELAY_REFRESH_INTERVAL_MINUTES,
+  STORAGE_KEYS,
+  RELAY_REFRESH_INTERVAL_MS,
 } from './constants';
-import type { CachedRelayList } from '../shared/types';
+import type { StorageAdapter, CachedRelayList } from './types';
 
 /**
  * 앱 pubkey의 NIP-65 (kind 10002) 이벤트에서 READ 릴레이 목록을 가져온다.
@@ -26,8 +26,6 @@ async function fetchAppReadRelays(): Promise<string[]> {
       return FALLBACK_RELAYS;
     }
 
-    // NIP-65: ['r', url] 또는 ['r', url, 'read'] 또는 ['r', url, 'write']
-    // marker 없으면 read+write, 'read'면 read relay
     const readRelays = event.tags
       .filter((tag): tag is [string, string, ...string[]] =>
         tag[0] === 'r' && typeof tag[1] === 'string'
@@ -51,26 +49,22 @@ async function fetchAppReadRelays(): Promise<string[]> {
 }
 
 /**
- * 캐시된 릴레이 목록을 반환한다. stale이면 자동 갱신.
+ * 캐시된 릴레이 목록을 반환한다. stale이면(10분 초과) 자동 갱신.
  */
-export async function getRelays(): Promise<string[]> {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.RELAYS);
-  const cached = result[STORAGE_KEYS.RELAYS] as CachedRelayList | undefined;
+export async function getRelays(storage: StorageAdapter): Promise<string[]> {
+  const cached = await storage.get<CachedRelayList>(STORAGE_KEYS.RELAYS);
 
-  const maxAge = RELAY_REFRESH_INTERVAL_MINUTES * 60 * 1000;
-  const isStale = !cached || Date.now() - cached.fetchedAt > maxAge;
-
-  if (!isStale && cached.relays.length > 0) {
+  if (cached && cached.relays.length > 0 && Date.now() - cached.fetchedAt < RELAY_REFRESH_INTERVAL_MS) {
     return cached.relays;
   }
 
-  return refreshRelays();
+  return refreshRelays(storage);
 }
 
 /**
  * 릴레이 목록을 네트워크에서 새로 조회하고 캐시를 업데이트한다.
  */
-export async function refreshRelays(): Promise<string[]> {
+export async function refreshRelays(storage: StorageAdapter): Promise<string[]> {
   const relays = await fetchAppReadRelays();
 
   const cached: CachedRelayList = {
@@ -78,7 +72,7 @@ export async function refreshRelays(): Promise<string[]> {
     fetchedAt: Date.now(),
   };
 
-  await chrome.storage.local.set({ [STORAGE_KEYS.RELAYS]: cached });
+  await storage.set(STORAGE_KEYS.RELAYS, cached);
   console.log('[Nostr] Relay list cached:', relays);
 
   return relays;

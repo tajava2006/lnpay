@@ -23,6 +23,7 @@
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "@sajwo-tracker/shared": "workspace:*",
     "nostr-tools": "^2.23.0"
   }
 }

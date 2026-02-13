@@ -1,14 +1,13 @@
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import { STORAGE_KEYS } from './constants';
-import type { NostrKeypair } from '../shared/types';
+import type { StorageAdapter, NostrKeypair } from './types';
 
 /**
  * 유저의 Nostr 키페어를 가져오거나, 없으면 새로 생성한다.
- * 설치 후 최초 1회만 생성되며, 이후 chrome.storage.local에서 불러온다.
+ * 최초 1회만 생성되며, 이후 영구저장소에서 불러온다.
  */
-export async function ensureKeypair(): Promise<NostrKeypair> {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.KEYPAIR);
-  const existing = result[STORAGE_KEYS.KEYPAIR] as NostrKeypair | undefined;
+export async function ensureKeypair(storage: StorageAdapter): Promise<NostrKeypair> {
+  const existing = await storage.get<NostrKeypair>(STORAGE_KEYS.KEYPAIR);
 
   if (existing?.secretKey && existing?.publicKey) {
     return existing;
@@ -22,20 +21,20 @@ export async function ensureKeypair(): Promise<NostrKeypair> {
     publicKey: pk,
   };
 
-  await chrome.storage.local.set({ [STORAGE_KEYS.KEYPAIR]: keypair });
+  await storage.set(STORAGE_KEYS.KEYPAIR, keypair);
   console.log('[Nostr] New keypair generated, pubkey:', pk);
 
   return keypair;
 }
 
 /** 서명용 secret key (Uint8Array) 반환 */
-export async function getSecretKey(): Promise<Uint8Array> {
-  const keypair = await ensureKeypair();
+export async function getSecretKey(storage: StorageAdapter): Promise<Uint8Array> {
+  const keypair = await ensureKeypair(storage);
   return new Uint8Array(keypair.secretKey);
 }
 
 /** 유저의 public key (hex string) 반환 */
-export async function getUserPubkey(): Promise<string> {
-  const keypair = await ensureKeypair();
+export async function getUserPubkey(storage: StorageAdapter): Promise<string> {
+  const keypair = await ensureKeypair(storage);
   return keypair.publicKey;
 }

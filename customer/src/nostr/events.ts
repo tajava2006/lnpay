@@ -1,6 +1,6 @@
 import { finalizeEvent } from 'nostr-tools/pure';
 import type { EventTemplate, VerifiedEvent } from 'nostr-tools/core';
-import { SAJWO_REQUEST_KIND, APP_PUBKEY, CLIENT_TAG } from './constants';
+import { SAJWO_REQUEST_KIND, APP_PUBKEY, CLIENT_TAG } from '@sajwo-tracker/shared';
 import type { TrackedOrder } from '../shared/types';
 
 /**

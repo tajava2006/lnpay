@@ -3,8 +3,8 @@
 // 2. 사줘 요청 이벤트 발행 (메시지 기반)
 // 3. SPA 네비게이션 감지 (쿠팡)
 
-import { ensureKeypair } from '../nostr/keys';
-import { refreshRelays } from '../nostr/relays';
+import { ensureKeypair, refreshRelays } from '@sajwo-tracker/shared';
+import { storage } from '../nostr/storage';
 import { publishOrder } from '../nostr/publish';
 import { getOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
@@ -17,10 +17,10 @@ import { RELAY_REFRESH_ALARM, RELAY_REFRESH_INTERVAL_MINUTES } from '../nostr/co
 chrome.runtime.onInstalled.addListener(async () => {
   console.log('[Background] Extension installed');
 
-  const keypair = await ensureKeypair();
+  const keypair = await ensureKeypair(storage);
   console.log('[Background] User pubkey:', keypair.publicKey);
 
-  await refreshRelays();
+  await refreshRelays(storage);
 
   chrome.alarms.create(RELAY_REFRESH_ALARM, {
     periodInMinutes: RELAY_REFRESH_INTERVAL_MINUTES,
@@ -46,7 +46,7 @@ chrome.runtime.onStartup.addListener(async () => {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === RELAY_REFRESH_ALARM) {
     console.log('[Background] Refreshing relay list...');
-    await refreshRelays();
+    await refreshRelays(storage);
   }
 });
 
@@ -82,7 +82,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, _sender, sendR
   }
 
   if (message.type === 'GET_PUBKEY') {
-    ensureKeypair().then((kp) => sendResponse({ publicKey: kp.publicKey }));
+    ensureKeypair(storage).then((kp) => sendResponse({ publicKey: kp.publicKey }));
     return true;
   }
 });

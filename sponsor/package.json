@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sajwo-tracker/shared": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "nostr-tools": "^2.23.0"

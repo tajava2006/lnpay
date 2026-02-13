@@ -99,22 +99,6 @@ export interface StorageData {
 }
 
 // ============================================================
-// Nostr 관련 타입
-// ============================================================
-
-/** chrome.storage.local에 저장되는 Nostr 키페어 (Uint8Array는 직렬화 불가하므로 number[] 사용) */
-export interface NostrKeypair {
-  secretKey: number[];
-  publicKey: string;
-}
-
-/** 캐싱된 릴레이 목록 */
-export interface CachedRelayList {
-  relays: string[];
-  fetchedAt: number;
-}
-
-// ============================================================
 // 상태 전이 관련 타입
 // ============================================================
 

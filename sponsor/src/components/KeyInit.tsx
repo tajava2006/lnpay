@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ensureKeypair } from '../nostr/keys';
+import { ensureKeypair } from '@sajwo-tracker/shared';
+import { storage } from '../nostr/storage';
 
 interface Props {
   children: ReactNode;
@@ -13,8 +14,7 @@ export function KeyInit({ children }: Props) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    ensureKeypair();
-    setReady(true);
+    ensureKeypair(storage).then(() => setReady(true));
   }, []);
 
   if (!ready) {

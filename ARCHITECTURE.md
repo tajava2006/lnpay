@@ -178,23 +178,44 @@ React 19 + TypeScript SPA로, 별도 웹사이트에서 동작한다.
 - Nostr에서 사줘 요청 실시간 구독 (SimplePool.subscribeMany)
 - 오더북 형태로 활성 요청 목록 표시 (만료된 것 자동 필터링)
 - localStorage에 주문 영구 캐시 (즉시 로드 후 백그라운드 동기화)
-- sold 상태 이벤트 수신 시 주문 삭제
+- sold 상태 이벤트 수신 시 주문 자동 삭제
+- 남은 시간 매초 자동 갱신
+
+#### Sponsor 데이터 흐름
+
+```
+Nostr 릴레이
+    │
+    ▼
+nostr/service.ts  ── 구독, 이벤트 수신 ──→  order-store.ts  ←── localStorage
+                                                │
+                                          useSyncExternalStore
+                                                │
+                                                ▼
+                                          OrderBook.tsx  →  OrderCard.tsx
+```
+
+구독 서비스(nostr/service.ts)가 릴레이에서 이벤트를 수신하면 반응형 스토어(order-store.ts)에 반영한다.
+스토어는 localStorage에 영구 저장하면서 리스너에게 변경을 통지한다.
+UI 컴포넌트는 `useSyncExternalStore`로 스토어를 구독하여 변경 즉시 리렌더한다.
+구독 서비스와 UI가 분리되어 있으므로, 컴포넌트 마운트/언마운트와 무관하게 구독이 유지된다.
 
 #### Sponsor 모듈 구조
 
 ```
 sponsor/src/
   main.tsx              - React 엔트리
-  App.tsx               - 레이아웃 (KeyInit → OrderBook)
+  App.tsx               - 레이아웃 (KeyInit → AppContent), 구독 서비스 시작
   types.ts              - SajwoRequest 타입, parseEvent()
-  storage.ts            - localStorage 주문 CRUD (ORDERS_KEY)
+  order-store.ts        - 반응형 주문 스토어 (localStorage + useSyncExternalStore)
   nostr/
     storage.ts          - createWebStorage() 싱글턴
-    subscribe.ts        - 사줘 요청 구독 (active/sold 분기)
+    subscribe.ts        - SimplePool 구독 래퍼 (active/sold 분기)
+    service.ts          - 구독 서비스 (릴레이 → order-store 연결)
   components/
     KeyInit.tsx         - 키페어 보장 래퍼 (투명하게 처리)
-    OrderBook.tsx       - 오더북 메인 (캐시 로드 → 구독)
-    OrderCard.tsx       - 개별 요청 카드 (금액, 남은 시간)
+    OrderBook.tsx       - 오더북 (스토어 구독 + 1초 타이머)
+    OrderCard.tsx       - 개별 요청 카드 (금액, 남은 시간 실시간 갱신)
 ```
 
 ### Admin App (관리자용)

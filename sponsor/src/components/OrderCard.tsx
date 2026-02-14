@@ -2,23 +2,27 @@ import type { SajwoRequest } from '../types';
 
 interface Props {
   request: SajwoRequest;
+  now: number;
 }
 
-function formatTimeLeft(expiresAt: number | null): string {
+function formatTimeLeft(expiresAt: number | null, now: number): string {
   if (!expiresAt) return '기한 없음';
 
-  const now = Math.floor(Date.now() / 1000);
   const diff = expiresAt - now;
 
   if (diff <= 0) return '만료됨';
 
   const hours = Math.floor(diff / 3600);
   const minutes = Math.floor((diff % 3600) / 60);
+  const seconds = diff % 60;
 
   if (hours > 0) {
     return `${hours}시간 ${minutes}분 남음`;
   }
-  return `${minutes}분 남음`;
+  if (minutes > 0) {
+    return `${minutes}분 ${seconds}초 남음`;
+  }
+  return `${seconds}초 남음`;
 }
 
 function formatDate(unixSeconds: number): string {
@@ -30,10 +34,10 @@ function formatDate(unixSeconds: number): string {
   });
 }
 
-export function OrderCard({ request }: Props) {
-  const timeLeft = formatTimeLeft(request.expiresAt);
+export function OrderCard({ request, now }: Props) {
+  const timeLeft = formatTimeLeft(request.expiresAt, now);
   const isUrgent = request.expiresAt
-    ? request.expiresAt - Math.floor(Date.now() / 1000) < 3600
+    ? request.expiresAt - now < 3600
     : false;
 
   return (

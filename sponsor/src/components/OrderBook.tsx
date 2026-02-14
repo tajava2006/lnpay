@@ -1,79 +1,28 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Event } from 'nostr-tools/core';
-import { getRelays } from '@sajwo-tracker/shared';
-import { storage } from '../nostr/storage';
-import { subscribeSajwoRequests } from '../nostr/subscribe';
-import { getAllOrders, upsertOrder, deleteOrder } from '../storage';
-import { parseEvent, type SajwoRequest } from '../types';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
+import type { SajwoRequest } from '../types';
 import { OrderCard } from './OrderCard';
 
 export function OrderBook() {
-  // localStorage에서 즉시 로드하여 초기값으로 사용
-  const [orders, setOrders] = useState<Record<string, SajwoRequest>>(() => getAllOrders());
-  const [syncing, setSyncing] = useState(true);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const orders = useSyncExternalStore(subscribe, getSnapshot);
+  const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
 
-  const handleActive = useCallback((event: Event) => {
-    const parsed = parseEvent(event);
-    if (!parsed) return;
-
-    if (upsertOrder(parsed)) {
-      setOrders((prev) => ({ ...prev, [parsed.orderId]: parsed }));
-    }
-  }, []);
-
-  const handleSold = useCallback((event: Event) => {
-    const dTag = event.tags.find(t => t[0] === 'd')?.[1];
-    if (!dTag) return;
-
-    if (deleteOrder(dTag)) {
-      setOrders((prev) => {
-        const next = { ...prev };
-        delete next[dTag];
-        return next;
-      });
-    }
-  }, []);
+  // 매초 갱신하여 남은 시간 자동 업데이트 + 만료 주문 자동 제거
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function init() {
-      try {
-        const relays = await getRelays(storage);
-        if (cancelled) return;
-
-        const cleanup = subscribeSajwoRequests(relays, {
-          onActive: handleActive,
-          onSold: handleSold,
-          onEose: () => {
-            if (!cancelled) setSyncing(false);
-          },
-        });
-
-        cleanupRef.current = cleanup;
-      } catch (err) {
-        console.error('[OrderBook] Subscription failed:', err);
-        if (!cancelled) setSyncing(false);
-      }
-    }
-
-    init();
-
-    return () => {
-      cancelled = true;
-      cleanupRef.current?.();
-    };
-  }, [handleActive, handleSold]);
-
-  const now = Math.floor(Date.now() / 1000);
+    const interval = setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 만료되지 않은 요청만 필터링, created_at 내림차순
   const activeRequests = Object.values(orders)
-    .filter((r) => !r.expiresAt || r.expiresAt > now)
-    .sort((a, b) => b.createdAt - a.createdAt);
+    .filter((r: SajwoRequest) => !r.expiresAt || r.expiresAt > now)
+    .sort((a: SajwoRequest, b: SajwoRequest) => b.createdAt - a.createdAt);
 
-  if (activeRequests.length === 0 && syncing) {
+  if (activeRequests.length === 0 && !synced) {
     return <div style={styles.message}>릴레이에서 사줘 요청을 불러오는 중...</div>;
   }
 
@@ -83,10 +32,10 @@ export function OrderBook() {
 
   return (
     <div>
-      {syncing && <div style={styles.syncBadge}>동기화 중...</div>}
+      {!synced && <div style={styles.syncBadge}>동기화 중...</div>}
       <div style={styles.list}>
-        {activeRequests.map((request) => (
-          <OrderCard key={request.orderId} request={request} />
+        {activeRequests.map((request: SajwoRequest) => (
+          <OrderCard key={request.orderId} request={request} now={now} />
         ))}
       </div>
     </div>

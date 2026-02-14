@@ -6,6 +6,7 @@
  */
 
 import type { TrackedOrder, VirtualAccountInfo } from './types';
+import { isDeletable } from './order-states';
 
 const STORAGE_KEY = 'orders';
 
@@ -81,16 +82,28 @@ export async function saveOrder(order: TrackedOrder): Promise<void> {
 
 /**
  * 주문 삭제
+ * 상대방이 관여된 상태(claimed, selected)에서는 삭제 불가
  */
-export async function deleteOrder(orderId: string): Promise<void> {
+export async function deleteOrder(orderId: string): Promise<boolean> {
   const orders = await getAllOrders();
+  const order = orders[orderId];
+  if (!order) return false;
+  if (!isDeletable(order.status)) return false;
+
   delete orders[orderId];
   await setAllOrders(orders);
+  return true;
 }
 
 /**
  * 모든 주문 삭제
+ * 삭제 불가능한 주문(claimed, selected)이 하나라도 있으면 전체 삭제 불가
  */
-export async function clearAllOrders(): Promise<void> {
+export async function clearAllOrders(): Promise<boolean> {
+  const orders = await getAllOrders();
+  const hasUndeletable = Object.values(orders).some(o => !isDeletable(o.status));
+  if (hasUndeletable) return false;
+
   await chrome.storage.local.remove(STORAGE_KEY);
+  return true;
 }

@@ -1,5 +1,5 @@
 import { getAllOrders, deleteOrder, clearAllOrders } from '../shared/storage';
-import { getStatusMeta, isFinalStatus } from '../shared/order-states';
+import { getStatusMeta, isFinalStatus, isDeletable } from '../shared/order-states';
 import type { TrackedOrder } from '../shared/types';
 
 async function renderDashboard() {
@@ -55,6 +55,7 @@ function createTableRow(order: TrackedOrder): string {
   const date = new Date(order.createdAt).toLocaleDateString('ko-KR');
   const orderUrl = `https://mc.coupang.com/ssr/desktop/order/${order.orderId}`;
   const showPublish = order.status === 'detected';
+  const canDelete = isDeletable(order.status);
 
   return `
     <tr>
@@ -71,7 +72,7 @@ function createTableRow(order: TrackedOrder): string {
       <td>${date}</td>
       <td class="actions">
         ${showPublish ? `<button class="btn btn-publish" data-order-id="${order.orderId}">사줘</button>` : ''}
-        <button class="btn btn-danger btn-delete" data-order-id="${order.orderId}">삭제</button>
+        ${canDelete ? `<button class="btn btn-danger btn-delete" data-order-id="${order.orderId}">삭제</button>` : ''}
       </td>
     </tr>
   `;
@@ -105,7 +106,10 @@ async function publishOrder(orderId: string, btn: HTMLButtonElement) {
 // 전체 삭제 버튼
 document.getElementById('clearAll')?.addEventListener('click', async () => {
   if (confirm('모든 주문을 삭제하시겠습니까?')) {
-    await clearAllOrders();
+    const deleted = await clearAllOrders();
+    if (!deleted) {
+      alert('거래 진행 중인 주문(클레임 접수/선택 완료)이 있어 전체 삭제할 수 없습니다.');
+    }
     renderDashboard();
   }
 });

@@ -113,6 +113,21 @@ export function isFinalStatus(status: OrderStatus): boolean {
 }
 
 /**
+ * 삭제 불가능한 상태 (상대방이 관여된 거래 진행 중)
+ * - claimed: 후원자가 사주겠다고 응답한 상태
+ * - selected: 후원자를 선택하여 거래가 확정된 상태
+ */
+const UNDELETABLE_STATUSES: ReadonlySet<OrderStatus> = new Set(['claimed', 'selected']);
+
+/**
+ * 주문 삭제 가능 여부 확인
+ * 상대방이 관여된 상태(claimed, selected)에서는 삭제 불가
+ */
+export function isDeletable(status: OrderStatus): boolean {
+  return !UNDELETABLE_STATUSES.has(status);
+}
+
+/**
  * 활성 상태 목록 (최종 상태가 아닌 것들)
  */
 export function getActiveStatuses(): OrderStatus[] {

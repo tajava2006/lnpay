@@ -1,0 +1,20 @@
+{
+  "name": "@sajwo-tracker/admin",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "emit": "tsx src/publish.ts",
+    "sold": "tsx src/sold.ts"
+  },
+  "dependencies": {
+    "@sajwo-tracker/shared": "workspace:*",
+    "nostr-tools": "^2.23.0",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  }
+}

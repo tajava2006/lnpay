@@ -2,13 +2,18 @@
 
 Customer, Sponsor, Admin 세 앱이 공통으로 참조하는 Nostr 이벤트 프로토콜 명세.
 
+## 시스템 개요
+
+비트코인으로 상품을 결제하고 싶은 Customer와, 거래소 없이 BTC를 매수하고 싶은 Sponsor를
+Nostr 릴레이를 통해 연결한다. Admin은 에스크로 서비스를 제공하여 거래의 안전성을 보장한다.
+
 ## 앱 Pubkey
 
 ```
 658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5
 ```
 
-이 pubkey는 사줘 트래커 시스템 전체를 식별하는 용도이며, 개인키는 Admin만 보유한다.
+이 pubkey는 사줘 트래커 시스템 전체를 식별하는 용도이며, 개인키는 Admin(에스크로)만 보유한다.
 유저(Customer, Sponsor)는 각자 랜덤 생성한 키페어를 사용한다.
 
 ## 릴레이 디스커버리 (NIP-65 Outbox Model)
@@ -79,14 +84,42 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 | `cancelled` | `sold` | 주문 취소 (최종) |
 
 세부 상태(claimed, selected 등)는 요청자의 내부 DB에서 관리하며, Nostr 이벤트에는 노출하지 않는다.
-후원자는 `active`인 리스팅만 보면 되고, 세부 상태는 1:1 통신(추후 구현)을 통해 전달한다.
+Sponsor는 `active`인 리스팅만 보면 되고, 세부 상태는 1:1 통신(추후 구현)을 통해 전달한다.
+
+### 클레임 흐름 (Sponsor → Admin → Customer)
+
+Sponsor의 클레임이 Customer에 직접 도달하지 않는다.
+Admin이 중간에서 Lightning 인바운드 유동성을 검증한 후에만 전달한다.
+
+```
+Sponsor                    Admin (에스크로)              Customer
+   │                          │                           │
+   │  ① 클레임 이벤트 발행     │                           │
+   │ ────────────────────────→│                           │
+   │                          │  ② 인바운드 유동성 검증     │
+   │                          │  (해당 금액의 BTC를        │
+   │                          │   수신할 수 있는가?)        │
+   │                          │                           │
+   │  [유동성 부족 시]          │                           │
+   │ ←─── 거절 통보 ──────────│                           │
+   │                          │                           │
+   │  [유동성 충분 시]          │                           │
+   │                          │  ③ 클레임 전달              │
+   │                          │──────────────────────────→│
+   │                          │                           │  ④ claimed 상태 전이
+```
+
+이 검증이 필요한 이유: Lightning Network는 채널 기반이므로 수신 측에 충분한
+인바운드 유동성(inbound liquidity)이 없으면 BTC를 받을 수 없다.
+유동성 없는 Sponsor가 클레임해봤자 거래가 완료될 수 없으므로 사전에 차단한다.
 
 ### Content
 
 빈 문자열 (`""`). 모든 정보는 태그로 전달된다.
 
-계좌 정보(bankName, accountNumber 등)는 후원자가 선택(selected)된 이후
-해당 후원자에게만 별도 전달한다 (DM 등, 추후 구현).
+계좌 정보(bankName, accountNumber 등)는 Sponsor가 선택(selected)된 이후
+해당 Sponsor에게만 별도 전달한다 (DM 등, 추후 구현).
+Lightning invoice 등 비트코인 결제 정보도 별도 채널로 전달한다.
 
 ### 이벤트 예시
 

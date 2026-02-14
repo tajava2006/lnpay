@@ -2,8 +2,51 @@
 
 ## 개요
 
-"사줘 트래커"는 쿠팡 무통장입금 주문을 추적하고, 다른 사람에게 대신 결제를 요청할 수 있는 시스템이다.
-탈중앙화 통신 프로토콜인 **Nostr**를 통해 사용자 간 메시지를 주고받는다.
+"사줘 트래커"는 **비트코인으로 상품을 결제하고 싶은 사람**(Customer)과,
+**거래소를 거치지 않고 비트코인을 P2P로 매수하고 싶은 사람**(Sponsor)을 이어주는 시스템이다.
+
+### 핵심 거래 구조
+
+```
+Customer                         Sponsor
+(비트코인으로 물건 사고 싶음)      (비트코인을 사고 싶음)
+         │                            │
+         │  ① 쿠팡 무통장입금 주문     │
+         │     → 사줘 요청 발행        │
+         │ ──────────────────────────→ │
+         │                            │
+         │  ② 사줄게 클레임            │
+         │ ←────────────────────────── │
+         │                            │
+         │  ③ 무통장입금 대신 결제      │
+         │         (KRW)       ───────→│──→ 쿠팡
+         │                            │
+         │  ④ 비트코인 전송 (Lightning) │
+         │ ──────────────────────────→ │
+         │       (BTC)                │
+```
+
+- Customer는 쿠팡 상품을 비트코인으로 결제하는 효과를 얻는다.
+- Sponsor는 거래소 없이 KRW → BTC 환전을 한다 (무통장입금 대행의 대가로 BTC 수령).
+- 양측 간 통신은 탈중앙화 프로토콜인 **Nostr**를 통해 이루어진다.
+
+### Admin의 에스크로 역할
+
+거래의 안전성을 보장하기 위해 **Admin이 에스크로 서비스**를 제공한다.
+
+Sponsor가 클레임을 보내면 이것이 바로 Customer에게 전달되지 않는다.
+먼저 Admin이 해당 Sponsor의 **Lightning 인바운드 유동성**을 검증한다.
+Lightning Network 특성상 수신 용량(inbound liquidity)이 부족하면 BTC를 받을 수 없으므로,
+유동성이 확인된 Sponsor의 클레임만 Customer에게 전달한다.
+
+```
+Sponsor ──클레임──→ Admin ──유동성 검증──→ Customer
+                     │
+                (인바운드 유동성 부족 시 거절)
+```
+
+이것이 상태 관리에 유한상태머신(FSM)과 optimistic locking을 도입한 이유이다.
+에스크로 거래이므로 상태 전이의 정확성과 원자성이 중요하다.
 
 ## 시스템 구성
 
@@ -18,7 +61,8 @@
    │ Customer │          │ Sponsor │          │  Admin  │
    │   App    │          │   App   │          │   App   │
    └─────────┘          └─────────┘          └─────────┘
-   Chrome Extension      React SPA            (미구현)
+   Chrome Extension      React SPA         에스크로 서비스
+   (BTC로 물건 구매)     (KRW→BTC 환전)     (유동성 검증 + 중재)
 ```
 
 ### 레포지토리 구조
@@ -31,17 +75,17 @@ sajwo-tracker/              ← pnpm workspace 루트
   PROTOCOL.md
   TODO.md
   shared/                   ← 3개 앱 공통 Nostr 모듈
-  customer/                 ← 고객용 Chrome Extension
-  sponsor/                  ← 후원자용 React SPA
-  admin/                    ← 관리자용 앱 (미구현)
+  customer/                 ← Customer용 Chrome Extension
+  sponsor/                  ← Sponsor용 React SPA
+  admin/                    ← Admin 에스크로 서비스 + CLI 도구
 ```
 
 | 폴더 | 설명 | 형태 | 대상 사용자 |
 |------|------|------|------------|
 | `shared/` | Nostr 공통 모듈 (키, 릴레이, 상수, 타입) | TypeScript 라이브러리 | - |
-| `customer/` | 사줘 요청을 보내는 고객용 앱 | Chrome Extension (MV3) | 물건을 사달라고 요청하는 사람 |
-| `sponsor/` | 사줘 요청을 받고 결제하는 후원자용 앱 | React SPA | 대신 결제해주는 사람 |
-| `admin/` | 시스템 관리자용 앱 | 미정 | 시스템 운영자 |
+| `customer/` | 쿠팡 무통장입금 주문 감지 + 사줘 요청 발행 | Chrome Extension (MV3) | 비트코인으로 물건을 사고 싶은 사람 |
+| `sponsor/` | 오더북에서 사줘 요청 확인 + 클레임 발행 | React SPA | 거래소 없이 BTC를 사고 싶은 사람 |
+| `admin/` | 에스크로 (유동성 검증, 중재) + CLI 테스트 도구 | Node.js CLI (현재) / 서비스 (향후) | 시스템 운영자 |
 
 ## Shared 패키지
 
@@ -89,29 +133,37 @@ shared/src/
 - **프라이버시**: 공개키 기반 암호화로 익명성 보장
 - **확장성**: 다양한 릴레이 서버 활용 가능
 
-### 통신 흐름
+### 거래 흐름
 
 ```
 1. 주문 감지 (Customer)
    └─> 쿠팡 주문 상세 페이지에서 무통장입금 주문 감지
 
-2. 사줘 요청 발송 (Customer → Nostr)
-   └─> Nostr 이벤트로 사줘 요청 브로드캐스트
+2. 사줘 요청 발행 (Customer → Nostr)
+   └─> kind 30402 이벤트로 사줘 요청 브로드캐스트 (status: active)
 
-3. 요청 수신 (Sponsor)
-   └─> 릴레이에서 사줘 요청 이벤트 구독
+3. 오더북 표시 (Sponsor)
+   └─> 릴레이에서 사줘 요청 이벤트 실시간 구독, 오더북에 표시
 
-4. 클레임 응답 (Sponsor → Nostr)
-   └─> "내가 사줄게" 응답 이벤트 발송
+4. 클레임 (Sponsor → Admin)
+   └─> "내가 사줄게" 클레임 이벤트 발송
+   └─> Admin이 수신하여 Sponsor의 Lightning 인바운드 유동성 검증
 
-5. 선택 및 확정 (Customer)
-   └─> 클레이머 중 한 명 선택, 계좌 정보 전달
+5. 클레임 승인 (Admin → Customer)
+   └─> 유동성 검증 통과 시 Customer에게 클레임 전달
+   └─> 실패 시 Sponsor에게 거절 통보
 
-6. 결제 완료 (Sponsor → 쿠팡)
-   └─> 무통장입금 완료
+6. 후원자 선택 (Customer)
+   └─> 승인된 클레이머 중 한 명 선택, 계좌 정보 전달
 
-7. 완료 확인 (Customer)
-   └─> 쿠팡에서 입금 확인, 상태 업데이트
+7. 무통장입금 (Sponsor → 쿠팡)
+   └─> Sponsor가 Customer의 쿠팡 주문에 무통장입금 (KRW)
+
+8. 비트코인 전송 (Customer → Sponsor)
+   └─> Customer가 상품 가격에 해당하는 BTC를 Lightning으로 Sponsor에게 전송
+
+9. 완료 (Customer)
+   └─> 쿠팡에서 입금 확인, Nostr에 sold 이벤트 재발행
 ```
 
 ### 릴레이 모델 (NIP-65 Outbox)
@@ -142,13 +194,15 @@ shared/src/
 
 ## 각 앱별 역할
 
-### Customer App (고객용)
+### Customer App
 
-Chrome Extension (Manifest V3)으로, 쿠팡 주문 페이지에서 동작한다.
+비트코인으로 물건을 사고 싶은 사람이 사용하는 Chrome Extension (Manifest V3).
+쿠팡 주문 페이지에서 동작한다.
 
-- 쿠팡 주문 페이지 파싱 및 무통장입금 주문 감지 (+ 취소 감지)
+- 쿠팡 주문 페이지 파싱 및 무통장입금 주문 감지 (+ 입금 완료/취소 자동 감지)
 - 주문 상태 관리 (상태 머신 기반, optimistic locking)
-- Nostr를 통한 사줘 요청 발송 (kind 30402 NIP-99 Classified Listing)
+- Nostr를 통한 사줘 요청 발행 (kind 30402 NIP-99 Classified Listing)
+- paid/cancelled 전이 시 sold 이벤트 자동 재발행 (Sponsor 오더북에서 자동 제거)
 - 팝업/대시보드에서 퍼블리시 버튼으로 수동 발행
 
 #### Customer 모듈 구조
@@ -171,15 +225,17 @@ customer/src/
   dashboard/            - 전체화면 대시보드 UI
 ```
 
-### Sponsor App (후원자용)
+### Sponsor App
 
-React 19 + TypeScript SPA로, 별도 웹사이트에서 동작한다.
+거래소를 거치지 않고 비트코인을 사고 싶은 사람이 사용하는 React 19 + TypeScript SPA.
+무통장입금을 대행해주고 그 대가로 BTC를 수령한다.
 
 - Nostr에서 사줘 요청 실시간 구독 (SimplePool.subscribeMany)
-- 오더북 형태로 활성 요청 목록 표시 (만료된 것 자동 필터링)
+- 오더북 형태로 활성 요청 목록 표시 (만료 임박순 정렬, 만료된 것 자동 필터링)
 - localStorage에 주문 영구 캐시 (즉시 로드 후 백그라운드 동기화)
 - sold 상태 이벤트 수신 시 주문 자동 삭제
 - 남은 시간 매초 자동 갱신
+- pubkey 기반 이벤트 검증 (같은 orderId라도 최초 발행자만 갱신/삭제 가능)
 
 #### Sponsor 데이터 흐름
 
@@ -218,9 +274,28 @@ sponsor/src/
     OrderCard.tsx       - 개별 요청 카드 (금액, 남은 시간 실시간 갱신)
 ```
 
-### Admin App (관리자용)
+### Admin App
 
-미구현. 향후 시스템 모니터링, 릴레이 목록 관리 등을 담당할 예정.
+에스크로 서비스 제공자. 거래의 안전성을 보장하는 핵심 역할.
+
+**핵심 기능 (향후 구현):**
+- **클레임 유동성 검증**: Sponsor의 클레임 수신 → Lightning 인바운드 유동성 체크 → 통과 시에만 Customer에 전달
+- **에스크로 관리**: 거래 진행 중 BTC 에스크로 보관 및 조건 충족 시 릴리스
+- **분쟁 해결**: 문제 발생 시 중재
+- **릴레이 목록 관리**: kind 10002 이벤트 발행/수정
+- **모니터링 대시보드**: 시스템 전체 현황 파악
+
+**현재 구현:**
+- CLI 테스트 도구 (테스트 이벤트 발행, sold 업데이트)
+
+#### Admin 모듈 구조
+
+```
+admin/src/
+  common.ts       - 테스트용 privkey, 릴레이 조회, 유틸
+  publish.ts      - 랜덤 사줘 요청 이벤트 발행 (테스트용)
+  sold.ts         - orderId를 sold로 업데이트 (테스트용)
+```
 
 ## 기술 스택
 

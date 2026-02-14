@@ -29,7 +29,7 @@ async function main() {
       ['price', '0', 'KRW'],
       ['t', CLIENT_TAG],
       ['p', APP_PUBKEY],
-      ['expiration', String(now + 3600)],
+      ['expiration', String(now + 3600 * 24)],
     ],
     content: '',
   };

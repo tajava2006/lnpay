@@ -330,7 +330,7 @@ Fidelity bond 시점과 실제 거래 시점의 BTC/KRW 환율이 다를 수 있
 
 - LND: `CancelInvoice(payment_hash)` → HTLC 즉시 해제, Customer에게 BTC 반환
 - CLN: hold invoice 플러그인의 cancel → 동일
-- Cancel 시 원금은 돌아오지만 중간 노드 **라우팅 수수료**(수 sat)는 소실된다 (무시 가능)
+- Cancel 시 라우팅 수수료 포함 전액이 Customer에게 환불된다 (HTLC가 settle되지 않으면 중간 노드도 수수료를 가져가지 못함)
 
 > **취소-재발행 윈도우**: Fidelity bond cancel과 본 hold invoice 결제 사이에
 > Customer가 이탈할 수 있다. 하지만 이 시점에서 Sponsor는 아직 KRW를 보내지 않았으므로

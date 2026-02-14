@@ -81,7 +81,7 @@
   - 정확한 금액이 아닌 보증 목적의 소액 (BTC 가격 변동 대응)
   - 클레이머 확정 + 유동성 검증 통과 시 fidelity bond cancel (즉시 환불)
   - 해당 시점의 정확한 BTC/KRW 환율로 본 hold invoice 재발행
-  - Cancel 시 라우팅 수수료(수 sat) 소실은 무시 가능
+  - Cancel 시 라우팅 수수료 포함 전액 환불 (HTLC 미settle = 중간 노드 수수료 없음)
   - 취소-재발행 윈도우에 Customer 이탈 가능하나 Sponsor 손해 없음
 
 ### Sponsor 스팸 차단

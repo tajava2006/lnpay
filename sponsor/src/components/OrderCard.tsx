@@ -132,7 +132,6 @@ const styles = {
     fontSize: 14,
     fontWeight: 600 as const,
     cursor: 'pointer',
-    width: '100%',
   },
   claimedBadge: {
     display: 'inline-block',

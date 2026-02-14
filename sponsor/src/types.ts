@@ -1,5 +1,21 @@
 import type { Event } from 'nostr-tools/core';
 
+// ── 후원자 측 주문 상태 ────────────────────────────
+
+/**
+ * 후원자 앱에서의 주문 상태
+ *
+ * - detected: 오더북에서 발견 (초기 상태)
+ * - claimed: 사주겠다고 클레임 발행함 (어드민 검증 대기)
+ */
+export type SponsorOrderStatus = 'detected' | 'claimed';
+
+/** 허용된 상태 전이 */
+export const SPONSOR_TRANSITIONS: Record<SponsorOrderStatus, SponsorOrderStatus[]> = {
+  detected: ['claimed'],
+  claimed: [],
+};
+
 /** Nostr 이벤트를 파싱한 사줘 요청 */
 export interface SajwoRequest {
   /** 이벤트 ID */
@@ -16,6 +32,8 @@ export interface SajwoRequest {
   expiresAt: number | null;
   /** 이벤트 생성 시각 (unix seconds) */
   createdAt: number;
+  /** 후원자 측 상태 */
+  status: SponsorOrderStatus;
 }
 
 /**
@@ -41,5 +59,6 @@ export function parseEvent(event: Event): SajwoRequest | null {
     currency,
     expiresAt,
     createdAt: event.created_at,
+    status: 'detected',
   };
 }

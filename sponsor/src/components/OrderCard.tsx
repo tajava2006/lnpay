@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import type { SajwoRequest } from '../types';
+import { publishClaim } from '../nostr/claim';
+import { transitionOrder } from '../order-store';
 
 interface Props {
   request: SajwoRequest;
@@ -35,10 +38,31 @@ function formatDate(unixSeconds: number): string {
 }
 
 export function OrderCard({ request, now }: Props) {
+  const [claiming, setClaiming] = useState(false);
+
   const timeLeft = formatTimeLeft(request.expiresAt, now);
   const isUrgent = request.expiresAt
     ? request.expiresAt - now < 3600
     : false;
+
+  async function handleClaim() {
+    setClaiming(true);
+    try {
+      const ok = await publishClaim(request);
+      if (ok) {
+        transitionOrder(request.orderId, 'claimed');
+      } else {
+        alert('클레임 발행에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('[Claim] Error:', err);
+      alert('클레임 발행 중 오류가 발생했습니다.');
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  const isClaimed = request.status === 'claimed';
 
   return (
     <div style={styles.card}>
@@ -52,6 +76,19 @@ export function OrderCard({ request, now }: Props) {
         }}>
           {timeLeft}
         </span>
+      </div>
+      <div style={styles.middle}>
+        {isClaimed ? (
+          <span style={styles.claimedBadge}>클레임 완료</span>
+        ) : (
+          <button
+            style={styles.claimBtn}
+            onClick={handleClaim}
+            disabled={claiming}
+          >
+            {claiming ? '요청 중...' : '사줄게'}
+          </button>
+        )}
       </div>
       <div style={styles.bottom}>
         <span style={styles.meta}>#{request.orderId}</span>
@@ -80,6 +117,29 @@ const styles = {
     color: '#4F46E5',
   },
   timeLeft: {
+    fontSize: 13,
+    fontWeight: 500 as const,
+  },
+  middle: {
+    marginBottom: 8,
+  },
+  claimBtn: {
+    background: '#4F46E5',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '8px 16px',
+    fontSize: 14,
+    fontWeight: 600 as const,
+    cursor: 'pointer',
+    width: '100%',
+  },
+  claimedBadge: {
+    display: 'inline-block',
+    background: '#DBEAFE',
+    color: '#1E40AF',
+    borderRadius: 6,
+    padding: '6px 12px',
     fontSize: 13,
     fontWeight: 500 as const,
   },

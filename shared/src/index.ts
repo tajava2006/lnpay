@@ -5,6 +5,7 @@ export type { StorageAdapter, NostrKeypair, CachedRelayList } from './types';
 export {
   APP_PUBKEY,
   SAJWO_REQUEST_KIND,
+  SAJWO_CLAIM_KIND,
   CLIENT_TAG,
   STORAGE_KEYS,
   RELAY_REFRESH_INTERVAL_MS,

@@ -8,7 +8,7 @@
  *   Nostr 구독 서비스 → order-store (upsert/remove) → localStorage + listeners
  *   OrderBook → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
-import type { SajwoRequest } from './types';
+import { type SajwoRequest, SPONSOR_TRANSITIONS } from './types';
 
 type OrderMap = Record<string, SajwoRequest>;
 type Listener = () => void;
@@ -77,7 +77,26 @@ export function upsertOrder(request: SajwoRequest): boolean {
     if (existing.createdAt >= request.createdAt) return false;
   }
 
-  orders = { ...orders, [request.orderId]: request };
+  // 기존 주문의 로컬 상태를 보존 (Nostr 이벤트 갱신이 로컬 상태를 덮어쓰지 않도록)
+  const status = existing?.status ?? request.status;
+  orders = { ...orders, [request.orderId]: { ...request, status } };
+  saveToStorage();
+  notify();
+  return true;
+}
+
+/**
+ * 주문 상태를 변경한다.
+ * SPONSOR_TRANSITIONS에 정의된 전이만 허용.
+ */
+export function transitionOrder(orderId: string, to: SajwoRequest['status']): boolean {
+  const order = orders[orderId];
+  if (!order) return false;
+
+  const allowed = SPONSOR_TRANSITIONS[order.status];
+  if (!allowed.includes(to)) return false;
+
+  orders = { ...orders, [orderId]: { ...order, status: to } };
   saveToStorage();
   notify();
   return true;

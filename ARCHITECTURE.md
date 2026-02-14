@@ -283,11 +283,31 @@ sponsor/src/
 에스크로 서비스 제공자. 거래의 안전성을 보장하는 핵심 역할.
 
 **핵심 기능 (향후 구현):**
-- **클레임 유동성 검증**: Sponsor의 클레임 수신 → Lightning 인바운드 유동성 체크 → 통과 시에만 Customer에 전달
+- **클레임 유동성 검증**: Sponsor의 invoice에 대해 probing → 통과 시에만 Customer에 전달
 - **에스크로 관리**: 거래 진행 중 BTC 에스크로 보관 및 조건 충족 시 릴리스
 - **분쟁 해결**: 문제 발생 시 중재
 - **릴레이 목록 관리**: kind 10002 이벤트 발행/수정
 - **모니터링 대시보드**: 시스템 전체 현황 파악
+
+**Lightning 노드 어댑터 패턴:**
+LND와 CLN 어느 구현체든 대응할 수 있도록 인터페이스를 분리한다.
+
+```
+interface LightningProber {
+  probe(invoice: string): Promise<ProbeResult>;
+}
+
+type ProbeResult =
+  | { success: true }                           // 경로+유동성 충분
+  | { success: false; reason: string };          // 경로 없음 또는 유동성 부족
+```
+
+| 구현체 | probing 방법 |
+|--------|------------|
+| **LND** | gRPC `routerrpc.SendPaymentV2` + 랜덤 payment hash (또는 `QueryRoutes`) |
+| **CLN** | `getroute` + `sendpay`/`waitsendpay` 조합 (또는 JSON-RPC `pay --retry_for 0`) |
+
+`.env`에서 `LIGHTNING_IMPL=lnd` 또는 `cln`으로 선택, 엔드포인트/인증 정보도 `.env`로 관리.
 
 **현재 구현:**
 - CLI 테스트 도구 (테스트 이벤트 발행, sold 업데이트)

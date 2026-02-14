@@ -58,7 +58,9 @@
   - 랜덤 payment hash로 경로 탐색 (실제 결제 없음, 수수료 없음)
   - probing 성공 (`INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS`): Customer에 클레임 전달
   - probing 실패 (`TEMPORARY_CHANNEL_FAILURE` 등): Sponsor에 거절 통보
-  - Admin Lightning 노드(LND/CLN) API 연동 필요
+  - `LightningProber` 인터페이스 + LND/CLN 어댑터 패턴으로 구현체 교체 가능하게
+  - LND: gRPC `SendPaymentV2` + 랜덤 hash / CLN: `getroute` + `sendpay`
+  - `.env`로 구현체 선택 (`LIGHTNING_IMPL=lnd|cln`) + 엔드포인트/인증 정보 관리
 - [ ] **에스크로 관리**: 거래 진행 중 BTC 에스크로 보관 및 조건 충족 시 릴리스
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악 (`#p` 필터로 모든 이벤트 조회)

@@ -142,6 +142,9 @@ Sponsor                          Admin
 
 프리이미지가 존재하지 않으므로 실제 결제가 성립되지 않고, 수수료도 발생하지 않는다.
 
+LND(`SendPaymentV2` + 랜덤 hash)와 CLN(`getroute` + `sendpay`) 모두 probing을 지원한다.
+구현체 독립적인 `LightningProber` 인터페이스로 추상화하여 어느 노드든 대응 가능하게 한다.
+
 #### Hold Invoice는 부적합
 
 Hold invoice의 settle/cancel 권한은 **수신자**(Sponsor)에게 있어,

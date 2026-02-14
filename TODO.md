@@ -45,16 +45,20 @@
   - 로컬 상태 관리 (detected → claimed FSM)
 - [ ] **오더북 페이지네이션**: 주문이 많아질 경우 대비
 - [ ] **계좌 정보 수신**: 선택(selected) 시 무통장입금 계좌 정보 수신 및 표시 (DM 등)
-- [ ] **Lightning invoice 제출**: 선택 후 BTC 수령을 위한 invoice 전달
+- [ ] **Lightning invoice 제출**: 클레임 시 주문 금액 상당의 invoice를 생성하여 클레임 이벤트에 포함
+  - 어드민이 probing으로 유동성 검증하는 데 사용
+  - invoice는 kind 1111 이벤트의 content 또는 태그로 전달
 - [ ] **스타일링 고도화**: 현재 인라인 스타일 → CSS 또는 스타일링 라이브러리
 
 ## Admin App (에스크로 서비스)
 
 - [x] **CLI 테스트 도구**: 랜덤 이벤트 발행 (`admin:emit`), sold 업데이트 (`admin:sold`)
 - [x] **웹앱 클레임 대기열**: kind 1111 클레임 + kind 30402 주문 구독, 승인/거절 UI
-- [ ] **클레임 유동성 검증**: Sponsor 클레임 수신 → Lightning 인바운드 유동성 체크
-  - 유동성 충분: Customer에게 클레임 전달
-  - 유동성 부족: Sponsor에게 거절 통보
+- [ ] **클레임 유동성 검증**: Sponsor 클레임의 invoice에 대해 probing 수행
+  - 랜덤 payment hash로 경로 탐색 (실제 결제 없음, 수수료 없음)
+  - probing 성공 (`INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS`): Customer에 클레임 전달
+  - probing 실패 (`TEMPORARY_CHANNEL_FAILURE` 등): Sponsor에 거절 통보
+  - Admin Lightning 노드(LND/CLN) API 연동 필요
 - [ ] **에스크로 관리**: 거래 진행 중 BTC 에스크로 보관 및 조건 충족 시 릴리스
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악 (`#p` 필터로 모든 이벤트 조회)

@@ -40,10 +40,14 @@ Lightning Network 특성상 수신 용량(inbound liquidity)이 부족하면 BTC
 유동성이 확인된 Sponsor의 클레임만 Customer에게 전달한다.
 
 ```
-Sponsor ──클레임──→ Admin ──유동성 검증──→ Customer
-                     │
-                (인바운드 유동성 부족 시 거절)
+Sponsor ──클레임(+invoice)──→ Admin ──probing──→ Customer
+                                │
+                        (경로/유동성 부족 시 거절)
 ```
+
+**유동성 검증 방법**: Sponsor가 클레임 시 주문 금액에 해당하는 Lightning invoice를 제출한다.
+Admin은 랜덤 payment hash로 probing을 수행하여 경로+유동성을 확인한다 (실제 결제 없음, 수수료 없음).
+상세 스펙은 [PROTOCOL.md](PROTOCOL.md) 참조.
 
 이것이 상태 관리에 유한상태머신(FSM)과 optimistic locking을 도입한 이유이다.
 에스크로 거래이므로 상태 전이의 정확성과 원자성이 중요하다.

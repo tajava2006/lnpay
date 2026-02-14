@@ -113,6 +113,41 @@ Sponsor                    Admin (에스크로)              Customer
 인바운드 유동성(inbound liquidity)이 없으면 BTC를 받을 수 없다.
 유동성 없는 Sponsor가 클레임해봤자 거래가 완료될 수 없으므로 사전에 차단한다.
 
+### Lightning 유동성 검증 방법
+
+Sponsor가 클레임 시 주문 금액에 해당하는 **Lightning invoice**를 생성하여 제출한다.
+Admin은 이 invoice에 대해 **probing**(경로 탐색)을 수행하여 유동성을 검증한다.
+
+```
+Sponsor                          Admin
+   │                               │
+   │  ① invoice 생성 + 클레임 발행   │
+   │ ─────────────────────────────→│
+   │                               │  ② invoice 디코딩
+   │                               │  ③ probing (랜덤 해시 결제 시도)
+   │                               │     - 목적지 도달 → 유동성 충분
+   │                               │     - 중간 실패 → 유동성 부족
+   │                               │
+   │  ④ 승인/거절 통보               │
+   │ ←─────────────────────────────│
+```
+
+#### Probing 원리
+
+아무도 프리이미지를 모르는 랜덤 payment hash로 결제를 시도한다.
+각 홉의 실제 유동성을 테스트하면서 경로를 따라 진행되며:
+
+- **목적지 도달 후 실패** (`INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS`): 경로+유동성 모두 충분
+- **중간 홉에서 실패** (`TEMPORARY_CHANNEL_FAILURE` 등): 유동성 부족
+
+프리이미지가 존재하지 않으므로 실제 결제가 성립되지 않고, 수수료도 발생하지 않는다.
+
+#### Hold Invoice는 부적합
+
+Hold invoice의 settle/cancel 권한은 **수신자**(Sponsor)에게 있어,
+송신자(Admin)가 일방적으로 취소할 수 없다 (CLTV timeout 대기 필요).
+따라서 "보내고 바로 취소"하는 테스트 용도로는 사용할 수 없다.
+
 ### Content
 
 빈 문자열 (`""`). 모든 정보는 태그로 전달된다.
@@ -206,6 +241,7 @@ Lightning invoice 등 비트코인 결제 정보도 별도 채널로 전달한�
 | NIP | 용도 |
 |-----|------|
 | NIP-01 | 기본 프로토콜 (이벤트 구조, 서명, 릴레이 통신) |
+| NIP-22 | Comment (kind 1111, 클레임 이벤트에 사용) |
 | NIP-33 | Addressable event (kind 30000-40000, d-tag) |
 | NIP-40 | Expiration Timestamp (`['expiration', timestamp]`) |
 | NIP-65 | Relay List Metadata (kind 10002, outbox model) |

@@ -18,6 +18,10 @@
   - Background script에서 주기적으로 API 호출하여 상태 확인
   - 또는 쿠팡 알림 페이지 모니터링
 
+- [ ] **주문 취소 자동 감지 개선**: 현재 페이지 방문 시에만 감지됨
+  - 입금 완료와 동일하게 Background script에서 주기적으로 확인
+  - 취소 감지 시 `cancelled` 전이 + Nostr에 `sold` 상태로 재발행
+
 ### 상태 관리
 
 - [ ] **claimed 상태 타임아웃**: 일정 시간 내 `selected`로 진행 안 하면 자동 해제

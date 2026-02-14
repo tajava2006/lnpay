@@ -108,7 +108,6 @@ export async function transitionOrder(
     ...order,
     status: toStatus,
     version: order.version + 1,
-    updatedAt: Date.now(),
     // claimed 관련 필드
     claimedBy: toStatus === 'claimed' ? options.claimerId : order.claimedBy,
     claimedAt: toStatus === 'claimed' ? Date.now() : order.claimedAt,
@@ -256,7 +255,6 @@ export async function transitionBatch(
       ...order,
       status: toStatus,
       version: order.version + 1,
-      updatedAt: Date.now(),
       claimedBy: toStatus === 'claimed' ? options?.claimerId : order.claimedBy,
       claimedAt: toStatus === 'claimed' ? Date.now() : order.claimedAt,
     };

@@ -89,6 +89,8 @@ async function fetchOrderData() {
       const result = await transitionOrderWithRetry(orderId, 'cancelled');
       if (result.success) {
         console.log('[Web Parser] Order cancelled detected');
+        // 릴레이에 sold 상태로 재발행하여 후원자앱에 알림
+        chrome.runtime.sendMessage({ type: 'PUBLISH_ORDER', orderId });
       } else {
         console.error('[Web Parser] Failed to transition to cancelled:', result.error);
       }
@@ -100,6 +102,8 @@ async function fetchOrderData() {
       const result = await transitionOrderWithRetry(orderId, 'paid');
       if (result.success) {
         console.log('[Web Parser] 🎉 입금 완료 감지!');
+        // 릴레이에 sold 상태로 재발행하여 후원자앱에 알림
+        chrome.runtime.sendMessage({ type: 'PUBLISH_ORDER', orderId });
         if (existingOrder.status === 'selected') {
           showSuccessNotification();
         }

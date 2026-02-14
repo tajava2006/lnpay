@@ -17,10 +17,15 @@ export function OrderBook() {
     return () => clearInterval(interval);
   }, []);
 
-  // 만료되지 않은 요청만 필터링, created_at 내림차순
+  // 만료되지 않은 요청만 필터링, 만료 임박순 (expiresAt 없으면 맨 뒤)
   const activeRequests = Object.values(orders)
     .filter((r: SajwoRequest) => !r.expiresAt || r.expiresAt > now)
-    .sort((a: SajwoRequest, b: SajwoRequest) => b.createdAt - a.createdAt);
+    .sort((a: SajwoRequest, b: SajwoRequest) => {
+      if (!a.expiresAt && !b.expiresAt) return 0;
+      if (!a.expiresAt) return 1;
+      if (!b.expiresAt) return -1;
+      return a.expiresAt - b.expiresAt;
+    });
 
   if (activeRequests.length === 0 && !synced) {
     return <div style={styles.message}>릴레이에서 사줘 요청을 불러오는 중...</div>;

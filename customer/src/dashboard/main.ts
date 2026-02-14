@@ -4,7 +4,7 @@ import type { TrackedOrder } from '../shared/types';
 
 async function renderDashboard() {
   const orders = await getAllOrders();
-  const orderArray = Object.values(orders).sort((a, b) => b.updatedAt - a.updatedAt);
+  const orderArray = Object.values(orders).sort((a, b) => a.virtualAccount.expirationDate - b.virtualAccount.expirationDate); // 만료 임박순
 
   // 통계 업데이트 (활성 주문 vs 완료 주문)
   const activeCount = orderArray.filter((o) => !isFinalStatus(o.status)).length;

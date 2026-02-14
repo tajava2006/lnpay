@@ -64,7 +64,6 @@ export interface TrackedOrder {
   status: OrderStatus;
   /** 쿠팡 주문 시각 (milliseconds timestamp) */
   createdAt: number;
-  updatedAt: number;
 
   /**
    * Optimistic Locking을 위한 버전 번호

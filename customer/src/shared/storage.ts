@@ -54,7 +54,6 @@ export async function createOrder(orderData: {
     return existing;
   }
 
-  const now = Date.now();
   const newOrder: TrackedOrder = {
     orderId: orderData.orderId,
     productName: orderData.productName,
@@ -63,7 +62,6 @@ export async function createOrder(orderData: {
     status: 'detected', // 초기 상태
     version: 1, // 초기 버전
     createdAt: orderData.orderedAt,
-    updatedAt: now,
   };
 
   orders[orderData.orderId] = newOrder;

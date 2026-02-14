@@ -10,7 +10,7 @@ async function renderOrders() {
 
   const orders = await getAllOrders();
   const orderArray = Object.values(orders)
-    .sort((a, b) => b.updatedAt - a.updatedAt) // 최신순
+    .sort((a, b) => a.virtualAccount.expirationDate - b.virtualAccount.expirationDate) // 만료 임박순
     .slice(0, MAX_DISPLAY_ORDERS);
 
   if (orderArray.length === 0) {

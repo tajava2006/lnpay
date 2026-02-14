@@ -8,26 +8,38 @@
 ### 핵심 거래 구조
 
 ```
-Customer                         Sponsor
-(비트코인으로 물건 사고 싶음)      (비트코인을 사고 싶음)
-         │                            │
-         │  ① 쿠팡 무통장입금 주문     │
-         │     → 사줘 요청 발행        │
-         │ ──────────────────────────→ │
-         │                            │
-         │  ② 사줄게 클레임            │
-         │ ←────────────────────────── │
-         │                            │
-         │  ③ 무통장입금 대신 결제      │
-         │         (KRW)       ───────→│──→ 쿠팡
-         │                            │
-         │  ④ 비트코인 전송 (Lightning) │
-         │ ──────────────────────────→ │
-         │       (BTC)                │
+Customer                     Admin (에스크로)              Sponsor
+(BTC로 물건 사고 싶음)        (거래 보증)                 (BTC를 사고 싶음)
+     │                            │                         │
+     │  ① 사줘 요청 발행           │                         │
+     │ ──────────────────────────→│──────────────────────→  │
+     │                            │                         │
+     │                            │  ② 클레임 (+invoice)     │
+     │                            │ ←────────────────────── │
+     │                            │                         │
+     │                            │  ③ probing (유동성 검증)  │
+     │                            │                         │
+     │  ④ 클레임 승인 전달          │                         │
+     │ ←────────────────────────  │                         │
+     │                            │                         │
+     │  ⑤ BTC 에스크로 예치        │                         │
+     │     (hold invoice 결제)    │                         │
+     │ ──────────────────────────→│                         │
+     │                            │                         │
+     │                            │  ⑥ 계좌 정보 전달         │
+     │                            │ ─────────────────────→  │
+     │                            │                         │
+     │                            │  ⑦ KRW 무통장입금         │
+     │                            │           ──────────→ 쿠팡
+     │                            │                         │
+     │                            │  ⑧ settle → BTC 수령     │
+     │                            │     → Sponsor에 BTC 전송 │
+     │                            │ ─────────────────────→  │
 ```
 
 - Customer는 쿠팡 상품을 비트코인으로 결제하는 효과를 얻는다.
 - Sponsor는 거래소 없이 KRW → BTC 환전을 한다 (무통장입금 대행의 대가로 BTC 수령).
+- Admin이 hold invoice로 BTC를 에스크로 보관하여 양측의 거래를 보증한다.
 - 양측 간 통신은 탈중앙화 프로토콜인 **Nostr**를 통해 이루어진다.
 
 ### Admin의 에스크로 역할
@@ -47,6 +59,17 @@ Sponsor ──클레임(+invoice)──→ Admin ──probing──→ Customer
 
 **유동성 검증 방법**: Sponsor가 클레임 시 주문 금액에 해당하는 Lightning invoice를 제출한다.
 Admin은 랜덤 payment hash로 probing을 수행하여 경로+유동성을 확인한다 (실제 결제 없음, 수수료 없음).
+
+**에스크로 보관**: 유동성 검증 통과 후, Sponsor가 KRW를 먼저 입금해야 하므로
+Customer의 BTC를 Admin이 **hold invoice**로 에스크로 보관한다.
+KRW 입금이 확인되면 settle하여 BTC를 수령하고 Sponsor에게 전송한다.
+문제 발생 시 settle하지 않으면 CLTV timeout 후 Customer에게 자동 환불된다.
+
+```
+① Probing (유동성 검증):  Admin ──랜덤hash──→ Sponsor   수신자 제어 = 문제 → probing으로 해결
+② Escrow (BTC 수금):     Customer ──pay──→ Admin      수신자 제어 = 필요한 것 → hold invoice
+```
+
 상세 스펙은 [PROTOCOL.md](PROTOCOL.md) 참조.
 
 이것이 상태 관리에 유한상태머신(FSM)과 optimistic locking을 도입한 이유이다.
@@ -158,16 +181,23 @@ shared/src/
    └─> 실패 시 Sponsor에게 거절 통보
 
 6. 후원자 선택 (Customer)
-   └─> 승인된 클레이머 중 한 명 선택, 계좌 정보 전달
+   └─> 승인된 클레이머 중 한 명 선택
 
-7. 무통장입금 (Sponsor → 쿠팡)
+7. 에스크로 예치 (Customer → Admin)
+   └─> Admin이 hold invoice 생성, Customer가 결제
+   └─> BTC가 HTLC에 잠김 (Admin이 settle 권한 보유)
+
+8. 무통장입금 (Sponsor → 쿠팡)
+   └─> Admin이 Sponsor에게 계좌 정보 전달
    └─> Sponsor가 Customer의 쿠팡 주문에 무통장입금 (KRW)
 
-8. 비트코인 전송 (Customer → Sponsor)
-   └─> Customer가 상품 가격에 해당하는 BTC를 Lightning으로 Sponsor에게 전송
+9. BTC 릴리스 (Admin → Sponsor)
+   └─> KRW 입금 확인 시 Admin이 hold invoice settle → BTC 수령
+   └─> Admin이 Sponsor에게 BTC 전송 (Lightning)
+   └─> 문제 발생 시: settle 안 함 → CLTV timeout 후 Customer에게 자동 환불
 
-9. 완료 (Customer)
-   └─> 쿠팡에서 입금 확인, Nostr에 sold 이벤트 재발행
+10. 완료 (Customer)
+    └─> 쿠팡에서 입금 확인, Nostr에 sold 이벤트 재발행
 ```
 
 ### 릴레이 모델 (NIP-65 Outbox)
@@ -284,7 +314,7 @@ sponsor/src/
 
 **핵심 기능 (향후 구현):**
 - **클레임 유동성 검증**: Sponsor의 invoice에 대해 probing → 통과 시에만 Customer에 전달
-- **에스크로 관리**: 거래 진행 중 BTC 에스크로 보관 및 조건 충족 시 릴리스
+- **에스크로 관리**: Hold invoice로 Customer의 BTC를 예치받고, KRW 입금 확인 후 settle → Sponsor에게 전송
 - **분쟁 해결**: 문제 발생 시 중재
 - **릴레이 목록 관리**: kind 10002 이벤트 발행/수정
 - **모니터링 대시보드**: 시스템 전체 현황 파악

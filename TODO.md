@@ -61,7 +61,13 @@
   - `LightningProber` 인터페이스 + LND/CLN 어댑터 패턴으로 구현체 교체 가능하게
   - LND: gRPC `SendPaymentV2` + 랜덤 hash / CLN: `getroute` + `sendpay`
   - `.env`로 구현체 선택 (`LIGHTNING_IMPL=lnd|cln`) + 엔드포인트/인증 정보 관리
-- [ ] **에스크로 관리**: 거래 진행 중 BTC 에스크로 보관 및 조건 충족 시 릴리스
+- [ ] **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
+  - Admin이 hold invoice 생성 (프리이미지 보유 = settle 권한)
+  - Customer가 hold invoice 결제 → BTC가 HTLC에 잠김
+  - KRW 입금 확인 후 Admin이 settle → BTC 수령 → Sponsor에게 전송
+  - 문제 발생 시 settle 안 함 → CLTV timeout 후 Customer에게 자동 환불
+  - `LightningEscrow` 인터페이스로 LND/CLN 구현체 독립
+  - LND: `AddHoldInvoice` + `SettleInvoice` / CLN: `invoice` (hold) + `holdinvoice` 플러그인
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악 (`#p` 필터로 모든 이벤트 조회)
 - [ ] **분쟁 해결 도구**: 문제 발생 시 중재 기능

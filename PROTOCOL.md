@@ -145,11 +145,67 @@ Sponsor                          Admin
 LND(`SendPaymentV2` + 랜덤 hash)와 CLN(`getroute` + `sendpay`) 모두 probing을 지원한다.
 구현체 독립적인 `LightningProber` 인터페이스로 추상화하여 어느 노드든 대응 가능하게 한다.
 
-#### Hold Invoice는 부적합
+#### Hold Invoice는 Probing에 부적합
 
 Hold invoice의 settle/cancel 권한은 **수신자**(Sponsor)에게 있어,
 송신자(Admin)가 일방적으로 취소할 수 없다 (CLTV timeout 대기 필요).
 따라서 "보내고 바로 취소"하는 테스트 용도로는 사용할 수 없다.
+
+### 에스크로 (Hold Invoice)
+
+유동성 검증이 통과한 후, 거래 보증을 위해 Admin이 Customer의 BTC를 **에스크로로 보관**한다.
+Sponsor가 KRW를 먼저 입금하는 구조이므로, 입금 후 Customer가 BTC를 보내지 않을 위험을 차단한다.
+
+이때는 **hold invoice**를 사용한다. Probing에서 hold invoice가 부적합했던 이유가
+"수신자가 settle 권한을 가짐"이었는데, 에스크로에서는 **수신자(Admin)가 settle 권한을
+가져야 하므로** 정확히 적합하다.
+
+```
+Customer                         Admin                          Sponsor
+   │                               │                               │
+   │  ① Admin이 hold invoice 생성   │                               │
+   │ ←─────────────────────────────│                               │
+   │                               │                               │
+   │  ② Customer가 hold invoice 결제│                               │
+   │ ─────────────────────────────→│  (BTC가 HTLC에 잠김)           │
+   │                               │                               │
+   │                               │  ③ 계좌 정보 전달              │
+   │                               │ ─────────────────────────────→│
+   │                               │                               │
+   │                               │  ④ Sponsor가 KRW 무통장입금    │
+   │                               │       (쿠팡 계좌로)            │
+   │                               │                               │
+   │                               │  ⑤ KRW 입금 확인               │
+   │                               │                               │
+   │                               │  ⑥ Admin이 hold invoice settle │
+   │                               │     → BTC 수령                 │
+   │                               │                               │
+   │                               │  ⑦ Admin이 Sponsor에게 BTC 전송│
+   │                               │ ─────────────────────────────→│
+   │                               │                               │
+   │  [문제 발생 시]                 │                               │
+   │                               │  settle 안 함 → CLTV timeout   │
+   │ ←── BTC 자동 환불 ────────────│  후 Customer에게 BTC 반환      │
+```
+
+#### Hold Invoice 원리 (에스크로 용도)
+
+1. **Admin이 invoice 생성**: 프리이미지(preimage)를 알고 있는 건 Admin뿐
+2. **Customer가 결제**: HTLC가 경로를 따라 전파되어 BTC가 잠김
+3. **Admin이 settle**: 프리이미지를 공개하여 BTC를 수령
+4. **Admin이 settle 안 함**: CLTV timeout 후 HTLC가 풀려 Customer에게 자동 환불
+
+| 상황 | Admin 행동 | 결과 |
+|------|-----------|------|
+| KRW 입금 확인됨 | settle | Admin이 BTC 수령 → Sponsor에게 전송 |
+| 거래 취소/분쟁 | settle 안 함 | CLTV timeout 후 Customer에게 환불 |
+
+#### Probing vs 에스크로: Hold Invoice 적합성 비교
+
+| 단계 | 방향 | 필요한 제어권 | 방법 | Hold Invoice 적합? |
+|------|------|-------------|------|-------------------|
+| 유동성 검증 | Admin → Sponsor | 송신자(Admin)가 취소 | Probing (랜덤 hash) | **부적합** (수신자 제어) |
+| 에스크로 수금 | Customer → Admin | 수신자(Admin)가 settle | Hold invoice | **적합** (수신자 제어) |
 
 ### Content
 

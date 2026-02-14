@@ -67,12 +67,14 @@ export function getSyncedSnapshot(): boolean {
 
 /**
  * 주문을 추가/갱신한다.
- * 같은 orderId의 기존 이벤트보다 최신(createdAt이 큰)일 때만 업데이트.
+ * - 같은 orderId의 기존 이벤트보다 최신(createdAt이 큰)일 때만 업데이트.
+ * - 기존 주문이 있으면 최초 발행자(pubkey)가 일치해야만 갱신 허용.
  */
 export function upsertOrder(request: SajwoRequest): boolean {
   const existing = orders[request.orderId];
-  if (existing && existing.createdAt >= request.createdAt) {
-    return false;
+  if (existing) {
+    if (existing.pubkey !== request.pubkey) return false;
+    if (existing.createdAt >= request.createdAt) return false;
   }
 
   orders = { ...orders, [request.orderId]: request };
@@ -81,9 +83,14 @@ export function upsertOrder(request: SajwoRequest): boolean {
   return true;
 }
 
-/** 주문을 삭제한다 (sold 이벤트 수신 시). */
-export function deleteOrder(orderId: string): boolean {
-  if (!(orderId in orders)) return false;
+/**
+ * 주문을 삭제한다 (sold 이벤트 수신 시).
+ * 최초 발행자(pubkey)가 일치해야만 삭제 허용.
+ */
+export function deleteOrder(orderId: string, pubkey: string): boolean {
+  const existing = orders[orderId];
+  if (!existing) return false;
+  if (existing.pubkey !== pubkey) return false;
 
   const { [orderId]: _, ...rest } = orders;
   orders = rest;

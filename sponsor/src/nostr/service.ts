@@ -29,7 +29,7 @@ export async function startOrderSubscription(): Promise<void> {
     },
     onSold: (event: Event) => {
       const dTag = event.tags.find(t => t[0] === 'd')?.[1];
-      if (dTag) deleteOrder(dTag);
+      if (dTag) deleteOrder(dTag, event.pubkey);
     },
     onEose: () => {
       markSynced();

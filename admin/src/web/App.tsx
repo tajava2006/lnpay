@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { startAdminSubscription, stopAdminSubscription } from './nostr/service';
 import { validateAdminKey } from './nostr/keys';
-import { ClaimInbox } from './components/ClaimInbox';
+import { OrderQueue } from './components/OrderQueue';
+import { OrderClaimList } from './components/OrderClaimList';
 
 const keyResult = validateAdminKey();
 
@@ -31,14 +32,25 @@ export function App() {
     );
   }
 
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
   return (
     <div style={styles.container}>
       <header style={styles.header}>
         <h1 style={styles.title}>사줘 트래커 어드민</h1>
-        <p style={styles.subtitle}>클레임 대기열</p>
+        <p style={styles.subtitle}>
+          {selectedOrderId ? `주문 #${selectedOrderId} 클레임` : '클레임 대기열'}
+        </p>
       </header>
       <main>
-        <ClaimInbox />
+        {selectedOrderId ? (
+          <OrderClaimList
+            orderId={selectedOrderId}
+            onBack={() => setSelectedOrderId(null)}
+          />
+        ) : (
+          <OrderQueue onSelectOrder={setSelectedOrderId} />
+        )}
       </main>
     </div>
   );

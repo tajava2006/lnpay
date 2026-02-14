@@ -72,6 +72,31 @@
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악 (`#p` 필터로 모든 이벤트 조회)
 - [ ] **분쟁 해결 도구**: 문제 발생 시 중재 기능
 
+## 스팸/DoS 차단
+
+### Customer 스팸 차단
+
+- [ ] **Fidelity bond**: 사줘 요청 발행 시 주문 금액의 일부를 hold invoice로 선납
+  - BTC가 없는 스패머 원천 차단 (어차피 Customer가 지불할 금액이므로 추가 비용 아님)
+  - 정확한 금액이 아닌 보증 목적의 소액 (BTC 가격 변동 대응)
+  - 클레이머 확정 + 유동성 검증 통과 시 fidelity bond cancel (즉시 환불)
+  - 해당 시점의 정확한 BTC/KRW 환율로 본 hold invoice 재발행
+  - Cancel 시 라우팅 수수료(수 sat) 소실은 무시 가능
+  - 취소-재발행 윈도우에 Customer 이탈 가능하나 Sponsor 손해 없음
+
+### Sponsor 스팸 차단
+
+- [ ] **Lightning 노드 블랙리스트**: invoice의 destination node pubkey로 Sponsor 식별
+  - Nostr pubkey는 무료 생성 가능 → 식별 수단 부적합
+  - Lightning 노드는 채널 펀딩(실제 BTC)이 필요 → Sybil 비용 높음
+  - 트롤링 발생 시 (클레임 후 KRW 미입금 등) 해당 노드 블랙리스트 등록
+  - Admin 웹앱에서 블랙리스트 관리 UI
+- [ ] **Sponsor fidelity bond (향후 필요 시)**: 커스토디얼 월렛 악용 대응
+  - 커스토디얼 유저는 공유 노드 사용 → 의도적 차단 유도 공격 가능
+  - RoboSats 방식: 주문 금액의 ~3%를 hold invoice로 보증금 수령
+  - 거래 정상 완료 시 전액 반환, 트롤링 시 몰수
+  - 초기에는 소규모 신뢰 기반 운영이므로 블랙리스트만으로 충분, 규모 확장 시 검토
+
 ## 기술 부채
 
 - [ ] **테스트 코드 작성**: state-machine, filter 등 핵심 로직 테스트

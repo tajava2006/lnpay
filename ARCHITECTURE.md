@@ -169,34 +169,41 @@ shared/src/
 2. 사줘 요청 발행 (Customer → Nostr)
    └─> kind 30402 이벤트로 사줘 요청 브로드캐스트 (status: active)
 
-3. 오더북 표시 (Sponsor)
+3. Fidelity bond 예치 (Customer → Admin)
+   └─> Admin이 주문 금액 일부의 hold invoice 생성 (스팸 차단 목적)
+   └─> Customer가 결제 → BTC 잠김, 오더북에 노출됨
+   └─> BTC 없는 스패머는 원천 차단
+
+4. 오더북 표시 (Sponsor)
    └─> 릴레이에서 사줘 요청 이벤트 실시간 구독, 오더북에 표시
 
-4. 클레임 (Sponsor → Admin)
+5. 클레임 (Sponsor → Admin)
    └─> "내가 사줄게" 클레임 이벤트 발송
    └─> Admin이 수신하여 Sponsor의 Lightning 인바운드 유동성 검증
+   └─> 블랙리스트 노드의 클레임은 자동 거절
 
-5. 클레임 승인 (Admin → Customer)
+6. 클레임 승인 (Admin → Customer)
    └─> 유동성 검증 통과 시 Customer에게 클레임 전달
    └─> 실패 시 Sponsor에게 거절 통보
 
-6. 후원자 선택 (Customer)
+7. 후원자 선택 (Customer)
    └─> 승인된 클레이머 중 한 명 선택
 
-7. 에스크로 예치 (Customer → Admin)
-   └─> Admin이 hold invoice 생성, Customer가 결제
-   └─> BTC가 HTLC에 잠김 (Admin이 settle 권한 보유)
+8. 에스크로 전환 (Fidelity bond → 본 결제)
+   └─> Admin이 fidelity bond hold invoice cancel (BTC 즉시 반환)
+   └─> 해당 시점의 정확한 BTC/KRW 환율로 본 hold invoice 생성
+   └─> Customer가 본 hold invoice 결제 → BTC가 HTLC에 잠김
 
-8. 무통장입금 (Sponsor → 쿠팡)
+9. 무통장입금 (Sponsor → 쿠팡)
    └─> Admin이 Sponsor에게 계좌 정보 전달
    └─> Sponsor가 Customer의 쿠팡 주문에 무통장입금 (KRW)
 
-9. BTC 릴리스 (Admin → Sponsor)
-   └─> KRW 입금 확인 시 Admin이 hold invoice settle → BTC 수령
-   └─> Admin이 Sponsor에게 BTC 전송 (Lightning)
-   └─> 문제 발생 시: settle 안 함 → CLTV timeout 후 Customer에게 자동 환불
+10. BTC 릴리스 (Admin → Sponsor)
+    └─> KRW 입금 확인 시 Admin이 hold invoice settle → BTC 수령
+    └─> Admin이 Sponsor에게 BTC 전송 (Lightning)
+    └─> 문제 발생 시: settle 안 함 → CLTV timeout 후 Customer에게 자동 환불
 
-10. 완료 (Customer)
+11. 완료 (Customer)
     └─> 쿠팡에서 입금 확인, Nostr에 sold 이벤트 재발행
 ```
 
@@ -313,7 +320,9 @@ sponsor/src/
 에스크로 서비스 제공자. 거래의 안전성을 보장하는 핵심 역할.
 
 **핵심 기능 (향후 구현):**
+- **Customer fidelity bond**: 사줘 요청 시 주문 금액 일부를 hold invoice로 선납 (스팸 차단)
 - **클레임 유동성 검증**: Sponsor의 invoice에 대해 probing → 통과 시에만 Customer에 전달
+- **Sponsor 블랙리스트**: Lightning 노드 pubkey 기반 트롤링 차단 (invoice에서 노드 식별)
 - **에스크로 관리**: Hold invoice로 Customer의 BTC를 예치받고, KRW 입금 확인 후 settle → Sponsor에게 전송
 - **분쟁 해결**: 문제 발생 시 중재
 - **릴레이 목록 관리**: kind 10002 이벤트 발행/수정

@@ -285,6 +285,91 @@ Lightning invoice 등 비트코인 결제 정보도 별도 채널로 전달한�
 }
 ```
 
+## 스팸/DoS 차단
+
+익명 시스템이므로 양측 모두에서 스팸 공격이 가능하다. 각각 다른 메커니즘으로 차단한다.
+
+### Customer 스팸 차단: Fidelity Bond
+
+Customer가 가짜 주문을 대량 발행하여 오더북을 오염시키는 공격을 차단한다.
+
+**방법**: 사줘 요청 발행 시 주문 금액의 일부(10~100%)를 **hold invoice로 선납**한다.
+어차피 Customer가 지불해야 할 BTC이므로 추가 비용이 아니라 지불 시점의 차이일 뿐이다.
+BTC가 없는 스패머는 원천 차단된다.
+
+```
+Customer                         Admin
+   │                               │
+   │  ① 사줘 요청 발행               │
+   │ ─────────────────────────────→│
+   │                               │
+   │  ② fidelity bond hold invoice │
+   │ ←─────────────────────────────│
+   │                               │
+   │  ③ hold invoice 결제           │
+   │ ─────────────────────────────→│  (BTC 잠김, 오더북에 노출)
+   │                               │
+   │     ... 클레이머 등장 + 유동성 검증 통과 ...
+   │                               │
+   │  ④ fidelity bond cancel       │
+   │ ←─── BTC 즉시 반환 ───────────│
+   │                               │
+   │  ⑤ 정확한 환율로 본 hold invoice│
+   │ ←─────────────────────────────│
+   │                               │
+   │  ⑥ 본 hold invoice 결제       │
+   │ ─────────────────────────────→│  (에스크로 시작)
+```
+
+#### BTC 가격 변동 대응
+
+Fidelity bond 시점과 실제 거래 시점의 BTC/KRW 환율이 다를 수 있다.
+따라서 fidelity bond는 정확한 금액이 아닌 **보증 목적의 소액**으로 받고,
+클레이머 확정 + 유동성 검증 통과 시점에 fidelity bond를 **cancel**(즉시 환불)한 뒤
+해당 시점의 정확한 환율로 본 hold invoice를 새로 발행한다.
+
+- LND: `CancelInvoice(payment_hash)` → HTLC 즉시 해제, Customer에게 BTC 반환
+- CLN: hold invoice 플러그인의 cancel → 동일
+- Cancel 시 원금은 돌아오지만 중간 노드 **라우팅 수수료**(수 sat)는 소실된다 (무시 가능)
+
+> **취소-재발행 윈도우**: Fidelity bond cancel과 본 hold invoice 결제 사이에
+> Customer가 이탈할 수 있다. 하지만 이 시점에서 Sponsor는 아직 KRW를 보내지 않았으므로
+> Sponsor 손해는 없고, Customer만 거래 기회를 잃는다.
+
+### Sponsor 스팸 차단: Lightning 노드 블랙리스트
+
+Sponsor가 클레임만 하고 KRW를 입금하지 않는 트롤링을 차단한다.
+
+**핵심 인사이트**: Nostr pubkey는 무료로 무한 생성 가능하지만,
+Lightning 노드는 채널에 실제 BTC를 lock해야 운영 가능하다.
+따라서 **Nostr pubkey가 아닌 Lightning 노드 pubkey**로 Sponsor를 식별한다.
+
+```
+Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
+                                      → 이것이 Sponsor의 실제 식별자
+```
+
+**블랙리스트 운영**:
+- 트롤링 발생 시 (클레임 후 KRW 미입금 등) 해당 Lightning 노드 pubkey를 블랙리스트에 등록
+- 이후 동일 노드에서 발행된 invoice가 포함된 클레임은 자동 거절
+- Admin 웹앱에서 블랙리스트 관리 UI 제공
+
+**Sybil 비용**: Lightning 노드 신규 구축에는 채널 펀딩(실제 BTC)이 필요하므로,
+블랙리스트 우회를 위한 노드 재생성 비용이 높다.
+
+#### 커스토디얼 월렛 문제 (향후 대응)
+
+커스토디얼 월렛(예: Wallet of Satoshi) 유저는 공유 노드를 사용한다.
+트롤이 의도적으로 커스토디얼 노드를 차단되게 만들면 해당 서비스의 모든 유저가 피해를 본다.
+
+이 문제가 실제로 발생하면 RoboSats 방식의 **Sponsor fidelity bond**로 전환을 검토한다:
+- Sponsor에게도 주문 금액의 일부(~3%)를 hold invoice로 보증금 수령
+- 거래 정상 완료 시 수수료 없이 전액 반환
+- 트롤링 시 보증금 몰수
+
+초기에는 소규모 신뢰 기반으로 운영하므로 블랙리스트만으로 충분하며,
+규모 확장 시 fidelity bond 도입을 검토한다.
+
 ## 유저 키 관리
 
 - Customer/Sponsor 모두 최초 실행 시 `generateSecretKey()`로 랜덤 키페어 생성

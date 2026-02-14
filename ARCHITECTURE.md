@@ -287,27 +287,51 @@ sponsor/src/
 
 **현재 구현:**
 - CLI 테스트 도구 (테스트 이벤트 발행, sold 업데이트)
+- 웹앱 클레임 대기열 (kind 1111 클레임 구독 + 승인/거절 UI)
+
+**키 관리:**
+- 앱 개인키(`APP_PUBKEY`에 대응)는 `.env`(`VITE_APP_SECRET_KEY`)로 관리
+- `.env`는 gitignore 대상, `.env.example`에 템플릿 제공
+- localhost에서만 실행 (공개 배포 안 함)
 
 #### Admin 모듈 구조
 
 ```
-admin/src/
-  common.ts       - 테스트용 privkey, 릴레이 조회, 유틸
-  publish.ts      - 랜덤 사줘 요청 이벤트 발행 (테스트용)
-  sold.ts         - orderId를 sold로 업데이트 (테스트용)
+admin/
+  .env.example            - 개인키 템플릿
+  index.html              - Vite 엔트리
+  vite.config.ts          - 포트 5175
+  src/
+    cli/                  - CLI 테스트 도구
+      common.ts           - 테스트용 privkey, 릴레이 조회
+      publish.ts          - 랜덤 사줘 요청 발행
+      sold.ts             - sold 업데이트
+    web/                  - 웹앱 (React)
+      main.tsx            - React 엔트리
+      App.tsx             - 메인 레이아웃
+      types.ts            - ClaimEvent, OrderRef 타입 + 파서
+      claim-store.ts      - 클레임 반응형 스토어 (localStorage)
+      order-store.ts      - 주문 참조 스토어 (localStorage)
+      nostr/
+        storage.ts        - StorageAdapter
+        subscribe.ts      - kind 1111 + 30402 구독
+        service.ts        - 구독 시작/중지
+      components/
+        ClaimInbox.tsx    - 클레임 대기열
+        ClaimCard.tsx     - 개별 클레임 카드 (승인/거절)
 ```
 
 ## 기술 스택
 
-| 영역 | Customer | Sponsor | Shared |
-|------|----------|---------|--------|
-| 언어 | TypeScript | TypeScript | TypeScript |
-| 프레임워크 | Chrome Extension (MV3) | React 19 | - |
-| 빌드 | Vite + CRXJS | Vite | (앱에서 컴파일) |
-| 통신 | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) |
-| 저장소 | chrome.storage.local | localStorage | StorageAdapter |
-| 테스트 | Vitest | - | - |
-| 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace |
+| 영역 | Customer | Sponsor | Admin | Shared |
+|------|----------|---------|-------|--------|
+| 언어 | TypeScript | TypeScript | TypeScript | TypeScript |
+| 프레임워크 | Chrome Extension (MV3) | React 19 | React 19 | - |
+| 빌드 | Vite + CRXJS | Vite | Vite | (앱에서 컴파일) |
+| 통신 | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) |
+| 저장소 | chrome.storage.local | localStorage | localStorage | StorageAdapter |
+| 키 관리 | 랜덤 생성 | 랜덤 생성 | .env (고정) | ensureKeypair |
+| 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace | pnpm workspace |
 
 ## 관련 문서
 

@@ -40,9 +40,9 @@
 
 ## Sponsor App
 
-- [ ] **"사줄게" 클레임 기능**: 사줘 요청에 응답하는 클레임 이벤트 발행
-  - 클레임은 Customer에게 직접 가지 않고 Admin(에스크로)에게 먼저 전달
-  - Admin이 Lightning 인바운드 유동성 검증 후 승인 시에만 Customer에 전달
+- [x] **"사줄게" 클레임 기능**: kind 1111 (NIP-22 Comment)로 클레임 이벤트 발행
+  - a-tag으로 원본 30402 리스팅 참조
+  - 로컬 상태 관리 (detected → claimed FSM)
 - [ ] **오더북 페이지네이션**: 주문이 많아질 경우 대비
 - [ ] **계좌 정보 수신**: 선택(selected) 시 무통장입금 계좌 정보 수신 및 표시 (DM 등)
 - [ ] **Lightning invoice 제출**: 선택 후 BTC 수령을 위한 invoice 전달
@@ -51,6 +51,7 @@
 ## Admin App (에스크로 서비스)
 
 - [x] **CLI 테스트 도구**: 랜덤 이벤트 발행 (`admin:emit`), sold 업데이트 (`admin:sold`)
+- [x] **웹앱 클레임 대기열**: kind 1111 클레임 + kind 30402 주문 구독, 승인/거절 UI
 - [ ] **클레임 유동성 검증**: Sponsor 클레임 수신 → Lightning 인바운드 유동성 체크
   - 유동성 충분: Customer에게 클레임 전달
   - 유동성 부족: Sponsor에게 거절 통보

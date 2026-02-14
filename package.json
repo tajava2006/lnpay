@@ -7,6 +7,8 @@
     "build:customer": "pnpm --filter @sajwo-tracker/customer build",
     "dev:sponsor": "pnpm --filter @sajwo-tracker/sponsor dev",
     "build:sponsor": "pnpm --filter @sajwo-tracker/sponsor build",
+    "dev:admin": "pnpm --filter @sajwo-tracker/admin dev",
+    "build:admin": "pnpm --filter @sajwo-tracker/admin build",
     "admin:emit": "pnpm --filter @sajwo-tracker/admin emit",
     "admin:sold": "pnpm --filter @sajwo-tracker/admin sold",
     "test": "pnpm -r test",

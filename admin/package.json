@@ -4,17 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "emit": "tsx src/publish.ts",
-    "sold": "tsx src/sold.ts"
+    "dev": "vite",
+    "build": "vite build",
+    "emit": "tsx src/cli/publish.ts",
+    "sold": "tsx src/cli/sold.ts"
   },
   "dependencies": {
     "@sajwo-tracker/shared": "workspace:*",
     "nostr-tools": "^2.23.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.3.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
   }
 }

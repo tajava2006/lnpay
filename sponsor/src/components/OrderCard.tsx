@@ -55,7 +55,7 @@ export function OrderCard({ request, now }: Props) {
       </div>
       <div style={styles.bottom}>
         <span style={styles.meta}>#{request.orderId}</span>
-        <span style={styles.meta}>{formatDate(request.createdAt)}</span>
+        <span style={styles.meta}>{request.expiresAt ? formatDate(request.expiresAt) : ''}</span>
       </div>
     </div>
   );

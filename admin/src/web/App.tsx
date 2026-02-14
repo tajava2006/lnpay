@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { startAdminSubscription, stopAdminSubscription } from './nostr/service';
 import { validateAdminKey } from './nostr/keys';
 import { OrderQueue } from './components/OrderQueue';
@@ -6,11 +6,36 @@ import { OrderClaimList } from './components/OrderClaimList';
 
 const keyResult = validateAdminKey();
 
+/** URL search params에서 orderId를 읽는다 */
+function getOrderIdFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get('order');
+}
+
 export function App() {
   useEffect(() => {
     if (!keyResult.valid) return;
     startAdminSubscription();
     return () => stopAdminSubscription();
+  }, []);
+
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(getOrderIdFromUrl);
+
+  // popstate (브라우저 뒤로가기/앞으로가기) 리스너
+  useEffect(() => {
+    const handlePopState = () => {
+      setSelectedOrderId(getOrderIdFromUrl());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const selectOrder = useCallback((orderId: string) => {
+    history.pushState(null, '', `?order=${orderId}`);
+    setSelectedOrderId(orderId);
+  }, []);
+
+  const goBack = useCallback(() => {
+    history.back();
   }, []);
 
   if (!keyResult.valid) {
@@ -32,8 +57,6 @@ export function App() {
     );
   }
 
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-
   return (
     <div style={styles.container}>
       <header style={styles.header}>
@@ -46,10 +69,10 @@ export function App() {
         {selectedOrderId ? (
           <OrderClaimList
             orderId={selectedOrderId}
-            onBack={() => setSelectedOrderId(null)}
+            onBack={goBack}
           />
         ) : (
-          <OrderQueue onSelectOrder={setSelectedOrderId} />
+          <OrderQueue onSelectOrder={selectOrder} />
         )}
       </main>
     </div>

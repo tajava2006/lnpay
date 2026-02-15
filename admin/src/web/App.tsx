@@ -4,8 +4,11 @@ import { validateAdminKey } from './nostr/keys';
 import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
 import { BtcPrice } from './components/BtcPrice';
+import { NodeStatus } from './components/NodeStatus';
 import { createPriceTracker } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
+import { createLightningAdapter, createNodeTracker } from './lightning';
+import type { NodeTracker } from './lightning';
 
 const keyResult = validateAdminKey();
 
@@ -21,15 +24,25 @@ export function App() {
   }
   const tracker = trackerRef.current;
 
+  // Lightning 노드 트래커 (미설정 시 null)
+  const nodeTrackerRef = useRef<NodeTracker | null | undefined>(undefined);
+  if (nodeTrackerRef.current === undefined) {
+    const adapter = createLightningAdapter();
+    nodeTrackerRef.current = adapter ? createNodeTracker(adapter) : null;
+  }
+  const nodeTracker = nodeTrackerRef.current;
+
   useEffect(() => {
     if (!keyResult.valid) return;
     startAdminSubscription();
     tracker.start();
+    nodeTracker?.start();
     return () => {
       stopAdminSubscription();
       tracker.stop();
+      nodeTracker?.stop();
     };
-  }, [tracker]);
+  }, [tracker, nodeTracker]);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(getOrderIdFromUrl);
 
@@ -78,6 +91,7 @@ export function App() {
           {selectedOrderId ? `주문 #${selectedOrderId} 클레임` : '클레임 대기열'}
         </p>
         <BtcPrice tracker={tracker} />
+        {nodeTracker && <NodeStatus tracker={nodeTracker} />}
       </header>
       <main>
         {selectedOrderId ? (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { startAdminSubscription, stopAdminSubscription } from './nostr/service';
 import { validateAdminKey } from './nostr/keys';
+import type { KeyValidation } from './nostr/keys';
 import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
 import { BtcPrice } from './components/BtcPrice';
@@ -10,14 +11,19 @@ import type { PriceTracker } from '@sajwo-tracker/shared';
 import { createLightningAdapter, createNodeTracker } from './lightning';
 import type { NodeTracker } from './lightning';
 
-const keyResult = validateAdminKey();
-
 /** URL search params에서 orderId를 읽는다 */
 function getOrderIdFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('order');
 }
 
 export function App() {
+  // 키 검증 (dev 서버에서 비동기로 키를 받아옴)
+  const [keyResult, setKeyResult] = useState<KeyValidation | null>(null);
+
+  useEffect(() => {
+    validateAdminKey().then(setKeyResult);
+  }, []);
+
   const trackerRef = useRef<PriceTracker | null>(null);
   if (!trackerRef.current) {
     trackerRef.current = createPriceTracker();
@@ -33,7 +39,7 @@ export function App() {
   const nodeTracker = nodeTrackerRef.current;
 
   useEffect(() => {
-    if (!keyResult.valid) return;
+    if (!keyResult?.valid) return;
     startAdminSubscription();
     tracker.start();
     nodeTracker?.start();
@@ -42,7 +48,7 @@ export function App() {
       tracker.stop();
       nodeTracker?.stop();
     };
-  }, [tracker, nodeTracker]);
+  }, [keyResult, tracker, nodeTracker]);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(getOrderIdFromUrl);
 
@@ -64,6 +70,14 @@ export function App() {
     history.back();
   }, []);
 
+  if (!keyResult) {
+    return (
+      <div style={styles.container}>
+        <p style={styles.loading}>키 검증 중...</p>
+      </div>
+    );
+  }
+
   if (!keyResult.valid) {
     return (
       <div style={styles.container}>
@@ -74,7 +88,7 @@ export function App() {
             <p style={styles.guideTitle}>설정 방법:</p>
             <ol style={styles.guideList}>
               <li><code>admin/.env.example</code>을 <code>admin/.env</code>로 복사</li>
-              <li><code>VITE_APP_SECRET_KEY</code>에 APP_PUBKEY에 대응하는 개인키(hex) 입력</li>
+              <li><code>APP_SECRET_KEY</code>에 APP_PUBKEY에 대응하는 개인키(hex) 입력</li>
               <li>개발 서버 재시작 (<code>pnpm dev:admin</code>)</li>
             </ol>
           </div>
@@ -127,6 +141,12 @@ const styles = {
     fontSize: 14,
     color: '#666',
     margin: '4px 0 0',
+  },
+  loading: {
+    textAlign: 'center' as const,
+    padding: 80,
+    color: '#999',
+    fontSize: 14,
   },
   errorBox: {
     marginTop: 80,

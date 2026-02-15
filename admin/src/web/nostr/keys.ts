@@ -1,8 +1,9 @@
 /**
  * 어드민 키 검증
  *
- * .env의 VITE_APP_SECRET_KEY가 유효한 32바이트 hex이고,
+ * Vite dev 서버의 /__admin_config 엔드포인트에서 키를 받아와
  * APP_PUBKEY와 매칭되는지 검증한다.
+ * 프로덕션 빌드에는 이 엔드포인트가 없으므로 키에 접근할 수 없다.
  */
 import { getPublicKey } from 'nostr-tools/pure';
 import { APP_PUBKEY } from '@sajwo-tracker/shared';
@@ -19,11 +20,21 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
-export function validateAdminKey(): KeyValidation {
-  const raw = import.meta.env.VITE_APP_SECRET_KEY;
+export async function validateAdminKey(): Promise<KeyValidation> {
+  let raw: string;
+  try {
+    const res = await fetch('/__admin_config');
+    if (!res.ok) {
+      return { valid: false, reason: '개발 서버에서 키를 불러올 수 없습니다. pnpm dev:admin으로 실행해 주세요.' };
+    }
+    const data: { secretKey: string } = await res.json();
+    raw = data.secretKey;
+  } catch {
+    return { valid: false, reason: '개발 서버에서 키를 불러올 수 없습니다. pnpm dev:admin으로 실행해 주세요.' };
+  }
 
-  if (!raw || typeof raw !== 'string' || raw.trim() === '') {
-    return { valid: false, reason: 'VITE_APP_SECRET_KEY가 설정되지 않았습니다.' };
+  if (!raw || raw.trim() === '') {
+    return { valid: false, reason: 'APP_SECRET_KEY가 설정되지 않았습니다.' };
   }
 
   const hex = raw.trim();
@@ -31,7 +42,7 @@ export function validateAdminKey(): KeyValidation {
   if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
     return {
       valid: false,
-      reason: `VITE_APP_SECRET_KEY가 유효한 형식이 아닙니다. 32바이트(64자) hex 문자열이어야 합니다. (현재 ${hex.length}자)`,
+      reason: `APP_SECRET_KEY가 유효한 형식이 아닙니다. 32바이트(64자) hex 문자열이어야 합니다. (현재 ${hex.length}자)`,
     };
   }
 

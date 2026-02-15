@@ -326,12 +326,7 @@ Customer와 Sponsor는 빌드 후 정식 도메인에 배포하는 일반적인 
 
 이유는 두 가지:
 
-1. **인증 정보 보호**: Admin은 Nostr 앱 시크릿키(`VITE_APP_SECRET_KEY`)를 보유한다.
-   빌드하여 공개 배포하면 번들에 시크릿키가 포함되어 유출된다.
-   localhost에서만 접속하므로 번들이 외부에 노출되지 않는다.
-
-2. **Lightning 노드 통신**: Admin은 Lightning 노드의 REST API를 호출하여 유동성 검증을 수행한다.
-   Lightning 노드는 탈중앙 인프라 특성상 자체 서명(self-signed) TLS 인증서를 사용하며,
+1. **Self-signed TLS 우회**: Lightning 노드는 탈중앙 인프라 특성상 자체 서명(self-signed) TLS 인증서를 사용하며,
    브라우저는 안전하지 않은 인증서로의 연결을 차단한다.
    **Vite dev 서버가 프록시 역할**을 수행하여 이 제약을 우회한다:
    ```
@@ -340,16 +335,16 @@ Customer와 Sponsor는 빌드 후 정식 도메인에 배포하는 일반적인 
    Vite dev 서버는 Node.js 프로세스이므로 self-signed 인증서 검증을 건너뛸 수 있고(`secure: false`),
    CORS 문제도 같은 origin이므로 발생하지 않는다.
 
-**보안 계층이 두 가지로 분리된다:**
+2. **인증 정보 보호**: 모든 인증 정보(`APP_SECRET_KEY`, `LN_MACAROON_HEX`, `LN_RUNE`)가
+   `VITE_` prefix 없이 관리되므로 **빌드 결과물(번들)에 일절 포함되지 않는다.**
+   Vite dev 서버가 서버 사이드에서만 이 값들을 보유하고, 브라우저에는 동적으로 제공한다:
+   - **Nostr 시크릿키**: Vite dev 서버의 `/__admin_config` 엔드포인트가 런타임에 제공.
+     프로덕션 빌드에는 이 엔드포인트가 존재하지 않으므로 키에 접근 불가.
+   - **LN 인증 정보**: Vite proxy가 `/lnapi/*` 요청에 인증 헤더를 서버 사이드에서 주입.
 
-| 인증 정보 | 보호 방식 | 번들 포함 여부 |
-|-----------|----------|-------------|
-| `VITE_APP_SECRET_KEY` (Nostr 시크릿키) | "공개 배포하지 않는다"는 운영 규칙 | **포함됨** (`VITE_` prefix) |
-| `LN_MACAROON_HEX` / `LN_RUNE` (LN 인증) | Vite proxy가 서버 사이드에서만 사용 | **미포함** (`VITE_` prefix 없음) |
-
-`VITE_` prefix가 붙은 환경변수는 Vite가 빌드 시 번들에 인라인하므로 브라우저에서 접근 가능하다.
-`VITE_` prefix가 없는 환경변수는 `vite.config.ts`(서버 사이드)에서만 접근 가능하며 번들에 포함되지 않는다.
-LN 인증 정보는 후자이므로, Vite dev 서버 프로세스만 알고 있고 프록시 요청에 헤더로 주입한다.
+결과적으로 실수로 프로덕션 빌드를 배포하더라도:
+- 시크릿키를 받아올 `/__admin_config` 엔드포인트가 없어 앱이 "키 검증 실패"로 차단됨
+- LN 인증 정보도 번들에 없고 프록시도 없으므로 노드 접근 불가
 
 #### Lightning 노드 어댑터 패턴
 

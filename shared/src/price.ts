@@ -53,7 +53,7 @@ const EXCHANGES: ExchangeConfig[] = [
     name: '업비트',
     url: 'wss://api.upbit.com/websocket/v1',
     subscribeMessage: () => JSON.stringify([
-      { ticket: '0e66c0ac-7e13-43ef-91fb-2a87c2956c49' },
+      { ticket: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) },
       { type: 'ticker', codes: ['KRW-BTC'] },
     ]),
     parsePrice: (data) => {

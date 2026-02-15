@@ -73,6 +73,7 @@ function createTableRow(order: TrackedOrder): string {
         <span class="order-status" style="background: ${statusMeta.bgColor}; color: ${statusMeta.textColor};">
           ${statusMeta.label}
         </span>
+        ${order.status === 'paid' ? `<div style="font-size: 11px; color: #666; margin-top: 4px;">${order.claimedBy ? `후원자: ${order.claimedBy.slice(0, 8)}…` : '자가 입금'}</div>` : ''}
       </td>
       <td>${date}</td>
       <td class="actions">

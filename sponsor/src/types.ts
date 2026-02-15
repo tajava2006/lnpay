@@ -34,6 +34,8 @@ export interface SajwoRequest {
   createdAt: number;
   /** 후원자 측 상태 */
   status: SponsorOrderStatus;
+  /** 원본 Nostr 이벤트 (클레임 발행 시 content에 포함용) */
+  raw: Event;
 }
 
 /**
@@ -60,5 +62,6 @@ export function parseEvent(event: Event): SajwoRequest | null {
     expiresAt,
     createdAt: event.created_at,
     status: 'detected',
+    raw: event,
   };
 }

@@ -51,7 +51,7 @@ export async function publishClaim(request: SajwoRequest): Promise<boolean> {
       // 클라이언트 식별
       ['t', CLIENT_TAG],
     ],
-    content: '',
+    content: JSON.stringify(request.raw),
   };
 
   const signed = finalizeEvent(template, sk);

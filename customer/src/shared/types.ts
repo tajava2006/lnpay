@@ -87,6 +87,12 @@ export interface TrackedOrder {
    * claim된 시점 (타임아웃 관리용)
    */
   claimedAt?: number;
+
+  /**
+   * 발행된 Nostr 이벤트 원본 (JSON 직렬화)
+   * 최초 detected 시엔 없고, Nostr 발행 후 생긴다.
+   */
+  raw?: string;
 }
 
 // ============================================================

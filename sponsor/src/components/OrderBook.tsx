@@ -19,7 +19,7 @@ export function OrderBook() {
 
   // 만료되지 않은 요청만 필터링, 만료 임박순 (expiresAt 없으면 맨 뒤)
   const activeRequests = Object.values(orders)
-    .filter((r: SajwoRequest) => !r.expiresAt || r.expiresAt > now)
+    .filter((r: SajwoRequest) => r.status === 'claimed' || !r.expiresAt || r.expiresAt > now)
     .sort((a: SajwoRequest, b: SajwoRequest) => {
       if (!a.expiresAt && !b.expiresAt) return 0;
       if (!a.expiresAt) return 1;

@@ -1,4 +1,5 @@
 import { SimplePool } from 'nostr-tools/pool';
+import { verifyEvent } from 'nostr-tools/pure';
 import type { Event } from 'nostr-tools/core';
 import { SAJWO_REQUEST_KIND, CLIENT_TAG } from '@sajwo-tracker/shared';
 
@@ -31,6 +32,10 @@ export function subscribeSajwoRequests(
     },
     {
       onevent: (event) => {
+        if (!verifyEvent(event)) {
+          console.warn('[Nostr] Invalid signature, ignoring:', event.id);
+          return;
+        }
         const statusTag = event.tags.find(t => t[0] === 'status')?.[1];
         if (statusTag === 'active') {
           callbacks.onActive(event);

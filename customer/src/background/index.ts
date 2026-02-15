@@ -5,8 +5,8 @@
 
 import { ensureKeypair, refreshRelays } from '@sajwo-tracker/shared';
 import { storage } from '../nostr/storage';
-import { publishOrder } from '../nostr/publish';
-import { getOrder } from '../shared/storage';
+import { publishOrder, type PublishResult } from '../nostr/publish';
+import { getOrder, saveOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
 import { RELAY_REFRESH_ALARM, RELAY_REFRESH_INTERVAL_MINUTES } from '../nostr/constants';
 
@@ -112,13 +112,25 @@ async function handlePublishOrder(orderId: string) {
         return { success: false, error: 'ORDER_NOT_FOUND_AFTER_TRANSITION' };
       }
 
-      return publishOrder(updatedOrder);
+      return publishAndSaveRaw(updatedOrder);
     }
 
     // 이미 requested 이상이면 현재 상태로 재발행 (상태 업데이트 반영)
-    return publishOrder(order);
+    return publishAndSaveRaw(order);
   } catch (err) {
     console.error('[Background] Publish error:', err);
     return { success: false, error: String(err) };
   }
+}
+
+/** 발행 후 서명 이벤트 원본을 주문 저장소에 보존한다. */
+async function publishAndSaveRaw(order: TrackedOrder): Promise<PublishResult> {
+  const result = await publishOrder(order);
+  if (result.success && result.raw) {
+    const latest = await getOrder(order.orderId);
+    if (latest) {
+      await saveOrder({ ...latest, raw: result.raw });
+    }
+  }
+  return result;
 }

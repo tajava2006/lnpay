@@ -22,6 +22,8 @@ export interface ClaimEvent {
   createdAt: number;
   /** 어드민 처리 상태 */
   status: AdminClaimStatus;
+  /** 원본 Nostr 이벤트 */
+  raw: Event;
 }
 
 /**
@@ -49,6 +51,7 @@ export function parseClaimEvent(event: Event): ClaimEvent | null {
     orderEventId,
     createdAt: event.created_at,
     status: 'pending',
+    raw: event,
   };
 }
 
@@ -61,6 +64,8 @@ export interface OrderRef {
   currency: string;
   expiresAt: number | null;
   createdAt: number;
+  /** 원본 Nostr 이벤트 */
+  raw: Event;
 }
 
 /**
@@ -84,5 +89,6 @@ export function parseOrderEvent(event: Event): OrderRef | null {
     currency,
     expiresAt,
     createdAt: event.created_at,
+    raw: event,
   };
 }

@@ -8,6 +8,8 @@ export interface PublishResult {
   success: boolean;
   publishedTo: string[];
   errors: string[];
+  /** 발행된 서명 이벤트 원본 (JSON 직렬화) */
+  raw?: string;
 }
 
 /**
@@ -45,5 +47,10 @@ export async function publishOrder(order: TrackedOrder): Promise<PublishResult> 
   const success = publishedTo.length > 0;
   console.log('[Nostr] Published to', publishedTo.length, 'relays, errors:', errors.length);
 
-  return { success, publishedTo, errors };
+  return {
+    success,
+    publishedTo,
+    errors,
+    raw: success ? JSON.stringify(signedEvent) : undefined,
+  };
 }

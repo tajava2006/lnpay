@@ -9,10 +9,10 @@
  * 프로덕션 빌드에서 완전히 제거된다.
  */
 
-import { createOrder } from '../shared/storage';
+import { createOrder, saveOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
 import { getStatusMeta, isFinalStatus } from '../shared/order-states';
-import type { TrackedOrder } from '../shared/types';
+import type { TrackedOrder, OrderStatus } from '../shared/types';
 import { generateTestOrderData, type TestOrderParams } from './test-data';
 
 /**
@@ -27,6 +27,7 @@ export function mountDevPanel(container: HTMLElement): void {
   bindCreateOrder(panel);
   bindPaidAction(panel);
   bindCancelAction(panel);
+  bindImportRawEvent(panel);
 }
 
 /**
@@ -117,6 +118,16 @@ function buildPanelHTML(): string {
         </div>
       </div>
 
+      <!-- Raw 이벤트로 주문 복원 -->
+      <div style="margin-bottom: 20px;">
+        <h3 style="font-size: 14px; color: #666; margin: 0 0 8px 0;">Nostr 이벤트로 주문 복원</h3>
+        <textarea id="devRawEventInput" placeholder='{"id":"...","pubkey":"...","kind":30402,"tags":[...],...}'
+          style="display: block; width: 100%; height: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 11px; resize: vertical; margin-bottom: 8px;"></textarea>
+        <button id="devImportRawEvent" class="btn btn-publish" style="height: 34px;">
+          주문 복원
+        </button>
+      </div>
+
       <!-- 로그 -->
       <div>
         <h3 style="font-size: 14px; color: #666; margin: 0 0 8px 0;">로그</h3>
@@ -174,6 +185,62 @@ function bindPaidAction(panel: HTMLElement): void {
 function bindCancelAction(panel: HTMLElement): void {
   const btn = panel.querySelector('#devMarkCancelled') as HTMLButtonElement;
   btn.addEventListener('click', () => handleFinalTransition('cancelled', btn));
+}
+
+function bindImportRawEvent(panel: HTMLElement): void {
+  const btn = panel.querySelector('#devImportRawEvent') as HTMLButtonElement;
+  btn.addEventListener('click', async () => {
+    const textarea = panel.querySelector('#devRawEventInput') as HTMLTextAreaElement;
+    const raw = textarea.value.trim();
+    if (!raw) {
+      devLog('이벤트 JSON을 입력해주세요.');
+      return;
+    }
+
+    try {
+      const event = JSON.parse(raw);
+      const tags: string[][] = event.tags ?? [];
+
+      const orderId = tags.find((t: string[]) => t[0] === 'd')?.[1];
+      if (!orderId) {
+        devLog('d 태그(orderId)를 찾을 수 없습니다.');
+        return;
+      }
+
+      const priceStr = tags.find((t: string[]) => t[0] === 'price')?.[1];
+      const price = priceStr ? Number(priceStr) : 0;
+
+      const expStr = tags.find((t: string[]) => t[0] === 'expiration')?.[1];
+      const expirationDate = expStr ? Number(expStr) * 1000 : Date.now() + 86400_000;
+
+      const statusTag = tags.find((t: string[]) => t[0] === 'status')?.[1];
+      const status: OrderStatus = statusTag === 'sold' ? 'paid' : 'requested';
+
+      const order: TrackedOrder = {
+        orderId,
+        productName: '복원된 주문',
+        amount: price,
+        status,
+        createdAt: (event.created_at ?? Math.floor(Date.now() / 1000)) * 1000,
+        version: 1,
+        virtualAccount: {
+          bankName: '(복원)',
+          bankCode: 'XXXX',
+          accountNumber: '000-0000-0000-00',
+          depositor: '(복원)',
+          depositPrice: price,
+          expirationDate,
+        },
+        raw,
+      };
+
+      await saveOrder(order);
+      devLog(`주문 복원 완료: ${orderId} (status=${status}, price=${price.toLocaleString()})`);
+      textarea.value = '';
+    } catch (err) {
+      devLog(`주문 복원 실패: ${String(err)}`);
+    }
+  });
 }
 
 /**

@@ -1,5 +1,6 @@
-import { getAllOrders, deleteOrder, clearAllOrders } from '../shared/storage';
+import { getAllOrders, getOrder, deleteOrder, clearAllOrders } from '../shared/storage';
 import { getStatusMeta, isFinalStatus, isDeletable } from '../shared/order-states';
+import { transitionOrderWithRetry } from '../shared/state-machine';
 import type { TrackedOrder } from '../shared/types';
 
 async function renderDashboard() {
@@ -39,7 +40,7 @@ async function renderDashboard() {
     btn.addEventListener('click', async (e) => {
       const orderId = (e.target as HTMLElement).dataset.orderId;
       if (orderId && confirm('이 주문을 삭제하시겠습니까?')) {
-        await deleteOrder(orderId);
+        await deleteAndPublishSold(orderId);
         renderDashboard();
       }
     });
@@ -82,6 +83,24 @@ function createTableRow(order: TrackedOrder): string {
       </td>
     </tr>
   `;
+}
+
+/**
+ * 주문 삭제 + Nostr sold 이벤트 발행.
+ * Nostr에 발행된 주문(raw 존재)이면 cancelled 전이 → sold 재발행 후 삭제.
+ * 발행된 적 없으면 로컬 삭제만 수행.
+ */
+async function deleteAndPublishSold(orderId: string): Promise<void> {
+  const order = await getOrder(orderId);
+  if (!order) return;
+
+  // Nostr에 발행된 비최종 상태 주문: cancelled 전이 → sold 이벤트 발행
+  if (order.raw && !isFinalStatus(order.status)) {
+    await transitionOrderWithRetry(orderId, 'cancelled');
+    await chrome.runtime.sendMessage({ type: 'PUBLISH_ORDER', orderId });
+  }
+
+  await deleteOrder(orderId);
 }
 
 async function publishOrder(orderId: string, btn: HTMLButtonElement) {

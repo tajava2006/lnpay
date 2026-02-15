@@ -23,7 +23,6 @@ export const RELAY_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 export const DISCOVERY_RELAYS = [
   'wss://purplepag.es',
   'wss://relay.damus.io',
-  'wss://relay.nostr.band',
   'wss://nos.lol',
 ];
 
@@ -31,5 +30,4 @@ export const DISCOVERY_RELAYS = [
 export const FALLBACK_RELAYS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
-  'wss://relay.nostr.band',
 ];

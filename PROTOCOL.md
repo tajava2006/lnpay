@@ -41,7 +41,7 @@ Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read
 
 ### 디스커버리 절차
 
-1. Well-known 릴레이(`purplepag.es`, `relay.damus.io`, `nos.lol`, `relay.nostr.band`)에 접속
+1. Well-known 릴레이(`purplepag.es`, `relay.damus.io`, `nos.lol`)에 접속
 2. `{ kinds: [10002], authors: [APP_PUBKEY] }` 필터로 조회
 3. `['r', url]` 또는 `['r', url, 'read']` 태그에서 read relay 추출
 4. 10분마다 갱신 (릴레이 변경에 대응)

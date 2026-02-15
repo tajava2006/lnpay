@@ -1,5 +1,7 @@
 import type { LightningAdapter } from './adapter';
-import type { NodeInfo } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult } from './types';
+
+// ─── 응답 타입 ───────────────────────────────────────────────
 
 /** CLN clnrest POST /v1/getinfo 응답 (사용하는 필드만) */
 interface ClnGetInfoResponse {
@@ -18,11 +20,47 @@ interface ClnListFundsResponse {
   outputs: Array<{ amount_msat: number; status: string }>;
 }
 
-async function postJson<T>(url: string): Promise<T> {
+/** CLN clnrest POST /v1/decode 응답 (bolt11) */
+interface ClnDecodeResponse {
+  payee: string;
+  amount_msat?: number;
+  payment_hash: string;
+  description?: string;
+  created_at: number;
+  expiry: number;
+  min_final_cltv_expiry: number;
+}
+
+/** CLN clnrest POST /v1/getroute 응답 */
+interface ClnGetRouteResponse {
+  route: Array<{
+    id: string;
+    channel: string;
+    direction: number;
+    amount_msat: number;
+    delay: number;
+    style: string;
+  }>;
+}
+
+/** CLN waitsendpay 에러 응답 */
+interface ClnWaitSendPayError {
+  code: number;
+  message: string;
+  data?: {
+    failcode?: number;
+    failcodename?: string;
+    erring_node?: string;
+  };
+}
+
+// ─── 유틸리티 ─────────────────────────────────────────────────
+
+async function postJson<T>(url: string, body: unknown = {}): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -30,6 +68,23 @@ async function postJson<T>(url: string): Promise<T> {
   }
   return res.json();
 }
+
+/** Uint8Array → hex 문자열 */
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * crypto.getRandomValues()로 32바이트 랜덤 payment hash를 생성한다.
+ * 이 해시에 대응하는 프리이미지는 존재하지 않으므로 결제가 반드시 실패한다.
+ */
+function generateRandomPaymentHash(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return bytesToHex(bytes);
+}
+
+// ─── 어댑터 구현 ──────────────────────────────────────────────
 
 export class ClnAdapter implements LightningAdapter {
   async getInfo(): Promise<NodeInfo> {
@@ -58,4 +113,119 @@ export class ClnAdapter implements LightningAdapter {
       onchainBalanceSat: Math.floor(onchainBalanceMsat / 1000),
     };
   }
+
+  async decodeInvoice(bolt11: string): Promise<DecodedInvoice> {
+    const data = await postJson<ClnDecodeResponse>('/lnapi/v1/decode', {
+      string: bolt11,
+    });
+
+    return {
+      destination: data.payee,
+      amountSat: data.amount_msat ? Math.floor(data.amount_msat / 1000) : 0,
+      paymentHash: data.payment_hash,
+      description: data.description ?? '',
+      expiresAt: data.created_at + data.expiry,
+      cltvExpiry: data.min_final_cltv_expiry,
+    };
+  }
+
+  async probe(
+    destination: string,
+    amountSat: number,
+    finalCltvDelta = 9,
+  ): Promise<ProbeResult> {
+    // 랜덤 해시 생성 — 프리이미지가 존재하지 않으므로 결제가 반드시 실패
+    const randomHash = generateRandomPaymentHash();
+    const amountMsat = amountSat * 1000;
+
+    // 1. 경로 조회
+    let route: ClnGetRouteResponse['route'];
+    try {
+      const routeRes = await postJson<ClnGetRouteResponse>('/lnapi/v1/getroute', {
+        id: destination,
+        amount_msat: amountMsat,
+        riskfactor: 10,
+        cltv: finalCltvDelta,
+      });
+      route = routeRes.route;
+    } catch {
+      return { status: 'unreachable', reason: '경로를 찾을 수 없습니다' };
+    }
+
+    // 2. 랜덤 해시로 결제 시도 (반드시 실패)
+    await postJson('/lnapi/v1/sendpay', {
+      route,
+      payment_hash: randomHash,
+      amount_msat: amountMsat,
+    });
+
+    // 3. 결과 대기
+    try {
+      const result = await postJson<{ status: string; payment_preimage?: string }>(
+        '/lnapi/v1/waitsendpay',
+        { payment_hash: randomHash, timeout: 30 },
+      );
+
+      // 결제가 성공했다면 심각한 버그
+      if (result.status === 'complete' && result.payment_preimage) {
+        throw new Error(
+          'CRITICAL: 프로브가 성공(정산)했습니다. 이는 절대 발생해서는 안 되는 상황입니다. ' +
+          '랜덤 payment hash가 실제 인보이스와 충돌했거나 심각한 버그가 있습니다.',
+        );
+      }
+
+      // 예상치 못한 성공 응답
+      return { status: 'error', message: `예상치 못한 waitsendpay 응답: ${result.status}` };
+    } catch (err: unknown) {
+      // waitsendpay는 실패 시 HTTP 에러로 응답 — 에러 코드에서 결과 판별
+      const error = parseClnError(err);
+      if (!error) {
+        return { status: 'error', message: `waitsendpay 에러 파싱 실패: ${String(err)}` };
+      }
+
+      // error code 203: 목적지에서 거부 (permanent failure at destination)
+      // failcode 16399 = INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS → 유동성 존재 확인
+      if (error.code === 203) {
+        const failcode = error.data?.failcode;
+        if (failcode === 16399) {
+          return { status: 'reachable' };
+        }
+        return {
+          status: 'unreachable',
+          reason: error.data?.failcodename ?? `목적지 거부 (failcode: ${failcode})`,
+        };
+      }
+
+      // error code 204: 경로 중간에서 실패
+      if (error.code === 204) {
+        return { status: 'unreachable', reason: '경로 유동성 부족' };
+      }
+
+      // error code 200: 타임아웃
+      if (error.code === 200) {
+        return { status: 'unreachable', reason: '프로브 시간 초과' };
+      }
+
+      return { status: 'error', message: error.message };
+    }
+  }
+}
+
+/**
+ * CLN HTTP 에러 응답에서 에러 코드/메시지를 추출한다.
+ * waitsendpay 실패 시 HTTP 500과 함께 JSON 에러 바디가 온다.
+ */
+function parseClnError(err: unknown): ClnWaitSendPayError | null {
+  if (err instanceof Error) {
+    // postJson이 throw하는 에러 메시지에서 JSON 부분 추출 시도
+    const match = err.message.match(/\{.*\}/s);
+    if (match) {
+      try {
+        return JSON.parse(match[0]) as ClnWaitSendPayError;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
 }

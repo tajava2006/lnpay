@@ -1,5 +1,7 @@
 import type { LightningAdapter } from './adapter';
-import type { NodeInfo } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult } from './types';
+
+// ─── 응답 타입 ───────────────────────────────────────────────
 
 /** LND REST /v1/getinfo 응답 (사용하는 필드만) */
 interface LndGetInfoResponse {
@@ -22,6 +24,36 @@ interface LndWalletBalanceResponse {
   confirmed_balance: string;
 }
 
+/** LND REST /v1/payreq 응답 */
+interface LndDecodePayReqResponse {
+  destination: string;
+  payment_hash: string;
+  num_satoshis: string;
+  description: string;
+  timestamp: string;
+  expiry: string;
+  cltv_expiry: string;
+}
+
+/**
+ * LND /v2/router/send 스트리밍 응답의 Payment 객체.
+ * failure_reason 값:
+ *   0 = NONE, 1 = TIMEOUT, 2 = NO_ROUTE, 3 = ERROR,
+ *   4 = INCORRECT_PAYMENT_DETAILS, 5 = INSUFFICIENT_BALANCE
+ */
+interface LndPayment {
+  status: 'UNKNOWN' | 'IN_FLIGHT' | 'SUCCEEDED' | 'FAILED' | 'INITIATED';
+  failure_reason:
+    | 'FAILURE_REASON_NONE'
+    | 'FAILURE_REASON_TIMEOUT'
+    | 'FAILURE_REASON_NO_ROUTE'
+    | 'FAILURE_REASON_ERROR'
+    | 'FAILURE_REASON_INCORRECT_PAYMENT_DETAILS'
+    | 'FAILURE_REASON_INSUFFICIENT_BALANCE';
+}
+
+// ─── 유틸리티 ─────────────────────────────────────────────────
+
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) {
@@ -30,6 +62,34 @@ async function fetchJson<T>(url: string): Promise<T> {
   }
   return res.json();
 }
+
+/** hex 문자열 → base64 (LND REST는 bytes 필드에 base64를 사용) */
+function hexToBase64(hex: string): string {
+  let binary = '';
+  for (let i = 0; i < hex.length; i += 2) {
+    binary += String.fromCharCode(parseInt(hex.substring(i, i + 2), 16));
+  }
+  return btoa(binary);
+}
+
+/** Uint8Array → base64 */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/**
+ * crypto.getRandomValues()로 32바이트 랜덤 payment hash를 생성한다.
+ * 이 해시에 대응하는 프리이미지는 존재하지 않으므로 결제가 반드시 실패한다.
+ */
+function generateRandomPaymentHash(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return bytesToBase64(bytes);
+}
+
+// ─── 어댑터 구현 ──────────────────────────────────────────────
 
 export class LndAdapter implements LightningAdapter {
   async getInfo(): Promise<NodeInfo> {
@@ -50,5 +110,90 @@ export class LndAdapter implements LightningAdapter {
       channelBalanceSat: Number(chanBal.balance || '0'),
       onchainBalanceSat: Number(walletBal.confirmed_balance || '0'),
     };
+  }
+
+  async decodeInvoice(bolt11: string): Promise<DecodedInvoice> {
+    const data = await fetchJson<LndDecodePayReqResponse>(
+      `/lnapi/v1/payreq/${encodeURIComponent(bolt11)}`,
+    );
+
+    return {
+      destination: data.destination,
+      amountSat: Number(data.num_satoshis),
+      paymentHash: data.payment_hash,
+      description: data.description,
+      expiresAt: Number(data.timestamp) + Number(data.expiry),
+      cltvExpiry: Number(data.cltv_expiry),
+    };
+  }
+
+  async probe(
+    destination: string,
+    amountSat: number,
+    finalCltvDelta = 40,
+  ): Promise<ProbeResult> {
+    // 랜덤 해시 생성 — 프리이미지가 존재하지 않으므로 결제가 반드시 실패
+    const randomHash = generateRandomPaymentHash();
+
+    const feeLimitSat = Math.max(Math.ceil(amountSat * 0.01), 10);
+
+    const res = await fetch('/lnapi/v2/router/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dest: hexToBase64(destination),
+        amt: String(amountSat),
+        payment_hash: randomHash,
+        timeout_seconds: 30,
+        fee_limit_sat: String(feeLimitSat),
+        no_inflight_updates: true,
+        max_parts: 1,
+        final_cltv_delta: finalCltvDelta,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return { status: 'error', message: `프로브 요청 실패: ${res.status} ${text}` };
+    }
+
+    // /v2/router/send는 NDJSON 스트리밍 응답 — 마지막 줄이 최종 결과
+    const text = await res.text();
+    const lines = text.trim().split('\n').filter(Boolean);
+    const lastLine = lines[lines.length - 1];
+
+    let payment: LndPayment;
+    try {
+      const parsed: { result: LndPayment } = JSON.parse(lastLine);
+      payment = parsed.result;
+    } catch {
+      return { status: 'error', message: `응답 파싱 실패: ${lastLine}` };
+    }
+
+    // 결제가 성공했다면 심각한 버그 — 랜덤 해시로는 절대 발생하면 안 됨
+    if (payment.status === 'SUCCEEDED') {
+      throw new Error(
+        'CRITICAL: 프로브가 성공(정산)했습니다. 이는 절대 발생해서는 안 되는 상황입니다. ' +
+        '랜덤 payment hash가 실제 인보이스와 충돌했거나 심각한 버그가 있습니다.',
+      );
+    }
+
+    switch (payment.failure_reason) {
+      // 목적지까지 도달했으나 해시 불일치로 거부 → 유동성 존재 확인
+      case 'FAILURE_REASON_INCORRECT_PAYMENT_DETAILS':
+        return { status: 'reachable' };
+
+      case 'FAILURE_REASON_NO_ROUTE':
+        return { status: 'unreachable', reason: '경로를 찾을 수 없습니다' };
+
+      case 'FAILURE_REASON_TIMEOUT':
+        return { status: 'unreachable', reason: '프로브 시간 초과' };
+
+      case 'FAILURE_REASON_INSUFFICIENT_BALANCE':
+        return { status: 'unreachable', reason: '아웃바운드 유동성 부족' };
+
+      default:
+        return { status: 'error', message: `프로브 실패: ${payment.failure_reason}` };
+    }
   }
 }

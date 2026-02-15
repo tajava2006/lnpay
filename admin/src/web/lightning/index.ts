@@ -4,7 +4,10 @@ import { LndAdapter } from './lnd';
 import { ClnAdapter } from './cln';
 
 export type { LightningAdapter } from './adapter';
-export type { LightningBackend, NodeInfo, ConnectionStatus, NodeSnapshot } from './types';
+export type {
+  LightningBackend, NodeInfo, ConnectionStatus, NodeSnapshot,
+  DecodedInvoice, ProbeResult,
+} from './types';
 export { createNodeTracker } from './node-tracker';
 export type { NodeTracker } from './node-tracker';
 

@@ -1,9 +1,14 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
 import type { SajwoRequest } from '../types';
+import type { PriceTracker } from '@sajwo-tracker/shared';
 import { OrderCard } from './OrderCard';
 
-export function OrderBook() {
+interface Props {
+  tracker: PriceTracker;
+}
+
+export function OrderBook({ tracker }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
   const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
 
@@ -40,7 +45,7 @@ export function OrderBook() {
       {!synced && <div style={styles.syncBadge}>동기화 중...</div>}
       <div style={styles.list}>
         {activeRequests.map((request: SajwoRequest) => (
-          <OrderCard key={request.orderId} request={request} now={now} />
+          <OrderCard key={request.orderId} request={request} now={now} tracker={tracker} />
         ))}
       </div>
     </div>

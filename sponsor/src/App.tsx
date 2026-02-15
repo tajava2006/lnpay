@@ -30,7 +30,7 @@ function AppContent() {
         <BtcPrice tracker={tracker} />
       </header>
       <main>
-        <OrderBook />
+        <OrderBook tracker={tracker} />
       </main>
     </div>
   );

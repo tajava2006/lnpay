@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import type { SajwoRequest } from '../types';
+import type { PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim } from '../nostr/claim';
 import { transitionOrder } from '../order-store';
 import { decodeBolt11 } from '../utils/bolt11';
@@ -8,6 +9,7 @@ import type { Bolt11Result } from '../utils/bolt11';
 interface Props {
   request: SajwoRequest;
   now: number;
+  tracker: PriceTracker;
 }
 
 function formatTimeLeft(expiresAt: number | null, now: number): string {
@@ -44,11 +46,22 @@ function formatSats(msat: number): string {
   return sats.toLocaleString() + ' sats';
 }
 
-export function OrderCard({ request, now }: Props) {
+/** KRW 금액을 BTC 가격 기준으로 sats로 환산 */
+function krwToSats(krw: number, btcKrw: number): number {
+  return Math.round((krw / btcKrw) * 1e8);
+}
+
+export function OrderCard({ request, now, tracker }: Props) {
   const [claiming, setClaiming] = useState(false);
   const [showInvoiceInput, setShowInvoiceInput] = useState(false);
   const [invoiceText, setInvoiceText] = useState('');
   const [invoiceResult, setInvoiceResult] = useState<Bolt11Result | null>(null);
+
+  const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
+  const btcKrw = priceSnap.price;
+  const expectedSats = btcKrw && request.price > 0
+    ? krwToSats(request.price, btcKrw)
+    : null;
 
   const timeLeft = formatTimeLeft(request.expiresAt, now);
   const isUrgent = request.expiresAt
@@ -87,7 +100,15 @@ export function OrderCard({ request, now }: Props) {
   }
 
   const isClaimed = request.status === 'claimed';
-  const isInvoiceValid = invoiceResult?.valid === true;
+
+  // 금액 범위 검증: invoice 금액이 예상 BTC 환산의 90~110% 이내인지
+  const amountInRange = (() => {
+    if (!invoiceResult?.valid || !expectedSats) return true; // 가격 정보 없으면 검증 스킵
+    const invoiceSats = Math.floor(invoiceResult.amountMsat! / 1000);
+    return invoiceSats >= expectedSats * 0.9 && invoiceSats <= expectedSats * 1.1;
+  })();
+
+  const isInvoiceValid = invoiceResult?.valid === true && amountInRange;
 
   return (
     <div style={styles.card}>
@@ -109,7 +130,8 @@ export function OrderCard({ request, now }: Props) {
         ) : showInvoiceInput ? (
           <div style={styles.invoiceSection}>
             <p style={styles.invoiceDesc}>
-              유동성 검증을 위해 <strong>{request.price.toLocaleString()}원</strong> 상당의
+              유동성 검증을 위해 <strong>{request.price.toLocaleString()}원
+              {expectedSats !== null && ` (약 ${expectedSats.toLocaleString()} sats)`}</strong> 상당의
               Lightning invoice를 붙여넣어 주세요.
             </p>
             <p style={styles.invoiceHint}>
@@ -127,8 +149,11 @@ export function OrderCard({ request, now }: Props) {
               <p style={styles.invoiceError}>{invoiceResult.error}</p>
             )}
             {invoiceResult?.valid && (
-              <p style={styles.invoiceSuccess}>
+              <p style={amountInRange ? styles.invoiceSuccess : styles.invoiceError}>
                 {formatSats(invoiceResult.amountMsat!)}
+                {!amountInRange && expectedSats !== null && (
+                  ` — 예상 범위(${Math.floor(expectedSats * 0.9).toLocaleString()}~${Math.ceil(expectedSats * 1.1).toLocaleString()} sats)를 벗어납니다.`
+                )}
               </p>
             )}
             <div style={styles.invoiceBtns}>

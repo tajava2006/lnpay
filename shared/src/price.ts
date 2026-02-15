@@ -64,7 +64,8 @@ const EXCHANGES: ExchangeConfig[] = [
       return null;
     },
     binary: true,
-    pingIntervalMs: 0,
+    pingIntervalMs: 2 * 60 * 1000, // 2분
+    pingMessage: () => 'PING',
   },
   {
     name: '빗썸',
@@ -85,7 +86,8 @@ const EXCHANGES: ExchangeConfig[] = [
       }
       return null;
     },
-    pingIntervalMs: 0,
+    pingIntervalMs: 3 * 60 * 1000, // 3분
+    pingMessage: () => JSON.stringify({ type: 'ping' }),
   },
   {
     name: '코인원',
@@ -205,7 +207,11 @@ export function createPriceTracker(): PriceTracker {
       });
 
       ws.addEventListener('close', () => {
+        // 이미 교체된 소켓의 stale close 이벤트는 무시
+        if (sockets[index] !== ws) return;
+
         console.log(`[Price] ${config.name} 연결 종료`);
+        sockets[index] = null;
         state.connected = false;
         cleanupPing(index);
         notify();
@@ -225,8 +231,8 @@ export function createPriceTracker(): PriceTracker {
   function cleanupSocket(index: number) {
     const ws = sockets[index];
     if (ws) {
+      sockets[index] = null; // close 이벤트보다 먼저 null 설정 → stale handler 무시
       ws.close();
-      sockets[index] = null;
     }
     cleanupPing(index);
   }

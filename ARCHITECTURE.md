@@ -380,8 +380,9 @@ admin/
         subscribe.ts      - kind 1111 + 30402 구독
         service.ts        - 구독 시작/중지
       components/
-        ClaimInbox.tsx    - 클레임 대기열
-        ClaimCard.tsx     - 개별 클레임 카드 (승인/거절)
+        OrderQueue.tsx       - 주문 단위 클레임 대기열
+        OrderClaimList.tsx   - 주문별 클레임 목록
+        ClaimCard.tsx        - 개별 클레임 카드 (승인/거절)
 ```
 
 ## 기술 스택

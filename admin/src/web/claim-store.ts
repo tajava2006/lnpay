@@ -2,7 +2,7 @@
  * 반응형 클레임 스토어
  *
  * Nostr 서비스 → claim-store → localStorage + listeners
- * ClaimInbox → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
+ * UI → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
 import type { ClaimEvent, AdminClaimStatus } from './types';
 

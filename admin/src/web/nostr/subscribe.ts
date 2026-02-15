@@ -1,5 +1,4 @@
 import { SimplePool } from 'nostr-tools/pool';
-import { verifyEvent } from 'nostr-tools/pure';
 import type { Event } from 'nostr-tools/core';
 import { SAJWO_REQUEST_KIND, SAJWO_CLAIM_KIND, CLIENT_TAG, APP_PUBKEY } from '@sajwo-tracker/shared';
 
@@ -44,10 +43,6 @@ export function subscribeAdmin(
     },
     {
       onevent: (event) => {
-        if (!verifyEvent(event)) {
-          console.warn('[Admin] Invalid claim signature, ignoring:', event.id);
-          return;
-        }
         callbacks.onClaim(event);
       },
       oneose: () => { claimEose = true; checkEose(); },
@@ -64,10 +59,6 @@ export function subscribeAdmin(
     },
     {
       onevent: (event) => {
-        if (!verifyEvent(event)) {
-          console.warn('[Admin] Invalid order signature, ignoring:', event.id);
-          return;
-        }
         const statusTag = event.tags.find(t => t[0] === 'status')?.[1];
         if (statusTag === 'sold') {
           callbacks.onOrderSold(event);

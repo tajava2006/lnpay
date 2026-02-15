@@ -54,13 +54,17 @@
 
 - [x] ~~**CLI 테스트 도구**~~: 제거됨 — Customer Dev 패널로 대체
 - [x] **웹앱 클레임 대기열**: kind 1111 클레임 + kind 30402 주문 구독, 승인/거절 UI
+- [x] **Lightning 노드 연결**: LND/CLN 어댑터 패턴 + Vite proxy를 통한 노드 REST API 호출
+  - `LightningAdapter` 인터페이스 (getInfo 구현, 향후 probe/hold invoice 확장)
+  - LND: `GET /v1/getinfo` + macaroon 인증 / CLN: `POST /v1/getinfo` + rune 인증
+  - `.env`로 구현체 선택 (`VITE_LN_BACKEND=lnd|cln`) + 인증 정보는 서버 사이드 전용
+  - NodeTracker (30초 polling) + NodeStatus 헤더 인디케이터
 - [ ] **클레임 유동성 검증**: Sponsor 클레임의 invoice에 대해 probing 수행
   - 랜덤 payment hash로 경로 탐색 (실제 결제 없음, 수수료 없음)
   - probing 성공 (`INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS`): Customer에 클레임 전달
   - probing 실패 (`TEMPORARY_CHANNEL_FAILURE` 등): Sponsor에 거절 통보
-  - `LightningProber` 인터페이스 + LND/CLN 어댑터 패턴으로 구현체 교체 가능하게
-  - LND: gRPC `SendPaymentV2` + 랜덤 hash / CLN: `getroute` + `sendpay`
-  - `.env`로 구현체 선택 (`LIGHTNING_IMPL=lnd|cln`) + 엔드포인트/인증 정보 관리
+  - LightningAdapter에 probe 메서드 추가
+  - LND: REST `SendPaymentV2` + 랜덤 hash / CLN: REST `getroute` + `sendpay`
 - [ ] **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
   - Admin이 hold invoice 생성 (프리이미지 보유 = settle 권한)
   - Customer가 hold invoice 결제 → BTC가 HTLC에 잠김

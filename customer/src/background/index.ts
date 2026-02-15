@@ -9,6 +9,7 @@ import { publishOrder, type PublishResult } from '../nostr/publish';
 import { getOrder, saveOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
 import { RELAY_REFRESH_ALARM, RELAY_REFRESH_INTERVAL_MINUTES } from '../nostr/constants';
+import { TrackedOrder } from '../shared/types';
 
 // ============================================================
 // Extension Lifecycle

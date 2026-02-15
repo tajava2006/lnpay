@@ -9,6 +9,10 @@ function shortenPubkey(pk: string): string {
   return pk.slice(0, 8) + '…';
 }
 
+function formatSats(sats: number): string {
+  return sats.toLocaleString();
+}
+
 export function NodeStatus({ tracker }: Props) {
   const snap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
 
@@ -20,6 +24,14 @@ export function NodeStatus({ tracker }: Props) {
           {snap.info.alias || shortenPubkey(snap.info.pubkey)}
           <span style={styles.channels}>
             {snap.info.activeChannelsCount}ch
+          </span>
+          <span style={styles.separator}>|</span>
+          <span style={styles.balance}>
+            {formatSats(snap.info.channelBalanceSat)} sats
+          </span>
+          <span style={styles.separator}>|</span>
+          <span style={styles.balanceOnchain}>
+            chain {formatSats(snap.info.onchainBalanceSat)}
           </span>
         </span>
       ) : snap.status === 'error' ? (
@@ -59,6 +71,20 @@ const styles = {
     fontSize: 11,
     color: '#666',
     marginLeft: 4,
+  },
+  separator: {
+    fontSize: 11,
+    color: '#D1D5DB',
+    margin: '0 4px',
+  },
+  balance: {
+    fontSize: 12,
+    fontWeight: 500 as const,
+    color: '#F59E0B',
+  },
+  balanceOnchain: {
+    fontSize: 11,
+    color: '#888',
   },
   loading: {
     fontSize: 12,

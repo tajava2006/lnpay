@@ -12,25 +12,43 @@ interface LndGetInfoResponse {
   version: string;
 }
 
+/** LND REST /v1/balance/channels 응답 */
+interface LndChannelBalanceResponse {
+  balance: string;
+}
+
+/** LND REST /v1/balance/blockchain 응답 */
+interface LndWalletBalanceResponse {
+  confirmed_balance: string;
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`LND ${url} 실패: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
 export class LndAdapter implements LightningAdapter {
   async getInfo(): Promise<NodeInfo> {
-    const res = await fetch('/lnapi/v1/getinfo');
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`LND getinfo 실패: ${res.status} ${text}`);
-    }
-
-    const data: LndGetInfoResponse = await res.json();
+    const [info, chanBal, walletBal] = await Promise.all([
+      fetchJson<LndGetInfoResponse>('/lnapi/v1/getinfo'),
+      fetchJson<LndChannelBalanceResponse>('/lnapi/v1/balance/channels'),
+      fetchJson<LndWalletBalanceResponse>('/lnapi/v1/balance/blockchain'),
+    ]);
 
     return {
-      pubkey: data.identity_pubkey,
-      alias: data.alias,
-      activeChannelsCount: data.num_active_channels,
-      peersCount: data.num_peers,
-      blockHeight: data.block_height,
-      syncedToChain: data.synced_to_chain,
-      version: data.version,
+      pubkey: info.identity_pubkey,
+      alias: info.alias,
+      activeChannelsCount: info.num_active_channels,
+      peersCount: info.num_peers,
+      blockHeight: info.block_height,
+      syncedToChain: info.synced_to_chain,
+      version: info.version,
+      channelBalanceSat: Number(chanBal.balance || '0'),
+      onchainBalanceSat: Number(walletBal.confirmed_balance || '0'),
     };
   }
 }

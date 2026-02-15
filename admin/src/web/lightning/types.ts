@@ -10,6 +10,10 @@ export interface NodeInfo {
   blockHeight: number;
   syncedToChain: boolean;
   version: string;
+  /** 채널(Lightning) 잔고 (sats) */
+  channelBalanceSat: number;
+  /** 온체인(Wallet) 확정 잔고 (sats) */
+  onchainBalanceSat: number;
 }
 
 /** 노드 연결 상태 */

@@ -14,11 +14,10 @@ Admin이 에스크로(Lightning 유동성 검증, 분쟁 중재)를 제공한다
 pnpm install                          # 의존성 설치
 pnpm build:customer                   # Customer Chrome Extension 빌드
 pnpm build:sponsor                    # Sponsor React SPA 빌드
-pnpm dev:customer                     # Customer 개발 서버
+pnpm build:admin                      # Admin React SPA 빌드
+pnpm dev:customer                     # Customer 개발 서버 (대시보드에 Dev 패널 포함)
 pnpm dev:sponsor                      # Sponsor 개발 서버 (port 5174)
-pnpm admin:emit                       # 테스트 이벤트 발행
-pnpm admin:emit -- --price 50000 --exp 3600  # 옵션 지정
-pnpm admin:sold -- <orderId>          # sold 이벤트 발행
+pnpm dev:admin                        # Admin 개발 서버
 ```
 
 ## 헌법 (반드시 준수)
@@ -50,7 +49,7 @@ sajwo-tracker/              ← pnpm workspace 모노레포
   shared/                   ← @sajwo-tracker/shared (Nostr 공통: 키, 릴레이, 상수, 타입)
   customer/                 ← @sajwo-tracker/customer (Chrome Extension MV3)
   sponsor/                  ← @sajwo-tracker/sponsor (React 19 SPA)
-  admin/                    ← @sajwo-tracker/admin (Node.js CLI 테스트 도구)
+  admin/                    ← @sajwo-tracker/admin (React 19 SPA, 에스크로 관리)
   ARCHITECTURE.md           ← 시스템 아키텍처 상세
   PROTOCOL.md               ← Nostr 이벤트 프로토콜 명세
   TODO.md                   ← 향후 구현 계획
@@ -83,7 +82,9 @@ nostr/service.ts (릴레이 구독) → order-store.ts (localStorage + notify) �
 - TypeScript strict 모드. `any` 금지.
 - Nostr 코드는 각 앱의 `nostr/` 디렉토리에 모듈화.
 - 이벤트에는 반드시 `expiration` 태그 포함 (릴레이 찌꺼기 방지).
-- 빌드 확인: 코드 수정 후 `pnpm build:customer && pnpm build:sponsor` 통과 필수.
+- 빌드 확인: 코드 수정 후 `pnpm build:customer && pnpm build:sponsor && pnpm build:admin` 통과 필수.
+- Dev/Prod 데이터 격리: `CLIENT_TAG`가 dev(`sajwo-tracker-dev`) / prod(`sajwo-tracker`)로 분리되어 릴레이 데이터가 격리된다.
+- Dev 전용 코드는 `dev-only/` 디렉토리에 파일 단위로 격리하고, `import.meta.env.DEV` 가드 내에서만 import한다.
 
 ## 주요 참고 문서
 

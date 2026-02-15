@@ -29,6 +29,11 @@ async function renderDashboard() {
 
   tbody.innerHTML = orderArray.map((order) => createTableRow(order)).join('');
 
+  // Dev 패널 주문 드롭다운 갱신
+  if (import.meta.env.DEV) {
+    import('../dev-only/panel').then((mod) => mod.refreshOrderSelect(orders));
+  }
+
   // 삭제 버튼 이벤트 연결
   tbody.querySelectorAll('.btn-delete').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
@@ -123,3 +128,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 // 초기 렌더링
 renderDashboard();
+
+// Dev 패널 마운트 (프로덕션에서 완전 제거됨)
+if (import.meta.env.DEV) {
+  import('../dev-only/panel').then((mod) => {
+    const container = document.querySelector('.container');
+    if (container) mod.mountDevPanel(container as HTMLElement);
+  });
+}

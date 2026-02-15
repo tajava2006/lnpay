@@ -52,7 +52,7 @@
 
 ## Admin App (에스크로 서비스)
 
-- [x] **CLI 테스트 도구**: 랜덤 이벤트 발행 (`admin:emit`), sold 업데이트 (`admin:sold`)
+- [x] ~~**CLI 테스트 도구**~~: 제거됨 — Customer Dev 패널로 대체
 - [x] **웹앱 클레임 대기열**: kind 1111 클레임 + kind 30402 주문 구독, 승인/거절 UI
 - [ ] **클레임 유동성 검증**: Sponsor 클레임의 invoice에 대해 probing 수행
   - 랜덤 payment hash로 경로 탐색 (실제 결제 없음, 수수료 없음)

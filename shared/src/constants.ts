@@ -7,8 +7,8 @@ export const SAJWO_REQUEST_KIND = 30402;
 /** 클레임 이벤트 kind (NIP-22 Comment, 30402 리스팅에 대한 응답) */
 export const SAJWO_CLAIM_KIND = 1111;
 
-/** 클라이언트 식별 태그 (다른 30402 이벤트와 구분) */
-export const CLIENT_TAG = 'sajwo-tracker';
+/** 클라이언트 식별 태그 (다른 30402 이벤트와 구분, dev/prod 데이터 격리) */
+export const CLIENT_TAG = import.meta.env.DEV ? 'sajwo-tracker-dev' : 'sajwo-tracker';
 
 /** 영구저장소 키 (키페어, 릴레이 캐시) */
 export const STORAGE_KEYS = {

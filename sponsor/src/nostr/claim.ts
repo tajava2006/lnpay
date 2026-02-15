@@ -26,7 +26,7 @@ import type { SajwoRequest } from '../types';
  * - t: 클라이언트 식별
  * - p (APP_PUBKEY): 어드민이 #p 필터로 조회 가능하도록
  */
-export async function publishClaim(request: SajwoRequest): Promise<boolean> {
+export async function publishClaim(request: SajwoRequest, bolt11: string): Promise<boolean> {
   const sk = await getSecretKey(storage);
   const relays = await getRelays(storage);
 
@@ -50,6 +50,8 @@ export async function publishClaim(request: SajwoRequest): Promise<boolean> {
       ['p', APP_PUBKEY],
       // 클라이언트 식별
       ['t', CLIENT_TAG],
+      // Lightning invoice (유동성 검증용)
+      ['bolt11', bolt11],
     ],
     content: JSON.stringify(request.raw),
   };

@@ -18,6 +18,8 @@ export interface ClaimEvent {
   orderId: string;
   /** 참조된 주문 이벤트 ID (e-tag) */
   orderEventId: string | null;
+  /** 후원자가 제출한 Lightning invoice (유동성 검증용) */
+  bolt11: string | null;
   /** 클레임 생성 시각 (unix seconds) */
   createdAt: number;
   /** 어드민 처리 상태 */
@@ -42,6 +44,7 @@ export function parseClaimEvent(event: Event): ClaimEvent | null {
   const orderId = parts[2];
 
   const orderEventId = event.tags.find(t => t[0] === 'e')?.[1] ?? null;
+  const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1] ?? null;
 
   return {
     id: event.id,
@@ -49,6 +52,7 @@ export function parseClaimEvent(event: Event): ClaimEvent | null {
     customerPubkey,
     orderId,
     orderEventId,
+    bolt11,
     createdAt: event.created_at,
     status: 'pending',
     raw: event,

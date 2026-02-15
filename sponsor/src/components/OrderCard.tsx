@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { SajwoRequest } from '../types';
 import { publishClaim } from '../nostr/claim';
 import { transitionOrder } from '../order-store';
+import { decodeBolt11 } from '../utils/bolt11';
+import type { Bolt11Result } from '../utils/bolt11';
 
 interface Props {
   request: SajwoRequest;
@@ -37,20 +39,42 @@ function formatDate(unixSeconds: number): string {
   });
 }
 
+function formatSats(msat: number): string {
+  const sats = Math.floor(msat / 1000);
+  return sats.toLocaleString() + ' sats';
+}
+
 export function OrderCard({ request, now }: Props) {
   const [claiming, setClaiming] = useState(false);
+  const [showInvoiceInput, setShowInvoiceInput] = useState(false);
+  const [invoiceText, setInvoiceText] = useState('');
+  const [invoiceResult, setInvoiceResult] = useState<Bolt11Result | null>(null);
 
   const timeLeft = formatTimeLeft(request.expiresAt, now);
   const isUrgent = request.expiresAt
     ? request.expiresAt - now < 3600
     : false;
 
+  function handleInvoiceChange(value: string) {
+    setInvoiceText(value);
+    if (!value.trim()) {
+      setInvoiceResult(null);
+      return;
+    }
+    setInvoiceResult(decodeBolt11(value));
+  }
+
   async function handleClaim() {
+    if (!invoiceResult || !invoiceResult.valid) return;
+
     setClaiming(true);
     try {
-      const ok = await publishClaim(request);
+      const ok = await publishClaim(request, invoiceText.trim().toLowerCase());
       if (ok) {
         transitionOrder(request.orderId, 'claimed');
+        setShowInvoiceInput(false);
+        setInvoiceText('');
+        setInvoiceResult(null);
       } else {
         alert('클레임 발행에 실패했습니다.');
       }
@@ -63,6 +87,7 @@ export function OrderCard({ request, now }: Props) {
   }
 
   const isClaimed = request.status === 'claimed';
+  const isInvoiceValid = invoiceResult?.valid === true;
 
   return (
     <div style={styles.card}>
@@ -77,19 +102,70 @@ export function OrderCard({ request, now }: Props) {
           {timeLeft}
         </span>
       </div>
+
       <div style={styles.middle}>
         {isClaimed ? (
           <span style={styles.claimedBadge}>클레임 완료</span>
+        ) : showInvoiceInput ? (
+          <div style={styles.invoiceSection}>
+            <p style={styles.invoiceDesc}>
+              유동성 검증을 위해 <strong>{request.price.toLocaleString()}원</strong> 상당의
+              Lightning invoice를 붙여넣어 주세요.
+            </p>
+            <p style={styles.invoiceHint}>
+              본인 지갑에서 해당 금액의 invoice를 생성한 뒤 여기에 붙여넣으면,
+              에스크로가 Lightning 경로를 검증합니다. 실제 결제는 발생하지 않습니다.
+            </p>
+            <textarea
+              style={styles.invoiceInput}
+              placeholder="lnbc..."
+              value={invoiceText}
+              onChange={e => handleInvoiceChange(e.target.value)}
+              rows={3}
+            />
+            {invoiceResult && !invoiceResult.valid && (
+              <p style={styles.invoiceError}>{invoiceResult.error}</p>
+            )}
+            {invoiceResult?.valid && (
+              <p style={styles.invoiceSuccess}>
+                {formatSats(invoiceResult.amountMsat!)}
+              </p>
+            )}
+            <div style={styles.invoiceBtns}>
+              <button
+                style={{
+                  ...styles.claimBtn,
+                  opacity: isInvoiceValid && !claiming ? 1 : 0.5,
+                  cursor: isInvoiceValid && !claiming ? 'pointer' : 'not-allowed',
+                }}
+                onClick={handleClaim}
+                disabled={!isInvoiceValid || claiming}
+              >
+                {claiming ? '발행 중...' : '클레임 발행'}
+              </button>
+              <button
+                style={styles.cancelBtn}
+                onClick={() => {
+                  setShowInvoiceInput(false);
+                  setInvoiceText('');
+                  setInvoiceResult(null);
+                }}
+                disabled={claiming}
+              >
+                취소
+              </button>
+            </div>
+          </div>
         ) : (
           <button
             style={styles.claimBtn}
-            onClick={handleClaim}
-            disabled={claiming}
+            onClick={() => setShowInvoiceInput(true)}
           >
-            {claiming ? '요청 중...' : '사줄게'}
+            사줄게
           </button>
         )}
       </div>
+
       <div style={styles.bottom}>
         <span style={styles.meta}>#{request.orderId}</span>
         <span style={styles.meta}>{request.expiresAt ? formatDate(request.expiresAt) : ''}</span>
@@ -133,6 +209,16 @@ const styles = {
     fontWeight: 600 as const,
     cursor: 'pointer',
   },
+  cancelBtn: {
+    background: 'transparent',
+    color: '#666',
+    border: '1px solid #ddd',
+    borderRadius: 6,
+    padding: '8px 16px',
+    fontSize: 14,
+    fontWeight: 500 as const,
+    cursor: 'pointer',
+  },
   claimedBadge: {
     display: 'inline-block',
     background: '#DBEAFE',
@@ -150,5 +236,47 @@ const styles = {
   meta: {
     fontSize: 12,
     color: '#999',
+  },
+  invoiceSection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 8,
+  },
+  invoiceDesc: {
+    fontSize: 13,
+    color: '#333',
+    margin: 0,
+    lineHeight: 1.5,
+  },
+  invoiceHint: {
+    fontSize: 12,
+    color: '#888',
+    margin: 0,
+    lineHeight: 1.5,
+  },
+  invoiceInput: {
+    width: '100%',
+    padding: 10,
+    border: '1px solid #ddd',
+    borderRadius: 6,
+    fontSize: 12,
+    fontFamily: 'monospace',
+    resize: 'vertical' as const,
+    boxSizing: 'border-box' as const,
+  },
+  invoiceError: {
+    fontSize: 12,
+    color: '#DC2626',
+    margin: 0,
+  },
+  invoiceSuccess: {
+    fontSize: 12,
+    color: '#16A34A',
+    margin: 0,
+    fontWeight: 500 as const,
+  },
+  invoiceBtns: {
+    display: 'flex',
+    gap: 8,
   },
 };

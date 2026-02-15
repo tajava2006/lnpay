@@ -1,19 +1,33 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { KeyInit } from './components/KeyInit';
 import { OrderBook } from './components/OrderBook';
+import { BtcPrice } from './components/BtcPrice';
 import { startOrderSubscription, stopOrderSubscription } from './nostr/service';
+import { createPriceTracker } from '@sajwo-tracker/shared';
+import type { PriceTracker } from '@sajwo-tracker/shared';
 
 function AppContent() {
+  const trackerRef = useRef<PriceTracker | null>(null);
+  if (!trackerRef.current) {
+    trackerRef.current = createPriceTracker();
+  }
+  const tracker = trackerRef.current;
+
   useEffect(() => {
     startOrderSubscription();
-    return () => stopOrderSubscription();
-  }, []);
+    tracker.start();
+    return () => {
+      stopOrderSubscription();
+      tracker.stop();
+    };
+  }, [tracker]);
 
   return (
     <div style={styles.container}>
       <header style={styles.header}>
         <h1 style={styles.title}>사줘 트래커</h1>
         <p style={styles.subtitle}>사줘 요청 목록</p>
+        <BtcPrice tracker={tracker} />
       </header>
       <main>
         <OrderBook />

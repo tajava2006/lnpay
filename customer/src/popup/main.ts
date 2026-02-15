@@ -1,6 +1,7 @@
 import { getAllOrders } from '../shared/storage';
 import { getStatusMeta } from '../shared/order-states';
 import type { TrackedOrder } from '../shared/types';
+import { createPriceTracker } from '@sajwo-tracker/shared';
 
 const MAX_DISPLAY_ORDERS = 5;
 
@@ -92,6 +93,24 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     renderOrders();
   }
 });
+
+// BTC 가격 추적
+const priceTracker = createPriceTracker();
+priceTracker.subscribe(() => {
+  const snap = priceTracker.getSnapshot();
+  const valueEl = document.getElementById('btcPriceValue');
+  const dotEl = document.getElementById('btcPriceDot');
+  if (valueEl) {
+    valueEl.textContent = snap.price !== null
+      ? `${snap.price.toLocaleString('ko-KR')}원`
+      : '연결 중...';
+  }
+  if (dotEl) {
+    const connected = snap.exchanges.some(e => e.connected);
+    dotEl.classList.toggle('connected', connected);
+  }
+});
+priceTracker.start();
 
 // 초기 렌더링
 renderOrders();

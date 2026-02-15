@@ -21,3 +21,7 @@ export { ensureKeypair, getSecretKey, getUserPubkey } from './keys';
 
 // Relays
 export { getRelays, refreshRelays } from './relays';
+
+// Price
+export { createPriceTracker } from './price';
+export type { PriceTracker, PriceSnapshot, ExchangeState } from './price';

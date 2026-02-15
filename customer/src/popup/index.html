@@ -119,12 +119,41 @@
         background: #9CA3AF;
         cursor: not-allowed;
       }
+      .btc-price {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 12px;
+        font-size: 12px;
+      }
+      .btc-price-label {
+        font-weight: 600;
+        color: #F59E0B;
+      }
+      .btc-price-value {
+        color: #333;
+        font-weight: 500;
+      }
+      .btc-price-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #D1D5DB;
+      }
+      .btc-price-dot.connected {
+        background: #22C55E;
+      }
     </style>
   </head>
   <body>
     <div class="header">
       <h1>사줘 트래커</h1>
       <button class="btn btn-primary" id="openDashboard">전체 보기</button>
+    </div>
+    <div class="btc-price" id="btcPrice">
+      <span class="btc-price-label">BTC</span>
+      <span class="btc-price-value" id="btcPriceValue">연결 중...</span>
+      <span class="btc-price-dot" id="btcPriceDot"></span>
     </div>
     <div class="order-list" id="orderList">
       <div class="empty-state">

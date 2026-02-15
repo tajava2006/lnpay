@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { startAdminSubscription, stopAdminSubscription } from './nostr/service';
 import { validateAdminKey } from './nostr/keys';
 import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
+import { BtcPrice } from './components/BtcPrice';
+import { createPriceTracker } from '@sajwo-tracker/shared';
+import type { PriceTracker } from '@sajwo-tracker/shared';
 
 const keyResult = validateAdminKey();
 
@@ -12,11 +15,21 @@ function getOrderIdFromUrl(): string | null {
 }
 
 export function App() {
+  const trackerRef = useRef<PriceTracker | null>(null);
+  if (!trackerRef.current) {
+    trackerRef.current = createPriceTracker();
+  }
+  const tracker = trackerRef.current;
+
   useEffect(() => {
     if (!keyResult.valid) return;
     startAdminSubscription();
-    return () => stopAdminSubscription();
-  }, []);
+    tracker.start();
+    return () => {
+      stopAdminSubscription();
+      tracker.stop();
+    };
+  }, [tracker]);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(getOrderIdFromUrl);
 
@@ -64,6 +77,7 @@ export function App() {
         <p style={styles.subtitle}>
           {selectedOrderId ? `주문 #${selectedOrderId} 클레임` : '클레임 대기열'}
         </p>
+        <BtcPrice tracker={tracker} />
       </header>
       <main>
         {selectedOrderId ? (

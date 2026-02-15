@@ -2,6 +2,7 @@ import { getAllOrders, getOrder, deleteOrder, clearAllOrders } from '../shared/s
 import { getStatusMeta, isFinalStatus, isDeletable } from '../shared/order-states';
 import { transitionOrderWithRetry } from '../shared/state-machine';
 import type { TrackedOrder } from '../shared/types';
+import { createPriceTracker } from '@sajwo-tracker/shared';
 
 async function renderDashboard() {
   const orders = await getAllOrders();
@@ -145,6 +146,24 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     renderDashboard();
   }
 });
+
+// BTC 가격 추적
+const priceTracker = createPriceTracker();
+priceTracker.subscribe(() => {
+  const snap = priceTracker.getSnapshot();
+  const valueEl = document.getElementById('btcPriceValue');
+  const dotEl = document.getElementById('btcPriceDot');
+  if (valueEl) {
+    valueEl.textContent = snap.price !== null
+      ? `${snap.price.toLocaleString('ko-KR')}`
+      : '-';
+  }
+  if (dotEl) {
+    const connected = snap.exchanges.some(e => e.connected);
+    dotEl.classList.toggle('connected', connected);
+  }
+});
+priceTracker.start();
 
 // 초기 렌더링
 renderDashboard();

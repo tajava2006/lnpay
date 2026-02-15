@@ -45,9 +45,9 @@
   - 로컬 상태 관리 (detected → claimed FSM)
 - [ ] **오더북 페이지네이션**: 주문이 많아질 경우 대비
 - [ ] **계좌 정보 수신**: 선택(selected) 시 무통장입금 계좌 정보 수신 및 표시 (DM 등)
-- [ ] **Lightning invoice 제출**: 클레임 시 주문 금액 상당의 invoice를 생성하여 클레임 이벤트에 포함
-  - 어드민이 probing으로 유동성 검증하는 데 사용
-  - invoice는 kind 1111 이벤트의 content 또는 태그로 전달
+- [x] **Lightning invoice 제출**: 클레임 시 bolt11 invoice를 붙여넣고 형식 검증 후 클레임 이벤트에 `['bolt11', invoice]` 태그로 포함
+- [ ] **유동성 검증 invoice 금액 자동 환산**: BTC 실시간 가격 기반으로 주문 KRW 금액을 BTC로 환산하여 invoice 금액 가이드 표시
+  - 시간갭에 의한 가격 변동을 고려하여 넉넉한 금액(예: +5%)으로 안내
 - [ ] **스타일링 고도화**: 현재 인라인 스타일 → CSS 또는 스타일링 라이브러리
 
 ## Admin App (에스크로 서비스)
@@ -104,6 +104,13 @@
   - Sponsor: `claimed` 상태에서 sold 수신 시 → 다른 후원자가 선택됐거나 고객이 직접 결제한 것
   - Sponsor: `selected` 상태에서 sold 수신 시 → 거래 완료 의미
   - 현재: 모든 상태에서 무조건 삭제 → `claimed`/`selected` 상태에서는 사유 표시 등 필요
+
+## BTC 가격 활용
+
+- [x] **BTC/KRW 실시간 가격 표시**: 업비트/빗썸/코인원 WebSocket으로 3개 앱 헤더에 실시간 가격 표시
+- [ ] **결제 금액 실시간 BTC 환산**: 주문 목록에서 KRW 금액 옆에 BTC 환산 금액 표시
+  - PriceTracker의 가격 데이터 활용
+  - Customer 대시보드 + Sponsor 오더북에서 주문 금액의 BTC 환산 표시
 
 ## 기술 부채
 

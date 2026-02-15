@@ -55,6 +55,17 @@
       }
       .stat-value.pending { color: #D97706; }
       .stat-value.paid { color: #059669; }
+      .stat-value.btc { color: #F59E0B; font-size: 20px; }
+      .btc-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #D1D5DB;
+        margin-left: 6px;
+        vertical-align: middle;
+      }
+      .btc-dot.connected { background: #22C55E; }
       .section-title {
         font-size: 18px;
         color: #333;
@@ -174,6 +185,10 @@
         <div class="stat-card">
           <div class="stat-label">전체</div>
           <div class="stat-value" id="totalCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">BTC/KRW<span class="btc-dot" id="btcPriceDot"></span></div>
+          <div class="stat-value btc" id="btcPriceValue">-</div>
         </div>
       </div>
 

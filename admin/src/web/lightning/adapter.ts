@@ -1,4 +1,5 @@
 import type { NodeInfo, DecodedInvoice, ProbeResult } from './types';
+import type { RouteHintHop } from '../types';
 
 /**
  * Lightning 노드 어댑터 인터페이스.
@@ -20,6 +21,12 @@ export interface LightningAdapter {
    * @param destination - 수신자 노드 pubkey (hex)
    * @param amountSat - 프로빙 금액 (sats)
    * @param finalCltvDelta - 최종 CLTV delta (디코딩된 인보이스에서 추출)
+   * @param routeHints - bolt11 r-tag 라우트 힌트 (프라이빗 채널용)
    */
-  probe(destination: string, amountSat: number, finalCltvDelta?: number): Promise<ProbeResult>;
+  probe(
+    destination: string,
+    amountSat: number,
+    finalCltvDelta?: number,
+    routeHints?: RouteHintHop[][],
+  ): Promise<ProbeResult>;
 }

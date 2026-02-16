@@ -1,5 +1,6 @@
 import type { LightningAdapter } from './adapter';
 import type { NodeInfo, DecodedInvoice, ProbeResult } from './types';
+import type { RouteHintHop } from '../types';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
 
@@ -133,6 +134,7 @@ export class ClnAdapter implements LightningAdapter {
     destination: string,
     amountSat: number,
     finalCltvDelta = 9,
+    _routeHints?: RouteHintHop[][],
   ): Promise<ProbeResult> {
     // 랜덤 해시 생성 — 프리이미지가 존재하지 않으므로 결제가 반드시 실패
     const randomHash = generateRandomPaymentHash();

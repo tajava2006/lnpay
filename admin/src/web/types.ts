@@ -1,7 +1,5 @@
 import type { Event } from 'nostr-tools/core';
-import { decode } from 'light-bolt11-decoder';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { secp256k1 } from '@noble/curves/secp256k1.js';
+import { decode } from 'bolt11';
 import { SAJWO_REQUEST_KIND } from '@sajwo-tracker/shared';
 
 // ── 어드민 클레임 상태 ─────────────────────────────
@@ -9,6 +7,15 @@ import { SAJWO_REQUEST_KIND } from '@sajwo-tracker/shared';
 export type AdminClaimStatus = 'pending' | 'approved' | 'rejected';
 
 // ── 디코딩된 bolt11 인보이스 ───────────────────────
+
+/** 라우트 힌트 홉 (bolt11 r-tag에서 추출) */
+export interface RouteHintHop {
+  pubkey: string;
+  shortChannelId: string;
+  feeBaseMsat: number;
+  feeProportionalMillionths: number;
+  cltvExpiryDelta: number;
+}
 
 export interface DecodedBolt11 {
   /** 수신 노드 pubkey (hex) */
@@ -19,6 +26,8 @@ export interface DecodedBolt11 {
   paymentHash: string;
   /** 만료 시각 (unix seconds) */
   expiresAt: number;
+  /** 라우트 힌트 (프라이빗 채널용, 각 배열이 한 경로의 홉 체인) */
+  routeHints: RouteHintHop[][];
 }
 
 // ── 인보이스 정보 (bolt11 + 디코딩 결과 + 유동성 검증) ──
@@ -55,113 +64,46 @@ export interface ClaimEvent {
   raw: Event;
 }
 
-// ── bolt11 서명에서 수신 노드 pubkey 복원 ─────────
-
-const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-
-/** 5-bit word 배열을 8-bit 바이트 배열로 변환 */
-function wordsToBytes(words: number[]): Uint8Array {
-  let bits = 0;
-  let value = 0;
-  const result: number[] = [];
-  for (const w of words) {
-    value = (value << 5) | w;
-    bits += 5;
-    while (bits >= 8) {
-      bits -= 8;
-      result.push((value >> bits) & 0xff);
-    }
-  }
-  return new Uint8Array(result);
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * bolt11 인보이스의 ECDSA 서명에서 수신 노드의 pubkey를 복원한다.
- * BOLT #11: 서명 대상 = SHA256(hrp_utf8 || data_5bit_values_as_bytes)
- */
-function recoverDestination(invoice: string): string | null {
-  try {
-    const lower = invoice.trim().toLowerCase();
-    const sepIdx = lower.lastIndexOf('1');
-    if (sepIdx < 0) return null;
-
-    const hrp = lower.slice(0, sepIdx);
-    const dataChars = lower.slice(sepIdx + 1, -6); // bech32 checksum 제거
-
-    const words: number[] = [];
-    for (const ch of dataChars) {
-      const val = BECH32_CHARSET.indexOf(ch);
-      if (val < 0) return null;
-      words.push(val);
-    }
-
-    // 마지막 104개 5-bit word = 서명 (512bit sig + 8bit recovery = 520bit)
-    if (words.length < 104) return null;
-    const dataWords = words.slice(0, -104);
-    const sigWords = words.slice(-104);
-
-    const sigBytes = wordsToBytes(sigWords);
-    if (sigBytes.length !== 65) return null;
-
-    // BOLT #11: message = SHA256(hrp_utf8 || 각 5-bit 값을 1바이트로)
-    const hrpBytes = new TextEncoder().encode(hrp);
-    const msg = new Uint8Array(hrpBytes.length + dataWords.length);
-    msg.set(hrpBytes);
-    msg.set(new Uint8Array(dataWords), hrpBytes.length);
-    const hash = sha256(msg);
-
-    // BOLT #11: r(32) || s(32) || recovery(1)
-    // @noble/curves: recovery(1) || r(32) || s(32)
-    const sig65 = new Uint8Array(65);
-    sig65[0] = sigBytes[64];
-    sig65.set(sigBytes.subarray(0, 64), 1);
-    const pubkey = secp256k1.recoverPublicKey(sig65, hash);
-
-    return bytesToHex(pubkey);
-  } catch {
-    return null;
-  }
-}
-
 // ── bolt11 디코딩 ─────────────────────────────────
 
 /**
  * bolt11 문자열을 디코딩한다.
- * light-bolt11-decoder로 금액/해시/만료를, 서명 복원으로 수신 노드를 추출.
+ * bolt11 패키지가 서명에서 payeeNodeKey를 자동 복원한다.
  * 디코딩 실패 시 콘솔에 경고를 남기고 null 반환.
  */
 function decodeBolt11(bolt11: string): DecodedBolt11 | null {
   try {
     const result = decode(bolt11);
-    const sections = result.sections;
 
-    const destination = recoverDestination(bolt11);
+    const destination = result.payeeNodeKey;
     if (!destination) return null;
 
-    const amountSection = sections.find(s => s.name === 'amount');
-    const amountMsat = amountSection && 'value' in amountSection
-      ? Number(amountSection.value)
-      : null;
-    if (!amountMsat || amountMsat <= 0) return null;
+    const amountSat = result.satoshis ?? 0;
+    if (amountSat <= 0) return null;
 
-    const hashSection = sections.find(s => s.name === 'payment_hash');
-    const paymentHash = hashSection && 'value' in hashSection
-      ? (hashSection.value as string)
-      : '';
+    const paymentHash = result.tagsObject.payment_hash ?? '';
+    const expiresAt = result.timeExpireDate ?? 0;
 
-    const tsSection = sections.find(s => s.name === 'timestamp');
-    const timestamp = tsSection && 'value' in tsSection ? (tsSection.value as number) : 0;
-    const expiresAt = timestamp + result.expiry;
+    // 라우트 힌트 추출 (r-tag, 프라이빗 채널용)
+    // 각 routing_info 태그가 하나의 경로(홉 체인)를 나타냄
+    const routeHints: RouteHintHop[][] = result.tags
+      .filter((t): t is { tagName: 'routing_info'; data: NonNullable<typeof result.tagsObject.routing_info> } =>
+        t.tagName === 'routing_info' && Array.isArray(t.data),
+      )
+      .map(t => t.data.map(h => ({
+        pubkey: h.pubkey,
+        shortChannelId: h.short_channel_id,
+        feeBaseMsat: h.fee_base_msat,
+        feeProportionalMillionths: h.fee_proportional_millionths,
+        cltvExpiryDelta: h.cltv_expiry_delta,
+      })));
 
     return {
       destination,
-      amountSat: Math.floor(amountMsat / 1000),
+      amountSat,
       paymentHash,
       expiresAt,
+      routeHints,
     };
   } catch (e) {
     console.warn('[decodeBolt11] 디코딩 실패:', e);

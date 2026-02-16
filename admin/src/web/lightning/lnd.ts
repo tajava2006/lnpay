@@ -1,5 +1,6 @@
 import type { LightningAdapter } from './adapter';
 import type { NodeInfo, DecodedInvoice, ProbeResult } from './types';
+import type { RouteHintHop } from '../types';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
 
@@ -131,11 +132,23 @@ export class LndAdapter implements LightningAdapter {
     destination: string,
     amountSat: number,
     finalCltvDelta = 40,
+    routeHints?: RouteHintHop[][],
   ): Promise<ProbeResult> {
     // 랜덤 해시 생성 — 프리이미지가 존재하지 않으므로 결제가 반드시 실패
     const randomHash = generateRandomPaymentHash();
 
     const feeLimitSat = Math.max(Math.ceil(amountSat * 0.01), 10);
+
+    // LND route_hints: 프라이빗 채널 뒤의 노드에 도달하기 위한 힌트
+    const lndRouteHints = routeHints?.map(hops => ({
+      hop_hints: hops.map(hop => ({
+        node_id: hop.pubkey,
+        chan_id: BigInt('0x' + hop.shortChannelId).toString(),
+        fee_base_msat: hop.feeBaseMsat,
+        fee_proportional_millionths: hop.feeProportionalMillionths,
+        cltv_expiry_delta: hop.cltvExpiryDelta,
+      })),
+    }));
 
     const res = await fetch('/lnapi/v2/router/send', {
       method: 'POST',
@@ -149,6 +162,7 @@ export class LndAdapter implements LightningAdapter {
         no_inflight_updates: true,
         max_parts: 1,
         final_cltv_delta: finalCltvDelta,
+        ...(lndRouteHints?.length ? { route_hints: lndRouteHints } : {}),
       }),
     });
 

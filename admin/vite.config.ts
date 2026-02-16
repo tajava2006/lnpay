@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { Agent } from 'node:https';
 import type { Connect } from 'vite';
 
@@ -46,6 +47,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
+      nodePolyfills({ include: ['buffer', 'stream', 'events'] }),
       {
         name: 'admin-config',
         configureServer(server) {

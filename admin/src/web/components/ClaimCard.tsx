@@ -57,7 +57,12 @@ export function ClaimCard({ claim, order, tracker, lnAdapter }: Props) {
     setProbing(true);
     setProbeMsg(null);
     try {
-      const result = await lnAdapter.probe(decoded.destination, decoded.amountSat);
+      const result = await lnAdapter.probe(
+        decoded.destination,
+        decoded.amountSat,
+        undefined,
+        decoded.routeHints.length > 0 ? decoded.routeHints : undefined,
+      );
       updateLiquidityVerified(claim.id, result.status === 'reachable');
       setProbeMsg(probeResultMessage(result));
     } catch (e) {

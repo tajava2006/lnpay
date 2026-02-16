@@ -101,6 +101,7 @@ export function OrderCard({ request, now, tracker }: Props) {
   }
 
   const isDetected = request.status === 'detected';
+  const canRevert = request.status === 'claimed' || request.status === 'rejected';
   const statusMeta = getStatusMeta(request.status);
 
   // 금액 범위 검증: invoice 금액이 예상 BTC 환산의 90~110% 이내인지
@@ -128,13 +129,23 @@ export function OrderCard({ request, now, tracker }: Props) {
 
       <div style={styles.middle}>
         {!isDetected ? (
-          <span style={{
-            ...styles.statusBadge,
-            background: statusMeta.bgColor,
-            color: statusMeta.textColor,
-          }}>
-            {statusMeta.label}
-          </span>
+          <div style={styles.statusRow}>
+            <span style={{
+              ...styles.statusBadge,
+              background: statusMeta.bgColor,
+              color: statusMeta.textColor,
+            }}>
+              {statusMeta.label}
+            </span>
+            {canRevert && (
+              <button
+                style={styles.revertBtn}
+                onClick={() => transitionOrder(request.orderId, 'detected')}
+              >
+                인보이스 변경
+              </button>
+            )}
+          </div>
         ) : showInvoiceInput ? (
           <div style={styles.invoiceSection}>
             <p style={styles.invoiceDesc}>
@@ -309,5 +320,20 @@ const styles = {
   invoiceBtns: {
     display: 'flex',
     gap: 8,
+  },
+  statusRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  revertBtn: {
+    background: 'transparent',
+    color: '#666',
+    border: '1px solid #ddd',
+    borderRadius: 6,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 500 as const,
+    cursor: 'pointer',
   },
 };

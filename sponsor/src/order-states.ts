@@ -47,7 +47,7 @@ export const SPONSOR_STATUS_META: Record<SponsorOrderStatus, SponsorStatusMeta> 
     label: '거절됨',
     bgColor: '#FEE2E2', // red-100
     textColor: '#991B1B', // red-800
-    isFinal: true,
+    isFinal: false,
   },
   selected: {
     code: 'selected',

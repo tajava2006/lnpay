@@ -6,13 +6,13 @@ import type { Event } from 'nostr-tools/core';
  * 후원자 앱에서의 주문 상태
  *
  * 상태 흐름:
- * detected → claimed → approved → selected → completed
- *                    ↘ rejected
+ * detected ⇄ claimed → approved → selected → completed
+ *    ↑              ↘ rejected ↲
  *
  * - detected: 오더북에서 발견 (초기 상태)
  * - claimed: 사주겠다고 클레임 발행함 (어드민 검증 대기)
  * - approved: 어드민 승인 (유동성 검증 통과, 고객 선택 대기)
- * - rejected: 어드민 거절 (유동성 부족 등, 최종 상태)
+ * - rejected: 어드민 거절 (유동성 부족 등, detected로 복귀 가능)
  * - selected: 고객이 이 후원자를 선택 (KRW 입금 대기)
  * - completed: 거래 완료 (최종 상태)
  */
@@ -29,10 +29,10 @@ export type SponsorOrderStatus =
  * key: 현재 상태, value: 전이 가능한 상태 목록
  */
 export const SPONSOR_TRANSITIONS: Record<SponsorOrderStatus, SponsorOrderStatus[]> = {
-  detected: ['claimed'],
-  claimed: ['approved', 'rejected'],
+  detected: ['claimed', 'approved', 'rejected'],
+  claimed: ['approved', 'rejected', 'detected'],
   approved: ['selected'],
-  rejected: [],       // 최종 상태
+  rejected: ['detected'],
   selected: ['completed'],
   completed: [],      // 최종 상태
 };

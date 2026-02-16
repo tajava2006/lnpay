@@ -8,7 +8,9 @@ import {
   subscribe as orderSubscribe,
   getSnapshot as orderSnapshot,
 } from '../order-store';
+import type { PriceTracker } from '@sajwo-tracker/shared';
 import type { ClaimEvent, OrderRef } from '../types';
+import { SatsAmount } from './SatsAmount';
 
 interface OrderSummary {
   orderId: string;
@@ -20,9 +22,10 @@ interface OrderSummary {
 
 interface Props {
   onSelectOrder: (orderId: string) => void;
+  tracker: PriceTracker;
 }
 
-export function OrderQueue({ onSelectOrder }: Props) {
+export function OrderQueue({ onSelectOrder, tracker }: Props) {
   const claims = useSyncExternalStore(claimSubscribe, claimSnapshot);
   const synced = useSyncExternalStore(claimSubscribe, getSyncedSnapshot);
   const orders = useSyncExternalStore(orderSubscribe, orderSnapshot);
@@ -77,10 +80,15 @@ export function OrderQueue({ onSelectOrder }: Props) {
               <div style={styles.orderInfo}>
                 <span style={styles.orderId}>#{s.orderId}</span>
                 {s.order && (
-                  <span style={styles.price}>
-                    {s.order.price.toLocaleString()}
-                    {s.order.currency === 'KRW' ? '원' : ` ${s.order.currency}`}
-                  </span>
+                  <>
+                    <span style={styles.price}>
+                      {s.order.price.toLocaleString()}
+                      {s.order.currency === 'KRW' ? '원' : ` ${s.order.currency}`}
+                    </span>
+                    {s.order.currency === 'KRW' && (
+                      <SatsAmount krw={s.order.price} tracker={tracker} />
+                    )}
+                  </>
                 )}
               </div>
               <span style={styles.arrow}>→</span>

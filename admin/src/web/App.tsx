@@ -112,9 +112,10 @@ export function App() {
           <OrderClaimList
             orderId={selectedOrderId}
             onBack={goBack}
+            tracker={tracker}
           />
         ) : (
-          <OrderQueue onSelectOrder={selectOrder} />
+          <OrderQueue onSelectOrder={selectOrder} tracker={tracker} />
         )}
       </main>
     </div>

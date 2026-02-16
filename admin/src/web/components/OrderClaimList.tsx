@@ -7,15 +7,18 @@ import {
   subscribe as orderSubscribe,
   getSnapshot as orderSnapshot,
 } from '../order-store';
+import type { PriceTracker } from '@sajwo-tracker/shared';
 import type { ClaimEvent } from '../types';
 import { ClaimCard } from './ClaimCard';
+import { SatsAmount } from './SatsAmount';
 
 interface Props {
   orderId: string;
   onBack: () => void;
+  tracker: PriceTracker;
 }
 
-export function OrderClaimList({ orderId, onBack }: Props) {
+export function OrderClaimList({ orderId, onBack, tracker }: Props) {
   const claims = useSyncExternalStore(claimSubscribe, claimSnapshot);
   const orders = useSyncExternalStore(orderSubscribe, orderSnapshot);
 
@@ -42,10 +45,15 @@ export function OrderClaimList({ orderId, onBack }: Props) {
         <div style={styles.orderTop}>
           <span style={styles.orderId}>#{orderId}</span>
           {order && (
-            <span style={styles.price}>
-              {order.price.toLocaleString()}
-              {order.currency === 'KRW' ? '원' : ` ${order.currency}`}
-            </span>
+            <>
+              <span style={styles.price}>
+                {order.price.toLocaleString()}
+                {order.currency === 'KRW' ? '원' : ` ${order.currency}`}
+              </span>
+              {order.currency === 'KRW' && (
+                <SatsAmount krw={order.price} tracker={tracker} />
+              )}
+            </>
           )}
         </div>
         {order?.expiresAt && (
@@ -66,7 +74,7 @@ export function OrderClaimList({ orderId, onBack }: Props) {
       ) : (
         <div style={styles.list}>
           {claimList.map(claim => (
-            <ClaimCard key={claim.id} claim={claim} order={order} />
+            <ClaimCard key={claim.id} claim={claim} order={order} tracker={tracker} />
           ))}
         </div>
       )}

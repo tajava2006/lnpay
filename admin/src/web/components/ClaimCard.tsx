@@ -72,7 +72,7 @@ export function ClaimCard({ claim, order, tracker }: Props) {
       </div>
 
       {/* 인보이스 디코딩 결과 */}
-      {decoded && (
+      {decoded ? (
         <div style={styles.invoiceInfo}>
           <div style={styles.invoiceRow}>
             <span style={styles.invoiceLabel}>노드:</span>
@@ -92,6 +92,8 @@ export function ClaimCard({ claim, order, tracker }: Props) {
             </span>
           </div>
         </div>
+      ) : claim.invoice && (
+        <div style={styles.decodeFailed}>인보이스 디코딩 실패</div>
       )}
 
       {isPending && (
@@ -252,6 +254,15 @@ const styles = {
   unverifiedHint: {
     fontSize: 12,
     color: '#D97706',
+    fontWeight: 500 as const,
+  },
+  decodeFailed: {
+    background: '#FEF2F2',
+    borderRadius: 6,
+    padding: '8px 14px',
+    marginBottom: 8,
+    fontSize: 12,
+    color: '#DC2626',
     fontWeight: 500 as const,
   },
 };

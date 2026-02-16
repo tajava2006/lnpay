@@ -114,9 +114,12 @@ function recoverDestination(invoice: string): string | null {
     msg.set(new Uint8Array(dataWords), hrpBytes.length);
     const hash = sha256(msg);
 
-    // @noble/curves v2: recoverPublicKey(signature65, msgHash32)
-    // signature65 = r(32) || s(32) || recovery(1)
-    const pubkey = secp256k1.recoverPublicKey(sigBytes, hash);
+    // BOLT #11: r(32) || s(32) || recovery(1)
+    // @noble/curves: recovery(1) || r(32) || s(32)
+    const sig65 = new Uint8Array(65);
+    sig65[0] = sigBytes[64];
+    sig65.set(sigBytes.subarray(0, 64), 1);
+    const pubkey = secp256k1.recoverPublicKey(sig65, hash);
 
     return bytesToHex(pubkey);
   } catch {

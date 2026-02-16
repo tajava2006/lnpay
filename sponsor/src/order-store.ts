@@ -8,7 +8,7 @@
  *   Nostr 구독 서비스 → order-store (upsert/remove) → localStorage + listeners
  *   OrderBook → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
-import { type SajwoRequest, SPONSOR_TRANSITIONS } from './types';
+import type { SajwoRequest } from './types';
 
 type OrderMap = Record<string, SajwoRequest>;
 type Listener = () => void;
@@ -86,20 +86,18 @@ export function upsertOrder(request: SajwoRequest): boolean {
 }
 
 /**
- * 주문 상태를 변경한다.
- * SPONSOR_TRANSITIONS에 정의된 전이만 허용.
+ * 주문 상태를 직접 변경한다 (state-machine 전용).
+ * 전이 유효성 검사는 state-machine.ts가 수행하므로 여기서는 무조건 적용.
  */
-export function transitionOrder(orderId: string, to: SajwoRequest['status']): boolean {
+export function _mutateOrder(orderId: string, updater: (order: SajwoRequest) => SajwoRequest): SajwoRequest | null {
   const order = orders[orderId];
-  if (!order) return false;
+  if (!order) return null;
 
-  const allowed = SPONSOR_TRANSITIONS[order.status];
-  if (!allowed.includes(to)) return false;
-
-  orders = { ...orders, [orderId]: { ...order, status: to } };
+  const updated = updater(order);
+  orders = { ...orders, [orderId]: updated };
   saveToStorage();
   notify();
-  return true;
+  return updated;
 }
 
 /**

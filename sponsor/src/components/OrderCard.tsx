@@ -2,7 +2,8 @@ import { useState, useSyncExternalStore } from 'react';
 import type { SajwoRequest } from '../types';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim } from '../nostr/claim';
-import { transitionOrder } from '../order-store';
+import { transitionOrder } from '../state-machine';
+import { getStatusMeta } from '../order-states';
 import { decodeBolt11 } from '../utils/bolt11';
 import type { Bolt11Result } from '../utils/bolt11';
 
@@ -99,7 +100,8 @@ export function OrderCard({ request, now, tracker }: Props) {
     }
   }
 
-  const isClaimed = request.status === 'claimed';
+  const isDetected = request.status === 'detected';
+  const statusMeta = getStatusMeta(request.status);
 
   // 금액 범위 검증: invoice 금액이 예상 BTC 환산의 90~110% 이내인지
   const amountInRange = (() => {
@@ -125,8 +127,14 @@ export function OrderCard({ request, now, tracker }: Props) {
       </div>
 
       <div style={styles.middle}>
-        {isClaimed ? (
-          <span style={styles.claimedBadge}>클레임 완료</span>
+        {!isDetected ? (
+          <span style={{
+            ...styles.statusBadge,
+            background: statusMeta.bgColor,
+            color: statusMeta.textColor,
+          }}>
+            {statusMeta.label}
+          </span>
         ) : showInvoiceInput ? (
           <div style={styles.invoiceSection}>
             <p style={styles.invoiceDesc}>
@@ -244,10 +252,8 @@ const styles = {
     fontWeight: 500 as const,
     cursor: 'pointer',
   },
-  claimedBadge: {
+  statusBadge: {
     display: 'inline-block',
-    background: '#DBEAFE',
-    color: '#1E40AF',
     borderRadius: 6,
     padding: '6px 12px',
     fontSize: 13,

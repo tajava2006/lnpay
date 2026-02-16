@@ -70,44 +70,52 @@ export function OrderQueue({ onSelectOrder, tracker }: Props) {
         대기 {totalPending}건 / 주문 {summaries.length}건
       </div>
       <div style={styles.list}>
-        {summaries.map(s => (
-          <button
-            key={s.orderId}
-            style={styles.card}
-            onClick={() => onSelectOrder(s.orderId)}
-          >
-            <div style={styles.top}>
-              <div style={styles.orderInfo}>
-                <span style={styles.orderId}>#{s.orderId}</span>
-                {s.order && (
-                  <>
-                    <span style={styles.price}>
-                      {s.order.price.toLocaleString()}
-                      {s.order.currency === 'KRW' ? '원' : ` ${s.order.currency}`}
-                    </span>
-                    {s.order.currency === 'KRW' && (
-                      <SatsAmount krw={s.order.price} tracker={tracker} />
-                    )}
-                  </>
+        {summaries.map(s => {
+          const now = Math.floor(Date.now() / 1000);
+          const expired = s.order?.expiresAt != null && s.order.expiresAt <= now;
+
+          return (
+            <button
+              key={s.orderId}
+              style={{
+                ...styles.card,
+                ...(expired ? styles.cardExpired : undefined),
+              }}
+              onClick={() => onSelectOrder(s.orderId)}
+            >
+              <div style={styles.top}>
+                <div style={styles.orderInfo}>
+                  <span style={styles.orderId}>#{s.orderId}</span>
+                  {s.order && (
+                    <>
+                      <span style={styles.price}>
+                        {s.order.price.toLocaleString()}
+                        {s.order.currency === 'KRW' ? '원' : ` ${s.order.currency}`}
+                      </span>
+                      {s.order.currency === 'KRW' && (
+                        <SatsAmount krw={s.order.price} tracker={tracker} />
+                      )}
+                    </>
+                  )}
+                </div>
+                <span style={styles.arrow}>→</span>
+              </div>
+              <div style={styles.meta}>
+                <span>클레임 {s.claims.length}건</span>
+                {s.pendingCount > 0 && (
+                  <span style={styles.pendingBadge}>대기 {s.pendingCount}</span>
+                )}
+                {s.order?.expiresAt && (
+                  <span style={expired ? styles.expiryExpired : styles.expiry}>
+                    {expired ? '만료됨' : `만료: ${new Date(s.order.expiresAt * 1000).toLocaleString('ko-KR', {
+                      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                    })}`}
+                  </span>
                 )}
               </div>
-              <span style={styles.arrow}>→</span>
-            </div>
-            <div style={styles.meta}>
-              <span>클레임 {s.claims.length}건</span>
-              {s.pendingCount > 0 && (
-                <span style={styles.pendingBadge}>대기 {s.pendingCount}</span>
-              )}
-              {s.order?.expiresAt && (
-                <span style={styles.expiry}>
-                  만료: {new Date(s.order.expiresAt * 1000).toLocaleString('ko-KR', {
-                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                  })}
-                </span>
-              )}
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -171,8 +179,15 @@ const styles = {
     fontSize: 11,
     fontWeight: 600 as const,
   },
+  cardExpired: {
+    opacity: 0.5,
+  },
   expiry: {
     color: '#999',
+  },
+  expiryExpired: {
+    color: '#DC2626',
+    fontWeight: 500 as const,
   },
   message: {
     textAlign: 'center' as const,

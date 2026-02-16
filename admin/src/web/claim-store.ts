@@ -84,6 +84,25 @@ export function updateClaimStatus(claimId: string, status: AdminClaimStatus): bo
   return true;
 }
 
+/**
+ * 인보이스 유동성 검증 결과를 기록한다.
+ */
+export function updateLiquidityVerified(claimId: string, verified: boolean): boolean {
+  const claim = claims[claimId];
+  if (!claim?.invoice) return false;
+
+  claims = {
+    ...claims,
+    [claimId]: {
+      ...claim,
+      invoice: { ...claim.invoice, liquidityVerified: verified },
+    },
+  };
+  saveToStorage();
+  notify();
+  return true;
+}
+
 export function markSynced(): void {
   synced = true;
   notify();

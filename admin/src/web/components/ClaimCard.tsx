@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import type { ClaimEvent, OrderRef } from '../types';
 import type { PriceTracker } from '@sajwo-tracker/shared';
-import { updateClaimStatus } from '../claim-store';
+import type { LightningAdapter, ProbeResult } from '../lightning';
+import { updateClaimStatus, updateLiquidityVerified } from '../claim-store';
 import { SatsAmount } from './SatsAmount';
 
 interface Props {
   claim: ClaimEvent;
   order: OrderRef | undefined;
   tracker: PriceTracker;
+  lnAdapter: LightningAdapter | null;
 }
 
 function formatDate(unixSeconds: number): string {
@@ -23,19 +25,47 @@ function shortenKey(pubkey: string): string {
   return pubkey.slice(0, 8) + '...' + pubkey.slice(-4);
 }
 
-export function ClaimCard({ claim, order, tracker }: Props) {
+function probeResultMessage(result: ProbeResult): { text: string; color: string } {
+  switch (result.status) {
+    case 'reachable':
+      return { text: '유동성 확인됨', color: '#059669' };
+    case 'unreachable':
+      return { text: result.reason, color: '#DC2626' };
+    case 'error':
+      return { text: result.message, color: '#D97706' };
+  }
+}
+
+export function ClaimCard({ claim, order, tracker, lnAdapter }: Props) {
   const isPending = claim.status === 'pending';
   const canApprove = isPending && (claim.invoice?.liquidityVerified ?? false);
   const decoded = claim.invoice?.decoded ?? null;
 
-  // 복사 핸들러
   const [copied, setCopied] = useState(false);
+  const [probing, setProbing] = useState(false);
+  const [probeMsg, setProbeMsg] = useState<{ text: string; color: string } | null>(null);
+
   const copyPubkey = (pubkey: string) => {
     navigator.clipboard.writeText(pubkey).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
   };
+
+  async function handleProbe() {
+    if (!lnAdapter || !decoded) return;
+    setProbing(true);
+    setProbeMsg(null);
+    try {
+      const result = await lnAdapter.probe(decoded.destination, decoded.amountSat);
+      updateLiquidityVerified(claim.id, result.status === 'reachable');
+      setProbeMsg(probeResultMessage(result));
+    } catch (e) {
+      setProbeMsg({ text: '프로브 요청 실패', color: '#DC2626' });
+    } finally {
+      setProbing(false);
+    }
+  }
 
   return (
     <div style={{
@@ -91,6 +121,29 @@ export function ClaimCard({ claim, order, tracker }: Props) {
               {decoded.amountSat.toLocaleString()} sats
             </span>
           </div>
+          {lnAdapter && (
+            <div style={styles.invoiceRow}>
+              <button
+                style={{
+                  ...styles.probeBtn,
+                  opacity: probing ? 0.6 : 1,
+                  cursor: probing ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleProbe}
+                disabled={probing}
+              >
+                {probing ? '검증 중...' : '유동성 검증'}
+              </button>
+              {claim.invoice?.liquidityVerified && !probeMsg && (
+                <span style={styles.verifiedBadge}>검증됨</span>
+              )}
+              {probeMsg && (
+                <span style={{ fontSize: 12, fontWeight: 500, color: probeMsg.color }}>
+                  {probeMsg.text}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       ) : claim.invoice && (
         <div style={styles.decodeFailed}>인보이스 디코딩 실패</div>
@@ -214,6 +267,21 @@ const styles = {
     color: '#666',
     fontFamily: 'inherit',
     lineHeight: 1,
+  },
+  probeBtn: {
+    background: '#4F46E5',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 4,
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 600 as const,
+    fontFamily: 'inherit',
+  },
+  verifiedBadge: {
+    fontSize: 12,
+    fontWeight: 500 as const,
+    color: '#059669',
   },
   actions: {
     display: 'flex',

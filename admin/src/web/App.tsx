@@ -9,7 +9,7 @@ import { NodeStatus } from './components/NodeStatus';
 import { createPriceTracker } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { createLightningAdapter, createNodeTracker } from './lightning';
-import type { NodeTracker } from './lightning';
+import type { LightningAdapter, NodeTracker } from './lightning';
 
 /** URL search params에서 orderId를 읽는다 */
 function getOrderIdFromUrl(): string | null {
@@ -30,12 +30,15 @@ export function App() {
   }
   const tracker = trackerRef.current;
 
-  // Lightning 노드 트래커 (미설정 시 null)
+  // Lightning 어댑터 + 노드 트래커 (미설정 시 null)
+  const adapterRef = useRef<LightningAdapter | null>(null);
   const nodeTrackerRef = useRef<NodeTracker | null | undefined>(undefined);
   if (nodeTrackerRef.current === undefined) {
     const adapter = createLightningAdapter();
+    adapterRef.current = adapter;
     nodeTrackerRef.current = adapter ? createNodeTracker(adapter) : null;
   }
+  const lnAdapter = adapterRef.current;
   const nodeTracker = nodeTrackerRef.current;
 
   useEffect(() => {
@@ -113,6 +116,7 @@ export function App() {
             orderId={selectedOrderId}
             onBack={goBack}
             tracker={tracker}
+            lnAdapter={lnAdapter}
           />
         ) : (
           <OrderQueue onSelectOrder={selectOrder} tracker={tracker} />

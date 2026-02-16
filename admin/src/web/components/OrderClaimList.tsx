@@ -8,6 +8,7 @@ import {
   getSnapshot as orderSnapshot,
 } from '../order-store';
 import type { PriceTracker } from '@sajwo-tracker/shared';
+import type { LightningAdapter } from '../lightning';
 import type { ClaimEvent } from '../types';
 import { ClaimCard } from './ClaimCard';
 import { SatsAmount } from './SatsAmount';
@@ -16,9 +17,10 @@ interface Props {
   orderId: string;
   onBack: () => void;
   tracker: PriceTracker;
+  lnAdapter: LightningAdapter | null;
 }
 
-export function OrderClaimList({ orderId, onBack, tracker }: Props) {
+export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
   const claims = useSyncExternalStore(claimSubscribe, claimSnapshot);
   const orders = useSyncExternalStore(orderSubscribe, orderSnapshot);
 
@@ -74,7 +76,7 @@ export function OrderClaimList({ orderId, onBack, tracker }: Props) {
       ) : (
         <div style={styles.list}>
           {claimList.map(claim => (
-            <ClaimCard key={claim.id} claim={claim} order={order} tracker={tracker} />
+            <ClaimCard key={claim.id} claim={claim} order={order} tracker={tracker} lnAdapter={lnAdapter} />
           ))}
         </div>
       )}

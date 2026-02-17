@@ -11,6 +11,7 @@
     "@sajwo-tracker/shared": "workspace:*",
     "bolt11": "^1.4.1",
     "nostr-tools": "^2.23.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

@@ -1,6 +1,14 @@
 /** 지원하는 Lightning 백엔드 구현체 */
 export type LightningBackend = 'lnd' | 'cln';
 
+/** Lightning REST 연결 설정 */
+export interface LnConnectionConfig {
+  /** REST API 베이스 URL (예: https://ln-rest.example.com) */
+  baseUrl: string;
+  /** LND macaroon (hex) 또는 CLN rune */
+  credential: string;
+}
+
 /** 백엔드 공통 노드 정보 */
 export interface NodeInfo {
   pubkey: string;

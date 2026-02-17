@@ -1,5 +1,5 @@
 import type { LightningAdapter } from './adapter';
-import type { NodeInfo, DecodedInvoice, ProbeResult } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, LnConnectionConfig } from './types';
 import type { RouteHintHop } from '../types';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
@@ -57,19 +57,6 @@ interface ClnWaitSendPayError {
 
 // ─── 유틸리티 ─────────────────────────────────────────────────
 
-async function postJson<T>(url: string, body: unknown = {}): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`CLN ${url} 실패: ${res.status} ${text}`);
-  }
-  return res.json();
-}
-
 /** Uint8Array → hex 문자열 */
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -88,10 +75,31 @@ function generateRandomPaymentHash(): string {
 // ─── 어댑터 구현 ──────────────────────────────────────────────
 
 export class ClnAdapter implements LightningAdapter {
+  private readonly baseUrl: string;
+  private readonly authHeaders: Record<string, string>;
+
+  constructor(config: LnConnectionConfig) {
+    this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.authHeaders = { Rune: config.credential };
+  }
+
+  private async postJson<T>(path: string, body: unknown = {}): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'POST',
+      headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`CLN ${path} 실패: ${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
   async getInfo(): Promise<NodeInfo> {
     const [info, funds] = await Promise.all([
-      postJson<ClnGetInfoResponse>('/lnapi/v1/getinfo'),
-      postJson<ClnListFundsResponse>('/lnapi/v1/listfunds'),
+      this.postJson<ClnGetInfoResponse>('/v1/getinfo'),
+      this.postJson<ClnListFundsResponse>('/v1/listfunds'),
     ]);
 
     const channelBalanceMsat = funds.channels
@@ -116,7 +124,7 @@ export class ClnAdapter implements LightningAdapter {
   }
 
   async decodeInvoice(bolt11: string): Promise<DecodedInvoice> {
-    const data = await postJson<ClnDecodeResponse>('/lnapi/v1/decode', {
+    const data = await this.postJson<ClnDecodeResponse>('/v1/decode', {
       string: bolt11,
     });
 
@@ -143,7 +151,7 @@ export class ClnAdapter implements LightningAdapter {
     // 1. 경로 조회
     let route: ClnGetRouteResponse['route'];
     try {
-      const routeRes = await postJson<ClnGetRouteResponse>('/lnapi/v1/getroute', {
+      const routeRes = await this.postJson<ClnGetRouteResponse>('/v1/getroute', {
         id: destination,
         amount_msat: amountMsat,
         riskfactor: 10,
@@ -155,7 +163,7 @@ export class ClnAdapter implements LightningAdapter {
     }
 
     // 2. 랜덤 해시로 결제 시도 (반드시 실패)
-    await postJson('/lnapi/v1/sendpay', {
+    await this.postJson('/v1/sendpay', {
       route,
       payment_hash: randomHash,
       amount_msat: amountMsat,
@@ -163,8 +171,8 @@ export class ClnAdapter implements LightningAdapter {
 
     // 3. 결과 대기
     try {
-      const result = await postJson<{ status: string; payment_preimage?: string }>(
-        '/lnapi/v1/waitsendpay',
+      const result = await this.postJson<{ status: string; payment_preimage?: string }>(
+        '/v1/waitsendpay',
         { payment_hash: randomHash, timeout: 30 },
       );
 

@@ -1,5 +1,5 @@
 import type { LightningAdapter } from './adapter';
-import type { NodeInfo, DecodedInvoice, ProbeResult } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, LnConnectionConfig } from './types';
 import type { RouteHintHop } from '../types';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
@@ -55,15 +55,6 @@ interface LndPayment {
 
 // ─── 유틸리티 ─────────────────────────────────────────────────
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`LND ${url} 실패: ${res.status} ${text}`);
-  }
-  return res.json();
-}
-
 /** hex 문자열 → base64 (LND REST는 bytes 필드에 base64를 사용) */
 function hexToBase64(hex: string): string {
   let binary = '';
@@ -93,11 +84,30 @@ function generateRandomPaymentHash(): string {
 // ─── 어댑터 구현 ──────────────────────────────────────────────
 
 export class LndAdapter implements LightningAdapter {
+  private readonly baseUrl: string;
+  private readonly authHeaders: Record<string, string>;
+
+  constructor(config: LnConnectionConfig) {
+    this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.authHeaders = { 'Grpc-Metadata-macaroon': config.credential };
+  }
+
+  private async fetchJson<T>(path: string): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      headers: this.authHeaders,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`LND ${path} 실패: ${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
   async getInfo(): Promise<NodeInfo> {
     const [info, chanBal, walletBal] = await Promise.all([
-      fetchJson<LndGetInfoResponse>('/lnapi/v1/getinfo'),
-      fetchJson<LndChannelBalanceResponse>('/lnapi/v1/balance/channels'),
-      fetchJson<LndWalletBalanceResponse>('/lnapi/v1/balance/blockchain'),
+      this.fetchJson<LndGetInfoResponse>('/v1/getinfo'),
+      this.fetchJson<LndChannelBalanceResponse>('/v1/balance/channels'),
+      this.fetchJson<LndWalletBalanceResponse>('/v1/balance/blockchain'),
     ]);
 
     return {
@@ -114,8 +124,8 @@ export class LndAdapter implements LightningAdapter {
   }
 
   async decodeInvoice(bolt11: string): Promise<DecodedInvoice> {
-    const data = await fetchJson<LndDecodePayReqResponse>(
-      `/lnapi/v1/payreq/${encodeURIComponent(bolt11)}`,
+    const data = await this.fetchJson<LndDecodePayReqResponse>(
+      `/v1/payreq/${encodeURIComponent(bolt11)}`,
     );
 
     return {
@@ -150,9 +160,9 @@ export class LndAdapter implements LightningAdapter {
       })),
     }));
 
-    const res = await fetch('/lnapi/v2/router/send', {
+    const res = await fetch(`${this.baseUrl}/v2/router/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         dest: hexToBase64(destination),
         amt: String(amountSat),

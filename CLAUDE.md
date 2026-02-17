@@ -49,7 +49,7 @@ sajwo-tracker/              ← pnpm workspace 모노레포
   shared/                   ← @sajwo-tracker/shared (Nostr 공통: 키, 릴레이, 상수, 타입)
   customer/                 ← @sajwo-tracker/customer (Chrome Extension MV3)
   sponsor/                  ← @sajwo-tracker/sponsor (React 19 SPA)
-  admin/                    ← @sajwo-tracker/admin (React 19 SPA, 에스크로 관리)
+  admin/                    ← @sajwo-tracker/admin (React 19 SPA, 순수 프론트엔드 에스크로)
   ARCHITECTURE.md           ← 시스템 아키텍처 상세
   PROTOCOL.md               ← Nostr 이벤트 프로토콜 명세
   TODO.md                   ← 향후 구현 계획
@@ -63,6 +63,8 @@ sajwo-tracker/              ← pnpm workspace 모노레포
 - **pubkey 검증**: 같은 orderId라도 최초 발행자만 갱신/삭제 가능.
 - **NIP-65 Outbox Model**: Customer → 앱 read relay에 write, Sponsor → 같은 relay에서 read.
 - **shared 패키지**: TypeScript 소스 직접 export, 각 앱의 Vite가 컴파일.
+- **순수 프론트엔드 배포**: 3개 앱 모두 서버 사이드 없이 정적 파일만 배포. Admin의 인증과 설정은 NIP-46 + 암호화된 릴레이 저장소로 관리 (구현 진행 중).
+- **Lightning 노드 직접 접속**: 어댑터가 브라우저에서 직접 LN 노드 REST API 호출. self-signed TLS 문제는 nginx 리버스 프록시(Let's Encrypt)로 해결.
 
 ## 앱별 데이터 흐름
 

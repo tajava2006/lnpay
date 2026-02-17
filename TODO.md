@@ -54,17 +54,31 @@
 
 - [x] ~~**CLI 테스트 도구**~~: 제거됨 — Customer Dev 패널로 대체
 - [x] **웹앱 클레임 대기열**: kind 1111 클레임 + kind 30402 주문 구독, 승인/거절 UI
-- [x] **Lightning 노드 연결**: LND/CLN 어댑터 패턴 + Vite proxy를 통한 노드 REST API 호출
-  - `LightningAdapter` 인터페이스 (getInfo 구현, 향후 probe/hold invoice 확장)
+- [x] **Lightning 노드 연결**: LND/CLN 어댑터 패턴, 브라우저에서 직접 LN REST API 호출
+  - `LightningAdapter` 인터페이스 (getInfo, decodeInvoice, probe)
   - LND: `GET /v1/getinfo` + macaroon 인증 / CLN: `POST /v1/getinfo` + rune 인증
-  - `.env`로 구현체 선택 (`VITE_LN_BACKEND=lnd|cln`) + 인증 정보는 서버 사이드 전용
   - NodeTracker (30초 polling) + NodeStatus 헤더 인디케이터
-- [ ] **클레임 유동성 검증**: Sponsor 클레임의 invoice에 대해 probing 수행
+  - nginx 리버스 프록시(Let's Encrypt)를 통해 self-signed TLS 문제 해결
+- [x] **클레임 유동성 검증**: Sponsor 클레임의 invoice에 대해 probing 수행
+  - `bolt11` 패키지로 인보이스 디코딩 (destination, amount, route hints 추출)
   - 랜덤 payment hash로 경로 탐색 (실제 결제 없음, 수수료 없음)
-  - probing 성공 (`INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS`): Customer에 클레임 전달
-  - probing 실패 (`TEMPORARY_CHANNEL_FAILURE` 등): Sponsor에 거절 통보
-  - LightningAdapter에 probe 메서드 추가
-  - LND: REST `SendPaymentV2` + 랜덤 hash / CLN: REST `getroute` + `sendpay`
+  - probing 성공 (`INCORRECT_PAYMENT_DETAILS`): 유동성 존재 확인
+  - probing 실패 (`NO_ROUTE`, `TIMEOUT` 등): 유동성 부족
+  - LND: `/v2/router/send` + 랜덤 hash / CLN: `getroute` + `sendpay`/`waitsendpay`
+- [x] ~~**Vite dev 서버 LN 프록시**~~: 제거됨 — 브라우저에서 직접 LN REST 호출로 전환
+
+### 순수 프론트엔드 전환 (진행 중)
+
+- [ ] **NIP-46 인증**: `.env` 기반 `APP_SECRET_KEY` 제거 → NIP-46 원격 서명자 연동
+  - 개인키가 브라우저에 노출되지 않음 (nsecBunker 등에 위임)
+  - `/__admin_config` Vite dev 미들웨어 의존성 완전 제거
+- [ ] **암호화된 LN 설정 저장소**: `VITE_LN_*` 환경변수 제거 → Nostr 릴레이에 암호화 저장
+  - LN URL, 인증정보(macaroon/rune), 구현체 종류를 릴레이에 암호화하여 저장
+  - 앱 시작 시 NIP-46 인증 후 복호화하여 메모리(React 상태)에서만 유지
+  - 프로덕션 빌드에 민감 정보 미포함 → 정적 SPA로 자유롭게 배포 가능
+
+### 기타
+
 - [ ] **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
   - Admin이 hold invoice 생성 (프리이미지 보유 = settle 권한)
   - Customer가 hold invoice 결제 → BTC가 HTLC에 잠김
@@ -124,4 +138,4 @@
 
 ---
 
-**Last Updated**: 2026-02-15
+**Last Updated**: 2026-02-17

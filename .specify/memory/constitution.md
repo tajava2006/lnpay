@@ -17,7 +17,7 @@ pnpm workspace 모노레포. 4개의 패키지로 구성:
 - `shared/` — Nostr 공통 모듈 (키, 릴레이, 상수, 타입)
 - `customer/` — Chrome Extension (MV3)
 - `sponsor/` — React 19 SPA
-- `admin/` — Node.js CLI (향후 에스크로 서비스)
+- `admin/` — React 19 SPA (에스크로 서비스, 순수 프론트엔드)
 
 ## 핵심 원칙
 
@@ -84,10 +84,11 @@ Chrome Extension Manifest V3 API를 사용한다.
 
 | 영역 | Customer | Sponsor | Admin | Shared |
 |------|----------|---------|-------|--------|
-| 프레임워크 | Chrome Extension MV3 | React 19 | Node.js CLI | - |
-| 빌드 | Vite + CRXJS | Vite | tsx | (앱에서 컴파일) |
-| 저장소 | chrome.storage.local | localStorage | - | StorageAdapter |
+| 프레임워크 | Chrome Extension MV3 | React 19 | React 19 | - |
+| 빌드 | Vite + CRXJS | Vite | Vite | (앱에서 컴파일) |
+| 저장소 | chrome.storage.local | localStorage | localStorage | StorageAdapter |
 | 통신 | Nostr (nostr-tools 2.x) | Nostr | Nostr | Nostr |
+| 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 (구현 진행 중) | ensureKeypair |
 | 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace | pnpm workspace |
 
-**Version**: 2.0.0 | **Last Amended**: 2026-02-14
+**Version**: 3.0.0 | **Last Amended**: 2026-02-17

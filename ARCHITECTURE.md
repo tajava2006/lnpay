@@ -88,7 +88,7 @@ KRW 입금이 확인되면 settle하여 BTC를 수령하고 Sponsor에게 전송
    │ Customer │          │ Sponsor │          │  Admin  │
    │   App    │          │   App   │          │   App   │
    └─────────┘          └─────────┘          └─────────┘
-   Chrome Extension      React SPA         React SPA (dev only)
+   Chrome Extension      React SPA            React SPA
    (BTC로 물건 구매)     (KRW→BTC 환전)     (에스크로 + LN 노드 제어)
 ```
 
@@ -104,7 +104,7 @@ sajwo-tracker/              ← pnpm workspace 루트
   shared/                   ← 3개 앱 공통 Nostr 모듈
   customer/                 ← Customer용 Chrome Extension
   sponsor/                  ← Sponsor용 React SPA
-  admin/                    ← Admin 에스크로 서비스 + CLI 도구
+  admin/                    ← Admin 에스크로 서비스 (순수 프론트엔드)
 ```
 
 | 폴더 | 설명 | 형태 | 대상 사용자 |
@@ -112,7 +112,7 @@ sajwo-tracker/              ← pnpm workspace 루트
 | `shared/` | Nostr 공통 모듈 (키, 릴레이, 상수, 타입) | TypeScript 라이브러리 | - |
 | `customer/` | 쿠팡 무통장입금 주문 감지 + 사줘 요청 발행 | Chrome Extension (MV3) | 비트코인으로 물건을 사고 싶은 사람 |
 | `sponsor/` | 오더북에서 사줘 요청 확인 + 클레임 발행 | React SPA | 거래소 없이 BTC를 사고 싶은 사람 |
-| `admin/` | 에스크로 (유동성 검증, 중재) | React SPA (Vite dev 서버 전용) | 시스템 운영자 |
+| `admin/` | 에스크로 (유동성 검증, 중재) | React SPA (순수 프론트엔드) | 시스템 운영자 |
 
 ## Shared 패키지
 
@@ -319,32 +319,45 @@ sponsor/src/
 
 에스크로 서비스 제공자. 거래의 안전성을 보장하는 핵심 역할.
 
-#### 배포 모델: 항상 Vite dev 서버로 운영
+#### 배포 모델: 순수 프론트엔드 SPA
 
-Customer와 Sponsor는 빌드 후 정식 도메인에 배포하는 일반적인 SPA이지만,
-**Admin만은 항상 `pnpm dev:admin`으로 localhost에서 Vite dev 서버를 통해서만 접속한다.**
+3개 앱 모두 **순수 프론트엔드**로 배포한다. Admin도 예외가 아니다.
+별도의 백엔드 서버 없이 정적 파일만 배포하여 어디서든 접속 가능하다.
 
-이유는 두 가지:
+**인증 및 설정 관리 (NIP-46 + 암호화된 릴레이 저장소):**
 
-1. **Self-signed TLS 우회**: Lightning 노드는 탈중앙 인프라 특성상 자체 서명(self-signed) TLS 인증서를 사용하며,
-   브라우저는 안전하지 않은 인증서로의 연결을 차단한다.
-   **Vite dev 서버가 프록시 역할**을 수행하여 이 제약을 우회한다:
-   ```
-   브라우저 → (localhost) → Vite dev 서버 → (self-signed TLS OK) → Lightning 노드
-   ```
-   Vite dev 서버는 Node.js 프로세스이므로 self-signed 인증서 검증을 건너뛸 수 있고(`secure: false`),
-   CORS 문제도 같은 origin이므로 발생하지 않는다.
+1. **NIP-46 (Nostr Connect)**: Admin의 개인키를 앱에 직접 입력하지 않는다.
+   NIP-46 프로토콜을 통해 원격 서명자(nsecBunker 등)에 인증을 위임하여
+   개인키가 브라우저 환경에 노출되지 않는다.
 
-2. **인증 정보 보호**: 모든 인증 정보(`APP_SECRET_KEY`, `LN_MACAROON_HEX`, `LN_RUNE`)가
-   `VITE_` prefix 없이 관리되므로 **빌드 결과물(번들)에 일절 포함되지 않는다.**
-   Vite dev 서버가 서버 사이드에서만 이 값들을 보유하고, 브라우저에는 동적으로 제공한다:
-   - **Nostr 시크릿키**: Vite dev 서버의 `/__admin_config` 엔드포인트가 런타임에 제공.
-     프로덕션 빌드에는 이 엔드포인트가 존재하지 않으므로 키에 접근 불가.
-   - **LN 인증 정보**: Vite proxy가 `/lnapi/*` 요청에 인증 헤더를 서버 사이드에서 주입.
+2. **암호화된 릴레이 설정 저장소**: Lightning 노드 연결 정보(URL, 인증정보, 구현체 종류)를
+   Nostr 릴레이에 암호화하여 저장한다.
+   앱 시작 시 NIP-46으로 인증 후 릴레이에서 암호화된 설정을 불러와
+   메모리(React 상태)에서만 유지한다.
+   이로써 모든 `.env` 환경변수 의존성을 제거하고 프로덕션 빌드에 민감 정보가 포함되지 않는다.
 
-결과적으로 실수로 프로덕션 빌드를 배포하더라도:
-- 시크릿키를 받아올 `/__admin_config` 엔드포인트가 없어 앱이 "키 검증 실패"로 차단됨
-- LN 인증 정보도 번들에 없고 프록시도 없으므로 노드 접근 불가
+```
+NIP-46 인증 → 릴레이에서 암호화된 설정 복호화 → 메모리에 LN 연결 정보 보유
+                                                    ↓
+                                            브라우저 → (HTTPS) → LN 노드
+```
+
+**Lightning 노드 TLS 문제 해결:**
+
+Lightning 노드는 자체 서명(self-signed) TLS 인증서를 사용하므로 브라우저가 직접 연결을 차단한다.
+이를 해결하기 위해 **nginx 리버스 프록시**를 LN 노드 앞에 배치한다:
+
+```
+브라우저 ──(HTTPS/Let's Encrypt)──→ nginx ──(HTTPS/self-signed)──→ LN 노드 REST
+```
+
+- 브라우저 ↔ nginx: Let's Encrypt CA 인증서 (브라우저가 신뢰)
+- nginx ↔ LN 노드: self-signed TLS (`proxy_ssl_verify off`, 같은 서버 내 localhost)
+- nginx에서 CORS 헤더 추가 (`Access-Control-Allow-Origin` 등)
+- 두 구간은 독립된 TLS 체인이므로 MITM 문제 없음
+
+이 방식으로 탈중앙성은 약간 희생되지만 (CA 인증서가 필요한 도메인),
+어차피 모든 앱이 정식 도메인으로 배포되어야 하므로 실질적인 추가 비용은 없다.
 
 #### Lightning 노드 어댑터 패턴
 
@@ -353,37 +366,41 @@ LND와 CLN 어느 구현체든 대응할 수 있도록 `LightningAdapter` 인터
 ```typescript
 interface LightningAdapter {
   getInfo(): Promise<NodeInfo>;
-  // 향후: probe(invoice), addHoldInvoice(...), settleInvoice(...), cancelInvoice(...)
+  decodeInvoice(bolt11: string): Promise<DecodedInvoice>;
+  probe(destination: string, amountSat: number, finalCltvDelta?: number, routeHints?: RouteHintHop[][]): Promise<ProbeResult>;
 }
 ```
 
-브라우저에서 직접 LN 노드에 연결하는 것이 아니라, Vite dev 서버 proxy(`/lnapi/*`)를 통해
-LN 노드 REST API를 호출한다. 각 어댑터는 REST 요청 형식과 응답 매핑을 담당한다:
+브라우저에서 직접 LN 노드 REST API를 호출한다 (nginx 리버스 프록시 경유).
+각 어댑터는 REST 요청 형식과 응답 매핑을 담당한다:
 
 | 구현체 | getInfo | 인증 헤더 |
 |--------|---------|----------|
 | **LND** | `GET /v1/getinfo` | `Grpc-Metadata-macaroon: <hex>` |
 | **CLN** (clnrest) | `POST /v1/getinfo` | `Rune: <string>` |
 
-| 구현체 | probing 방법 (향후) |
+| 구현체 | probing 방법 |
 |--------|------------|
-| **LND** | REST `SendPaymentV2` + 랜덤 payment hash (또는 `QueryRoutes`) |
+| **LND** | REST `/v2/router/send` + 랜덤 payment hash |
 | **CLN** | REST `getroute` + `sendpay`/`waitsendpay` 조합 |
 
-`.env`에서 `VITE_LN_BACKEND=lnd` 또는 `cln`으로 선택, 인증 정보도 `.env`로 관리.
-미설정 시 Lightning 기능이 비활성화되고 기존 클레임 조회 기능만 동작한다 (graceful degradation).
+LN 설정 미존재 시 Lightning 기능이 비활성화되고 기존 클레임 조회 기능만 동작한다 (graceful degradation).
 
 **핵심 기능:**
 - **클레임 대기열**: kind 1111 클레임 + kind 30402 주문 구독, 승인/거절 UI
 - **Lightning 노드 연결**: LND/CLN 어댑터를 통한 노드 상태 확인 (30초 polling)
+- **클레임 유동성 검증**: Sponsor의 invoice에 대해 랜덤 payment hash로 probing 수행
+  - `INCORRECT_PAYMENT_DETAILS`: 경로 도달 + 유동성 존재 확인 → 승인 가능
+  - `NO_ROUTE`, `TIMEOUT` 등: 유동성 부족 → 거절
+- **BOLT-11 인보이스 디코딩**: `bolt11` 패키지로 destination, amount, route hints 추출
 - **BTC/KRW 실시간 가격**: 업비트/빗썸/코인원 WebSocket
 
 **향후 구현:**
-- **클레임 유동성 검증**: Sponsor의 invoice에 대해 probing → 통과 시에만 Customer에 전달
+- **NIP-46 인증**: `.env` 기반 시크릿키 제거 → 원격 서명자 연동
+- **암호화된 LN 설정 저장소**: `VITE_LN_*` 환경변수 제거 → 릴레이에서 암호화된 설정 로드
+- **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
 - **Customer fidelity bond**: 사줘 요청 시 주문 금액 일부를 hold invoice로 선납 (스팸 차단)
-- **에스크로 관리**: Hold invoice로 Customer의 BTC를 예치받고, KRW 입금 확인 후 settle → Sponsor에게 전송
-- **Sponsor 블랙리스트**: Lightning 노드 pubkey 기반 트롤링 차단 (invoice에서 노드 식별)
-- **분쟁 해결**: 문제 발생 시 중재
+- **Sponsor 블랙리스트**: Lightning 노드 pubkey 기반 트롤링 차단
 - **릴레이 목록 관리**: kind 10002 이벤트 발행/수정
 - **모니터링 대시보드**: 시스템 전체 현황 파악
 
@@ -391,35 +408,33 @@ LN 노드 REST API를 호출한다. 각 어댑터는 REST 요청 형식과 응�
 
 ```
 admin/
-  .env.example            - 환경변수 템플릿 (시크릿키 + LN 인증)
   index.html              - Vite 엔트리
-  vite.config.ts          - 포트 5175, /lnapi 프록시 설정
+  vite.config.ts          - React + nodePolyfills, dev 서버 포트 5175
   src/
-    vite-env.d.ts         - 환경변수 타입 선언
-    web/
-      main.tsx            - React 엔트리
-      App.tsx             - 메인 레이아웃, PriceTracker + NodeTracker 관리
-      types.ts            - ClaimEvent, OrderRef 타입 + 파서
-      claim-store.ts      - 클레임 반응형 스토어 (localStorage)
-      order-store.ts      - 주문 참조 스토어 (localStorage)
-      nostr/
-        storage.ts        - StorageAdapter
-        keys.ts           - 시크릿키 검증
-        subscribe.ts      - kind 1111 + 30402 구독
-        service.ts        - 구독 시작/중지
-      lightning/
-        types.ts          - NodeInfo, NodeSnapshot, ConnectionStatus
-        adapter.ts        - LightningAdapter 인터페이스
-        lnd.ts            - LND REST 어댑터
-        cln.ts            - CLN clnrest 어댑터
-        node-tracker.ts   - 폴링 트래커 (useSyncExternalStore 호환)
-        index.ts          - 팩토리 + re-exports
-      components/
-        OrderQueue.tsx       - 주문 단위 클레임 대기열
-        OrderClaimList.tsx   - 주문별 클레임 목록
-        ClaimCard.tsx        - 개별 클레임 카드 (승인/거절)
-        BtcPrice.tsx         - BTC/KRW 실시간 가격
-        NodeStatus.tsx       - Lightning 노드 연결 상태
+    main.tsx              - React 엔트리
+    App.tsx               - 메인 레이아웃, PriceTracker + NodeTracker 관리
+    types.ts              - ClaimEvent, DecodedBolt11, OrderRef 타입 + 파서
+    claim-store.ts        - 클레임 반응형 스토어 (localStorage)
+    order-store.ts        - 주문 참조 스토어 (localStorage)
+    nostr/
+      storage.ts          - StorageAdapter
+      keys.ts             - 시크릿키 검증 (향후 NIP-46으로 교체)
+      subscribe.ts        - kind 1111 + 30402 구독
+      service.ts          - 구독 시작/중지
+    lightning/
+      types.ts            - NodeInfo, DecodedInvoice, ProbeResult, LnConnectionConfig
+      adapter.ts          - LightningAdapter 인터페이스 (getInfo, decodeInvoice, probe)
+      lnd.ts              - LND REST 어댑터 (브라우저에서 직접 호출)
+      cln.ts              - CLN clnrest 어댑터 (브라우저에서 직접 호출)
+      node-tracker.ts     - 폴링 트래커 (useSyncExternalStore 호환)
+      index.ts            - 팩토리 (향후 릴레이 설정에서 config 로드) + re-exports
+    components/
+      OrderQueue.tsx      - 주문 단위 클레임 대기열
+      OrderClaimList.tsx  - 주문별 클레임 목록
+      ClaimCard.tsx       - 개별 클레임 카드 (승인/거절 + 유동성 검증)
+      SatsAmount.tsx      - 사토시 금액 포맷팅
+      BtcPrice.tsx        - BTC/KRW 실시간 가격
+      NodeStatus.tsx      - Lightning 노드 연결 상태
 ```
 
 ## 기술 스택
@@ -431,7 +446,7 @@ admin/
 | 빌드 | Vite + CRXJS | Vite | Vite | (앱에서 컴파일) |
 | 통신 | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) |
 | 저장소 | chrome.storage.local | localStorage | localStorage | StorageAdapter |
-| 키 관리 | 랜덤 생성 | 랜덤 생성 | .env (고정) | ensureKeypair |
+| 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 (향후) | ensureKeypair |
 | 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace | pnpm workspace |
 
 ## 관련 문서

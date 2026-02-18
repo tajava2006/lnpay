@@ -61,9 +61,12 @@ sajwo-tracker/              ← pnpm workspace 모노레포
 - **StorageAdapter 패턴**: chrome.storage.local과 localStorage의 차이를 인터페이스로 추상화.
 - **상태 머신**: 에스크로 거래의 상태 전이를 FSM + optimistic locking으로 관리.
 - **pubkey 검증**: 같은 orderId라도 최초 발행자만 갱신/삭제 가능.
-- **NIP-65 Outbox Model**: Customer → 앱 read relay에 write, Sponsor → 같은 relay에서 read.
+- **NIP-65 Outbox Model**: kind 10002에서 읽기/쓰기 릴레이를 분리 파싱. 이벤트 성격에 따라 릴레이 선택:
+  - ① 비즈니스 이벤트 (주문 kind 30402, 클레임 kind 1111) → **읽기 릴레이** (Customer/Sponsor가 write, 모두가 read)
+  - ② Admin 전용 데이터 (LN 설정 kind 30078) → **쓰기 릴레이** (Admin이 write+read)
+  - ③ Admin→User 알림 (미구현) → **쓰기 릴레이** (Admin이 write, Customer/Sponsor가 read)
 - **shared 패키지**: TypeScript 소스 직접 export, 각 앱의 Vite가 컴파일.
-- **순수 프론트엔드 배포**: 3개 앱 모두 서버 사이드 없이 정적 파일만 배포. Admin의 인증과 설정은 NIP-46 + 암호화된 릴레이 저장소로 관리 (구현 진행 중).
+- **순수 프론트엔드 배포**: 3개 앱 모두 서버 사이드 없이 정적 파일만 배포. Admin의 인증은 NIP-46 원격 서명, LN 설정은 NIP-78 + NIP-44 암호화로 릴레이에 저장하여 `.env` 의존성 없이 동작.
 - **Lightning 노드 직접 접속**: 어댑터가 브라우저에서 직접 LN 노드 REST API 호출. self-signed TLS 문제는 nginx 리버스 프록시(Let's Encrypt)로 해결.
 
 ## 앱별 데이터 흐름

@@ -29,21 +29,47 @@ kind 10002 event tags:
   ['r', 'wss://relay3.com']          ← marker 없으면 read + write
 ```
 
-### Outbox Model 적용
+### Outbox Model 적용 — 릴레이 선택 기준
+
+이벤트의 성격에 따라 발행/구독할 릴레이가 결정된다. 세 가지 분류를 따른다:
+
+#### ① 비즈니스 이벤트 (주문·클레임) → 읽기 릴레이
+
+Customer/Sponsor가 발행하고 서로 읽는 모든 거래 이벤트 (kind 30402 주문, kind 1111 클레임).
 
 | 역할 | 동작 | 대상 릴레이 |
 |------|------|------------|
-| Customer | 사줘 이벤트 **발행 (write)** | 앱의 **read** 릴레이 |
-| Sponsor | 사줘 이벤트 **구독 (read)** | 앱의 **read** 릴레이 |
-| Admin | 릴레이 목록 **관리** | kind 10002 이벤트 업데이트 |
+| Customer | 사줘 이벤트 **발행** | 앱의 **읽기** 릴레이 |
+| Sponsor | 사줘 이벤트 **구독** / 클레임 **발행** | 앱의 **읽기** 릴레이 |
+| Admin | 주문+클레임 **구독** | 앱의 **읽기** 릴레이 |
 
-Customer가 앱의 read relay에 write하면, Sponsor가 같은 relay에서 read한다.
+#### ② Admin 전용 데이터 → 쓰기 릴레이
+
+Admin만 발행하고 Admin만 읽는 비공개 설정 데이터 (kind 30078 NIP-78 LN 설정 등).
+
+| 역할 | 동작 | 대상 릴레이 |
+|------|------|------------|
+| Admin | 설정 데이터 **발행** | 앱의 **쓰기** 릴레이 |
+| Admin | 설정 데이터 **구독** | 앱의 **쓰기** 릴레이 |
+
+#### ③ Admin → User 알림 → 쓰기 릴레이 (미구현)
+
+Admin이 발행하고 Customer/Sponsor가 읽어야 할 알림 이벤트.
+예: 클레임 유동성 검증 완료 통보, 에스크로 상태 알림 등.
+
+| 역할 | 동작 | 대상 릴레이 |
+|------|------|------------|
+| Admin | 알림 이벤트 **발행** | 앱의 **쓰기** 릴레이 |
+| Customer/Sponsor | 알림 이벤트 **구독** | 앱의 **쓰기** 릴레이 |
 
 ### 디스커버리 절차
 
 1. Well-known 릴레이(`purplepag.es`, `relay.damus.io`, `nos.lol`)에 접속
 2. `{ kinds: [10002], authors: [APP_PUBKEY] }` 필터로 조회
-3. `['r', url]` 또는 `['r', url, 'read']` 태그에서 read relay 추출
+3. 태그에서 읽기/쓰기 릴레이 분리 추출:
+   - `['r', url]` (marker 없음) → 읽기 + 쓰기 양쪽에 포함
+   - `['r', url, 'read']` → 읽기 릴레이
+   - `['r', url, 'write']` → 쓰기 릴레이
 4. 10분마다 갱신 (릴레이 변경에 대응)
 
 ## 사줘 요청 이벤트
@@ -388,5 +414,8 @@ Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
 | NIP-22 | Comment (kind 1111, 클레임 이벤트에 사용) |
 | NIP-33 | Addressable event (kind 30000-40000, d-tag) |
 | NIP-40 | Expiration Timestamp (`['expiration', timestamp]`) |
+| NIP-44 | Versioned Encryption (Admin 전용 데이터 암호화) |
+| NIP-46 | Nostr Connect (Admin 원격 서명 + 암호화 위임) |
 | NIP-65 | Relay List Metadata (kind 10002, outbox model) |
+| NIP-78 | Arbitrary Custom App Data (kind 30078, Admin 설정 저장) |
 | NIP-99 | Classified Listing (kind 30402, status/price 태그) |

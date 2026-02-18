@@ -146,7 +146,7 @@ shared/src/
   constants.ts      - APP_PUBKEY, SAJWO_REQUEST_KIND, CLIENT_TAG, STORAGE_KEYS 등
   storage.ts        - createWebStorage() (localStorage 기반 어댑터 팩토리)
   keys.ts           - ensureKeypair(storage), getSecretKey(storage), getUserPubkey(storage)
-  relays.ts         - getRelays(storage), refreshRelays(storage) (NIP-65 디스커버리)
+  relays.ts         - getReadRelays, getWriteRelays, refreshRelayLists (NIP-65 디스커버리)
 ```
 
 패키지는 TypeScript 소스를 직접 export하며, 각 앱의 Vite가 빌드 시 컴파일한다.
@@ -209,23 +209,29 @@ shared/src/
 
 ### 릴레이 모델 (NIP-65 Outbox)
 
+앱 pubkey의 kind 10002 이벤트에서 **읽기 릴레이**와 **쓰기 릴레이**를 분리 파싱한다.
+이벤트 성격에 따라 사용 릴레이가 결정된다:
+
 ```
-                    앱 pubkey의 kind 10002에서 read relay 파싱
-                                    │
-                                    ▼
-              ┌──────────────────────────────────────┐
-              │         App의 Read Relays             │
-              │  (wss://relay1.com, wss://relay2.com) │
-              └──────────────────────────────────────┘
-                    ▲                        │
-                    │                        │
-              Customer WRITE           Sponsor READ
-              (사줘 요청 발행)          (사줘 요청 구독)
+          kind 10002 ──→ 읽기 릴레이 / 쓰기 릴레이 분리
+
+  ┌── 읽기 릴레이 ──────────────────────────────────────┐
+  │  ① 비즈니스 이벤트 (주문·클레임)                      │
+  │  Customer WRITE ──→ relay ──→ Sponsor/Admin READ    │
+  └─────────────────────────────────────────────────────┘
+
+  ┌── 쓰기 릴레이 ──────────────────────────────────────┐
+  │  ② Admin 전용 데이터 (LN 설정 등)                     │
+  │  Admin WRITE ──→ relay ──→ Admin READ               │
+  │                                                     │
+  │  ③ Admin→User 알림 (미구현)                           │
+  │  Admin WRITE ──→ relay ──→ Customer/Sponsor READ    │
+  └─────────────────────────────────────────────────────┘
 ```
 
 - Admin이 앱 pubkey의 kind 10002 이벤트를 업데이트하면 릴레이 목록이 변경된다.
-- Customer/Sponsor 모두 10분마다 갱신하여 변경을 반영한다.
-- 이벤트 프로토콜 상세는 [PROTOCOL.md](PROTOCOL.md) 참조.
+- 모든 앱이 10분마다 갱신하여 변경을 반영한다.
+- 릴레이 선택 기준 상세는 [PROTOCOL.md](PROTOCOL.md) 참조.
 
 ### 사용 라이브러리
 
@@ -396,8 +402,6 @@ LN 설정 미존재 시 Lightning 기능이 비활성화되고 기존 클레임 
 - **BTC/KRW 실시간 가격**: 업비트/빗썸/코인원 WebSocket
 
 **향후 구현:**
-- **NIP-46 인증**: `.env` 기반 시크릿키 제거 → 원격 서명자 연동
-- **암호화된 LN 설정 저장소**: `VITE_LN_*` 환경변수 제거 → 릴레이에서 암호화된 설정 로드
 - **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
 - **Customer fidelity bond**: 사줘 요청 시 주문 금액 일부를 hold invoice로 선납 (스팸 차단)
 - **Sponsor 블랙리스트**: Lightning 노드 pubkey 기반 트롤링 차단
@@ -418,7 +422,9 @@ admin/
     order-store.ts        - 주문 참조 스토어 (localStorage)
     nostr/
       storage.ts          - StorageAdapter
-      keys.ts             - 시크릿키 검증 (향후 NIP-46으로 교체)
+      nip46.ts            - NIP-46 원격 서명 (BunkerSigner 세션 관리)
+      ln-config.ts        - NIP-78 LN 설정 타입, 발행, 구독, 복호화
+      ln-config-service.ts - LN 설정 구독 서비스 (쓰기 릴레이)
       subscribe.ts        - kind 1111 + 30402 구독
       service.ts          - 구독 시작/중지
     lightning/
@@ -427,8 +433,10 @@ admin/
       lnd.ts              - LND REST 어댑터 (브라우저에서 직접 호출)
       cln.ts              - CLN clnrest 어댑터 (브라우저에서 직접 호출)
       node-tracker.ts     - 폴링 트래커 (useSyncExternalStore 호환)
-      index.ts            - 팩토리 (향후 릴레이 설정에서 config 로드) + re-exports
+      index.ts            - 팩토리 (LnConfig → LightningAdapter) + re-exports
     components/
+      LoginScreen.tsx     - NIP-46 로그인 화면
+      LnConfigPage.tsx    - LN 노드 설정 입력/저장 폼
       OrderQueue.tsx      - 주문 단위 클레임 대기열
       OrderClaimList.tsx  - 주문별 클레임 목록
       ClaimCard.tsx       - 개별 클레임 카드 (승인/거절 + 유동성 검증)
@@ -446,7 +454,7 @@ admin/
 | 빌드 | Vite + CRXJS | Vite | Vite | (앱에서 컴파일) |
 | 통신 | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) |
 | 저장소 | chrome.storage.local | localStorage | localStorage | StorageAdapter |
-| 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 (향후) | ensureKeypair |
+| 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 | ensureKeypair |
 | 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace | pnpm workspace |
 
 ## 관련 문서

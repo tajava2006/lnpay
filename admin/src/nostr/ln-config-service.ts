@@ -4,7 +4,7 @@
  * startAdminSubscription()과 동일한 생명주기 패턴으로,
  * 앱 시작 시 즉시 구독을 열어 암호화된 LN 설정을 수신한다.
  */
-import { getReadRelays } from '@sajwo-tracker/shared';
+import { getWriteRelays } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { subscribeLnConfig, decryptLnConfig } from './ln-config';
 
@@ -21,7 +21,7 @@ export async function startLnConfigSubscription(
 ): Promise<void> {
   if (cleanup) return;
 
-  const relays = await getReadRelays(storage);
+  const relays = await getWriteRelays(storage);
 
   cleanup = subscribeLnConfig(relays, (event) => {
     if (event.content) {

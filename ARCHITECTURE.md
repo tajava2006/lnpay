@@ -461,3 +461,4 @@ admin/
 
 - [PROTOCOL.md](PROTOCOL.md) - Nostr 이벤트 프로토콜 명세 (3개 앱 공통)
 - [TODO.md](TODO.md) - 향후 구현 계획
+- [STORAGE-STRATEGY.md](STORAGE-STRATEGY.md) - 영구저장소 이중화 전략 (localStorage + IndexedDB)

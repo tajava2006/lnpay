@@ -96,4 +96,5 @@ nostr/service.ts (릴레이 구독) → order-store.ts (localStorage + notify) �
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 전체 시스템 구조, 거래 흐름, 에스크로 역할
 - [PROTOCOL.md](PROTOCOL.md) — Nostr 이벤트 명세, 태그 구조, 구독 필터, 클레임 흐름
 - [TODO.md](TODO.md) — 미구현 기능 목록
+- [STORAGE-STRATEGY.md](STORAGE-STRATEGY.md) — 영구저장소 이중화 전략 (localStorage + IndexedDB)
 - [.specify/memory/constitution.md](.specify/memory/constitution.md) — 개발 헌법 상세

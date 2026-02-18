@@ -17,4 +17,6 @@ export interface NostrKeypair {
 export interface CachedRelayList {
   relays: string[];
   fetchedAt: number;
+  /** 원본 kind 10002 이벤트의 created_at (서명 시각). 과거 이벤트 재전파 방어용. */
+  createdAt: number;
 }

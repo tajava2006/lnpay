@@ -17,9 +17,6 @@ export const STORAGE_KEYS = {
   WRITE_RELAYS: 'nostr:write-relays',
 } as const;
 
-/** 릴레이 리스트 갱신 주기 (밀리초) */
-export const RELAY_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
-
 /** NIP-65 디스커버리용 well-known 릴레이 */
 export const DISCOVERY_RELAYS = [
   'wss://purplepag.es',

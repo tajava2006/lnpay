@@ -1,15 +1,21 @@
 // Background Service Worker
-// 1. Nostr 키페어 초기화 및 릴레이 디스커버리
+// 1. Nostr 키페어 초기화 및 릴레이 리스트 구독
 // 2. 사줘 요청 이벤트 발행 (메시지 기반)
 // 3. SPA 네비게이션 감지 (쿠팡)
 
-import { ensureKeypair, refreshRelayLists } from '@sajwo-tracker/shared';
+import { ensureKeypair, subscribeRelayLists } from '@sajwo-tracker/shared';
 import { storage } from '../nostr/storage';
 import { publishOrder, type PublishResult } from '../nostr/publish';
 import { getOrder, saveOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
-import { RELAY_REFRESH_ALARM, RELAY_REFRESH_INTERVAL_MINUTES } from '../nostr/constants';
 import { TrackedOrder } from '../shared/types';
+
+// ============================================================
+// 릴레이 리스트 지속 구독 (모듈 스코프)
+// 서비스 워커 활성화될 때마다 실행되어 최신 릴레이 리스트를 유지한다.
+// ============================================================
+
+subscribeRelayLists(storage);
 
 // ============================================================
 // Extension Lifecycle
@@ -20,35 +26,10 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   const keypair = await ensureKeypair(storage);
   console.log('[Background] User pubkey:', keypair.publicKey);
-
-  await refreshRelayLists(storage);
-
-  chrome.alarms.create(RELAY_REFRESH_ALARM, {
-    periodInMinutes: RELAY_REFRESH_INTERVAL_MINUTES,
-  });
 });
 
-chrome.runtime.onStartup.addListener(async () => {
+chrome.runtime.onStartup.addListener(() => {
   console.log('[Background] Extension startup');
-
-  // 알람이 사라졌을 경우를 대비하여 재생성
-  const alarm = await chrome.alarms.get(RELAY_REFRESH_ALARM);
-  if (!alarm) {
-    chrome.alarms.create(RELAY_REFRESH_ALARM, {
-      periodInMinutes: RELAY_REFRESH_INTERVAL_MINUTES,
-    });
-  }
-});
-
-// ============================================================
-// Alarm: 릴레이 리스트 주기적 갱신
-// ============================================================
-
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === RELAY_REFRESH_ALARM) {
-    console.log('[Background] Refreshing relay list...');
-    await refreshRelayLists(storage);
-  }
 });
 
 // ============================================================

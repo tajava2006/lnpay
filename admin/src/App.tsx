@@ -11,8 +11,9 @@ import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
 import { BtcPrice } from './components/BtcPrice';
 import { NodeStatus } from './components/NodeStatus';
-import { createPriceTracker } from '@sajwo-tracker/shared';
+import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
+import { storage } from './nostr/storage';
 import { createLightningAdapter, createNodeTracker } from './lightning';
 import type { LightningAdapter, NodeTracker } from './lightning';
 
@@ -86,10 +87,12 @@ export function App() {
   // ─── 구독 독립화: 로그인 여부와 무관하게 즉시 시작 ──
 
   useEffect(() => {
+    const stopRelaySubscription = subscribeRelayLists(storage);
     startAdminSubscription();
     startLnConfigSubscription(setEncryptedLnConfig);
     tracker.start();
     return () => {
+      stopRelaySubscription();
       stopAdminSubscription();
       stopLnConfigSubscription();
       tracker.stop();

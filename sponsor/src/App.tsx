@@ -3,8 +3,9 @@ import { KeyInit } from './components/KeyInit';
 import { OrderBook } from './components/OrderBook';
 import { BtcPrice } from './components/BtcPrice';
 import { startOrderSubscription, stopOrderSubscription } from './nostr/service';
-import { createPriceTracker } from '@sajwo-tracker/shared';
+import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
+import { storage } from './nostr/storage';
 
 function AppContent() {
   const trackerRef = useRef<PriceTracker | null>(null);
@@ -14,9 +15,11 @@ function AppContent() {
   const tracker = trackerRef.current;
 
   useEffect(() => {
+    const stopRelaySubscription = subscribeRelayLists(storage);
     startOrderSubscription();
     tracker.start();
     return () => {
+      stopRelaySubscription();
       stopOrderSubscription();
       tracker.stop();
     };

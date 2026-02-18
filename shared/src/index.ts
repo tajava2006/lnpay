@@ -8,7 +8,6 @@ export {
   SAJWO_CLAIM_KIND,
   CLIENT_TAG,
   STORAGE_KEYS,
-  RELAY_REFRESH_INTERVAL_MS,
   DISCOVERY_RELAYS,
   FALLBACK_RELAYS,
 } from './constants';
@@ -20,7 +19,7 @@ export { createWebStorage } from './storage';
 export { ensureKeypair, getSecretKey, getUserPubkey } from './keys';
 
 // Relays
-export { getReadRelays, getWriteRelays, refreshRelayLists } from './relays';
+export { subscribeRelayLists, getReadRelays, getWriteRelays, refreshRelayLists } from './relays';
 
 // Price
 export { createPriceTracker } from './price';

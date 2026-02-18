@@ -13,7 +13,8 @@ export const CLIENT_TAG = import.meta.env.DEV ? 'sajwo-tracker-dev' : 'sajwo-tra
 /** 영구저장소 키 (키페어, 릴레이 캐시) */
 export const STORAGE_KEYS = {
   KEYPAIR: 'nostr:keys',
-  RELAYS: 'nostr:relays',
+  READ_RELAYS: 'nostr:read-relays',
+  WRITE_RELAYS: 'nostr:write-relays',
 } as const;
 
 /** 릴레이 리스트 갱신 주기 (밀리초) */

@@ -3,7 +3,7 @@
 // 2. 사줘 요청 이벤트 발행 (메시지 기반)
 // 3. SPA 네비게이션 감지 (쿠팡)
 
-import { ensureKeypair, refreshRelays } from '@sajwo-tracker/shared';
+import { ensureKeypair, refreshRelayLists } from '@sajwo-tracker/shared';
 import { storage } from '../nostr/storage';
 import { publishOrder, type PublishResult } from '../nostr/publish';
 import { getOrder, saveOrder } from '../shared/storage';
@@ -21,7 +21,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   const keypair = await ensureKeypair(storage);
   console.log('[Background] User pubkey:', keypair.publicKey);
 
-  await refreshRelays(storage);
+  await refreshRelayLists(storage);
 
   chrome.alarms.create(RELAY_REFRESH_ALARM, {
     periodInMinutes: RELAY_REFRESH_INTERVAL_MINUTES,
@@ -47,7 +47,7 @@ chrome.runtime.onStartup.addListener(async () => {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === RELAY_REFRESH_ALARM) {
     console.log('[Background] Refreshing relay list...');
-    await refreshRelays(storage);
+    await refreshRelayLists(storage);
   }
 });
 

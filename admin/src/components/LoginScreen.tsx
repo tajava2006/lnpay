@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { getRelays } from '@sajwo-tracker/shared';
+import { getReadRelays } from '@sajwo-tracker/shared';
 import { storage } from '../nostr/storage';
 import {
   createLoginContext,
@@ -44,7 +44,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
     try {
       // 1. 릴레이 목록 획득
-      const relays = await getRelays(storage);
+      const relays = await getReadRelays(storage);
       if (relays.length === 0) {
         setState({ phase: 'error', message: '사용 가능한 릴레이를 찾을 수 없습니다.' });
         return;

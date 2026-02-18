@@ -1,5 +1,5 @@
 import { SimplePool } from 'nostr-tools/pool';
-import { getSecretKey, getRelays } from '@sajwo-tracker/shared';
+import { getSecretKey, getReadRelays } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { buildSajwoRequestEvent, signEvent } from './events';
 import type { TrackedOrder } from '../shared/types';
@@ -18,7 +18,7 @@ export interface PublishResult {
  * MV3 서비스워커 환경이므로 SimplePool은 매번 새로 생성한다.
  */
 export async function publishOrder(order: TrackedOrder): Promise<PublishResult> {
-  const [sk, relays] = await Promise.all([getSecretKey(storage), getRelays(storage)]);
+  const [sk, relays] = await Promise.all([getSecretKey(storage), getReadRelays(storage)]);
 
   const template = buildSajwoRequestEvent(order);
   const signedEvent = signEvent(template, sk);

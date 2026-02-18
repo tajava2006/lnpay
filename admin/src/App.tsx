@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { startAdminSubscription, stopAdminSubscription } from './nostr/service';
 import {
   hasSession, loadSession, restoreSigner, clearSession,
 } from './nostr/nip46';
+import { startLnConfigSubscription, stopLnConfigSubscription, decryptLnConfig } from './nostr/ln-config-service';
+import type { LnConfig } from './nostr/ln-config';
 import { LoginScreen } from './components/LoginScreen';
+import { LnConfigPage } from './components/LnConfigPage';
 import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
 import { BtcPrice } from './components/BtcPrice';
@@ -31,24 +34,64 @@ export function App() {
   }
   const tracker = trackerRef.current;
 
-  // Lightning 어댑터 + 노드 트래커 (미설정 시 null)
-  const adapterRef = useRef<LightningAdapter | null>(null);
-  const nodeTrackerRef = useRef<NodeTracker | null | undefined>(undefined);
-  if (nodeTrackerRef.current === undefined) {
-    const adapter = createLightningAdapter();
-    adapterRef.current = adapter;
-    nodeTrackerRef.current = adapter ? createNodeTracker(adapter) : null;
-  }
-  const lnAdapter = adapterRef.current;
-  const nodeTracker = nodeTrackerRef.current;
+  // ─── LN 설정 (메모리만, 영구저장소 금지) ──────────
+
+  // 릴레이에서 받은 암호화된 NIP-78 content (로그인 전에 도착 가능)
+  const [encryptedLnConfig, setEncryptedLnConfig] = useState<string | null>(null);
+  // 복호화된 LN 설정 (React state = 메모리만)
+  const [lnConfig, setLnConfig] = useState<LnConfig | null>(null);
+  // LN 설정 페이지 표시 여부
+  const [showLnConfig, setShowLnConfig] = useState(false);
+
+  // ─── LN 어댑터 + 노드 트래커 (lnConfig 의존) ─────
+
+  const lnAdapter: LightningAdapter | null = useMemo(() => {
+    if (!lnConfig) return null;
+    return createLightningAdapter(lnConfig);
+  }, [lnConfig]);
+
+  const nodeTrackerRef = useRef<NodeTracker | null>(null);
+
+  // lnConfig 변경 시 이전 tracker 중지 + 새로 생성
+  useEffect(() => {
+    // 이전 tracker 정리
+    nodeTrackerRef.current?.stop();
+    nodeTrackerRef.current = null;
+
+    if (!lnAdapter) return;
+
+    const nt = createNodeTracker(lnAdapter);
+    nodeTrackerRef.current = nt;
+
+    // 로그인 상태이면 즉시 시작
+    if (authState === 'logged-in') {
+      nt.start();
+    }
+
+    return () => {
+      nt.stop();
+      nodeTrackerRef.current = null;
+    };
+  }, [lnAdapter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 로그인 상태 변경 시 기존 tracker 시작/중지
+  useEffect(() => {
+    if (authState === 'logged-in') {
+      nodeTrackerRef.current?.start();
+    } else {
+      nodeTrackerRef.current?.stop();
+    }
+  }, [authState]);
 
   // ─── 구독 독립화: 로그인 여부와 무관하게 즉시 시작 ──
 
   useEffect(() => {
     startAdminSubscription();
+    startLnConfigSubscription(setEncryptedLnConfig);
     tracker.start();
     return () => {
       stopAdminSubscription();
+      stopLnConfigSubscription();
       tracker.stop();
     };
   }, [tracker]);
@@ -74,13 +117,23 @@ export function App() {
     setAuthState('logged-in');
   }, []);
 
-  // ─── Lightning 노드 트래커: 로그인 후 시작 ─────────
+  // ─── 로그인 + 암호화 config 둘 다 준비되면 복호화 ───
 
   useEffect(() => {
-    if (authState !== 'logged-in') return;
-    nodeTracker?.start();
-    return () => { nodeTracker?.stop(); };
-  }, [authState, nodeTracker]);
+    if (authState !== 'logged-in' || !encryptedLnConfig) return;
+
+    let cancelled = false;
+    void decryptLnConfig(encryptedLnConfig).then((config: LnConfig) => {
+      if (!cancelled) {
+        setLnConfig(config);
+        console.log('[App] LN config decrypted:', config.backend, config.baseUrl);
+      }
+    }).catch((err: unknown) => {
+      console.warn('[App] LN config decryption failed:', err);
+    });
+
+    return () => { cancelled = true; };
+  }, [authState, encryptedLnConfig]);
 
   // ─── 네비게이션 ────────────────────────────────────
 
@@ -106,6 +159,14 @@ export function App() {
     setAuthState('logged-in');
   }, []);
 
+  const handleLnConfigSave = useCallback((config: LnConfig) => {
+    setLnConfig(config);
+    setShowLnConfig(false);
+  }, []);
+
+  // nodeTracker는 ref이므로 리렌더 트리거를 위해 lnAdapter 의존
+  const nodeTracker = nodeTrackerRef.current;
+
   // ─── 렌더링 ────────────────────────────────────────
 
   if (authState === 'checking') {
@@ -120,10 +181,29 @@ export function App() {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
+  if (showLnConfig) {
+    return (
+      <div style={styles.container}>
+        <LnConfigPage
+          onSave={handleLnConfigSave}
+          onBack={() => setShowLnConfig(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <h1 style={styles.title}>사줘 트래커 어드민</h1>
+        <div style={styles.titleRow}>
+          <h1 style={styles.title}>사줘 트래커 어드민</h1>
+          <button
+            style={lnConfig ? styles.lnConfigBtn : styles.lnConfigBtnWarn}
+            onClick={() => setShowLnConfig(true)}
+          >
+            {lnConfig ? 'LN 설정' : 'LN 설정 필요'}
+          </button>
+        </div>
         <p style={styles.subtitle}>
           {selectedOrderId ? `주문 #${selectedOrderId} 클레임` : '클레임 대기열'}
         </p>
@@ -156,6 +236,11 @@ const styles = {
   header: {
     marginBottom: 32,
   },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
   title: {
     fontSize: 28,
     fontWeight: 700 as const,
@@ -172,5 +257,25 @@ const styles = {
     padding: 80,
     color: '#999',
     fontSize: 14,
+  },
+  lnConfigBtn: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 500 as const,
+    color: '#666',
+    background: '#F3F4F6',
+    border: '1px solid #E5E7EB',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
+  },
+  lnConfigBtnWarn: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 600 as const,
+    color: '#DC2626',
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
   },
 } as const;

@@ -12,7 +12,7 @@ import {
   CLIENT_TAG,
   APP_PUBKEY,
   getSecretKey,
-  getRelays,
+  getReadRelays,
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import type { SajwoRequest } from '../types';
@@ -28,7 +28,7 @@ import type { SajwoRequest } from '../types';
  */
 export async function publishClaim(request: SajwoRequest, bolt11: string): Promise<boolean> {
   const sk = await getSecretKey(storage);
-  const relays = await getRelays(storage);
+  const relays = await getReadRelays(storage);
 
   const aCoord = `${SAJWO_REQUEST_KIND}:${request.pubkey}:${request.orderId}`;
   const now = Math.floor(Date.now() / 1000);

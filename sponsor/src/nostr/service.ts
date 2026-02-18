@@ -8,7 +8,7 @@
  * order-store를 통해 간접적으로 데이터를 읽는다.
  */
 import type { Event } from 'nostr-tools/core';
-import { getRelays } from '@sajwo-tracker/shared';
+import { getReadRelays } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { subscribeSajwoRequests } from './subscribe';
 import { parseEvent } from '../types';
@@ -20,7 +20,7 @@ let cleanup: (() => void) | null = null;
 export async function startOrderSubscription(): Promise<void> {
   if (cleanup) return;
 
-  const relays = await getRelays(storage);
+  const relays = await getReadRelays(storage);
 
   cleanup = subscribeSajwoRequests(relays, {
     onActive: (event: Event) => {

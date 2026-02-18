@@ -9,7 +9,7 @@
  */
 import { verifyEvent } from 'nostr-tools/pure';
 import type { Event } from 'nostr-tools/core';
-import { getRelays } from '@sajwo-tracker/shared';
+import { getReadRelays } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { subscribeAdmin } from './subscribe';
 import { parseClaimEvent, parseOrderEvent } from '../types';
@@ -21,7 +21,7 @@ let cleanup: (() => void) | null = null;
 export async function startAdminSubscription(): Promise<void> {
   if (cleanup) return;
 
-  const relays = await getRelays(storage);
+  const relays = await getReadRelays(storage);
 
   cleanup = subscribeAdmin(relays, {
     onClaim: (event) => {

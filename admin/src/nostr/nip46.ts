@@ -100,7 +100,7 @@ export function createLoginContext(relays: string[]): {
     clientPubkey,
     relays,
     secret,
-    perms: ['sign_event', 'get_public_key'],
+    perms: ['sign_event', 'get_public_key', 'nip44_encrypt', 'nip44_decrypt'],
     name: '사줘 트래커 어드민',
   });
 

@@ -20,7 +20,7 @@ export { createWebStorage } from './storage';
 export { ensureKeypair, getSecretKey, getUserPubkey } from './keys';
 
 // Relays
-export { getRelays, refreshRelays } from './relays';
+export { getReadRelays, getWriteRelays, refreshRelayLists } from './relays';
 
 // Price
 export { createPriceTracker } from './price';

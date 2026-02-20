@@ -53,9 +53,15 @@ export async function publishLnConfig(config: LnConfig): Promise<void> {
   }
 }
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 3_000;
+
 /**
- * 읽기 릴레이에서 NIP-78 LN 설정 이벤트를 구독한다.
+ * 쓰기 릴레이에서 NIP-78 LN 설정 이벤트를 구독한다.
  * 로그인 전에도 호출 가능 — 암호화된 content만 전달한다.
+ *
+ * EOSE 시점에 이벤트를 수신하지 못했으면 pool을 재생성하여 재시도한다.
+ * (새로고침 시 릴레이 WebSocket 연결이 불안정할 수 있음)
  *
  * @returns cleanup 함수
  */
@@ -63,30 +69,63 @@ export function subscribeLnConfig(
   relays: string[],
   onEvent: (event: Event) => void,
 ): () => void {
-  const pool = new SimplePool();
+  let destroyed = false;
+  let currentPool: SimplePool | null = null;
+  let currentSub: { close(reason?: string): void } | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryCount = 0;
 
-  const sub = pool.subscribeMany(
-    relays,
-    {
-      kinds: [APP_DATA_KIND],
-      authors: [APP_PUBKEY],
-      '#d': [CLIENT_TAG],
-    },
-    {
-      onevent: (event) => {
-        onEvent(event);
-      },
-      oneose: () => {
-        console.log('[LnConfig] EOSE — initial sync complete');
-      },
-    },
-  );
+  function attempt() {
+    if (destroyed) return;
 
+    let received = false;
+    const pool = new SimplePool();
+    currentPool = pool;
+
+    currentSub = pool.subscribeMany(
+      relays,
+      {
+        kinds: [APP_DATA_KIND],
+        authors: [APP_PUBKEY],
+        '#d': [CLIENT_TAG],
+      },
+      {
+        onevent: (event) => {
+          received = true;
+          onEvent(event);
+        },
+        oneose: () => {
+          if (received) {
+            console.log('[LnConfig] EOSE — config received');
+            return;
+          }
+          if (retryCount >= MAX_RETRIES) {
+            console.warn('[LnConfig] EOSE without event — retries exhausted');
+            return;
+          }
+          retryCount++;
+          console.warn(
+            `[LnConfig] EOSE without event — retry ${retryCount}/${MAX_RETRIES}`,
+          );
+          // 현재 연결 정리 후 새 pool로 재시도
+          void currentSub?.close();
+          pool.destroy();
+          currentPool = null;
+          currentSub = null;
+          retryTimer = setTimeout(attempt, RETRY_DELAY_MS);
+        },
+      },
+    );
+  }
+
+  attempt();
   console.log('[LnConfig] Subscribed on', relays.length, 'relays');
 
   return () => {
-    sub.close();
-    pool.destroy();
+    destroyed = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    void currentSub?.close();
+    currentPool?.destroy();
     console.log('[LnConfig] Subscription closed');
   };
 }

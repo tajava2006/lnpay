@@ -11,6 +11,8 @@ import { subscribeLnConfig, decryptLnConfig } from './ln-config';
 export { decryptLnConfig } from './ln-config';
 
 let cleanup: (() => void) | null = null;
+/** async 경쟁 조건 방어용 세대 카운터 */
+let generation = 0;
 
 /**
  * NIP-78 LN 설정 구독을 시작한다.
@@ -21,7 +23,12 @@ export async function startLnConfigSubscription(
 ): Promise<void> {
   if (cleanup) return;
 
+  const gen = ++generation;
+
   const relays = await getWriteRelays(storage);
+
+  // await 사이에 stop이 호출됐으면 구독하지 않음
+  if (gen !== generation) return;
 
   cleanup = subscribeLnConfig(relays, (event) => {
     if (event.content) {
@@ -31,6 +38,7 @@ export async function startLnConfigSubscription(
 }
 
 export function stopLnConfigSubscription(): void {
+  generation++;           // 진행 중인 async start를 무효화
   cleanup?.();
   cleanup = null;
 }

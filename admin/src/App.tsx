@@ -51,18 +51,17 @@ export function App() {
     return createLightningAdapter(lnConfig);
   }, [lnConfig]);
 
-  const nodeTrackerRef = useRef<NodeTracker | null>(null);
+  const [nodeTracker, setNodeTracker] = useState<NodeTracker | null>(null);
 
-  // lnConfig 변경 시 이전 tracker 중지 + 새로 생성
+  // lnAdapter 변경 시 이전 tracker 중지 + 새로 생성
   useEffect(() => {
-    // 이전 tracker 정리
-    nodeTrackerRef.current?.stop();
-    nodeTrackerRef.current = null;
-
-    if (!lnAdapter) return;
+    if (!lnAdapter) {
+      setNodeTracker(null);
+      return;
+    }
 
     const nt = createNodeTracker(lnAdapter);
-    nodeTrackerRef.current = nt;
+    setNodeTracker(nt);
 
     // 로그인 상태이면 즉시 시작
     if (authState === 'logged-in') {
@@ -71,18 +70,17 @@ export function App() {
 
     return () => {
       nt.stop();
-      nodeTrackerRef.current = null;
     };
   }, [lnAdapter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 로그인 상태 변경 시 기존 tracker 시작/중지
   useEffect(() => {
     if (authState === 'logged-in') {
-      nodeTrackerRef.current?.start();
+      nodeTracker?.start();
     } else {
-      nodeTrackerRef.current?.stop();
+      nodeTracker?.stop();
     }
-  }, [authState]);
+  }, [authState, nodeTracker]);
 
   // ─── 구독 독립화: 로그인 여부와 무관하게 즉시 시작 ──
 
@@ -166,9 +164,6 @@ export function App() {
     setLnConfig(config);
     setShowLnConfig(false);
   }, []);
-
-  // nodeTracker는 ref이므로 리렌더 트리거를 위해 lnAdapter 의존
-  const nodeTracker = nodeTrackerRef.current;
 
   // ─── 렌더링 ────────────────────────────────────────
 

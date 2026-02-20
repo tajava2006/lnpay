@@ -1,64 +1,62 @@
 /**
  * 클레임 이벤트 발행
  *
- * NIP-22 Comment (kind 1111)로 사줘 요청(kind 30402)에 대한 클레임을 발행한다.
- * 어드민이 인바운드 유동성 검증 후 고객에게 전달하는 구조.
+ * kind 1111로 Admin에게 클레임 요청을 발행한다.
+ * a-tag으로 Admin의 오더를 참조하고, bolt11 태그에 유동성 검증용 인보이스를 포함한다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import {
-  SAJWO_CLAIM_KIND,
+  SAJWO_REQUEST_EVENT_KIND,
   SAJWO_REQUEST_KIND,
   CLIENT_TAG,
   APP_PUBKEY,
   getSecretKey,
   getReadRelays,
+  type Order,
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
-import type { SajwoRequest } from '../types';
 
 /**
- * 특정 사줘 요청에 대해 클레임 이벤트를 발행한다.
+ * 특정 오더에 대해 클레임 이벤트를 발행한다.
  *
- * NIP-22 태그 구조:
- * - K/A/P (대문자): root scope (원본 리스팅)
- * - k/a/e/p (소문자): parent item (top-level 클레임이므로 root와 동일)
- * - t: 클라이언트 식별
- * - p (APP_PUBKEY): 어드민이 #p 필터로 조회 가능하도록
+ * Tags:
+ *   ['a', '30402:<APP_PUBKEY>:<orderId>']  - Admin 오더 참조
+ *   ['action', 'claim']                    - 요청 종류
+ *   ['p', APP_PUBKEY]                      - Admin 디스커버리용
+ *   ['t', CLIENT_TAG]                      - 클라이언트 식별
+ *   ['bolt11', invoice]                    - 유동성 검증용 인보이스
+ *   ['expiration', ...]                    - 오더 만료 시각
  */
-export async function publishClaim(request: SajwoRequest, bolt11: string): Promise<boolean> {
+export async function publishClaim(order: Order, bolt11: string): Promise<boolean> {
   const sk = await getSecretKey(storage);
   const relays = await getReadRelays(storage);
 
-  const aCoord = `${SAJWO_REQUEST_KIND}:${request.pubkey}:${request.orderId}`;
+  const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`;
   const now = Math.floor(Date.now() / 1000);
 
+  const tags: string[][] = [
+    ['a', aCoord],
+    ['action', 'claim'],
+    ['p', APP_PUBKEY],
+    ['t', CLIENT_TAG],
+    ['bolt11', bolt11],
+  ];
+
+  if (order.expiration > 0) {
+    tags.push(['expiration', String(order.expiration)]);
+  }
+
   const template = {
-    kind: SAJWO_CLAIM_KIND,
+    kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: now,
-    tags: [
-      // Root scope (NIP-22 대문자)
-      ['K', String(SAJWO_REQUEST_KIND)],
-      ['A', aCoord],
-      ['P', request.pubkey],
-      // Parent item (top-level이므로 root와 동일)
-      ['k', String(SAJWO_REQUEST_KIND)],
-      ['a', aCoord],
-      ['e', request.id],
-      ['p', request.pubkey],
-      // 어드민 디스커버리용
-      ['p', APP_PUBKEY],
-      // 클라이언트 식별
-      ['t', CLIENT_TAG],
-      // Lightning invoice (유동성 검증용)
-      ['bolt11', bolt11],
-    ],
-    content: JSON.stringify(request.raw),
+    tags,
+    content: '',
   };
 
   const signed = finalizeEvent(template, sk);
 
-  console.log('[Nostr] Publishing claim for order', request.orderId, 'event:', signed.id);
+  console.log('[Nostr] Publishing claim for order', order.orderId, 'event:', signed.id);
 
   const pool = new SimplePool();
   try {

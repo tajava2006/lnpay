@@ -1,7 +1,7 @@
 import { SimplePool } from 'nostr-tools/pool';
 import { getSecretKey, getReadRelays } from '@sajwo-tracker/shared';
 import { storage } from './storage';
-import { buildSajwoRequestEvent, signEvent } from './events';
+import { buildOrderRequestEvent, signEvent } from './events';
 import type { TrackedOrder } from '../shared/types';
 
 export interface PublishResult {
@@ -13,14 +13,14 @@ export interface PublishResult {
 }
 
 /**
- * TrackedOrder를 Nostr addressable event로 릴레이에 브로드캐스트한다.
+ * TrackedOrder를 kind 1111 order-request로 릴레이에 브로드캐스트한다.
  *
  * MV3 서비스워커 환경이므로 SimplePool은 매번 새로 생성한다.
  */
 export async function publishOrder(order: TrackedOrder): Promise<PublishResult> {
   const [sk, relays] = await Promise.all([getSecretKey(storage), getReadRelays(storage)]);
 
-  const template = buildSajwoRequestEvent(order);
+  const template = buildOrderRequestEvent(order);
   const signedEvent = signEvent(template, sk);
 
   console.log('[Nostr] Publishing event:', signedEvent.id, 'to', relays);

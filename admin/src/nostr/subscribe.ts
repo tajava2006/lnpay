@@ -1,22 +1,20 @@
 import { SimplePool } from 'nostr-tools/pool';
 import type { Event } from 'nostr-tools/core';
-import { SAJWO_REQUEST_KIND, SAJWO_CLAIM_KIND, CLIENT_TAG, APP_PUBKEY, NOSTR_SINCE } from '@sajwo-tracker/shared';
+import { SAJWO_REQUEST_KIND, SAJWO_REQUEST_EVENT_KIND, CLIENT_TAG, APP_PUBKEY, NOSTR_SINCE } from '@sajwo-tracker/shared';
 
 export interface AdminSubscriptionCallbacks {
-  /** kind 1111 클레임 이벤트 수신 */
-  onClaim: (event: Event) => void;
-  /** kind 30402 active 주문 수신 */
-  onOrderActive: (event: Event) => void;
-  /** kind 30402 sold 주문 수신 */
-  onOrderSold: (event: Event) => void;
+  /** kind 1111 요청 이벤트 수신 (order-request, claim, payment-confirm) */
+  onRequest: (event: Event) => void;
+  /** kind 30402 오더 수신 (자기 발행 이벤트 동기화) */
+  onOrder: (event: Event) => void;
   /** 초기 로딩 완료 */
   onEose: () => void;
 }
 
 /**
  * 어드민용 Nostr 구독.
- * - kind 1111 (claims): #p=APP_PUBKEY, #t=sajwo-tracker
- * - kind 30402 (orders): #p=APP_PUBKEY, #t=sajwo-tracker
+ * - kind 1111 (requests): #p=APP_PUBKEY, #t=CLIENT_TAG
+ * - kind 30402 (orders): authors=APP_PUBKEY, #t=CLIENT_TAG
  *
  * 반환: cleanup 함수
  */
@@ -26,56 +24,51 @@ export function subscribeAdmin(
 ): () => void {
   const pool = new SimplePool();
 
-  let claimEose = false;
+  let requestEose = false;
   let orderEose = false;
 
   function checkEose() {
-    if (claimEose && orderEose) callbacks.onEose();
+    if (requestEose && orderEose) callbacks.onEose();
   }
 
-  // 클레임 구독 (kind 1111)
-  const claimSub = pool.subscribeMany(
+  // 요청 구독 (kind 1111)
+  const requestSub = pool.subscribeMany(
     relays,
     {
-      kinds: [SAJWO_CLAIM_KIND],
+      kinds: [SAJWO_REQUEST_EVENT_KIND],
       '#p': [APP_PUBKEY],
       '#t': [CLIENT_TAG],
       ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
     },
     {
       onevent: (event) => {
-        callbacks.onClaim(event);
+        callbacks.onRequest(event);
       },
-      oneose: () => { claimEose = true; checkEose(); },
+      oneose: () => { requestEose = true; checkEose(); },
     },
   );
 
-  // 주문 구독 (kind 30402)
+  // 오더 구독 (kind 30402) — Admin 자신이 발행한 이벤트만
   const orderSub = pool.subscribeMany(
     relays,
     {
       kinds: [SAJWO_REQUEST_KIND],
-      '#p': [APP_PUBKEY],
+      authors: [APP_PUBKEY],
       '#t': [CLIENT_TAG],
       ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
     },
     {
       onevent: (event) => {
-        const statusTag = event.tags.find(t => t[0] === 'status')?.[1];
-        if (statusTag === 'sold') {
-          callbacks.onOrderSold(event);
-        } else {
-          callbacks.onOrderActive(event);
-        }
+        callbacks.onOrder(event);
       },
       oneose: () => { orderEose = true; checkEose(); },
     },
   );
 
-  console.log('[Admin] Subscribed to claims + orders on', relays.length, 'relays');
+  console.log('[Admin] Subscribed to requests + orders on', relays.length, 'relays');
 
   return () => {
-    claimSub.close();
+    requestSub.close();
     orderSub.close();
     pool.destroy();
     console.log('[Admin] Subscriptions closed');

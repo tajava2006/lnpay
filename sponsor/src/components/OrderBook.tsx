@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
-import type { SajwoRequest } from '../types';
+import type { Order } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { OrderCard } from './OrderCard';
 
@@ -8,11 +8,13 @@ interface Props {
   tracker: PriceTracker;
 }
 
+const TERMINAL_STATES = new Set(['paid', 'rejected', 'cancelled']);
+
 export function OrderBook({ tracker }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
   const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
 
-  // 매초 갱신하여 남은 시간 자동 업데이트 + 만료 주문 자동 제거
+  // 매초 갱신하여 남은 시간 자동 업데이트
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
@@ -22,30 +24,33 @@ export function OrderBook({ tracker }: Props) {
     return () => clearInterval(interval);
   }, []);
 
-  // 만료되지 않은 요청만 필터링, 만료 임박순 (expiresAt 없으면 맨 뒤)
-  const activeRequests = Object.values(orders)
-    .filter((r: SajwoRequest) => r.status === 'claimed' || !r.expiresAt || r.expiresAt > now)
-    .sort((a: SajwoRequest, b: SajwoRequest) => {
-      if (!a.expiresAt && !b.expiresAt) return 0;
-      if (!a.expiresAt) return 1;
-      if (!b.expiresAt) return -1;
-      return a.expiresAt - b.expiresAt;
+  // 활성 오더만 표시 (만료 안 된 + 비종료 상태), 만료 임박순
+  const activeOrders = Object.values(orders)
+    .filter((o: Order) =>
+      !TERMINAL_STATES.has(o.state)
+      && (o.expiration === 0 || o.expiration > now),
+    )
+    .sort((a: Order, b: Order) => {
+      if (a.expiration === 0 && b.expiration === 0) return 0;
+      if (a.expiration === 0) return 1;
+      if (b.expiration === 0) return -1;
+      return a.expiration - b.expiration;
     });
 
-  if (activeRequests.length === 0 && !synced) {
-    return <div style={styles.message}>릴레이에서 사줘 요청을 불러오는 중...</div>;
+  if (activeOrders.length === 0 && !synced) {
+    return <div style={styles.message}>릴레이에서 오더를 불러오는 중...</div>;
   }
 
-  if (activeRequests.length === 0) {
-    return <div style={styles.message}>현재 활성 사줘 요청이 없습니다</div>;
+  if (activeOrders.length === 0) {
+    return <div style={styles.message}>현재 활성 오더가 없습니다</div>;
   }
 
   return (
     <div>
       {!synced && <div style={styles.syncBadge}>동기화 중...</div>}
       <div style={styles.list}>
-        {activeRequests.map((request: SajwoRequest) => (
-          <OrderCard key={request.orderId} request={request} now={now} tracker={tracker} />
+        {activeOrders.map((order: Order) => (
+          <OrderCard key={order.orderId} order={order} now={now} tracker={tracker} />
         ))}
       </div>
     </div>

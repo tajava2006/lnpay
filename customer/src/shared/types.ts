@@ -72,6 +72,12 @@ export interface TrackedOrder {
   version: number;
 
   /**
+   * Admin의 오더 FSM 상태 (Admin 발행 kind 30402에서 수신).
+   * order-request 발행 후 Admin이 오더를 생성하면 이 필드가 채워진다.
+   */
+  adminState?: import('@sajwo-tracker/shared').OrderState;
+
+  /**
    * 무통장입금 계좌 정보
    * 후원자에게 전달할 입금 정보
    */

@@ -1,15 +1,15 @@
 import { useSyncExternalStore } from 'react';
 import {
-  subscribe as claimSubscribe,
-  getSnapshot as claimSnapshot,
-} from '../claim-store';
+  subscribe as requestSubscribe,
+  getSnapshot as requestSnapshot,
+} from '../request-store';
 import {
   subscribe as orderSubscribe,
   getSnapshot as orderSnapshot,
 } from '../order-store';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import type { LightningAdapter } from '../lightning';
-import type { ClaimEvent } from '../types';
+import type { ProcessedRequest } from '../types';
 import { ClaimCard } from './ClaimCard';
 import { SatsAmount } from './SatsAmount';
 
@@ -20,27 +20,31 @@ interface Props {
   lnAdapter: LightningAdapter | null;
 }
 
+const stateLabel: Record<string, string> = {
+  requested: '요청됨',
+  claimed: '클레임됨',
+  verified: '검증됨',
+  escrowed: '에스크로',
+  paid: '완료',
+  rejected: '거절',
+  cancelled: '취소',
+};
+
 export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
-  const claims = useSyncExternalStore(claimSubscribe, claimSnapshot);
+  const requests = useSyncExternalStore(requestSubscribe, requestSnapshot);
   const orders = useSyncExternalStore(orderSubscribe, orderSnapshot);
 
   const order = orders[orderId];
 
-  // 해당 주문의 클레임만 필터 + 정렬 (pending 먼저, 최신순)
-  const claimList = Object.values(claims)
-    .filter((c): c is ClaimEvent => c.orderId === orderId)
-    .sort((a, b) => {
-      if (a.status === 'pending' && b.status !== 'pending') return -1;
-      if (a.status !== 'pending' && b.status === 'pending') return 1;
-      return b.createdAt - a.createdAt;
-    });
-
-  const pendingCount = claimList.filter(c => c.status === 'pending').length;
+  // 해당 주문의 요청만 필터 + 정렬 (최신순)
+  const requestList = Object.values(requests)
+    .filter((r): r is ProcessedRequest => r.orderId === orderId)
+    .sort((a, b) => b.createdAt - a.createdAt);
 
   return (
     <div>
       <button style={styles.backBtn} onClick={onBack}>
-        ← 주문 목록
+        ← 오더 목록
       </button>
 
       <div style={styles.orderHeader}>
@@ -49,34 +53,44 @@ export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
           {order && (
             <>
               <span style={styles.price}>
-                {order.price.toLocaleString()}
-                {order.currency === 'KRW' ? '원' : ` ${order.currency}`}
+                {order.price.toLocaleString()}원
               </span>
-              {order.currency === 'KRW' && (
-                <SatsAmount krw={order.price} tracker={tracker} />
-              )}
+              <SatsAmount krw={order.price} tracker={tracker} />
             </>
           )}
         </div>
-        {order?.expiresAt && (
-          <div style={styles.orderMeta}>
-            만료: {new Date(order.expiresAt * 1000).toLocaleString('ko-KR', {
-              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-            })}
-          </div>
-        )}
+        <div style={styles.orderMeta}>
+          {order && (
+            <span style={styles.stateBadge}>
+              {stateLabel[order.state] ?? order.state}
+            </span>
+          )}
+          {order?.expiration != null && order.expiration > 0 && (
+            <span>
+              만료: {new Date(order.expiration * 1000).toLocaleString('ko-KR', {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+              })}
+            </span>
+          )}
+        </div>
       </div>
 
       <div style={styles.stats}>
-        대기 {pendingCount}건 / 클레임 {claimList.length}건
+        요청 {requestList.length}건
       </div>
 
-      {claimList.length === 0 ? (
-        <div style={styles.empty}>이 주문에 대한 클레임이 없습니다</div>
+      {requestList.length === 0 ? (
+        <div style={styles.empty}>이 오더에 대한 요청이 없습니다</div>
       ) : (
         <div style={styles.list}>
-          {claimList.map(claim => (
-            <ClaimCard key={claim.id} claim={claim} order={order} tracker={tracker} lnAdapter={lnAdapter} />
+          {requestList.map(request => (
+            <ClaimCard
+              key={request.eventId}
+              request={request}
+              order={order}
+              tracker={tracker}
+              lnAdapter={lnAdapter}
+            />
           ))}
         </div>
       )}
@@ -117,9 +131,20 @@ const styles = {
     color: '#4F46E5',
   },
   orderMeta: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'center',
     fontSize: 12,
     color: '#999',
     marginTop: 6,
+  },
+  stateBadge: {
+    background: '#E0E7FF',
+    color: '#4F46E5',
+    borderRadius: 4,
+    padding: '2px 8px',
+    fontSize: 11,
+    fontWeight: 600 as const,
   },
   stats: {
     fontSize: 13,

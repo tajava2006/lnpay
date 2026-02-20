@@ -1,23 +1,19 @@
 import { useSyncExternalStore } from 'react';
 import {
-  subscribe as claimSubscribe,
-  getSnapshot as claimSnapshot,
+  subscribe as requestSubscribe,
+  getSnapshot as requestSnapshot,
   getSyncedSnapshot,
-} from '../claim-store';
+} from '../request-store';
 import {
   subscribe as orderSubscribe,
   getSnapshot as orderSnapshot,
 } from '../order-store';
-import type { PriceTracker } from '@sajwo-tracker/shared';
-import type { ClaimEvent, OrderRef } from '../types';
+import type { PriceTracker, Order } from '@sajwo-tracker/shared';
 import { SatsAmount } from './SatsAmount';
 
 interface OrderSummary {
-  orderId: string;
-  order: OrderRef | undefined;
-  claims: ClaimEvent[];
-  pendingCount: number;
-  latestClaimAt: number;
+  order: Order;
+  requestCount: number;
 }
 
 interface Props {
@@ -25,89 +21,114 @@ interface Props {
   tracker: PriceTracker;
 }
 
+const TERMINAL_STATES = new Set(['paid', 'rejected', 'cancelled']);
+
+const stateLabel: Record<string, string> = {
+  requested: '요청됨',
+  claimed: '클레임됨',
+  verified: '검증됨',
+  escrowed: '에스크로',
+  paid: '완료',
+  rejected: '거절',
+  cancelled: '취소',
+};
+
+const stateColor: Record<string, string> = {
+  requested: '#D97706',
+  claimed: '#2563EB',
+  verified: '#4F46E5',
+  escrowed: '#7C3AED',
+  paid: '#059669',
+  rejected: '#DC2626',
+  cancelled: '#6B7280',
+};
+
+const stateBg: Record<string, string> = {
+  requested: '#FEF3C7',
+  claimed: '#DBEAFE',
+  verified: '#E0E7FF',
+  escrowed: '#EDE9FE',
+  paid: '#D1FAE5',
+  rejected: '#FEE2E2',
+  cancelled: '#F3F4F6',
+};
+
 export function OrderQueue({ onSelectOrder, tracker }: Props) {
-  const claims = useSyncExternalStore(claimSubscribe, claimSnapshot);
-  const synced = useSyncExternalStore(claimSubscribe, getSyncedSnapshot);
+  const requests = useSyncExternalStore(requestSubscribe, requestSnapshot);
+  const synced = useSyncExternalStore(requestSubscribe, getSyncedSnapshot);
   const orders = useSyncExternalStore(orderSubscribe, orderSnapshot);
 
-  // 클레임을 주문 단위로 그루핑
-  const orderMap = new Map<string, ClaimEvent[]>();
-  for (const claim of Object.values(claims)) {
-    const list = orderMap.get(claim.orderId) ?? [];
-    list.push(claim);
-    orderMap.set(claim.orderId, list);
+  // 요청을 주문별로 카운팅
+  const requestCountMap = new Map<string, number>();
+  for (const req of Object.values(requests)) {
+    requestCountMap.set(req.orderId, (requestCountMap.get(req.orderId) ?? 0) + 1);
   }
 
-  // OrderSummary 생성 + 정렬 (pending 있는 주문 먼저, 그 안에서 최신 클레임순)
-  const summaries: OrderSummary[] = Array.from(orderMap.entries())
-    .map(([orderId, claimList]) => ({
-      orderId,
-      order: orders[orderId],
-      claims: claimList,
-      pendingCount: claimList.filter(c => c.status === 'pending').length,
-      latestClaimAt: Math.max(...claimList.map(c => c.createdAt)),
+  // OrderSummary 생성 + 정렬 (활성 주문 먼저, 그 안에서 최신순)
+  const summaries: OrderSummary[] = Object.values(orders)
+    .map((order) => ({
+      order,
+      requestCount: requestCountMap.get(order.orderId) ?? 0,
     }))
     .sort((a, b) => {
-      if (a.pendingCount > 0 && b.pendingCount === 0) return -1;
-      if (a.pendingCount === 0 && b.pendingCount > 0) return 1;
-      return b.latestClaimAt - a.latestClaimAt;
+      const aTerminal = TERMINAL_STATES.has(a.order.state);
+      const bTerminal = TERMINAL_STATES.has(b.order.state);
+      if (!aTerminal && bTerminal) return -1;
+      if (aTerminal && !bTerminal) return 1;
+      return b.order.updatedAt - a.order.updatedAt;
     });
 
-  const totalPending = summaries.reduce((sum, s) => sum + s.pendingCount, 0);
+  const activeCount = summaries.filter(s => !TERMINAL_STATES.has(s.order.state)).length;
 
   if (summaries.length === 0 && !synced) {
-    return <div style={styles.message}>릴레이에서 클레임을 불러오는 중...</div>;
+    return <div style={styles.message}>릴레이에서 오더를 불러오는 중...</div>;
   }
 
   if (summaries.length === 0) {
-    return <div style={styles.message}>수신된 클레임이 없습니다</div>;
+    return <div style={styles.message}>수신된 오더가 없습니다</div>;
   }
 
   return (
     <div>
       {!synced && <div style={styles.syncBadge}>동기화 중...</div>}
       <div style={styles.stats}>
-        대기 {totalPending}건 / 주문 {summaries.length}건
+        활성 {activeCount}건 / 전체 {summaries.length}건
       </div>
       <div style={styles.list}>
         {summaries.map(s => {
           const now = Math.floor(Date.now() / 1000);
-          const expired = s.order?.expiresAt != null && s.order.expiresAt <= now;
+          const expired = s.order.expiration > 0 && s.order.expiration <= now;
 
           return (
             <button
-              key={s.orderId}
+              key={s.order.orderId}
               style={{
                 ...styles.card,
                 ...(expired ? styles.cardExpired : undefined),
               }}
-              onClick={() => onSelectOrder(s.orderId)}
+              onClick={() => onSelectOrder(s.order.orderId)}
             >
               <div style={styles.top}>
                 <div style={styles.orderInfo}>
-                  <span style={styles.orderId}>#{s.orderId}</span>
-                  {s.order && (
-                    <>
-                      <span style={styles.price}>
-                        {s.order.price.toLocaleString()}
-                        {s.order.currency === 'KRW' ? '원' : ` ${s.order.currency}`}
-                      </span>
-                      {s.order.currency === 'KRW' && (
-                        <SatsAmount krw={s.order.price} tracker={tracker} />
-                      )}
-                    </>
-                  )}
+                  <span style={styles.orderId}>#{s.order.orderId}</span>
+                  <span style={styles.price}>
+                    {s.order.price.toLocaleString()}원
+                  </span>
+                  <SatsAmount krw={s.order.price} tracker={tracker} />
                 </div>
-                <span style={styles.arrow}>→</span>
+                <span style={{
+                  ...styles.stateBadge,
+                  background: stateBg[s.order.state] ?? '#F3F4F6',
+                  color: stateColor[s.order.state] ?? '#666',
+                }}>
+                  {stateLabel[s.order.state] ?? s.order.state}
+                </span>
               </div>
               <div style={styles.meta}>
-                <span>클레임 {s.claims.length}건</span>
-                {s.pendingCount > 0 && (
-                  <span style={styles.pendingBadge}>대기 {s.pendingCount}</span>
-                )}
-                {s.order?.expiresAt && (
+                <span>요청 {s.requestCount}건</span>
+                {s.order.expiration > 0 && (
                   <span style={expired ? styles.expiryExpired : styles.expiry}>
-                    {expired ? '만료됨' : `만료: ${new Date(s.order.expiresAt * 1000).toLocaleString('ko-KR', {
+                    {expired ? '만료됨' : `만료: ${new Date(s.order.expiration * 1000).toLocaleString('ko-KR', {
                       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
                     })}`}
                   </span>
@@ -160,9 +181,12 @@ const styles = {
     fontWeight: 700 as const,
     color: '#4F46E5',
   },
-  arrow: {
-    fontSize: 18,
-    color: '#999',
+  stateBadge: {
+    display: 'inline-block',
+    borderRadius: 6,
+    padding: '4px 10px',
+    fontSize: 12,
+    fontWeight: 600 as const,
   },
   meta: {
     display: 'flex',
@@ -170,14 +194,6 @@ const styles = {
     fontSize: 12,
     color: '#999',
     alignItems: 'center',
-  },
-  pendingBadge: {
-    background: '#FEF3C7',
-    color: '#D97706',
-    borderRadius: 4,
-    padding: '2px 8px',
-    fontSize: 11,
-    fontWeight: 600 as const,
   },
   cardExpired: {
     opacity: 0.5,

@@ -1,20 +1,18 @@
 /**
  * 어드민 Nostr 구독 서비스
  *
- * 클레임(kind 1111)과 주문(kind 30402)을 구독하여
- * 각각 claim-store, order-store에 반영한다.
+ * 요청(kind 1111)과 오더(kind 30402)를 구독하여
+ * 각각 request-store, order-store에 반영한다.
  *
- * 클레임 content에 포함된 주문 원본 이벤트도 검증 후 order-store에 저장한다.
- * (만료된 주문을 릴레이에서 받지 못하는 경우의 복원 경로)
+ * order-request 수신 시 자동으로 오더를 생성하고 kind 30402를 발행한다.
  */
-import { verifyEvent } from 'nostr-tools/pure';
-import type { Event } from 'nostr-tools/core';
-import { getReadRelays } from '@sajwo-tracker/shared';
+import { getReadRelays, type Order } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { subscribeAdmin } from './subscribe';
-import { parseClaimEvent, parseOrderEvent } from '../types';
-import { upsertClaim, markSynced } from '../claim-store';
-import { upsertOrder, deleteOrder } from '../order-store';
+import { publishOrder } from './publish';
+import { parseRequestEvent, parseOrderEvent, type ProcessedRequest } from '../types';
+import { upsertRequest, markSynced } from '../request-store';
+import { upsertOrder, getOrder } from '../order-store';
 
 let cleanup: (() => void) | null = null;
 
@@ -24,20 +22,20 @@ export async function startAdminSubscription(): Promise<void> {
   const relays = await getReadRelays(storage);
 
   cleanup = subscribeAdmin(relays, {
-    onClaim: (event) => {
-      const claim = parseClaimEvent(event);
-      if (claim) upsertClaim(claim);
+    onRequest: (event) => {
+      const request = parseRequestEvent(event);
+      if (!request) return;
 
-      // content에 포함된 주문 원본 이벤트를 검증 후 order-store에 저장
-      extractOrderFromClaimContent(event);
+      upsertRequest(request);
+
+      // action별 분기 처리
+      if (request.action === 'order-request') {
+        void handleOrderRequest(request);
+      }
     },
-    onOrderActive: (event) => {
+    onOrder: (event) => {
       const order = parseOrderEvent(event);
       if (order) upsertOrder(order);
-    },
-    onOrderSold: (event) => {
-      const dTag = event.tags.find(t => t[0] === 'd')?.[1];
-      if (dTag) deleteOrder(dTag);
     },
     onEose: () => {
       markSynced();
@@ -51,25 +49,35 @@ export function stopAdminSubscription(): void {
 }
 
 /**
- * 클레임 content에서 주문 원본 이벤트를 추출하여 order-store에 저장한다.
- * 만료된 주문을 릴레이에서 받지 못하는 경우의 복원 경로.
- * 서명 검증을 통과한 이벤트만 저장한다.
+ * order-request 수신 시 자동으로 오더를 생성하고 kind 30402를 발행한다.
+ * 이미 존재하는 orderId면 중복 생성하지 않는다.
  */
-function extractOrderFromClaimContent(claimEvent: Event): void {
-  if (!claimEvent.content) return;
+async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
+  const existing = getOrder(request.orderId);
+  if (existing) return;
 
-  let orderEvent: Event;
+  const now = Math.floor(Date.now() / 1000);
+  const newOrder: Order = {
+    orderId: request.orderId,
+    status: 'active',
+    state: 'requested',
+    customerPubkey: request.pubkey,
+    price: request.price,
+    createdAt: now,
+    updatedAt: now,
+    expiration: request.expiration,
+    raw: {},
+  };
+
+  // 로컬 스토어에 즉시 반영 (UI에 표시)
+  upsertOrder(newOrder);
+
   try {
-    orderEvent = JSON.parse(claimEvent.content) as Event;
-  } catch {
-    return; // content가 JSON이 아니면 무시 (하위 호환)
+    const signed = await publishOrder(newOrder);
+    // 발행 성공 시 raw를 서명된 이벤트로 갱신
+    upsertOrder({ ...newOrder, raw: signed, updatedAt: now });
+    console.log('[Admin] Auto-created order', request.orderId, 'from order-request');
+  } catch (e) {
+    console.error('[Admin] Failed to publish order for', request.orderId, e);
   }
-
-  if (!verifyEvent(orderEvent)) {
-    console.warn('[Admin] Invalid order signature in claim content, ignoring:', claimEvent.id);
-    return;
-  }
-
-  const order = parseOrderEvent(orderEvent);
-  if (order) upsertOrder(order);
 }

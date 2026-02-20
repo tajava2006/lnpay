@@ -5,17 +5,19 @@
 
 import { ensureKeypair, subscribeRelayLists } from '@sajwo-tracker/shared';
 import { storage } from '../nostr/storage';
+import { startAdminOrderSubscription } from '../nostr/admin-orders';
 import { publishOrder, type PublishResult } from '../nostr/publish';
 import { getOrder, saveOrder } from '../shared/storage';
 import { transitionOrderWithRetry } from '../shared/state-machine';
 import { TrackedOrder } from '../shared/types';
 
 // ============================================================
-// 릴레이 리스트 지속 구독 (모듈 스코프)
-// 서비스 워커 활성화될 때마다 실행되어 최신 릴레이 리스트를 유지한다.
+// 릴레이 리스트 + Admin 오더 구독 (모듈 스코프)
+// 서비스 워커 활성화될 때마다 실행되어 최신 상태를 유지한다.
 // ============================================================
 
 subscribeRelayLists(storage);
+void startAdminOrderSubscription();
 
 // ============================================================
 // Extension Lifecycle

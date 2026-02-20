@@ -1,36 +1,38 @@
 /**
- * 반응형 클레임 스토어
+ * 요청 스토어 (kind 1111 이벤트 저장)
  *
- * Nostr 서비스 → claim-store → localStorage + listeners
+ * Nostr 서비스 → request-store → localStorage + listeners
  * UI → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
+ *
+ * PK: eventId (Nostr event ID, 릴레이 중복 수신 방어)
  */
-import type { ClaimEvent, AdminClaimStatus } from './types';
+import type { ProcessedRequest } from './types';
 
-type ClaimMap = Record<string, ClaimEvent>;
+type RequestMap = Record<string, ProcessedRequest>;
 type Listener = () => void;
 
-const CLAIMS_KEY = 'admin:claims';
+const REQUESTS_KEY = 'admin:requests';
 
 // ── 내부 상태 ──────────────────────────────────────
 
-let claims: ClaimMap = loadFromStorage();
+let requests: RequestMap = loadFromStorage();
 let synced = false;
 const listeners = new Set<Listener>();
 
 // ── localStorage 입출력 ────────────────────────────
 
-function loadFromStorage(): ClaimMap {
-  const stored = localStorage.getItem(CLAIMS_KEY);
+function loadFromStorage(): RequestMap {
+  const stored = localStorage.getItem(REQUESTS_KEY);
   if (!stored) return {};
   try {
-    return JSON.parse(stored) as ClaimMap;
+    return JSON.parse(stored) as RequestMap;
   } catch {
     return {};
   }
 }
 
 function saveToStorage(): void {
-  localStorage.setItem(CLAIMS_KEY, JSON.stringify(claims));
+  localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests));
 }
 
 // ── 리스너 통지 ────────────────────────────────────
@@ -48,8 +50,8 @@ export function subscribe(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
-export function getSnapshot(): ClaimMap {
-  return claims;
+export function getSnapshot(): RequestMap {
+  return requests;
 }
 
 export function getSyncedSnapshot(): boolean {
@@ -59,26 +61,13 @@ export function getSyncedSnapshot(): boolean {
 // ── 뮤테이션 API ───────────────────────────────────
 
 /**
- * 클레임을 추가한다. 같은 ID의 클레임이 이미 있으면 무시.
+ * 요청을 추가한다. 같은 eventId가 이미 있으면 무시 (릴레이 중복 방어).
  */
-export function upsertClaim(claim: ClaimEvent): boolean {
-  const existing = claims[claim.id];
-  if (existing) return false; // 이미 존재하면 덮어쓰지 않음 (상태 보존)
+export function upsertRequest(request: ProcessedRequest): boolean {
+  const existing = requests[request.eventId];
+  if (existing) return false;
 
-  claims = { ...claims, [claim.id]: claim };
-  saveToStorage();
-  notify();
-  return true;
-}
-
-/**
- * 클레임 상태를 변경한다 (승인/거절).
- */
-export function updateClaimStatus(claimId: string, status: AdminClaimStatus): boolean {
-  const claim = claims[claimId];
-  if (!claim) return false;
-
-  claims = { ...claims, [claimId]: { ...claim, status } };
+  requests = { ...requests, [request.eventId]: request };
   saveToStorage();
   notify();
   return true;
@@ -87,15 +76,15 @@ export function updateClaimStatus(claimId: string, status: AdminClaimStatus): bo
 /**
  * 인보이스 유동성 검증 결과를 기록한다.
  */
-export function updateLiquidityVerified(claimId: string, verified: boolean): boolean {
-  const claim = claims[claimId];
-  if (!claim?.invoice) return false;
+export function updateLiquidityVerified(eventId: string, verified: boolean): boolean {
+  const req = requests[eventId];
+  if (!req?.invoice) return false;
 
-  claims = {
-    ...claims,
-    [claimId]: {
-      ...claim,
-      invoice: { ...claim.invoice, liquidityVerified: verified },
+  requests = {
+    ...requests,
+    [eventId]: {
+      ...req,
+      invoice: { ...req.invoice, liquidityVerified: verified },
     },
   };
   saveToStorage();

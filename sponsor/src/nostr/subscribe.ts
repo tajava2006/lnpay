@@ -1,21 +1,19 @@
 import { SimplePool } from 'nostr-tools/pool';
 import type { Event } from 'nostr-tools/core';
-import { SAJWO_REQUEST_KIND, CLIENT_TAG, NOSTR_SINCE } from '@sajwo-tracker/shared';
+import { SAJWO_REQUEST_KIND, CLIENT_TAG, APP_PUBKEY, NOSTR_SINCE } from '@sajwo-tracker/shared';
 
 export interface SubscriptionCallbacks {
-  /** status=active 이벤트 수신 */
-  onActive: (event: Event) => void;
-  /** status=sold 이벤트 수신 (삭제 처리용) */
-  onSold: (event: Event) => void;
-  /** 초기 로딩 완료 (stored events 모두 수신) */
+  /** kind 30402 오더 수신 */
+  onOrder: (event: Event) => void;
+  /** 초기 로딩 완료 */
   onEose: () => void;
 }
 
 /**
- * 사줘 요청 이벤트를 실시간 구독한다.
+ * Admin 발행 오더를 실시간 구독한다.
+ * authors=[APP_PUBKEY] 필터로 Admin 이벤트만 수신.
  *
- * active 이벤트 → upsert, sold 이벤트 → 삭제 처리를 위해 status 무관하게 모두 수신.
- * 반환: cleanup 함수 (구독 해제 + pool 파괴)
+ * 반환: cleanup 함수
  */
 export function subscribeSajwoRequests(
   relays: string[],
@@ -27,23 +25,17 @@ export function subscribeSajwoRequests(
     relays,
     {
       kinds: [SAJWO_REQUEST_KIND],
+      authors: [APP_PUBKEY],
       '#t': [CLIENT_TAG],
       ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
     },
     {
-      onevent: (event) => {
-        const statusTag = event.tags.find(t => t[0] === 'status')?.[1];
-        if (statusTag === 'active') {
-          callbacks.onActive(event);
-        } else if (statusTag === 'sold') {
-          callbacks.onSold(event);
-        }
-      },
+      onevent: callbacks.onOrder,
       oneose: callbacks.onEose,
     },
   );
 
-  console.log('[Nostr] Subscribed to sajwo requests on', relays.length, 'relays');
+  console.log('[Nostr] Subscribed to Admin orders on', relays.length, 'relays');
 
   return () => {
     sub.close();

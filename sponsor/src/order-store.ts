@@ -1,16 +1,16 @@
 /**
- * 반응형 주문 스토어
+ * 반응형 주문 스토어 (읽기 전용)
  *
- * localStorage에 영구 저장하면서, React의 useSyncExternalStore와 호환되는
- * subscribe/getSnapshot 인터페이스를 제공한다.
+ * Admin이 발행한 kind 30402 오더를 저장한다.
+ * Sponsor는 상태를 직접 변경하지 않으며, 릴레이에서 수신한 이벤트로만 갱신된다.
  *
  * 구조:
- *   Nostr 구독 서비스 → order-store (upsert/remove) → localStorage + listeners
+ *   Nostr 구독 서비스 → order-store (upsert) → localStorage + listeners
  *   OrderBook → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
-import type { SajwoRequest } from './types';
+import type { Order } from '@sajwo-tracker/shared';
 
-type OrderMap = Record<string, SajwoRequest>;
+type OrderMap = Record<string, Order>;
 type Listener = () => void;
 
 const ORDERS_KEY = 'nostr:orders';
@@ -47,18 +47,15 @@ function notify(): void {
 
 // ── useSyncExternalStore 호환 API ──────────────────
 
-/** 리스너 등록. useSyncExternalStore의 첫 번째 인자. */
 export function subscribe(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-/** 현재 주문 맵 스냅샷. useSyncExternalStore의 두 번째 인자. */
 export function getSnapshot(): OrderMap {
   return orders;
 }
 
-/** 초기 동기화(EOSE) 완료 여부. */
 export function getSyncedSnapshot(): boolean {
   return synced;
 }
@@ -66,57 +63,29 @@ export function getSyncedSnapshot(): boolean {
 // ── 뮤테이션 API (Nostr 서비스에서 호출) ───────────
 
 /**
- * 주문을 추가/갱신한다.
- * - 같은 orderId의 기존 이벤트보다 최신(createdAt이 큰)일 때만 업데이트.
- * - 기존 주문이 있으면 최초 발행자(pubkey)가 일치해야만 갱신 허용.
+ * 오더를 추가/갱신한다. 최신 이벤트만 유지 (updatedAt 비교).
  */
-export function upsertOrder(request: SajwoRequest): boolean {
-  const existing = orders[request.orderId];
-  if (existing) {
-    if (existing.pubkey !== request.pubkey) return false;
-    if (existing.createdAt >= request.createdAt) return false;
-  }
+export function upsertOrder(order: Order): void {
+  const existing = orders[order.orderId];
+  if (existing && existing.updatedAt >= order.updatedAt) return;
 
-  // 기존 주문의 로컬 상태를 보존 (Nostr 이벤트 갱신이 로컬 상태를 덮어쓰지 않도록)
-  const status = existing?.status ?? request.status;
-  orders = { ...orders, [request.orderId]: { ...request, status } };
+  orders = { ...orders, [order.orderId]: order };
   saveToStorage();
   notify();
-  return true;
 }
 
 /**
- * 주문 상태를 직접 변경한다 (state-machine 전용).
- * 전이 유효성 검사는 state-machine.ts가 수행하므로 여기서는 무조건 적용.
+ * 오더를 삭제한다 (sold 이벤트 수신 시).
  */
-export function _mutateOrder(orderId: string, updater: (order: SajwoRequest) => SajwoRequest): SajwoRequest | null {
-  const order = orders[orderId];
-  if (!order) return null;
-
-  const updated = updater(order);
-  orders = { ...orders, [orderId]: updated };
-  saveToStorage();
-  notify();
-  return updated;
-}
-
-/**
- * 주문을 삭제한다 (sold 이벤트 수신 시).
- * 최초 발행자(pubkey)가 일치해야만 삭제 허용.
- */
-export function deleteOrder(orderId: string, pubkey: string): boolean {
-  const existing = orders[orderId];
-  if (!existing) return false;
-  if (existing.pubkey !== pubkey) return false;
+export function deleteOrder(orderId: string): void {
+  if (!orders[orderId]) return;
 
   const { [orderId]: _, ...rest } = orders;
   orders = rest;
   saveToStorage();
   notify();
-  return true;
 }
 
-/** EOSE 수신 시 호출. 초기 동기화 완료를 표시한다. */
 export function markSynced(): void {
   synced = true;
   notify();

@@ -7,6 +7,16 @@ Customer, Sponsor, Admin 세 앱이 공통으로 참조하는 Nostr 이벤트 �
 비트코인으로 상품을 결제하고 싶은 Customer와, 거래소 없이 BTC를 매수하고 싶은 Sponsor를
 Nostr 릴레이를 통해 연결한다. Admin은 에스크로 서비스를 제공하여 거래의 안전성을 보장한다.
 
+**Admin이 모든 오더의 유일한 상태 소유자**이다.
+Customer와 Sponsor는 kind 1111로 요청만 하고, Admin이 kind 30402를 발행/갱신한다.
+상태 전이 로직(FSM)은 오직 Admin에만 존재한다.
+
+```
+Customer ──[kind 1111 요청]──→ Relay ──→ Admin ──[kind 30402 발행/갱신]──→ Relay
+                                                                          ↓
+Sponsor ──[kind 1111 요청]──→ Relay ──→ Admin              Customer/Sponsor [표시만]
+```
+
 ## 앱 Pubkey
 
 ```
@@ -33,15 +43,16 @@ kind 10002 event tags:
 
 이벤트의 성격에 따라 발행/구독할 릴레이가 결정된다. 세 가지 분류를 따른다:
 
-#### ① 비즈니스 이벤트 (주문·클레임) → 읽기 릴레이
+#### ① 비즈니스 이벤트 (오더·요청) → 읽기 릴레이
 
-Customer/Sponsor가 발행하고 서로 읽는 모든 거래 이벤트 (kind 30402 주문, kind 1111 클레임).
+Admin이 발행하는 오더(kind 30402)와 Customer/Sponsor가 발행하는 요청(kind 1111).
 
 | 역할 | 동작 | 대상 릴레이 |
 |------|------|------------|
-| Customer | 사줘 이벤트 **발행** | 앱의 **읽기** 릴레이 |
-| Sponsor | 사줘 이벤트 **구독** / 클레임 **발행** | 앱의 **읽기** 릴레이 |
-| Admin | 주문+클레임 **구독** | 앱의 **읽기** 릴레이 |
+| Admin | 오더 이벤트 **발행** | 앱의 **읽기** 릴레이 |
+| Customer | 요청 이벤트 **발행** / 오더 **구독** | 앱의 **읽기** 릴레이 |
+| Sponsor | 요청 이벤트 **발행** / 오더 **구독** | 앱의 **읽기** 릴레이 |
+| Admin | 요청 이벤트 **구독** | 앱의 **읽기** 릴레이 |
 
 #### ② Admin 전용 데이터 → 쓰기 릴레이
 
@@ -72,67 +83,308 @@ Admin이 발행하고 Customer/Sponsor가 읽어야 할 알림 이벤트.
    - `['r', url, 'write']` → 쓰기 릴레이
 4. 10분마다 갱신 (릴레이 변경에 대응)
 
-## 사줘 요청 이벤트
+## 오더 이벤트 (kind 30402)
 
 ### Kind
 
 **30402** (NIP-99 Classified Listing, addressable event)
 
+### 발행자
+
+**Admin만 발행한다.** Customer/Sponsor는 kind 30402를 발행하지 않는다.
+
 ### Addressable Event 주소 체계
 
 ```
-30402:<customer-pubkey>:<orderId>
+30402:<admin-pubkey>:<orderId>
 ```
 
+Admin이 유일한 발행자이므로 모든 오더의 주소에 Admin pubkey가 들어간다.
 같은 pubkey + kind + d-tag 조합의 이벤트는 최신 것만 유지된다.
-주문 상태가 변경되면 동일 주소로 재발행하여 이전 이벤트를 대체한다.
+오더 상태가 변경되면 동일 주소로 재발행하여 이전 이벤트를 대체한다.
 
 ### Tags
 
 | Tag | Value | 설명 |
 |-----|-------|------|
 | `d` | orderId | NIP-33 addressable identifier |
-| `status` | `active` \| `sold` | NIP-99 리스팅 상태. 내부 상태(detected~selected)는 `active`, 최종 상태(paid/cancelled)는 `sold` |
+| `status` | `active` \| `sold` | NIP-99 리스팅 상태 |
+| `state` | OrderState | Admin FSM의 세부 상태 (아래 상태 머신 참조) |
+| `customer` | pubkey | 주문 요청자(Customer)의 pubkey |
 | `price` | 금액 (string), `KRW` | NIP-99 가격 태그. 입금해야 할 금액과 통화 |
 | `expiration` | unix timestamp (seconds) | NIP-40: 무통장입금 기한. 이 시각 이후 릴레이가 이벤트를 삭제할 수 있음 |
 | `t` | `sajwo-tracker` | 클라이언트 식별. 다른 30402 이벤트와 구분하기 위한 필수 태그 |
-| `p` | 앱 pubkey | 어드민이 `#p` 필터로 모든 이벤트를 조회할 수 있도록 |
 
-### 상태 매핑
-
-| 내부 상태 (TrackedOrder.status) | Nostr status 태그 | 의미 |
-|------|------|------|
-| `detected` | `active` | 아직 사줘 요청 발송 안 함 (보통 이벤트 발행 전) |
-| `requested` | `active` | 사줘 요청 중 |
-| `claimed` | `active` | 누군가 사주겠다고 응답 |
-| `selected` | `active` | 후원자 선택 완료 |
-| `paid` | `sold` | 입금 완료 (최종) |
-| `cancelled` | `sold` | 주문 취소 (최종) |
-
-세부 상태(claimed, selected 등)는 요청자의 내부 DB에서 관리하며, Nostr 이벤트에는 노출하지 않는다.
-Sponsor는 `active`인 리스팅만 보면 되고, 세부 상태는 1:1 통신(추후 구현)을 통해 전달한다.
-
-### 클레임 흐름 (Sponsor → Admin → Customer)
-
-Sponsor의 클레임이 Customer에 직접 도달하지 않는다.
-Admin이 중간에서 Lightning 인바운드 유동성을 검증한 후에만 전달한다.
+### 상태 머신 (Admin 단일 FSM)
 
 ```
-Sponsor                    Admin (에스크로)              Customer
+requested → claimed → verified → escrowed → paid
+                ↘ rejected        ↘ cancelled
+```
+
+| 상태 | 의미 | NIP-99 status |
+|------|------|---------------|
+| `requested` | Customer가 사줘 요청을 보냄, Admin이 오더 생성 | `active` |
+| `claimed` | Sponsor가 클레임, Admin이 수락 | `active` |
+| `verified` | Admin이 유동성 검증 완료 | `active` |
+| `escrowed` | Customer가 hold invoice 결제, BTC 에스크로 중 | `active` |
+| `paid` | 거래 완료 (최종) | `sold` |
+| `rejected` | 거절 (최종) | `sold` |
+| `cancelled` | 취소 (최종) | `sold` |
+
+상태 전이 규칙:
+
+| from | to | 트리거 |
+|------|-----|--------|
+| requested | claimed | Sponsor claim 수신 + Admin 수락 |
+| requested | rejected | Admin 거절 |
+| requested | cancelled | 만료 또는 Customer 취소 |
+| claimed | verified | Admin 유동성 검증 완료 |
+| claimed | rejected | 유동성 검증 실패 |
+| claimed | requested | 클레임 타임아웃 (원복) |
+| verified | escrowed | Customer hold invoice 결제 |
+| verified | cancelled | Customer 이탈 |
+| escrowed | paid | KRW 입금 확인, settle |
+| escrowed | cancelled | 분쟁, cancel invoice |
+
+> `state` 태그는 다중 문자이므로 릴레이 인덱싱이 보장되지 않는다.
+> 필터링은 클라이언트 사이드에서 수행한다.
+> `status` 태그(`active`/`sold`)는 NIP-99 호환을 위해 유지한다.
+
+### Content
+
+빈 문자열 (`""`). 모든 정보는 태그로 전달된다.
+
+계좌 정보(bankName, accountNumber 등)는 Sponsor가 선택(claimed)된 이후
+해당 Sponsor에게만 별도 전달한다 (DM 등, 추후 구현).
+Lightning invoice 등 비트코인 결제 정보도 별도 채널로 전달한다.
+
+### 이벤트 예시
+
+```json
+{
+  "kind": 30402,
+  "pubkey": "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5",
+  "created_at": 1770372000,
+  "tags": [
+    ["d", "123456789"],
+    ["status", "active"],
+    ["state", "requested"],
+    ["customer", "<customer-pubkey>"],
+    ["price", "22950", "KRW"],
+    ["t", "sajwo-tracker"],
+    ["expiration", "1770458336"]
+  ],
+  "content": "",
+  "id": "<event-id>",
+  "sig": "<signature>"
+}
+```
+
+## 요청 이벤트 (kind 1111)
+
+### Kind
+
+**1111** (NIP-22 Comment)
+
+### 발행자
+
+Customer 또는 Sponsor. Admin에게 **요청**하는 형태다.
+Admin이 요청을 검토하고, 타당하면 kind 30402를 갱신한다.
+
+### 공통 태그
+
+| Tag | Value | 설명 |
+|-----|-------|------|
+| `a` | `30402:<admin-pubkey>:<orderId>` | 대상 오더 참조 (addressable event 주소) |
+| `action` | 요청 종류 | 아래 표 참조 |
+| `t` | `sajwo-tracker` | 클라이언트 식별 |
+| `p` | Admin pubkey | Admin이 `#p` 필터로 수신 |
+| `expiration` | unix timestamp (seconds) | 관련 오더와 동일한 만료 시각 |
+
+### 요청 종류 (action 태그 값)
+
+| action | 발행자 | 설명 | 추가 태그 |
+|--------|--------|------|-----------|
+| `order-request` | Customer | 사줘 요청 신청 | `['price', 금액, 'KRW']` |
+| `claim` | Sponsor | 클레임 신청 | `['bolt11', invoice]` |
+| `payment-confirm` | Customer | 입금 완료 신고 | — |
+
+### a-tag 참조 규칙
+
+모든 kind 1111 요청은 대상 오더의 a-tag(`30402:<admin-pubkey>:<orderId>`)를 포함한다.
+최초 `order-request` 시점에는 아직 해당 kind 30402 이벤트가 릴레이에 존재하지 않지만,
+addressable event의 주소(`30402:<admin-pubkey>:<orderId>`)는 구성 요소가 모두 알려져 있으므로 a-tag을 넣을 수 있다.
+Nostr 릴레이는 a-tag 대상 이벤트의 존재 여부를 검증하지 않는다.
+
+### 만료 태그 통일
+
+오더와 관련된 모든 kind 1111 이벤트에 오더와 동일한 만료 시각을 부여한다.
+
+- 오더가 만료되면 관련된 모든 요청 이벤트도 릴레이에서 함께 정리된다
+- 만료된 과거 요청이 릴레이에 남아 불필요하게 수신되는 것을 방지한다
+- Admin이 오프라인이었다가 복귀했을 때, 이미 만료된 요청을 받아 처리하려는 상황을 차단한다
+
+### Content
+
+빈 문자열 (`""`). 모든 정보는 태그로 전달된다.
+
+### 이벤트 예시: order-request
+
+```json
+{
+  "kind": 1111,
+  "pubkey": "<customer-pubkey>",
+  "created_at": 1770372000,
+  "tags": [
+    ["a", "30402:658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5:123456789"],
+    ["action", "order-request"],
+    ["price", "22950", "KRW"],
+    ["t", "sajwo-tracker"],
+    ["p", "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+    ["expiration", "1770458336"]
+  ],
+  "content": "",
+  "id": "<event-id>",
+  "sig": "<signature>"
+}
+```
+
+### 이벤트 예시: claim
+
+```json
+{
+  "kind": 1111,
+  "pubkey": "<sponsor-pubkey>",
+  "created_at": 1770372100,
+  "tags": [
+    ["a", "30402:658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5:123456789"],
+    ["action", "claim"],
+    ["bolt11", "lnbc229500n1p..."],
+    ["t", "sajwo-tracker"],
+    ["p", "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+    ["expiration", "1770458336"]
+  ],
+  "content": "",
+  "id": "<event-id>",
+  "sig": "<signature>"
+}
+```
+
+## 구독 필터
+
+### Customer — 자기 오더 상태 추적
+
+```json
+{
+  "kinds": [30402],
+  "authors": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+  "#t": ["sajwo-tracker"]
+}
+```
+
+Admin이 발행한 모든 오더를 수신한 뒤, `customer` 태그가 자기 pubkey인 오더만 클라이언트 사이드에서 필터링한다.
+
+> `#customer`는 다중 문자 태그이므로 릴레이 인덱싱이 보장되지 않는다.
+> `authors` + `#t`까지만 서버에서 필터링하고, `customer` 매칭은 클라이언트에서 수행한다.
+
+### Sponsor — 오더북
+
+```json
+{
+  "kinds": [30402],
+  "authors": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+  "#t": ["sajwo-tracker"]
+}
+```
+
+Admin이 발행한 모든 오더를 수신한다. `state` 태그로 활성/종료 상태를 클라이언트 사이드에서 필터링한다.
+
+### Admin — 요청 수신
+
+```json
+{
+  "kinds": [1111],
+  "#p": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+  "#t": ["sajwo-tracker"]
+}
+```
+
+모든 Customer/Sponsor의 요청을 `#p` 필터로 수신한다.
+`action` 태그로 요청 종류를 분류한다.
+
+### Admin — 자기 오더 동기화
+
+```json
+{
+  "kinds": [30402],
+  "authors": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+  "#t": ["sajwo-tracker"]
+}
+```
+
+새 탭/재시작 시 자기가 발행한 오더를 릴레이에서 복원하기 위한 구독.
+
+## 거래 흐름
+
+### 전체 흐름
+
+```
+Customer                    Admin (에스크로)              Sponsor
    │                          │                           │
-   │  ① 클레임 이벤트 발행     │                           │
+   │  ① order-request 발행     │                           │
+   │  (kind 1111)              │                           │
    │ ────────────────────────→│                           │
-   │                          │  ② 인바운드 유동성 검증     │
-   │                          │  (해당 금액의 BTC를        │
-   │                          │   수신할 수 있는가?)        │
-   │                          │                           │
-   │  [유동성 부족 시]          │                           │
-   │ ←─── 거절 통보 ──────────│                           │
-   │                          │                           │
-   │  [유동성 충분 시]          │                           │
-   │                          │  ③ 클레임 전달              │
-   │                          │──────────────────────────→│
-   │                          │                           │  ④ claimed 상태 전이
+   │                          │  ② 오더 생성               │
+   │                          │  (kind 30402,              │
+   │                          │   state=requested)         │
+   │                          │ ────────────────→ Relay    │
+   │                          │                     │      │
+   │  ③ 오더 상태 수신          │                     │      │
+   │ ←────────────────────────┼─────────────────────┘      │
+   │                          │                            │
+   │                          │                     ┌──────│
+   │                          │    ④ 오더북에서 확인  │      │
+   │                          │                     └─────→│
+   │                          │                            │
+   │                          │  ⑤ claim 발행               │
+   │                          │  (kind 1111 + bolt11)       │
+   │                          │ ←──────────────────────────│
+   │                          │                            │
+   │                          │  ⑥ 유동성 검증 (probing)    │
+   │                          │                            │
+   │                          │  ⑦ 오더 갱신                │
+   │                          │  (state=claimed→verified)   │
+   │                          │ ────────────────→ Relay    │
+   │                          │                            │
+   │  ... hold invoice, KRW 입금, settle ...                │
+   │                          │                            │
+   │                          │  ⑧ 오더 갱신 (state=paid)   │
+   │                          │ ────────────────→ Relay    │
+```
+
+### 클레임 흐름 (Sponsor → Admin)
+
+Sponsor의 클레임이 Customer에 직접 도달하지 않는다.
+Admin이 중간에서 Lightning 인바운드 유동성을 검증한 후에만 상태를 전이한다.
+
+```
+Sponsor                    Admin (에스크로)
+   │                          │
+   │  ① 클레임 이벤트 발행     │
+   │  (kind 1111, action=claim,│
+   │   bolt11=invoice)         │
+   │ ────────────────────────→│
+   │                          │  ② 인바운드 유동성 검증
+   │                          │  (해당 금액의 BTC를
+   │                          │   수신할 수 있는가?)
+   │                          │
+   │  [유동성 부족 시]          │
+   │                          │  → state=rejected로 갱신
+   │                          │
+   │  [유동성 충분 시]          │
+   │                          │  → state=claimed→verified
+   │                          │  → kind 30402 갱신 발행
 ```
 
 이 검증이 필요한 이유: Lightning Network는 채널 기반이므로 수신 측에 충분한
@@ -148,13 +400,15 @@ Admin은 이 invoice에 대해 **probing**(경로 탐색)을 수행하여 유동
 Sponsor                          Admin
    │                               │
    │  ① invoice 생성 + 클레임 발행   │
+   │  (kind 1111, bolt11 태그)       │
    │ ─────────────────────────────→│
    │                               │  ② invoice 디코딩
    │                               │  ③ probing (랜덤 해시 결제 시도)
    │                               │     - 목적지 도달 → 유동성 충분
    │                               │     - 중간 실패 → 유동성 부족
    │                               │
-   │  ④ 승인/거절 통보               │
+   │  ④ kind 30402 상태 갱신         │
+   │  (verified 또는 rejected)       │
    │ ←─────────────────────────────│
 ```
 
@@ -194,6 +448,7 @@ Customer                         Admin                          Sponsor
    │                               │                               │
    │  ② Customer가 hold invoice 결제│                               │
    │ ─────────────────────────────→│  (BTC가 HTLC에 잠김)           │
+   │                               │  → state=escrowed 갱신         │
    │                               │                               │
    │                               │  ③ 계좌 정보 전달              │
    │                               │ ─────────────────────────────→│
@@ -205,6 +460,7 @@ Customer                         Admin                          Sponsor
    │                               │                               │
    │                               │  ⑥ Admin이 hold invoice settle │
    │                               │     → BTC 수령                 │
+   │                               │  → state=paid 갱신             │
    │                               │                               │
    │                               │  ⑦ Admin이 Sponsor에게 BTC 전송│
    │                               │ ─────────────────────────────→│
@@ -212,6 +468,7 @@ Customer                         Admin                          Sponsor
    │  [문제 발생 시]                 │                               │
    │                               │  settle 안 함 → CLTV timeout   │
    │ ←── BTC 자동 환불 ────────────│  후 Customer에게 BTC 반환      │
+   │                               │  → state=cancelled 갱신        │
 ```
 
 #### Hold Invoice 원리 (에스크로 용도)
@@ -233,84 +490,6 @@ Customer                         Admin                          Sponsor
 | 유동성 검증 | Admin → Sponsor | 송신자(Admin)가 취소 | Probing (랜덤 hash) | **부적합** (수신자 제어) |
 | 에스크로 수금 | Customer → Admin | 수신자(Admin)가 settle | Hold invoice | **적합** (수신자 제어) |
 
-### Content
-
-빈 문자열 (`""`). 모든 정보는 태그로 전달된다.
-
-계좌 정보(bankName, accountNumber 등)는 Sponsor가 선택(selected)된 이후
-해당 Sponsor에게만 별도 전달한다 (DM 등, 추후 구현).
-Lightning invoice 등 비트코인 결제 정보도 별도 채널로 전달한다.
-
-### 이벤트 예시
-
-```json
-{
-  "kind": 30402,
-  "pubkey": "<customer-pubkey>",
-  "created_at": 1770372000,
-  "tags": [
-    ["d", "123456789"],
-    ["status", "active"],
-    ["price", "22950", "KRW"],
-    ["t", "sajwo-tracker"],
-    ["p", "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
-    ["expiration", "1770458336"]
-  ],
-  "content": "",
-  "id": "<event-id>",
-  "sig": "<signature>"
-}
-```
-
-## 구독 필터 (Sponsor/Admin용)
-
-### Sponsor: 사줘 요청 목록
-
-```json
-{
-  "kinds": [30402],
-  "#t": ["sajwo-tracker"]
-}
-```
-
-`#t` 필터로 사줘 트래커 이벤트만 조회한다. 다른 NIP-99 Classified Listing과 섞이지 않는다.
-
-> **주의**: `#status` 같은 다중 문자 태그 필터는 NIP-01에서 릴레이 인덱싱을 보장하지 않는다.
-> 한 글자 태그(`#t`, `#p`, `#d` 등)만 모든 릴레이에서 동작이 보장되므로,
-> `status` 필터링은 클라이언트 사이드에서 수행한다 (active → 표시, sold → 삭제).
-
-### Admin: 모든 사줘 이벤트
-
-```json
-{
-  "kinds": [30402],
-  "#t": ["sajwo-tracker"],
-  "#p": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"]
-}
-```
-
-`#p` 필터로 앱 pubkey가 태깅된 모든 이벤트를 조회한다 (active + sold 모두).
-
-### 특정 유저의 주문 조회
-
-```json
-{
-  "kinds": [30402],
-  "authors": ["<customer-pubkey>"],
-  "#t": ["sajwo-tracker"]
-}
-```
-
-### 특정 주문 조회
-
-```json
-{
-  "kinds": [30402],
-  "authors": ["<customer-pubkey>"],
-  "#d": ["123456789"]
-}
-```
-
 ## 스팸/DoS 차단
 
 익명 시스템이므로 양측 모두에서 스팸 공격이 가능하다. 각각 다른 메커니즘으로 차단한다.
@@ -326,7 +505,8 @@ BTC가 없는 스패머는 원천 차단된다.
 ```
 Customer                         Admin
    │                               │
-   │  ① 사줘 요청 발행               │
+   │  ① order-request 발행          │
+   │  (kind 1111)                   │
    │ ─────────────────────────────→│
    │                               │
    │  ② fidelity bond hold invoice │
@@ -334,6 +514,7 @@ Customer                         Admin
    │                               │
    │  ③ hold invoice 결제           │
    │ ─────────────────────────────→│  (BTC 잠김, 오더북에 노출)
+   │                               │  → state=requested 갱신
    │                               │
    │     ... 클레이머 등장 + 유동성 검증 통과 ...
    │                               │
@@ -345,6 +526,7 @@ Customer                         Admin
    │                               │
    │  ⑥ 본 hold invoice 결제       │
    │ ─────────────────────────────→│  (에스크로 시작)
+   │                               │  → state=escrowed 갱신
 ```
 
 #### BTC 가격 변동 대응
@@ -403,7 +585,8 @@ Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
   - Customer: `chrome.storage.local` (Chrome Extension API)
   - Sponsor: `localStorage` (Web Storage API)
 - 키 관리 로직은 `@sajwo-tracker/shared`의 `ensureKeypair(storage)`로 통일
-- NIP-07/NIP-46 등 기존 Nostr 로그인 시스템은 사용하지 않음
+- NIP-07/NIP-46 등 기존 Nostr 로그인 시스템은 사용하지 않음 (Customer/Sponsor용)
+- Admin은 NIP-46 원격 서명을 사용하여 `.env` 의존성 없이 동작
 - 일반 유저 대상이므로 Nostr의 존재를 노출하지 않음
 
 ## 참조 NIP
@@ -411,7 +594,7 @@ Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
 | NIP | 용도 |
 |-----|------|
 | NIP-01 | 기본 프로토콜 (이벤트 구조, 서명, 릴레이 통신) |
-| NIP-22 | Comment (kind 1111, 클레임 이벤트에 사용) |
+| NIP-22 | Comment (kind 1111, 모든 요청 이벤트에 사용) |
 | NIP-33 | Addressable event (kind 30000-40000, d-tag) |
 | NIP-40 | Expiration Timestamp (`['expiration', timestamp]`) |
 | NIP-44 | Versioned Encryption (Admin 전용 데이터 암호화) |

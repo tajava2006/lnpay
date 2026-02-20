@@ -1,16 +1,53 @@
 import { useState } from 'react';
-import type { ClaimEvent, OrderRef } from '../types';
-import type { PriceTracker } from '@sajwo-tracker/shared';
+import type { ProcessedRequest } from '../types';
+import type { PriceTracker, Order, OrderState } from '@sajwo-tracker/shared';
 import type { LightningAdapter, ProbeResult } from '../lightning';
-import { updateClaimStatus, updateLiquidityVerified } from '../claim-store';
+import { updateLiquidityVerified } from '../request-store';
+import { updateOrderState } from '../order-store';
 import { SatsAmount } from './SatsAmount';
 
 interface Props {
-  claim: ClaimEvent;
-  order: OrderRef | undefined;
+  request: ProcessedRequest;
+  order: Order | undefined;
   tracker: PriceTracker;
   lnAdapter: LightningAdapter | null;
 }
+
+const actionLabel: Record<string, string> = {
+  'order-request': '주문 요청',
+  claim: '클레임',
+  'payment-confirm': '결제 확인',
+};
+
+const stateLabel: Record<string, string> = {
+  requested: '요청됨',
+  claimed: '클레임됨',
+  verified: '검증됨',
+  escrowed: '에스크로',
+  paid: '완료',
+  rejected: '거절',
+  cancelled: '취소',
+};
+
+const stateColor: Record<string, string> = {
+  requested: '#D97706',
+  claimed: '#2563EB',
+  verified: '#4F46E5',
+  escrowed: '#7C3AED',
+  paid: '#059669',
+  rejected: '#DC2626',
+  cancelled: '#6B7280',
+};
+
+const stateBg: Record<string, string> = {
+  requested: '#FEF3C7',
+  claimed: '#DBEAFE',
+  verified: '#E0E7FF',
+  escrowed: '#EDE9FE',
+  paid: '#D1FAE5',
+  rejected: '#FEE2E2',
+  cancelled: '#F3F4F6',
+};
 
 function formatDate(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toLocaleString('ko-KR', {
@@ -36,10 +73,48 @@ function probeResultMessage(result: ProbeResult): { text: string; color: string 
   }
 }
 
-export function ClaimCard({ claim, order, tracker, lnAdapter }: Props) {
-  const isPending = claim.status === 'pending';
-  const canApprove = isPending && (claim.invoice?.liquidityVerified ?? false);
-  const decoded = claim.invoice?.decoded ?? null;
+/**
+ * 현재 오더 상태에서 승인(다음 긍정 상태)을 결정한다.
+ */
+function nextApproveState(currentState: OrderState): OrderState | null {
+  switch (currentState) {
+    case 'requested': return 'claimed';
+    case 'claimed': return 'verified';
+    case 'verified': return 'escrowed';
+    case 'escrowed': return 'paid';
+    default: return null;
+  }
+}
+
+/**
+ * 현재 오더 상태에서 거절/취소 상태를 결정한다.
+ */
+function rejectState(currentState: OrderState): OrderState | null {
+  switch (currentState) {
+    case 'requested':
+    case 'claimed':
+      return 'rejected';
+    case 'verified':
+    case 'escrowed':
+      return 'cancelled';
+    default:
+      return null;
+  }
+}
+
+export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
+  const orderState = order?.state;
+  const isClaim = request.action === 'claim';
+  const decoded = request.invoice?.decoded ?? null;
+
+  // 승인 가능 조건: 클레임 액션 + 유동성 검증 완료 + 오더가 전이 가능한 상태
+  const approveTarget = orderState ? nextApproveState(orderState) : null;
+  const canApprove = isClaim
+    && (request.invoice?.liquidityVerified ?? false)
+    && approveTarget != null;
+
+  const rejectTarget = orderState ? rejectState(orderState) : null;
+  const canReject = rejectTarget != null;
 
   const [copied, setCopied] = useState(false);
   const [probing, setProbing] = useState(false);
@@ -63,50 +138,68 @@ export function ClaimCard({ claim, order, tracker, lnAdapter }: Props) {
         undefined,
         decoded.routeHints.length > 0 ? decoded.routeHints : undefined,
       );
-      updateLiquidityVerified(claim.id, result.status === 'reachable');
+      updateLiquidityVerified(request.eventId, result.status === 'reachable');
       setProbeMsg(probeResultMessage(result));
-    } catch (e) {
+    } catch {
       setProbeMsg({ text: '프로브 요청 실패', color: '#DC2626' });
     } finally {
       setProbing(false);
     }
   }
 
+  function handleApprove() {
+    if (approveTarget) {
+      updateOrderState(request.orderId, approveTarget);
+    }
+  }
+
+  function handleReject() {
+    if (rejectTarget) {
+      updateOrderState(request.orderId, rejectTarget);
+    }
+  }
+
   return (
     <div style={{
       ...styles.card,
-      borderLeft: `4px solid ${statusColor[claim.status]}`,
+      borderLeft: `4px solid ${orderState ? (stateColor[orderState] ?? '#999') : '#999'}`,
     }}>
       <div style={styles.top}>
         <div style={styles.topLeft}>
-          <span style={styles.orderId}>#{claim.orderId}</span>
+          <span style={styles.actionBadge}>
+            {actionLabel[request.action] ?? request.action}
+          </span>
           {order && (
             <>
               <span style={styles.price}>
-                {order.price.toLocaleString()}{order.currency === 'KRW' ? '원' : ` ${order.currency}`}
+                {order.price.toLocaleString()}원
               </span>
-              {order.currency === 'KRW' && (
-                <SatsAmount krw={order.price} tracker={tracker} />
-              )}
+              <SatsAmount krw={order.price} tracker={tracker} />
             </>
           )}
         </div>
-        <span style={{
-          ...styles.statusBadge,
-          background: statusBg[claim.status],
-          color: statusColor[claim.status],
-        }}>
-          {statusLabel[claim.status]}
-        </span>
+        {orderState && (
+          <span style={{
+            ...styles.statusBadge,
+            background: stateBg[orderState] ?? '#F3F4F6',
+            color: stateColor[orderState] ?? '#666',
+          }}>
+            {stateLabel[orderState] ?? orderState}
+          </span>
+        )}
       </div>
 
       <div style={styles.meta}>
-        <span>후원자: {shortenKey(claim.sponsorPubkey)}</span>
-        <span>고객: {shortenKey(claim.customerPubkey)}</span>
-        <span>{formatDate(claim.createdAt)}</span>
+        <span>
+          {isClaim ? '후원자' : '요청자'}: {shortenKey(request.pubkey)}
+        </span>
+        {order?.customerPubkey && (
+          <span>고객: {shortenKey(order.customerPubkey)}</span>
+        )}
+        <span>{formatDate(request.createdAt)}</span>
       </div>
 
-      {/* 인보이스 디코딩 결과 */}
+      {/* 인보이스 디코딩 결과 (클레임만) */}
       {decoded ? (
         <div style={styles.invoiceInfo}>
           <div style={styles.invoiceRow}>
@@ -117,7 +210,7 @@ export function ClaimCard({ claim, order, tracker, lnAdapter }: Props) {
               onClick={() => copyPubkey(decoded.destination)}
               title="노드 pubkey 복사"
             >
-              {copied ? '✓' : '⧉'}
+              {copied ? '\u2713' : '\u29C9'}
             </button>
           </div>
           <div style={styles.invoiceRow}>
@@ -139,7 +232,7 @@ export function ClaimCard({ claim, order, tracker, lnAdapter }: Props) {
               >
                 {probing ? '검증 중...' : '유동성 검증'}
               </button>
-              {claim.invoice?.liquidityVerified && !probeMsg && (
+              {request.invoice?.liquidityVerified && !probeMsg && (
                 <span style={styles.verifiedBadge}>검증됨</span>
               )}
               {probeMsg && (
@@ -150,26 +243,27 @@ export function ClaimCard({ claim, order, tracker, lnAdapter }: Props) {
             </div>
           )}
         </div>
-      ) : claim.invoice && (
+      ) : request.invoice && (
         <div style={styles.decodeFailed}>인보이스 디코딩 실패</div>
       )}
 
-      {isPending && (
+      {/* 액션 버튼 (클레임 요청에만 표시) */}
+      {isClaim && canReject && (
         <div style={styles.actions}>
           <button
             style={canApprove ? styles.approveBtn : styles.approveBtnDisabled}
-            onClick={() => updateClaimStatus(claim.id, 'approved')}
+            onClick={handleApprove}
             disabled={!canApprove}
           >
             승인
           </button>
           <button
             style={styles.rejectBtn}
-            onClick={() => updateClaimStatus(claim.id, 'rejected')}
+            onClick={handleReject}
           >
             거절
           </button>
-          {claim.invoice && !claim.invoice.liquidityVerified && (
+          {request.invoice && !request.invoice.liquidityVerified && (
             <span style={styles.unverifiedHint}>유동성 미검증</span>
           )}
         </div>
@@ -177,24 +271,6 @@ export function ClaimCard({ claim, order, tracker, lnAdapter }: Props) {
     </div>
   );
 }
-
-const statusLabel: Record<string, string> = {
-  pending: '대기',
-  approved: '승인',
-  rejected: '거절',
-};
-
-const statusColor: Record<string, string> = {
-  pending: '#D97706',
-  approved: '#059669',
-  rejected: '#DC2626',
-};
-
-const statusBg: Record<string, string> = {
-  pending: '#FEF3C7',
-  approved: '#D1FAE5',
-  rejected: '#FEE2E2',
-};
 
 const styles = {
   card: {
@@ -214,10 +290,13 @@ const styles = {
     alignItems: 'baseline',
     gap: 8,
   },
-  orderId: {
-    fontSize: 15,
+  actionBadge: {
+    fontSize: 12,
     fontWeight: 600 as const,
-    color: '#333',
+    color: '#4F46E5',
+    background: '#EEF2FF',
+    borderRadius: 4,
+    padding: '2px 8px',
   },
   price: {
     fontSize: 18,

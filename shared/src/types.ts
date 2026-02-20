@@ -13,6 +13,30 @@ export interface NostrKeypair {
   publicKey: string;
 }
 
+/** Admin이 발행하는 kind 30402 오더 (Admin이 유일한 상태 소유자) */
+export interface Order {
+  orderId: string;
+  status: 'active' | 'sold';
+  state: import('./constants').OrderState;
+  customerPubkey: string;
+  price: number;
+  createdAt: number;
+  updatedAt: number;
+  expiration: number;
+  raw: object;
+}
+
+/** kind 1111 요청 이벤트 (Customer/Sponsor → Admin) */
+export interface AdminRequest {
+  eventId: string;
+  orderId: string;
+  action: import('./constants').RequestAction;
+  pubkey: string;
+  createdAt: number;
+  expiration: number;
+  raw: object;
+}
+
 /** 캐싱된 릴레이 목록 */
 export interface CachedRelayList {
   relays: string[];

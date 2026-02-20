@@ -1,12 +1,13 @@
 /**
- * 주문 참조 스토어 (읽기 전용 참조 데이터)
+ * 오더 스토어 (Admin이 유일한 상태 소유자)
  *
- * kind 30402 이벤트를 저장하여 클레임의 주문 정보(금액, 만료일 등)를 표시하기 위한 용도.
- * 클레임 스토어와 교차 참조된다.
+ * Nostr 서비스 → order-store → localStorage + listeners
+ * UI → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
-import type { OrderRef } from './types';
+import type { Order, OrderState } from '@sajwo-tracker/shared';
+import { canTransition } from './state-machine';
 
-type OrderMap = Record<string, OrderRef>;
+type OrderMap = Record<string, Order>;
 type Listener = () => void;
 
 const ORDERS_KEY = 'admin:orders';
@@ -44,11 +45,11 @@ export function getSnapshot(): OrderMap {
 }
 
 /**
- * 주문을 추가/갱신한다. 최신 이벤트만 유지.
+ * 오더를 추가/갱신한다. 최신 이벤트만 유지 (updatedAt 비교).
  */
-export function upsertOrder(order: OrderRef): void {
+export function upsertOrder(order: Order): void {
   const existing = orders[order.orderId];
-  if (existing && existing.createdAt >= order.createdAt) return;
+  if (existing && existing.updatedAt >= order.updatedAt) return;
 
   orders = { ...orders, [order.orderId]: order };
   saveToStorage();
@@ -56,13 +57,38 @@ export function upsertOrder(order: OrderRef): void {
 }
 
 /**
- * 주문을 삭제한다 (sold 이벤트 수신 시).
+ * 오더의 FSM 상태를 전이한다.
+ * canTransition 검증 후 상태 변경 + 저장.
  */
-export function deleteOrder(orderId: string): void {
-  if (!orders[orderId]) return;
+export function updateOrderState(
+  orderId: string,
+  to: OrderState,
+): { success: boolean; error?: string } {
+  const order = orders[orderId];
+  if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
 
-  const { [orderId]: _, ...rest } = orders;
-  orders = rest;
+  if (!canTransition(order.state, to)) {
+    return { success: false, error: `INVALID_TRANSITION: ${order.state} → ${to}` };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const status = (to === 'paid' || to === 'rejected' || to === 'cancelled')
+    ? 'sold' as const
+    : 'active' as const;
+
+  orders = {
+    ...orders,
+    [orderId]: { ...order, state: to, status, updatedAt: now },
+  };
   saveToStorage();
   notify();
+
+  return { success: true };
+}
+
+/**
+ * orderId로 오더를 조회한다.
+ */
+export function getOrder(orderId: string): Order | undefined {
+  return orders[orderId];
 }

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
+  envDir: '..',
   plugins: [
     react(),
     nodePolyfills({ include: ['buffer', 'stream', 'events'] }),

@@ -1,6 +1,6 @@
 import { SimplePool } from 'nostr-tools/pool';
 import type { Event } from 'nostr-tools/core';
-import { SAJWO_REQUEST_KIND, SAJWO_CLAIM_KIND, CLIENT_TAG, APP_PUBKEY } from '@sajwo-tracker/shared';
+import { SAJWO_REQUEST_KIND, SAJWO_CLAIM_KIND, CLIENT_TAG, APP_PUBKEY, NOSTR_SINCE } from '@sajwo-tracker/shared';
 
 export interface AdminSubscriptionCallbacks {
   /** kind 1111 클레임 이벤트 수신 */
@@ -40,6 +40,7 @@ export function subscribeAdmin(
       kinds: [SAJWO_CLAIM_KIND],
       '#p': [APP_PUBKEY],
       '#t': [CLIENT_TAG],
+      ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
     },
     {
       onevent: (event) => {
@@ -56,6 +57,7 @@ export function subscribeAdmin(
       kinds: [SAJWO_REQUEST_KIND],
       '#p': [APP_PUBKEY],
       '#t': [CLIENT_TAG],
+      ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
     },
     {
       onevent: (event) => {

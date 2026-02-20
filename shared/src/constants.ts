@@ -17,6 +17,16 @@ export const STORAGE_KEYS = {
   WRITE_RELAYS: 'nostr:write-relays',
 } as const;
 
+/**
+ * Nostr 구독 since 필터 (테스트 중 데이터 격리용, 임시).
+ * .env의 VITE_NOSTR_SINCE에 Unix 타임스탬프를 설정하면
+ * 해당 시각 이후 이벤트만 구독한다. 미설정 시 필터 없음.
+ */
+export const NOSTR_SINCE: number | undefined =
+  import.meta.env.VITE_NOSTR_SINCE
+    ? Number(import.meta.env.VITE_NOSTR_SINCE)
+    : undefined;
+
 /** NIP-65 디스커버리용 well-known 릴레이 */
 export const DISCOVERY_RELAYS = [
   'wss://purplepag.es',

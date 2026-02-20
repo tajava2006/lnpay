@@ -1,6 +1,6 @@
 import { SimplePool } from 'nostr-tools/pool';
 import type { Event } from 'nostr-tools/core';
-import { SAJWO_REQUEST_KIND, CLIENT_TAG } from '@sajwo-tracker/shared';
+import { SAJWO_REQUEST_KIND, CLIENT_TAG, NOSTR_SINCE } from '@sajwo-tracker/shared';
 
 export interface SubscriptionCallbacks {
   /** status=active 이벤트 수신 */
@@ -28,6 +28,7 @@ export function subscribeSajwoRequests(
     {
       kinds: [SAJWO_REQUEST_KIND],
       '#t': [CLIENT_TAG],
+      ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
     },
     {
       onevent: (event) => {

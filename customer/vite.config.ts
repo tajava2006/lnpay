@@ -3,6 +3,7 @@ import { crx } from '@crxjs/vite-plugin';
 import manifest from './manifest.json';
 
 export default defineConfig({
+  envDir: '..',
   plugins: [crx({ manifest })],
   server: {
     port: 5173,

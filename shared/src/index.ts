@@ -10,6 +10,7 @@ export {
   STORAGE_KEYS,
   DISCOVERY_RELAYS,
   FALLBACK_RELAYS,
+  NOSTR_SINCE,
 } from './constants';
 
 // Storage adapters

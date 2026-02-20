@@ -252,23 +252,52 @@ Customer/Sponsor:
 
 ### Admin의 IndexedDB
 
-**테이블**: 오직 하나의 오브젝트 스토어 (`orders`)
+**오브젝트 스토어**: `orders` + `requests` (2개)
+
+**orders:**
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | orderId | string (PK) | 주문 ID |
-| state | string | 오더 상태 |
+| status | string | `active` \| `sold` (NIP-99 호환) |
+| state | string | 세부 오더 상태 |
 | customerPubkey | string | 주문 요청자 |
 | price | number | 금액 |
 | createdAt | number | 생성 시각 |
 | updatedAt | number | 최종 갱신 시각 |
-| claims | ClaimSummary[] | 연관 클레임 (비정규화) |
 | raw | Event | 최신 kind 30402 원본 |
 
-**인덱스**: `createdAt` + `[state, createdAt]` 복합
+인덱스: `createdAt`, `[state, createdAt]`
 
-**저장 조건**: 유동성 검증을 완료하고 에스크로 단계로 진입한 오더.
-그 이전 단계의 오더는 에스크로 책임이 없으므로 보존하지 않는다.
+**requests:**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| eventId | string (PK) | Nostr 이벤트 ID (중복 수신 방어) |
+| orderId | string | 관련 오더 ID |
+| action | string | 요청 종류 (`order-request`, `claim`, `payment-confirm`, ...) |
+| pubkey | string | 요청자 pubkey |
+| createdAt | number | 생성 시각 |
+| raw | Event | kind 1111 원본 |
+
+인덱스: `orderId` (1:M 조회용, 이것만 있으면 충분)
+
+> requests는 항상 특정 orderId 컨텍스트에서만 조회한다.
+> 오더 단위 페이지네이션 → 개별 오더 상세 → 해당 오더의 requests 조회 흐름이므로,
+> orderId 인덱스 하나면 된다. 정렬은 인메모리로 수행한다.
+
+**데이터 형식**: localStorage와 IndexedDB에 저장하는 레코드 형식은 동일하다. 차이는 IndexedDB에 인덱스가 걸려있다는 것뿐이다.
+
+**저장 조건**: Admin FSM의 특정 상태 전이 시점에 해당 orderId의 오더와 requests를 일괄 이동한다. 구체적 트리거는 구현 시 확정하되, 에스크로 책임이 시작되는 시점이 될 것이다.
+
+**동기화 전략**: 초기 이동 이후에는 localStorage 쓰기 시 IndexedDB를 연동한다.
+
+1. localStorage에 오더 또는 request가 upsert될 때
+2. 해당 orderId로 IndexedDB `orders` 스토어를 조회한다
+3. 존재하면 → 관리 대상으로 판단하여 IndexedDB에도 반영 (오더는 upsert, request는 upsert)
+4. 존재하지 않으면 → 무시 (아직 관리 대상이 아님)
+
+> request의 upsert는 eventId(PK)를 키로 한다. 릴레이에서 같은 이벤트가 중복 수신될 수 있으므로 insert가 아닌 upsert여야 한다.
 
 ### Admin의 localStorage
 

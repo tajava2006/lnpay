@@ -56,3 +56,19 @@ export function getPreimage(orderId: string): string | null {
 export function getEscrowEntry(orderId: string): EscrowEntry | null {
   return escrows[orderId] ?? null;
 }
+
+/** 지정된 orderId 목록의 에스크로 엔트리를 삭제한다. */
+export function purgeByOrderIds(orderIds: string[]): void {
+  let changed = false;
+  const next = { ...escrows };
+  for (const id of orderIds) {
+    if (id in next) {
+      delete next[id];
+      changed = true;
+    }
+  }
+  if (changed) {
+    escrows = next;
+    saveToStorage();
+  }
+}

@@ -6,6 +6,7 @@
  */
 import { purgeExpired } from './order-store';
 import { purgeByOrderIds } from './request-store';
+import { purgeByOrderIds as purgeEscrowByOrderIds } from './escrow-store';
 
 const CLEANUP_INTERVAL = 60_000; // 60초
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -14,7 +15,8 @@ function runCleanup(): void {
   const expiredOrderIds = purgeExpired();
   if (expiredOrderIds.length > 0) {
     purgeByOrderIds(expiredOrderIds);
-    console.log('[Cleanup] Purged', expiredOrderIds.length, 'expired orders + related requests');
+    purgeEscrowByOrderIds(expiredOrderIds);
+    console.log('[Cleanup] Purged', expiredOrderIds.length, 'expired orders + related requests + escrow entries');
   }
 }
 

@@ -104,6 +104,10 @@
   - 문제 발생 시 settle 안 함 → CLTV timeout 후 Customer에게 자동 환불
   - `LightningEscrow` 인터페이스로 LND/CLN 구현체 독립
   - LND: `AddHoldInvoice` + `SettleInvoice` / CLN: `invoice` (hold) + `holdinvoice` 플러그인
+- [ ] **verified 전이 시 hold invoice 첨부**: `approveOrder` 실행 시 Admin LN 노드에서 hold invoice 생성 후 kind 30402 이벤트에 `['bolt11', invoice]` 태그로 첨부
+  - Customer가 `state: verified` + `bolt11` 태그를 수신하면 해당 인보이스에 입금
+  - 별도 알림 채널 불필요 — 오더 이벤트가 단일 진실 소스
+  - 입금 감지(hold invoice accepted) 시 `verified → escrowed` 전이
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악
 - [ ] **분쟁 해결 도구**: 문제 발생 시 중재 기능

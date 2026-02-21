@@ -209,6 +209,7 @@ Admin이 요청을 검토하고, 타당하면 kind 30402를 갱신한다.
 | `order-request` | Customer | 사줘 요청 신청 | `['price', 금액, 'KRW']` |
 | `claim` | Sponsor | 클레임 신청 | `['bolt11', invoice]` |
 | `payment-confirm` | Customer | 입금 완료 신고 | — |
+| `cancel-request` | Customer | 주문 취소 신고 | — |
 
 ### a-tag 참조 규칙
 

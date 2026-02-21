@@ -72,8 +72,7 @@ KRW 입금이 확인되면 settle하여 BTC를 수령하고 Sponsor에게 전송
 
 상세 스펙은 [PROTOCOL.md](PROTOCOL.md) 참조.
 
-이것이 상태 관리에 유한상태머신(FSM)과 optimistic locking을 도입한 이유이다.
-에스크로 거래이므로 상태 전이의 정확성과 원자성이 중요하다.
+에스크로 거래이므로 상태 전이의 정확성이 중요하며, Admin이 유일한 FSM과 상태 소유권을 갖는다.
 
 ## 시스템 구성
 
@@ -247,27 +246,27 @@ shared/src/
 쿠팡 주문 페이지에서 동작한다.
 
 - 쿠팡 주문 페이지 파싱 및 무통장입금 주문 감지 (+ 입금 완료/취소 자동 감지)
-- 주문 상태 관리 (상태 머신 기반, optimistic locking)
-- Nostr를 통한 사줘 요청 발행 (kind 30402 NIP-99 Classified Listing)
-- paid/cancelled 전이 시 sold 이벤트 자동 재발행 (Sponsor 오더북에서 자동 제거)
-- 팝업/대시보드에서 퍼블리시 버튼으로 수동 발행
+- kind 1111로 Admin에 요청 전송 (order-request, payment-confirm, cancel-request)
+- Admin의 kind 30402 오더 구독으로 상태 자동 반영 (로컬 FSM 없음)
+- 팝업/대시보드에서 사줘 요청 버튼으로 수동 발행
 
 #### Customer 모듈 구조
 
 ```
 customer/src/
-  background/index.ts   - Nostr 초기화, 릴레이 갱신 알람, 메시지 핸들러
-  content/index.ts      - 쿠팡 페이지 파싱, 주문 감지
+  background/index.ts   - Nostr 초기화, 릴레이 구독, SEND_REQUEST 메시지 핸들러
+  content/index.ts      - 쿠팡 페이지 파싱, 주문 감지, 입금완료/취소 자동 감지
   nostr/
     storage.ts          - chrome.storage.local 기반 StorageAdapter
-    constants.ts        - Customer 전용 상수 (알람 이름, 갱신 주기)
-    events.ts           - 사줘 요청 이벤트 빌드 (NIP-33, NIP-40)
-    publish.ts          - SimplePool 기반 브로드캐스트
+    events.ts           - kind 1111 요청 이벤트 빌드 (order-request, payment-confirm, cancel-request)
+    publish.ts          - SimplePool 기반 요청 브로드캐스트
+    admin-orders.ts     - Admin kind 30402 오더 구독, adminState 자동 반영
   shared/
-    types.ts            - TrackedOrder, 상태 전이 타입, 쿠팡 API 타입
+    types.ts            - TrackedOrder, 쿠팡 API 타입
     storage.ts          - chrome.storage.local 주문 CRUD
-    state-machine.ts    - 상태 전이 (optimistic locking)
+    order-states.ts     - adminState + raw 기반 표시 상태 결정
     filter.ts           - 쿠팡 데이터 파싱
+  dev-only/             - Dev 환경 전용 (테스트 주문 생성)
   popup/                - 팝업 UI
   dashboard/            - 전체화면 대시보드 UI
 ```

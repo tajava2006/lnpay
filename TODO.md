@@ -53,9 +53,13 @@
 ## Admin App (에스크로 서비스)
 
 - [x] ~~**CLI 테스트 도구**~~: 제거됨 — Customer Dev 패널로 대체
-- [x] **요청 대기열**: kind 1111 요청 수신 (order-request, claim, payment-confirm) + kind 30402 오더 발행/관리, 승인/거절 UI
+- [x] **요청 대기열**: kind 1111 요청 수신 (order-request, claim) + kind 30402 오더 발행/관리, 승인/거절 UI
 - [x] **통합 FSM**: Admin 단일 상태 머신 (`requested → claimed → verified → escrowed → paid`, `rejected`/`cancelled` 분기)
 - [x] **kind 30402 오더 발행**: order-request 수신 시 자동 오더 생성, 상태 전이 시 갱신 발행
+- [ ] **payment-confirm / cancel-request 핸들러**: Customer가 쿠팡에서 입금완료/취소를 감지하면 kind 1111로 통보함
+  - 현재: request-store에 저장만 되고 처리 로직 없음 (`admin/src/nostr/service.ts`에서 `order-request`만 분기)
+  - `payment-confirm` 수신 시: escrowed 상태 오더에 대해 입금 확인 플래그 표시 또는 자동 전이
+  - `cancel-request` 수신 시: 해당 오더를 cancelled로 전이 (진행 중인 에스크로가 아닌 경우)
 - [x] **Lightning 노드 연결**: LND/CLN 어댑터 패턴, 브라우저에서 직접 LN REST API 호출
   - `LightningAdapter` 인터페이스 (getInfo, decodeInvoice, probe)
   - LND: `GET /v1/getinfo` + macaroon 인증 / CLN: `POST /v1/getinfo` + rune 인증
@@ -140,4 +144,4 @@
 
 ---
 
-**Last Updated**: 2026-02-21
+**Last Updated**: 2026-02-22

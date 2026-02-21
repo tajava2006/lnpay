@@ -279,4 +279,19 @@ export class LndAdapter implements LightningAdapter {
       default:          throw new Error(`알 수 없는 인보이스 상태: ${data.state}`);
     }
   }
+
+  async settleInvoice(preimage: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/v2/invoices/settle`, {
+      method: 'POST',
+      headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        preimage: hexToBase64(preimage),
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`LND /v2/invoices/settle 실패: ${res.status} ${text}`);
+    }
+  }
 }

@@ -52,4 +52,12 @@ export interface LightningAdapter {
    * @param paymentHash - payment hash (hex)
    */
   lookupHoldInvoice(paymentHash: string): Promise<HoldInvoiceStatus>;
+
+  /**
+   * Hold invoice를 정산(settle)한다.
+   * 프리이미지를 LN 노드에 제출하여 HTLC를 확정하고 BTC를 수령한다.
+   *
+   * @param preimage - 프리이미지 (hex)
+   */
+  settleInvoice(preimage: string): Promise<void>;
 }

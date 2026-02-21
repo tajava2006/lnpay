@@ -234,6 +234,12 @@ export class ClnAdapter implements LightningAdapter {
       'CLN hold invoice는 아직 지원되지 않습니다. LND를 사용해 주세요.',
     );
   }
+
+  async settleInvoice(_preimage: string): Promise<void> {
+    throw new Error(
+      'CLN hold invoice는 아직 지원되지 않습니다. LND를 사용해 주세요.',
+    );
+  }
 }
 
 /**

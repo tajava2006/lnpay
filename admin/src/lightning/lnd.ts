@@ -1,5 +1,5 @@
 import type { LightningAdapter } from './adapter';
-import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, LnConnectionConfig } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, LnConnectionConfig } from './types';
 import type { RouteHintHop } from '../types';
 import { savePreimage } from '../escrow-store';
 
@@ -264,5 +264,19 @@ export class LndAdapter implements LightningAdapter {
     savePreimage(orderId, bytesToHex(preimage), paymentHashHex);
 
     return { bolt11: data.payment_request, paymentHash: paymentHashHex };
+  }
+
+  async lookupHoldInvoice(paymentHash: string): Promise<HoldInvoiceStatus> {
+    const data = await this.fetchJson<{ state: string }>(
+      `/v1/invoice/${paymentHash}`,
+    );
+
+    switch (data.state) {
+      case 'OPEN':      return 'open';
+      case 'ACCEPTED':  return 'accepted';
+      case 'SETTLED':   return 'settled';
+      case 'CANCELED':  return 'cancelled';
+      default:          throw new Error(`알 수 없는 인보이스 상태: ${data.state}`);
+    }
   }
 }

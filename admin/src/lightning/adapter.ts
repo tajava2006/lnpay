@@ -1,4 +1,4 @@
-import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus } from './types';
 import type { RouteHintHop } from '../types';
 
 /**
@@ -45,4 +45,11 @@ export interface LightningAdapter {
     amountSat: number,
     expiry?: number,
   ): Promise<HoldInvoiceResult>;
+
+  /**
+   * Hold invoice의 현재 상태를 조회한다.
+   *
+   * @param paymentHash - payment hash (hex)
+   */
+  lookupHoldInvoice(paymentHash: string): Promise<HoldInvoiceStatus>;
 }

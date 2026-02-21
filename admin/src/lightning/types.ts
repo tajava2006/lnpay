@@ -59,6 +59,15 @@ export interface HoldInvoiceResult {
   paymentHash: string;
 }
 
+/**
+ * Hold invoice 상태.
+ * - open: 생성됨, 아직 결제 안 됨
+ * - accepted: HTLC 수신됨 (에스크로 상태 — settle 또는 cancel 대기)
+ * - settled: 프리이미지 제출로 정산 완료
+ * - cancelled: 취소 또는 만료
+ */
+export type HoldInvoiceStatus = 'open' | 'accepted' | 'settled' | 'cancelled';
+
 /** 노드 연결 상태 */
 export type ConnectionStatus = 'unconfigured' | 'connecting' | 'connected' | 'error';
 

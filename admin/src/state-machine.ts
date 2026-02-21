@@ -13,11 +13,12 @@ import type { OrderState } from '@sajwo-tracker/shared';
  * 허용된 상태 전이 맵
  *
  * requested → claimed → verified → escrowed → paid
- *                                       ↘ cancelled
+ *
+ * cancelled: paid를 제외한 모든 상태에서 전이 가능 (터미널)
  */
 const TRANSITIONS: Record<OrderState, readonly OrderState[]> = {
   requested: ['claimed', 'cancelled'],
-  claimed: ['verified', 'requested'],
+  claimed: ['verified', 'cancelled'],
   verified: ['escrowed', 'cancelled'],
   escrowed: ['paid', 'cancelled'],
   paid: [],

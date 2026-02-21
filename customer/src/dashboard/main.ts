@@ -30,11 +30,6 @@ async function renderDashboard() {
 
   tbody.innerHTML = orderArray.map((order) => createTableRow(order)).join('');
 
-  // Dev 패널 주문 드롭다운 갱신
-  if (import.meta.env.DEV) {
-    import('../dev-only/panel').then((mod) => mod.refreshOrderSelect(orders));
-  }
-
   // 삭제 버튼 이벤트 연결
   tbody.querySelectorAll('.btn-delete').forEach((btn) => {
     btn.addEventListener('click', async (e) => {

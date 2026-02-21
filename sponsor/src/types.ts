@@ -14,6 +14,7 @@ export function parseEvent(event: Event): Order | null {
   const status = (event.tags.find(t => t[0] === 'status')?.[1] ?? 'active') as 'active' | 'sold';
   const state = (event.tags.find(t => t[0] === 'state')?.[1] ?? 'requested') as OrderState;
   const customerPubkey = event.tags.find(t => t[0] === 'customer')?.[1] ?? '';
+  const sponsorPubkey = event.tags.find(t => t[0] === 'sponsor')?.[1];
 
   const priceTag = event.tags.find(t => t[0] === 'price');
   const price = priceTag?.[1] ? Number(priceTag[1]) : 0;
@@ -26,6 +27,7 @@ export function parseEvent(event: Event): Order | null {
     status,
     state,
     customerPubkey,
+    ...(sponsorPubkey ? { sponsorPubkey } : {}),
     price,
     createdAt: event.created_at,
     updatedAt: event.created_at,

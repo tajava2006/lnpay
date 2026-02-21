@@ -4,7 +4,9 @@
  * 요청(kind 1111)과 오더(kind 30402)를 구독하여
  * 각각 request-store, order-store에 반영한다.
  *
- * order-request 수신 시 자동으로 오더를 생성하고 kind 30402를 발행한다.
+ * action별 자동 처리:
+ * - order-request: 오더 생성 + kind 30402 발행
+ * - claim: 오더 상태 전이 (requested → claimed) + kind 30402 갱신
  */
 import { getReadRelays, type Order } from '@sajwo-tracker/shared';
 import { storage } from './storage';
@@ -13,6 +15,7 @@ import { publishOrder } from './publish';
 import { parseRequestEvent, parseOrderEvent, type ProcessedRequest } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
+import { canTransition } from '../state-machine';
 
 let cleanup: (() => void) | null = null;
 
@@ -31,6 +34,8 @@ export async function startAdminSubscription(): Promise<void> {
       // action별 분기 처리
       if (request.action === 'order-request') {
         void handleOrderRequest(request);
+      } else if (request.action === 'claim') {
+        void handleClaim(request);
       }
     },
     onOrder: (event) => {
@@ -47,6 +52,10 @@ export function stopAdminSubscription(): void {
   cleanup?.();
   cleanup = null;
 }
+
+// ============================================================
+// Action Handlers
+// ============================================================
 
 /**
  * order-request 수신 시 자동으로 오더를 생성하고 kind 30402를 발행한다.
@@ -79,5 +88,42 @@ async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
     console.log('[Admin] Auto-created order', request.orderId, 'from order-request');
   } catch (e) {
     console.error('[Admin] Failed to publish order for', request.orderId, e);
+  }
+}
+
+/**
+ * claim 수신 시 오더를 requested → claimed로 전이하고 kind 30402를 갱신 발행한다.
+ * - 오더가 없거나 전이 불가면 무시 (선착순: 이미 claimed면 후속 클레임 거부)
+ * - sponsorPubkey를 기록하여 이후 유동성 검증 등에 사용
+ */
+async function handleClaim(request: ProcessedRequest): Promise<void> {
+  const order = getOrder(request.orderId);
+  if (!order) {
+    console.warn('[Admin] Claim for unknown order:', request.orderId);
+    return;
+  }
+
+  if (!canTransition(order.state, 'claimed')) {
+    console.warn('[Admin] Cannot claim order', request.orderId, '- current state:', order.state);
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const updatedOrder: Order = {
+    ...order,
+    state: 'claimed',
+    sponsorPubkey: request.pubkey,
+    updatedAt: now,
+  };
+
+  // 로컬 스토어에 즉시 반영
+  upsertOrder(updatedOrder);
+
+  try {
+    const signed = await publishOrder(updatedOrder);
+    upsertOrder({ ...updatedOrder, raw: signed, updatedAt: now });
+    console.log('[Admin] Order', request.orderId, 'claimed by', request.pubkey);
+  } catch (e) {
+    console.error('[Admin] Failed to publish claimed order for', request.orderId, e);
   }
 }

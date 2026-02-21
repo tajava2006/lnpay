@@ -28,18 +28,23 @@ export async function publishOrder(order: Order): Promise<object> {
   const status = toListingStatus(order.state);
   const now = Math.floor(Date.now() / 1000);
 
+  const tags: string[][] = [
+    ['d', order.orderId],
+    ['t', CLIENT_TAG],
+    ['status', status],
+    ['state', order.state],
+    ['price', String(order.price), 'KRW'],
+    ['customer', order.customerPubkey],
+    ['expiration', String(order.expiration)],
+  ];
+  if (order.sponsorPubkey) {
+    tags.push(['sponsor', order.sponsorPubkey]);
+  }
+
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_KIND,
     created_at: now,
-    tags: [
-      ['d', order.orderId],
-      ['t', CLIENT_TAG],
-      ['status', status],
-      ['state', order.state],
-      ['price', String(order.price), 'KRW'],
-      ['customer', order.customerPubkey],
-      ['expiration', String(order.expiration)],
-    ],
+    tags,
     content: '',
   };
 

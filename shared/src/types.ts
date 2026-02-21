@@ -19,6 +19,8 @@ export interface Order {
   status: 'active' | 'sold';
   state: import('./constants').OrderState;
   customerPubkey: string;
+  /** 클레임한 Sponsor의 pubkey (claimed 이후 존재) */
+  sponsorPubkey?: string;
   price: number;
   createdAt: number;
   updatedAt: number;

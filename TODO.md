@@ -85,8 +85,11 @@
 
 ### 저장소 이중화 (Phase 2~3)
 
-- [ ] **localStorage 삭제 전략 단순화**: 만료 오더 + 연관 요청 공격적 삭제
-- [ ] **IndexedDB 도입**: 에스크로 책임이 있는 오더의 영구 저장
+- [x] **localStorage 삭제 전략 단순화 (Phase 2)**: 만료 오더 + 연관 요청 공격적 삭제
+  - Admin: `cleanup.ts` 스케줄러가 order-store + request-store 연쇄 삭제 (60초 주기)
+  - Sponsor: `order-store.ts` 내장 스케줄러로 만료 오더 삭제 (60초 주기)
+  - 삭제 기준: `expiration > 0 && expiration <= now` (상태 무관)
+- [ ] **IndexedDB 도입 (Phase 3)**: 에스크로 책임이 있는 오더의 영구 저장
   - `orders` + `requests` 오브젝트 스토어
   - 에스크로 진입 시점에 localStorage → IndexedDB 이동
   - 히스토리 UI (커서 기반 페이지네이션, 상태 필터)

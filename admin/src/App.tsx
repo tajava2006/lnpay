@@ -4,6 +4,7 @@ import {
   hasSession, loadSession, restoreSigner, clearSession,
 } from './nostr/nip46';
 import { startLnConfigSubscription, stopLnConfigSubscription, decryptLnConfig } from './nostr/ln-config-service';
+import { startCleanup, stopCleanup } from './cleanup';
 import type { LnConfig } from './nostr/ln-config';
 import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
@@ -88,11 +89,13 @@ export function App() {
     const stopRelaySubscription = subscribeRelayLists(storage);
     startAdminSubscription();
     startLnConfigSubscription(setEncryptedLnConfig);
+    startCleanup();
     tracker.start();
     return () => {
       stopRelaySubscription();
       stopAdminSubscription();
       stopLnConfigSubscription();
+      stopCleanup();
       tracker.stop();
     };
   }, [tracker]);

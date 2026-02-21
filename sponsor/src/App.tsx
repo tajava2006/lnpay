@@ -3,6 +3,7 @@ import { KeyInit } from './components/KeyInit';
 import { OrderBook } from './components/OrderBook';
 import { BtcPrice } from './components/BtcPrice';
 import { startOrderSubscription, stopOrderSubscription } from './nostr/service';
+import { startCleanup, stopCleanup } from './order-store';
 import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { storage } from './nostr/storage';
@@ -17,10 +18,12 @@ function AppContent() {
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);
     startOrderSubscription();
+    startCleanup();
     tracker.start();
     return () => {
       stopRelaySubscription();
       stopOrderSubscription();
+      stopCleanup();
       tracker.stop();
     };
   }, [tracker]);

@@ -96,3 +96,23 @@ export function markSynced(): void {
   synced = true;
   notify();
 }
+
+/**
+ * 특정 orderIds에 속하는 모든 요청을 삭제한다.
+ * 만료 오더 삭제 시 연관 요청도 함께 정리하기 위해 사용.
+ */
+export function purgeByOrderIds(orderIds: string[]): void {
+  if (orderIds.length === 0) return;
+
+  const idSet = new Set(orderIds);
+  const before = Object.keys(requests).length;
+
+  requests = Object.fromEntries(
+    Object.entries(requests).filter(([, req]) => !idSet.has(req.orderId)),
+  );
+
+  if (Object.keys(requests).length === before) return;
+
+  saveToStorage();
+  notify();
+}

@@ -53,19 +53,12 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
 // Message Handler
 // ============================================================
 
-type BackgroundMessage =
-  | { type: 'SEND_REQUEST'; orderId: string; action: RequestAction }
-  | { type: 'GET_PUBKEY' };
+type BackgroundMessage = { type: 'SEND_REQUEST'; orderId: string; action: RequestAction };
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, _sender, sendResponse) => {
   if (message.type === 'SEND_REQUEST') {
     handleSendRequest(message.orderId, message.action).then(sendResponse);
     return true; // async response
-  }
-
-  if (message.type === 'GET_PUBKEY') {
-    ensureKeypair(storage).then((kp) => sendResponse({ publicKey: kp.publicKey }));
-    return true;
   }
 });
 

@@ -67,8 +67,8 @@ export function stopAdminSubscription(): void {
 // ============================================================
 
 /**
- * 클레임을 승인하여 claimed → verified로 전이하고 kind 30402를 갱신 발행한다.
- * ClaimCard의 승인 버튼에서 호출된다.
+ * 클레임을 승인하여 claimed → verified로 전이하고 kind 30402를 발행한다.
+ * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
 export async function approveOrder(
   orderId: string,
@@ -80,18 +80,14 @@ export async function approveOrder(
     return { success: false, error: `INVALID_TRANSITION: ${order.state} → verified` };
   }
 
-  const now = Math.floor(Date.now() / 1000);
   const updatedOrder: Order = {
     ...order,
     state: 'verified',
-    updatedAt: now,
+    updatedAt: Math.floor(Date.now() / 1000),
   };
 
-  upsertOrder(updatedOrder);
-
   try {
-    const signed = await publishOrder(updatedOrder);
-    upsertOrder({ ...updatedOrder, raw: signed, updatedAt: now });
+    await publishOrder(updatedOrder);
     console.log('[Admin] Order', orderId, 'approved (claimed → verified)');
   } catch (e) {
     console.error('[Admin] Failed to publish verified order for', orderId, e);
@@ -108,6 +104,7 @@ export async function approveOrder(
 /**
  * order-request 수신 시 자동으로 오더를 생성하고 kind 30402를 발행한다.
  * 이미 존재하는 orderId면 중복 생성하지 않는다.
+ * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
 async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
   const existing = getOrder(request.orderId);
@@ -126,13 +123,8 @@ async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
     raw: {},
   };
 
-  // 로컬 스토어에 즉시 반영 (UI에 표시)
-  upsertOrder(newOrder);
-
   try {
-    const signed = await publishOrder(newOrder);
-    // 발행 성공 시 raw를 서명된 이벤트로 갱신
-    upsertOrder({ ...newOrder, raw: signed, updatedAt: now });
+    await publishOrder(newOrder);
     console.log('[Admin] Auto-created order', request.orderId, 'from order-request');
   } catch (e) {
     console.error('[Admin] Failed to publish order for', request.orderId, e);
@@ -140,8 +132,9 @@ async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
 }
 
 /**
- * payment-confirm 수신 시 오더를 paid로 전이하고 kind 30402를 갱신 발행한다.
+ * payment-confirm 수신 시 오더를 paid로 전이하고 kind 30402를 발행한다.
  * escrowed 또는 remitted 상태에서 전이 가능 (Customer의 자동 파싱으로 입금 감지).
+ * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
 async function handlePaymentConfirm(request: ProcessedRequest): Promise<void> {
   const order = getOrder(request.orderId);
@@ -157,19 +150,15 @@ async function handlePaymentConfirm(request: ProcessedRequest): Promise<void> {
     return;
   }
 
-  const now = Math.floor(Date.now() / 1000);
   const updatedOrder: Order = {
     ...order,
     state: 'paid',
     status: 'sold',
-    updatedAt: now,
+    updatedAt: Math.floor(Date.now() / 1000),
   };
 
-  upsertOrder(updatedOrder);
-
   try {
-    const signed = await publishOrder(updatedOrder);
-    upsertOrder({ ...updatedOrder, raw: signed, updatedAt: now });
+    await publishOrder(updatedOrder);
     console.log('[Admin] Order', request.orderId, 'paid (payment-confirm from customer)');
   } catch (e) {
     console.error('[Admin] Failed to publish paid order for', request.orderId, e);
@@ -177,8 +166,9 @@ async function handlePaymentConfirm(request: ProcessedRequest): Promise<void> {
 }
 
 /**
- * cancel-request 수신 시 오더를 cancelled로 전이하고 kind 30402를 갱신 발행한다.
+ * cancel-request 수신 시 오더를 cancelled로 전이하고 kind 30402를 발행한다.
  * remitted 상태에서는 전이 불가 (분쟁 판정 경로로만 종결).
+ * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
 async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
   const order = getOrder(request.orderId);
@@ -194,19 +184,15 @@ async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
     return;
   }
 
-  const now = Math.floor(Date.now() / 1000);
   const updatedOrder: Order = {
     ...order,
     state: 'cancelled',
     status: 'sold',
-    updatedAt: now,
+    updatedAt: Math.floor(Date.now() / 1000),
   };
 
-  upsertOrder(updatedOrder);
-
   try {
-    const signed = await publishOrder(updatedOrder);
-    upsertOrder({ ...updatedOrder, raw: signed, updatedAt: now });
+    await publishOrder(updatedOrder);
     console.log('[Admin] Order', request.orderId, 'cancelled (cancel-request from customer)');
   } catch (e) {
     console.error('[Admin] Failed to publish cancelled order for', request.orderId, e);
@@ -214,9 +200,10 @@ async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
 }
 
 /**
- * claim 수신 시 오더를 requested → claimed로 전이하고 kind 30402를 갱신 발행한다.
+ * claim 수신 시 오더를 requested → claimed로 전이하고 kind 30402를 발행한다.
  * - 오더가 없거나 전이 불가면 무시 (선착순: 이미 claimed면 후속 클레임 거부)
  * - sponsorPubkey를 기록하여 이후 유동성 검증 등에 사용
+ * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
 async function handleClaim(request: ProcessedRequest): Promise<void> {
   const order = getOrder(request.orderId);
@@ -230,20 +217,15 @@ async function handleClaim(request: ProcessedRequest): Promise<void> {
     return;
   }
 
-  const now = Math.floor(Date.now() / 1000);
   const updatedOrder: Order = {
     ...order,
     state: 'claimed',
     sponsorPubkey: request.pubkey,
-    updatedAt: now,
+    updatedAt: Math.floor(Date.now() / 1000),
   };
 
-  // 로컬 스토어에 즉시 반영
-  upsertOrder(updatedOrder);
-
   try {
-    const signed = await publishOrder(updatedOrder);
-    upsertOrder({ ...updatedOrder, raw: signed, updatedAt: now });
+    await publishOrder(updatedOrder);
     console.log('[Admin] Order', request.orderId, 'claimed by', request.pubkey);
   } catch (e) {
     console.error('[Admin] Failed to publish claimed order for', request.orderId, e);

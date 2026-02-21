@@ -41,13 +41,34 @@ function buildOrderRequestEvent(order: TrackedOrder): EventTemplate {
 }
 
 /**
+ * 상태 통보용 kind 1111 이벤트를 빌드한다.
+ * payment-confirm, cancel-request 등 Admin에게 상태 변화를 알리는 간결한 이벤트.
+ * orderId + action만 포함하며, 구체적인 상태 전이는 Admin이 판단한다.
+ */
+function buildNotificationEvent(order: TrackedOrder, action: RequestAction): EventTemplate {
+  return {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['action', action],
+      ['t', CLIENT_TAG],
+      ['p', APP_PUBKEY],
+    ],
+    content: '',
+  };
+}
+
+/**
  * action에 따라 적절한 kind 1111 이벤트를 빌드한다.
- * 현재는 order-request만 지원. 향후 payment-confirm 등 추가 시 여기에 분기.
  */
 export function buildRequestEvent(order: TrackedOrder, action: RequestAction): EventTemplate {
   switch (action) {
     case 'order-request':
       return buildOrderRequestEvent(order);
+    case 'payment-confirm':
+    case 'cancel-request':
+      return buildNotificationEvent(order, action);
     default:
       throw new Error(`Unsupported request action: ${action}`);
   }

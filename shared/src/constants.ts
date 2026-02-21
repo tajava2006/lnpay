@@ -32,6 +32,7 @@ export const REQUEST_ACTIONS = {
   ORDER_REQUEST: 'order-request',
   CLAIM: 'claim',
   PAYMENT_CONFIRM: 'payment-confirm',
+  CANCEL_REQUEST: 'cancel-request',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 

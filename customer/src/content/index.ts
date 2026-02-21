@@ -84,18 +84,25 @@ async function fetchOrderData() {
       return;
     }
 
-    // 취소 감지
-    // Admin이 만료로 처리하므로 로컬에서는 로그만 남긴다.
-    // 향후 cancel-request action으로 Admin에 통보할 수 있다.
+    // 취소 감지 → Admin에 cancel-request 전송
     if (isCancelled(orderData, orderId)) {
       console.log('[Web Parser] Order cancelled detected on Coupang');
+      chrome.runtime.sendMessage({
+        type: 'SEND_REQUEST',
+        orderId,
+        action: 'cancel-request',
+      });
       return;
     }
 
-    // 입금 완료 감지
-    // 향후 payment-confirm action으로 Admin에 통보할 수 있다.
+    // 입금 완료 감지 → Admin에 payment-confirm 전송
     if (isPaid(orderData, orderId)) {
       console.log('[Web Parser] Payment detected on Coupang');
+      chrome.runtime.sendMessage({
+        type: 'SEND_REQUEST',
+        orderId,
+        action: 'payment-confirm',
+      });
       if (existingOrder.adminState === 'escrowed') {
         showSuccessNotification();
       }

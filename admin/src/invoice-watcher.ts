@@ -12,9 +12,11 @@
 import type { LightningAdapter } from './lightning';
 import type { Order } from '@sajwo-tracker/shared';
 import { getSnapshot } from './order-store';
+import { getSnapshot as getRequestSnapshot } from './request-store';
 import { getEscrowEntry } from './escrow-store';
 import { canTransition } from './state-machine';
 import { publishOrder } from './nostr/publish';
+import { idbMigrateOrder } from './idb-store';
 
 const POLL_INTERVAL = 15_000; // 15초
 
@@ -89,5 +91,15 @@ async function transitionOrder(
     console.log('[InvoiceWatcher] Order', order.orderId, `${order.state} → ${to}`);
   } catch (err) {
     console.error('[InvoiceWatcher] Failed to publish', to, 'for', order.orderId, err);
+    return;
+  }
+
+  // escrowed 진입 시 IndexedDB에 오더 + 연관 requests 이관 (fire-and-forget)
+  if (to === 'escrowed') {
+    const allRequests = Object.values(getRequestSnapshot());
+    const related = allRequests.filter(r => r.orderId === order.orderId);
+    idbMigrateOrder(updatedOrder, related).catch(err =>
+      console.warn('[InvoiceWatcher] IndexedDB migration failed for', order.orderId, err),
+    );
   }
 }

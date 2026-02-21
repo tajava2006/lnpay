@@ -22,6 +22,7 @@ import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
+import { idbGetOrder, idbUpsertOrder, idbUpsertRequest } from '../idb-store';
 
 let cleanup: (() => void) | null = null;
 
@@ -36,6 +37,7 @@ export async function startAdminSubscription(): Promise<void> {
       if (!request) return;
 
       upsertRequest(request);
+      void syncRequestToIdb(request);
 
       // action별 분기 처리
       if (request.action === 'order-request') {
@@ -50,7 +52,10 @@ export async function startAdminSubscription(): Promise<void> {
     },
     onOrder: (event) => {
       const order = parseOrderEvent(event);
-      if (order) upsertOrder(order);
+      if (order) {
+        upsertOrder(order);
+        void syncOrderToIdb(order);
+      }
     },
     onEose: () => {
       markSynced();
@@ -252,5 +257,27 @@ async function handleClaim(request: ProcessedRequest): Promise<void> {
     console.log('[Admin] Order', request.orderId, 'claimed by', request.pubkey);
   } catch (e) {
     console.error('[Admin] Failed to publish claimed order for', request.orderId, e);
+  }
+}
+
+// ============================================================
+// IndexedDB Sync Helpers (fire-and-forget)
+// ============================================================
+
+async function syncOrderToIdb(order: Order): Promise<void> {
+  try {
+    const existing = await idbGetOrder(order.orderId);
+    if (existing) await idbUpsertOrder(order);
+  } catch (err) {
+    console.warn('[Admin] IndexedDB order sync failed for', order.orderId, err);
+  }
+}
+
+async function syncRequestToIdb(request: ProcessedRequest): Promise<void> {
+  try {
+    const existing = await idbGetOrder(request.orderId);
+    if (existing) await idbUpsertRequest(request);
+  } catch (err) {
+    console.warn('[Admin] IndexedDB request sync failed for', request.orderId, err);
   }
 }

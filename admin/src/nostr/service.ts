@@ -7,6 +7,9 @@
  * action별 자동 처리:
  * - order-request: 오더 생성 + kind 30402 발행
  * - claim: 오더 상태 전이 (requested → claimed) + kind 30402 갱신
+ *
+ * Admin UI 트리거:
+ * - approveOrder: 클레임 승인 (claimed → verified) + kind 30402 갱신
  */
 import { getReadRelays, type Order } from '@sajwo-tracker/shared';
 import { storage } from './storage';
@@ -54,7 +57,46 @@ export function stopAdminSubscription(): void {
 }
 
 // ============================================================
-// Action Handlers
+// Admin UI Actions
+// ============================================================
+
+/**
+ * 클레임을 승인하여 claimed → verified로 전이하고 kind 30402를 갱신 발행한다.
+ * ClaimCard의 승인 버튼에서 호출된다.
+ */
+export async function approveOrder(
+  orderId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const order = getOrder(orderId);
+  if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
+
+  if (!canTransition(order.state, 'verified')) {
+    return { success: false, error: `INVALID_TRANSITION: ${order.state} → verified` };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const updatedOrder: Order = {
+    ...order,
+    state: 'verified',
+    updatedAt: now,
+  };
+
+  upsertOrder(updatedOrder);
+
+  try {
+    const signed = await publishOrder(updatedOrder);
+    upsertOrder({ ...updatedOrder, raw: signed, updatedAt: now });
+    console.log('[Admin] Order', orderId, 'approved (claimed → verified)');
+  } catch (e) {
+    console.error('[Admin] Failed to publish verified order for', orderId, e);
+    return { success: false, error: 'PUBLISH_FAILED' };
+  }
+
+  return { success: true };
+}
+
+// ============================================================
+// Action Handlers (Inbound Request)
 // ============================================================
 
 /**

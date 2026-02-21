@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { ProcessedRequest } from '../types';
-import type { PriceTracker, Order, OrderState } from '@sajwo-tracker/shared';
+import type { PriceTracker, Order } from '@sajwo-tracker/shared';
 import type { LightningAdapter, ProbeResult } from '../lightning';
 import { updateLiquidityVerified } from '../request-store';
-import { updateOrderState } from '../order-store';
+import { approveOrder } from '../nostr/service';
 import { SatsAmount } from './SatsAmount';
 
 interface Props {
@@ -73,52 +73,19 @@ function probeResultMessage(result: ProbeResult): { text: string; color: string 
   }
 }
 
-/**
- * 현재 오더 상태에서 승인(다음 긍정 상태)을 결정한다.
- */
-function nextApproveState(currentState: OrderState): OrderState | null {
-  switch (currentState) {
-    case 'requested': return 'claimed';
-    case 'claimed': return 'verified';
-    case 'verified': return 'escrowed';
-    case 'escrowed': return 'paid';
-    default: return null;
-  }
-}
-
-/**
- * 현재 오더 상태에서 거절/취소 상태를 결정한다.
- */
-function rejectState(currentState: OrderState): OrderState | null {
-  switch (currentState) {
-    case 'requested':
-    case 'claimed':
-      return 'rejected';
-    case 'verified':
-    case 'escrowed':
-      return 'cancelled';
-    default:
-      return null;
-  }
-}
-
 export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
   const orderState = order?.state;
   const isClaim = request.action === 'claim';
   const decoded = request.invoice?.decoded ?? null;
 
-  // 승인 가능 조건: 클레임 액션 + 유동성 검증 완료 + 오더가 전이 가능한 상태
-  const approveTarget = orderState ? nextApproveState(orderState) : null;
-  const canApprove = isClaim
-    && (request.invoice?.liquidityVerified ?? false)
-    && approveTarget != null;
-
-  const rejectTarget = orderState ? rejectState(orderState) : null;
-  const canReject = rejectTarget != null;
+  // 승인 가능 조건: 클레임 액션 + 유동성 검증 완료 (상태 판단은 FSM에 위임)
+  const canApprove = isClaim && (request.invoice?.liquidityVerified ?? false);
 
   const [copied, setCopied] = useState(false);
   const [probing, setProbing] = useState(false);
   const [probeMsg, setProbeMsg] = useState<{ text: string; color: string } | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
 
   const copyPubkey = (pubkey: string) => {
     navigator.clipboard.writeText(pubkey).then(() => {
@@ -147,16 +114,14 @@ export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
     }
   }
 
-  function handleApprove() {
-    if (approveTarget) {
-      updateOrderState(request.orderId, approveTarget);
+  async function handleApprove() {
+    setApproving(true);
+    setApproveError(null);
+    const result = await approveOrder(request.orderId);
+    if (!result.success) {
+      setApproveError(result.error ?? '승인 실패');
     }
-  }
-
-  function handleReject() {
-    if (rejectTarget) {
-      updateOrderState(request.orderId, rejectTarget);
-    }
+    setApproving(false);
   }
 
   return (
@@ -247,24 +212,23 @@ export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
         <div style={styles.decodeFailed}>인보이스 디코딩 실패</div>
       )}
 
-      {/* 액션 버튼 (클레임 요청에만 표시) */}
-      {isClaim && canReject && (
+      {/* 승인 버튼 (클레임 요청에만 표시) */}
+      {isClaim && (
         <div style={styles.actions}>
           <button
-            style={canApprove ? styles.approveBtn : styles.approveBtnDisabled}
+            style={canApprove && !approving
+              ? styles.approveBtn
+              : styles.approveBtnDisabled}
             onClick={handleApprove}
-            disabled={!canApprove}
+            disabled={!canApprove || approving}
           >
-            승인
+            {approving ? '승인 중...' : '승인'}
           </button>
-          <button
-            style={styles.rejectBtn}
-            onClick={handleReject}
-          >
-            거절
-          </button>
-          {request.invoice && !request.invoice.liquidityVerified && (
+          {!request.invoice?.liquidityVerified && (
             <span style={styles.unverifiedHint}>유동성 미검증</span>
+          )}
+          {approveError && (
+            <span style={styles.errorHint}>{approveError}</span>
           )}
         </div>
       )}
@@ -393,19 +357,14 @@ const styles = {
     fontWeight: 600 as const,
     cursor: 'not-allowed',
   },
-  rejectBtn: {
-    background: '#fff',
-    color: '#DC2626',
-    border: '1px solid #DC2626',
-    borderRadius: 6,
-    padding: '8px 20px',
-    fontSize: 13,
-    fontWeight: 600 as const,
-    cursor: 'pointer',
-  },
   unverifiedHint: {
     fontSize: 12,
     color: '#D97706',
+    fontWeight: 500 as const,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: '#DC2626',
     fontWeight: 500 as const,
   },
   decodeFailed: {

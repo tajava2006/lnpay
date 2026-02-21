@@ -84,10 +84,17 @@ export async function approveOrder(
     return { success: false, error: `INVALID_TRANSITION: ${order.state} → verified` };
   }
 
+  // hold invoice 만료 = 오더 만료까지 남은 시간 (인지부하 감소를 위해 통일)
+  const now = Math.floor(Date.now() / 1000);
+  const expiry = order.expiration - now;
+  if (expiry <= 0) {
+    return { success: false, error: 'ORDER_EXPIRED' };
+  }
+
   // hold invoice 생성 (프리이미지는 LN 어댑터 내부에서 escrow-store에 자동 저장)
   let bolt11: string;
   try {
-    const result = await lnAdapter.createHoldInvoice(orderId, amountSat);
+    const result = await lnAdapter.createHoldInvoice(orderId, amountSat, expiry);
     bolt11 = result.bolt11;
     console.log('[Admin] Hold invoice created for', orderId, '- paymentHash:', result.paymentHash);
   } catch (e) {
@@ -99,7 +106,7 @@ export async function approveOrder(
     ...order,
     state: 'verified',
     bolt11,
-    updatedAt: Math.floor(Date.now() / 1000),
+    updatedAt: now,
   };
 
   try {

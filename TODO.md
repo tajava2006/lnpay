@@ -121,7 +121,8 @@
     - 이후 customer_wins: 별도 LN 결제로 Customer에게 BTC 반환 (hold invoice는 이미 settle됨)
     - 비대칭 손실 원칙: settle은 선택권 보존, 만료는 회수 불가
   - `remitted` 상태에서는 `cancelled` 불가 — 반드시 분쟁 판정으로 종결
-  - 주의: `cleanup.ts`의 만료 삭제가 escrow entry(프리이미지)를 삭제하므로 자동 settle이 cleanup보다 먼저 발동해야 함
+  - 자동 settle 실패 + 만료 시: BTC는 Customer에게 자동 환불, Admin이 IndexedDB에서 확인 후 수동 판정
+  - 시스템이 자동으로 `customer_wins`를 판정하지 않음 — 판정은 반드시 Admin의 몫
 
 ## 스팸/DoS 차단
 

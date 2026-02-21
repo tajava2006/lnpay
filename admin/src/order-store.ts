@@ -103,7 +103,7 @@ export function purgeExpired(): string[] {
   const expiredIds: string[] = [];
 
   for (const [id, order] of Object.entries(orders)) {
-    if (order.expiration > 0 && order.expiration <= now && order.state !== 'remitted') {
+    if (order.expiration > 0 && order.expiration <= now) {
       expiredIds.push(id);
     }
   }

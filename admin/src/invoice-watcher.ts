@@ -121,17 +121,10 @@ async function handleRemittedOrder(order: Order): Promise<void> {
           err,
         );
       }
-    } else if (status === 'cancelled') {
-      // hold invoice 만료/취소 — BTC가 Customer에게 자동 환불됨
-      console.error(
-        '[InvoiceWatcher] CRITICAL: Hold invoice cancelled for remitted order',
-        order.orderId,
-        '— BTC returned to customer, safety-net failed',
-      );
-      await transitionOrder(order, 'customer_wins');
     }
     // settled → 이미 settle됨 (수동 또는 자동). Admin 판정 대기.
     // accepted + time > margin → 아직 여유 있음. 스킵.
+    // cancelled → CLTV 만료, BTC 자동 환불. Admin이 IndexedDB에서 확인 후 수동 판정.
   } catch (err) {
     console.warn('[InvoiceWatcher] remitted order lookup failed for', order.orderId, err);
   }

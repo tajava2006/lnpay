@@ -442,9 +442,10 @@ settle 후에도 Admin은 여전히 판정할 수 있다:
 
 비대칭 손실 원칙: settle하면 선택권이 남고, 만료되면 회수가 불가하므로 settle이 안전한 선택이다.
 
-> **구현 주의사항**: 현재 `cleanup.ts`는 만료 시 상태 무관하게 escrow entry(프리이미지)를 삭제한다.
-> 자동 settle은 반드시 cleanup보다 먼저 발동해야 한다.
-> `invoice-watcher`에 `remitted` 오더의 만료 임박 감시를 추가해야 한다.
+> **설계 원칙**: `cleanup.ts`는 만료 시 **상태 무관**하게 삭제한다 (remitted 포함).
+> 자동 settle은 만료 10분 전에 발동하므로 cleanup과 충돌하지 않는다.
+> 자동 settle 실패 + 만료 시: BTC는 Customer에게 자동 환불되고, Admin이 IndexedDB에서 확인 후 수동 판정한다.
+> 시스템이 자동으로 `customer_wins`를 판정하지 않는다 — 판정은 반드시 Admin의 몫이다.
 
 **향후 구현:**
 - **분쟁 해결 도구**: Sponsor가 KRW 송금 주장(`remitted`) 후 Customer 미확인 시 Admin이 증거 기반 중재

@@ -102,7 +102,8 @@
   - `lookupHoldInvoice`: LND `/v1/invoice/{hash}` 상태 조회
   - `escrow-store.ts`: 프리이미지 localStorage 보관 (릴레이 미노출)
   - `invoice-watcher.ts`: 15초 폴링으로 accepted 감지 → escrowed 자동 전이
-  - 미구현: `settleInvoice` (프리이미지 제출로 BTC 수령), Sponsor에 BTC 전송
+  - 미구현: `settleInvoice` (프리이미지 제출로 BTC 수령) — 정산 시나리오는 ARCHITECTURE.md 참조
+  - 미구현: Sponsor에 BTC 전송 (settle 후 Sponsor의 원본 invoice에 결제)
 - [x] **verified 전이 시 hold invoice 첨부**: `approveOrder` 실행 시 hold invoice 생성 후 `['bolt11', invoice]` 태그 첨부
   - 인보이스 만료 = 오더 만료와 통일
   - 입금 감지(hold invoice accepted) 시 `verified → escrowed` 자동 전이
@@ -111,9 +112,16 @@
 - [ ] **분쟁 해결 도구**: `remitted` 상태의 오더에 대한 Admin 중재 기능
   - Sponsor가 KRW 송금을 주장(`escrowed → remitted`)한 후 Customer가 입금 확인을 하지 않으면 분쟁 진입
   - Admin이 Sponsor에게 송금 증거 제출 요구 (스크린샷, 이체 확인서 등)
-  - 증거 타당 → `remitted → sponsor_wins`: hold invoice settle → Sponsor에게 BTC 전달
-  - 증거 불충분 → `remitted → customer_wins`: hold invoice 환불 → Customer BTC 반환
+  - 만료 전 판정:
+    - 증거 타당 → `remitted → sponsor_wins`: hold invoice settle → Sponsor에게 BTC 전달
+    - 증거 불충분 → `remitted → customer_wins`: hold invoice cancel → Customer BTC 자동 환불
+  - 만료 임박 자동 settle (판정 미완료 시):
+    - `invoice-watcher`가 remitted 오더의 만료 임박 감지 → 선제 settle → BTC를 Admin 노드에 확보
+    - 이후 sponsor_wins: Sponsor에게 BTC 전송 (정상 흐름)
+    - 이후 customer_wins: 별도 LN 결제로 Customer에게 BTC 반환 (hold invoice는 이미 settle됨)
+    - 비대칭 손실 원칙: settle은 선택권 보존, 만료는 회수 불가
   - `remitted` 상태에서는 `cancelled` 불가 — 반드시 분쟁 판정으로 종결
+  - 주의: `cleanup.ts`의 만료 삭제가 escrow entry(프리이미지)를 삭제하므로 자동 settle이 cleanup보다 먼저 발동해야 함
 
 ## 스팸/DoS 차단
 

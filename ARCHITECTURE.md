@@ -402,10 +402,54 @@ LN 설정 미존재 시 Lightning 기능이 비활성화되고 기존 클레임 
 - **BOLT-11 인보이스 디코딩**: `bolt11` 패키지로 destination, amount, route hints 추출
 - **BTC/KRW 실시간 가격**: 업비트/빗썸/코인원 WebSocket
 
+#### Hold Invoice 정산 시나리오 (settleInvoice)
+
+Hold invoice의 settle은 프리이미지를 LN 노드에 제출하여 Customer의 BTC를 Admin이 수령하는 행위다.
+settle이 발동하는 시나리오는 4가지이다.
+
+**① 정상 완료 (payment-confirm)**
+
+Customer의 쿠팡 자동 감지가 입금 완료를 확인하여 `payment-confirm` 요청을 보낸 경우.
+`handlePaymentConfirm`에서 `escrowed`/`remitted` → `paid` 전이 후 `settleInvoice`를 호출한다.
+쿠팡 데이터 기반 자동 감지이므로 이의 여지가 없는 확정 트리거다.
+
+**② Sponsor 미입금 만료 (escrowed + 만료)**
+
+`escrowed` 상태에서 Sponsor가 KRW를 보내지 않고(또는 `remitted` 요청을 보내지 않고) 만료된 경우.
+Admin이 아무 동작도 하지 않으면 hold invoice의 CLTV가 타임아웃되어 BTC가 Customer에게 자동 환불된다.
+`invoice-watcher`가 `cancelled` 상태를 감지하여 `escrowed → cancelled` 전이한다.
+KRW를 보내놓고 `remitted` 요청을 안 보낸 경우는 Sponsor 과실로 간주한다.
+
+**③ 분쟁 판정 — 만료 전 (remitted + Admin 판정)**
+
+`remitted` 상태에서 만료 전에 Admin이 증거를 검토하여 판정한 경우:
+- **sponsor_wins**: `settleInvoice` → BTC 수령 → Sponsor에게 BTC 전송. 상태: `remitted → sponsor_wins`.
+- **customer_wins**: hold invoice cancel → BTC가 Customer에게 자동 환불. 상태: `remitted → customer_wins`.
+
+이것이 가장 바람직한 분쟁 해결 경로다.
+
+**④ 분쟁 안전망 — 만료 임박 시 선제 settle (remitted + 만료 임박)**
+
+`remitted` 상태에서 Admin이 만료 전까지 판정하지 못한 경우.
+hold invoice가 만료되면 BTC는 Customer에게 돌아가며 회수가 불가능하다.
+Sponsor가 실제로 KRW를 보냈다면 영구 손실이 발생한다.
+
+따라서 **만료 임박 시 `invoice-watcher`가 자동으로 settle**하여 BTC를 Admin 노드에 확보한다.
+settle 후에도 Admin은 여전히 판정할 수 있다:
+- **sponsor_wins**: Sponsor에게 BTC 전송 (정상 흐름과 동일).
+- **customer_wins**: **별도의 LN 결제**로 Customer에게 BTC를 반환한다
+  (hold invoice는 이미 settle되었으므로 cancel 불가).
+
+비대칭 손실 원칙: settle하면 선택권이 남고, 만료되면 회수가 불가하므로 settle이 안전한 선택이다.
+
+> **구현 주의사항**: 현재 `cleanup.ts`는 만료 시 상태 무관하게 escrow entry(프리이미지)를 삭제한다.
+> 자동 settle은 반드시 cleanup보다 먼저 발동해야 한다.
+> `invoice-watcher`에 `remitted` 오더의 만료 임박 감시를 추가해야 한다.
+
 **향후 구현:**
-- **분쟁 해결**: Sponsor가 KRW 송금 주장(`remitted`) 후 Customer 미확인 시 Admin이 증거 기반 중재
-  - 증거 타당 → `sponsor_wins` (hold invoice settle)
-  - 증거 불충분 → `customer_wins` (hold invoice 환불)
+- **분쟁 해결 도구**: Sponsor가 KRW 송금 주장(`remitted`) 후 Customer 미확인 시 Admin이 증거 기반 중재
+  - 만료 전 판정: sponsor_wins (settle) / customer_wins (cancel → 자동 환불)
+  - 만료 임박 자동 settle 후 판정: sponsor_wins (BTC 전송) / customer_wins (별도 LN 결제로 환불)
 - **Customer fidelity bond**: 사줘 요청 시 주문 금액 일부를 hold invoice로 선납 (스팸 차단)
 - **Sponsor 블랙리스트**: Lightning 노드 pubkey 기반 트롤링 차단
 - **릴레이 목록 관리**: kind 10002 이벤트 발행/수정

@@ -2,7 +2,7 @@
 // 쿠팡 주문 상세 페이지에서 JSON API를 직접 호출하여 데이터 추출 및 저장
 
 import { getOrder, createOrder } from '../shared/storage';
-import { transitionOrderWithRetry } from '../shared/state-machine';
+import { isFinal } from '../shared/order-states';
 import { isTargetOrder, extractAmount, extractProductName, extractVirtualAccount, extractOrderedAt, isPaid, isCancelled } from '../shared/filter';
 import type { CoupangOrderData } from '../shared/types';
 
@@ -79,36 +79,25 @@ async function fetchOrderData() {
     console.log('[Web Parser] Existing order found:', existingOrder);
 
     // 최종 상태면 더 이상 확인할 필요 없음
-    if (existingOrder.status === 'paid' || existingOrder.status === 'cancelled') {
-      console.log('[Web Parser] Order already in final state:', existingOrder.status);
+    if (isFinal(existingOrder)) {
+      console.log('[Web Parser] Order already in final state:', existingOrder.adminState);
       return;
     }
 
-    // 취소 감지 (모든 비-최종 상태에서 가능)
+    // 취소 감지
+    // Admin이 만료로 처리하므로 로컬에서는 로그만 남긴다.
+    // 향후 cancel-request action으로 Admin에 통보할 수 있다.
     if (isCancelled(orderData, orderId)) {
-      const result = await transitionOrderWithRetry(orderId, 'cancelled');
-      if (result.success) {
-        console.log('[Web Parser] Order cancelled detected');
-        // 릴레이에 sold 상태로 재발행하여 후원자앱에 알림
-        chrome.runtime.sendMessage({ type: 'PUBLISH_ORDER', orderId });
-      } else {
-        console.error('[Web Parser] Failed to transition to cancelled:', result.error);
-      }
+      console.log('[Web Parser] Order cancelled detected on Coupang');
       return;
     }
 
-    // 입금 완료 감지 (모든 비-최종 상태에서 가능)
+    // 입금 완료 감지
+    // 향후 payment-confirm action으로 Admin에 통보할 수 있다.
     if (isPaid(orderData, orderId)) {
-      const result = await transitionOrderWithRetry(orderId, 'paid');
-      if (result.success) {
-        console.log('[Web Parser] 🎉 입금 완료 감지!');
-        // 릴레이에 sold 상태로 재발행하여 후원자앱에 알림
-        chrome.runtime.sendMessage({ type: 'PUBLISH_ORDER', orderId });
-        if (existingOrder.status === 'selected') {
-          showSuccessNotification();
-        }
-      } else {
-        console.error('[Web Parser] Failed to transition to paid:', result.error);
+      console.log('[Web Parser] Payment detected on Coupang');
+      if (existingOrder.adminState === 'escrowed') {
+        showSuccessNotification();
       }
     }
   } else {
@@ -152,7 +141,6 @@ function showSuccessNotification() {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       animation: slideIn 0.5s ease-out;
     ">
-      <div style="font-size: 24px; margin-bottom: 8px;">🎉</div>
       <div style="font-size: 16px; font-weight: bold;">조르기 성공!</div>
       <div style="font-size: 14px; opacity: 0.9;">그분이 사주셨군요!</div>
     </div>

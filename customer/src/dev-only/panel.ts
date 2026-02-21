@@ -3,16 +3,16 @@
  *
  * 대시보드 하단에 삽입되어 쿠팡 자동감지를 대체하는 최소한의 테스트 기능을 제공한다.
  * 1. 테스트 주문 생성 (쿠팡 데이터 없이 가짜 주문 생성)
- * 2. 결제/취소 수동 처리 (은행 자동감지 불가 대체)
+ * 2. 결제/취소 수동 처리 (Admin 상태 시뮬레이션)
  *
  * 이 파일은 import.meta.env.DEV 가드 내부에서만 import되며
  * 프로덕션 빌드에서 완전히 제거된다.
  */
 
-import { createOrder, saveOrder } from '../shared/storage';
-import { transitionOrderWithRetry } from '../shared/state-machine';
-import { getStatusMeta, isFinalStatus } from '../shared/order-states';
-import type { TrackedOrder, OrderStatus } from '../shared/types';
+import { createOrder, getOrder, saveOrder } from '../shared/storage';
+import { getDisplayMeta, isFinal } from '../shared/order-states';
+import type { TrackedOrder } from '../shared/types';
+import type { OrderState } from '@sajwo-tracker/shared';
 import { generateTestOrderData, type TestOrderParams } from './test-data';
 
 /**
@@ -42,8 +42,8 @@ export function refreshOrderSelect(orders: Record<string, TrackedOrder>): void {
   select.innerHTML = '<option value="">주문 선택...</option>';
 
   for (const order of Object.values(orders)) {
-    if (isFinalStatus(order.status)) continue; // 최종 상태는 제외
-    const meta = getStatusMeta(order.status);
+    if (isFinal(order)) continue; // 최종 상태는 제외
+    const meta = getDisplayMeta(order);
     const opt = document.createElement('option');
     opt.value = order.orderId;
     opt.textContent = `${order.orderId} — ${meta.label} (${order.productName})`;
@@ -98,9 +98,9 @@ function buildPanelHTML(): string {
         </div>
       </div>
 
-      <!-- 결제/취소 수동 처리 -->
+      <!-- Admin 상태 시뮬레이션 -->
       <div style="margin-bottom: 20px;">
-        <h3 style="font-size: 14px; color: #666; margin: 0 0 8px 0;">결제/취소 수동 처리</h3>
+        <h3 style="font-size: 14px; color: #666; margin: 0 0 8px 0;">Admin 상태 시뮬레이션</h3>
         <div style="display: flex; gap: 8px; align-items: end; flex-wrap: wrap;">
           <label style="font-size: 12px; color: #666;">
             대상 주문
@@ -121,7 +121,7 @@ function buildPanelHTML(): string {
       <!-- Raw 이벤트로 주문 복원 -->
       <div style="margin-bottom: 20px;">
         <h3 style="font-size: 14px; color: #666; margin: 0 0 8px 0;">Nostr 이벤트로 주문 복원</h3>
-        <textarea id="devRawEventInput" placeholder='{"id":"...","pubkey":"...","kind":30402,"tags":[...],...}'
+        <textarea id="devRawEventInput" placeholder='{"id":"...","pubkey":"...","kind":1111,"tags":[...],...}'
           style="display: block; width: 100%; height: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 11px; resize: vertical; margin-bottom: 8px;"></textarea>
         <button id="devImportRawEvent" class="btn btn-publish" style="height: 34px;">
           주문 복원
@@ -179,12 +179,12 @@ function bindCreateOrder(panel: HTMLElement): void {
 
 function bindPaidAction(panel: HTMLElement): void {
   const btn = panel.querySelector('#devMarkPaid') as HTMLButtonElement;
-  btn.addEventListener('click', () => handleFinalTransition('paid', btn));
+  btn.addEventListener('click', () => handleAdminStateSimulation('paid', btn));
 }
 
 function bindCancelAction(panel: HTMLElement): void {
   const btn = panel.querySelector('#devMarkCancelled') as HTMLButtonElement;
-  btn.addEventListener('click', () => handleFinalTransition('cancelled', btn));
+  btn.addEventListener('click', () => handleAdminStateSimulation('cancelled', btn));
 }
 
 function bindImportRawEvent(panel: HTMLElement): void {
@@ -201,9 +201,17 @@ function bindImportRawEvent(panel: HTMLElement): void {
       const event = JSON.parse(raw);
       const tags: string[][] = event.tags ?? [];
 
-      const orderId = tags.find((t: string[]) => t[0] === 'd')?.[1];
+      // kind 1111에서는 a-tag에서 orderId 추출, kind 30402에서는 d-tag
+      let orderId: string | undefined;
+      const aTag = tags.find((t: string[]) => t[0] === 'a')?.[1];
+      if (aTag) {
+        orderId = aTag.split(':')[2];
+      }
       if (!orderId) {
-        devLog('d 태그(orderId)를 찾을 수 없습니다.');
+        orderId = tags.find((t: string[]) => t[0] === 'd')?.[1];
+      }
+      if (!orderId) {
+        devLog('orderId를 찾을 수 없습니다 (a-tag 또는 d-tag).');
         return;
       }
 
@@ -213,16 +221,14 @@ function bindImportRawEvent(panel: HTMLElement): void {
       const expStr = tags.find((t: string[]) => t[0] === 'expiration')?.[1];
       const expirationDate = expStr ? Number(expStr) * 1000 : Date.now() + 86400_000;
 
-      const statusTag = tags.find((t: string[]) => t[0] === 'status')?.[1];
-      const status: OrderStatus = statusTag === 'sold' ? 'paid' : 'requested';
+      const stateTag = tags.find((t: string[]) => t[0] === 'state')?.[1] as OrderState | undefined;
 
       const order: TrackedOrder = {
         orderId,
         productName: '복원된 주문',
         amount: price,
-        status,
         createdAt: (event.created_at ?? Math.floor(Date.now() / 1000)) * 1000,
-        version: 1,
+        adminState: stateTag,
         virtualAccount: {
           bankName: '(복원)',
           bankCode: 'XXXX',
@@ -235,7 +241,7 @@ function bindImportRawEvent(panel: HTMLElement): void {
       };
 
       await saveOrder(order);
-      devLog(`주문 복원 완료: ${orderId} (status=${status}, price=${price.toLocaleString()})`);
+      devLog(`주문 복원 완료: ${orderId} (adminState=${stateTag ?? 'none'}, price=${price.toLocaleString()})`);
       textarea.value = '';
     } catch (err) {
       devLog(`주문 복원 실패: ${String(err)}`);
@@ -244,13 +250,12 @@ function bindImportRawEvent(panel: HTMLElement): void {
 }
 
 /**
- * 결제 완료 / 취소 처리.
- * content/index.ts의 isPaid/isCancelled 감지 후 처리와 동일한 코드 경로:
- *   1. transitionOrderWithRetry(orderId, status)
- *   2. chrome.runtime.sendMessage({ type: 'PUBLISH_ORDER', orderId })
+ * Admin 상태를 직접 설정하여 시뮬레이션한다.
+ * 실제 환경에서는 Admin이 kind 30402를 발행하고 구독에서 수신하지만,
+ * Dev 환경에서는 Admin이 없으므로 로컬 스토리지에 직접 반영한다.
  */
-async function handleFinalTransition(
-  toStatus: 'paid' | 'cancelled',
+async function handleAdminStateSimulation(
+  adminState: OrderState,
   btn: HTMLButtonElement,
 ): Promise<void> {
   const select = document.getElementById('devOrderSelect') as HTMLSelectElement;
@@ -260,33 +265,22 @@ async function handleFinalTransition(
     return;
   }
 
-  const label = toStatus === 'paid' ? '결제 완료' : '취소';
+  const label = adminState === 'paid' ? '결제 완료' : '취소';
   btn.disabled = true;
   const originalText = btn.textContent;
   btn.textContent = '처리 중...';
 
-  devLog(`${label} 처리 중: ${orderId}`);
+  devLog(`${label} 시뮬레이션: ${orderId}`);
 
   try {
-    // 1. 상태 전이 (content script와 동일)
-    const result = await transitionOrderWithRetry(orderId, toStatus);
-    if (!result.success) {
-      devLog(`${label} 전이 실패: ${result.error.type}`);
+    const order = await getOrder(orderId);
+    if (!order) {
+      devLog(`주문을 찾을 수 없습니다: ${orderId}`);
       return;
     }
-    devLog(`${label} 전이 완료: ${orderId}`);
 
-    // 2. Nostr 재발행 (content script와 동일: PUBLISH_ORDER → sold 상태로 발행)
-    const publishResult = await chrome.runtime.sendMessage({
-      type: 'PUBLISH_ORDER',
-      orderId,
-    });
-
-    if (publishResult?.success) {
-      devLog(`Nostr sold 이벤트 발행 완료: ${orderId}`);
-    } else {
-      devLog(`Nostr 발행 실패: ${publishResult?.error ?? 'unknown'}`);
-    }
+    await saveOrder({ ...order, adminState });
+    devLog(`${label} 완료: ${orderId} (adminState=${adminState})`);
   } catch (err) {
     devLog(`${label} 처리 오류: ${String(err)}`);
   } finally {

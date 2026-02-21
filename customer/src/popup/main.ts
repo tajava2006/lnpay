@@ -1,5 +1,5 @@
 import { getAllOrders } from '../shared/storage';
-import { getStatusMeta } from '../shared/order-states';
+import { getDisplayMeta } from '../shared/order-states';
 import type { TrackedOrder } from '../shared/types';
 import { createPriceTracker } from '@sajwo-tracker/shared';
 
@@ -29,15 +29,15 @@ async function renderOrders() {
   orderList.querySelectorAll('.btn-publish').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       const orderId = (e.target as HTMLElement).dataset.orderId;
-      if (orderId) publishOrder(orderId, e.target as HTMLButtonElement);
+      if (orderId) sendOrderRequest(orderId, e.target as HTMLButtonElement);
     });
   });
 }
 
 function createOrderCard(order: TrackedOrder): string {
-  const statusMeta = getStatusMeta(order.status);
+  const displayMeta = getDisplayMeta(order);
   const amount = order.amount > 0 ? `${order.amount.toLocaleString()}원` : '금액 미확인';
-  const showPublish = order.status === 'detected';
+  const showPublish = !order.raw;
 
   return `
     <div class="order-card">
@@ -45,8 +45,8 @@ function createOrderCard(order: TrackedOrder): string {
       <div class="order-amount">${amount}</div>
       <div class="order-meta">
         <span class="order-id">#${order.orderId}</span>
-        <span class="order-status" style="background: ${statusMeta.bgColor}; color: ${statusMeta.textColor};">
-          ${statusMeta.label}
+        <span class="order-status" style="background: ${displayMeta.bgColor}; color: ${displayMeta.textColor};">
+          ${displayMeta.label}
         </span>
       </div>
       ${showPublish ? `<button class="btn-publish" data-order-id="${order.orderId}">사줘 요청</button>` : ''}
@@ -54,14 +54,15 @@ function createOrderCard(order: TrackedOrder): string {
   `;
 }
 
-async function publishOrder(orderId: string, btn: HTMLButtonElement) {
+async function sendOrderRequest(orderId: string, btn: HTMLButtonElement) {
   btn.disabled = true;
   btn.textContent = '요청 중...';
 
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'PUBLISH_ORDER',
+      type: 'SEND_REQUEST',
       orderId,
+      action: 'order-request',
     });
 
     if (response?.success) {
@@ -71,12 +72,12 @@ async function publishOrder(orderId: string, btn: HTMLButtonElement) {
     } else {
       btn.textContent = '실패 - 재시도';
       btn.disabled = false;
-      console.error('[Popup] Publish failed:', response?.error);
+      console.error('[Popup] Send request failed:', response?.errors);
     }
   } catch (err) {
     btn.textContent = '실패 - 재시도';
     btn.disabled = false;
-    console.error('[Popup] Publish error:', err);
+    console.error('[Popup] Send request error:', err);
   }
 }
 

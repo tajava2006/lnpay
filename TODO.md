@@ -10,28 +10,27 @@
   - 현재: `depositPrice` (실제 입금해야 할 금액)만 저장
   - 고려: 총 주문금액, 쿠폰 할인액, 실입금액 모두 표시할지 결정 필요
 
-- [ ] **입금 기한 만료 처리**: `expirationDate` 지나면 자동으로 `cancelled` 상태 전이
-  - Background script에서 주기적으로 체크
-  - 알림 기능 추가
+- [ ] **입금 기한 만료 처리**: `expirationDate` 지나면 UI에서 만료 표시
+  - Admin이 릴레이에서 만료 이벤트 자동 처리하므로 로컬 상태 전이 불필요
+  - UI에서 만료 시간 경과 시 시각적 표시 + 알림 기능 추가
 
-- [ ] **입금 완료 자동 감지 개선**: 현재 페이지 방문 시에만 감지됨
-  - Background script에서 주기적으로 API 호출하여 상태 확인
-  - 또는 쿠팡 알림 페이지 모니터링
+- [ ] **입금 완료 자동 감지 → `payment-confirm` 전송**: 현재 페이지 방문 시에만 감지됨
+  - Background script에서 주기적으로 쿠팡 API 호출하여 상태 확인
+  - 입금 감지 시 `SEND_REQUEST` + `action: 'payment-confirm'`으로 Admin에 통보
 
-- [ ] **주문 취소 자동 감지 개선**: 현재 페이지 방문 시에만 감지됨
-  - 입금 완료와 동일하게 Background script에서 주기적으로 확인
-  - 취소 감지 시 로컬 `cancelled` 전이 (Admin에게 별도 알림은 만료로 자동 처리)
+- [ ] **주문 취소 자동 감지 → `cancel-request` 전송**: 현재 페이지 방문 시에만 감지됨
+  - Background script에서 주기적으로 쿠팡 API 확인
+  - 취소 감지 시 `SEND_REQUEST` + `action: 'cancel-request'`로 Admin에 통보
+  - Admin은 만료 전이라도 즉시 취소 처리 가능
 
-### 로컬 FSM 정리 (Phase 1 후속)
+### 로컬 FSM 정리 (Phase 1 후속) — 완료
 
-- [ ] **로컬 FSM 단순화**: Admin 중심 전환 후 Customer 내부 FSM이 과도기 상태
-  - 현재: 6개 상태 (`detected → requested → claimed → selected → paid → cancelled`) + `ALLOWED_TRANSITIONS` + optimistic locking 전부 남아있음
-  - 목표: 로컬 관리 상태를 `detected` / `requested` 두 개로 축소, 이후는 `adminState` 그대로 표시
-  - `claimedBy`, `claimedAt` 필드 제거 (Admin이 claim 정보 소유)
-  - `ALLOWED_TRANSITIONS`에서 `claimed`/`selected` 관련 전이 제거
-  - `TransitionResult`/`TransitionError`의 `ALREADY_CLAIMED` 변형 제거
-  - dashboard UI에서 `adminState` 기반 표시로 전환
-- [ ] **order-states.ts 미사용 함수 삭제**: `getStatusLabel()`, `getStatusCssClass()`, `getStatusStyle()`, `getActiveStatuses()` — 참조 없음
+- [x] **로컬 FSM 전면 제거**: `state-machine.ts` 삭제, `OrderStatus`/`ALLOWED_TRANSITIONS`/`TransitionResult` 등 제거
+  - `TrackedOrder`에서 `status`, `version`, `claimedBy`, `claimedAt` 필드 제거
+  - `raw` 필드 존재 여부로 "요청 전송됨" 판단, 이후는 `adminState` 그대로 표시
+  - `order-states.ts`를 `adminState` + `raw` 기반 `getDisplayMeta(order)` / `isFinal(order)` / `isDeletable(order)`로 전면 재작성
+- [x] **PUBLISH_ORDER → SEND_REQUEST 전환**: `action: RequestAction` 필드 추가로 향후 `payment-confirm`, `cancel-request` 등 확장 가능
+- [x] **order-states.ts 미사용 함수 삭제**: `getStatusLabel()`, `getStatusCssClass()`, `getStatusStyle()`, `getActiveStatuses()` 전부 제거
 
 ### UI/UX
 
@@ -141,4 +140,4 @@
 
 ---
 
-**Last Updated**: 2026-02-20
+**Last Updated**: 2026-02-21

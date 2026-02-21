@@ -16,7 +16,6 @@ import {
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { getOrder, saveOrder } from '../shared/storage';
-import { transitionOrderWithRetry } from '../shared/state-machine';
 
 let cleanup: (() => void) | null = null;
 
@@ -76,26 +75,14 @@ export function stopAdminOrderSubscription(): void {
 
 /**
  * Admin 오더 상태 갱신을 로컬 스토리지에 반영한다.
- * - adminState 필드를 항상 갱신
- * - 최종 상태(paid, rejected, cancelled)는 로컬 상태도 전이
+ * adminState 필드를 갱신하기만 하면 된다 — Admin이 유일한 상태 소유자.
  */
 async function handleAdminOrderUpdate(orderId: string, adminState: OrderState): Promise<void> {
   const order = await getOrder(orderId);
   if (!order) return;
 
-  // adminState 갱신
   if (order.adminState !== adminState) {
     await saveOrder({ ...order, adminState });
     console.log('[Customer] Order', orderId, 'adminState →', adminState);
-  }
-
-  // 최종 상태 반영: Admin에서 완료/거절/취소 시 로컬도 전이
-  if (adminState === 'paid' && order.status !== 'paid') {
-    await transitionOrderWithRetry(orderId, 'paid');
-  } else if (
-    (adminState === 'rejected' || adminState === 'cancelled')
-    && order.status !== 'cancelled'
-  ) {
-    await transitionOrderWithRetry(orderId, 'cancelled');
   }
 }

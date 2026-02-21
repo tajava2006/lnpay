@@ -1,15 +1,13 @@
 // Background Service Worker
 // 1. Nostr 키페어 초기화 및 릴레이 리스트 구독
-// 2. 사줘 요청 이벤트 발행 (메시지 기반)
+// 2. kind 1111 요청 이벤트 발행 (메시지 기반)
 // 3. SPA 네비게이션 감지 (쿠팡)
 
-import { ensureKeypair, subscribeRelayLists } from '@sajwo-tracker/shared';
+import { ensureKeypair, subscribeRelayLists, type RequestAction } from '@sajwo-tracker/shared';
 import { storage } from '../nostr/storage';
 import { startAdminOrderSubscription } from '../nostr/admin-orders';
-import { publishOrder, type PublishResult } from '../nostr/publish';
+import { sendRequest, type RequestResult } from '../nostr/publish';
 import { getOrder, saveOrder } from '../shared/storage';
-import { transitionOrderWithRetry } from '../shared/state-machine';
-import { TrackedOrder } from '../shared/types';
 
 // ============================================================
 // 릴레이 리스트 + Admin 오더 구독 (모듈 스코프)
@@ -56,12 +54,12 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
 // ============================================================
 
 type BackgroundMessage =
-  | { type: 'PUBLISH_ORDER'; orderId: string }
+  | { type: 'SEND_REQUEST'; orderId: string; action: RequestAction }
   | { type: 'GET_PUBKEY' };
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, _sender, sendResponse) => {
-  if (message.type === 'PUBLISH_ORDER') {
-    handlePublishOrder(message.orderId).then(sendResponse);
+  if (message.type === 'SEND_REQUEST') {
+    handleSendRequest(message.orderId, message.action).then(sendResponse);
     return true; // async response
   }
 
@@ -72,49 +70,31 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, _sender, sendR
 });
 
 /**
- * 사줘 요청 발행 처리:
+ * 요청 발행 처리:
  * 1. 주문 조회
- * 2. detected 상태면 requested로 전이
- * 3. Nostr 이벤트로 브로드캐스트
+ * 2. kind 1111 요청 이벤트 발행
+ * 3. 발행 성공 시 raw 필드에 서명 이벤트 저장
  */
-async function handlePublishOrder(orderId: string) {
+async function handleSendRequest(orderId: string, action: RequestAction): Promise<RequestResult> {
   try {
     const order = await getOrder(orderId);
     if (!order) {
-      return { success: false, error: 'ORDER_NOT_FOUND' };
+      return { success: false, publishedTo: [], errors: ['ORDER_NOT_FOUND'] };
     }
 
-    // detected → requested 전이
-    if (order.status === 'detected') {
-      const result = await transitionOrderWithRetry(orderId, 'requested');
-      if (!result.success) {
-        return { success: false, error: 'TRANSITION_FAILED', detail: result.error };
-      }
+    const result = await sendRequest(order, action);
 
-      const updatedOrder = await getOrder(orderId);
-      if (!updatedOrder) {
-        return { success: false, error: 'ORDER_NOT_FOUND_AFTER_TRANSITION' };
+    // 발행 성공 시 raw 필드 저장 (요청 전송 완료 표시)
+    if (result.success && result.raw) {
+      const latest = await getOrder(orderId);
+      if (latest) {
+        await saveOrder({ ...latest, raw: result.raw });
       }
-
-      return publishAndSaveRaw(updatedOrder);
     }
 
-    // 이미 requested 이상이면 현재 상태로 재발행 (상태 업데이트 반영)
-    return publishAndSaveRaw(order);
+    return result;
   } catch (err) {
-    console.error('[Background] Publish error:', err);
-    return { success: false, error: String(err) };
+    console.error('[Background] Send request error:', err);
+    return { success: false, publishedTo: [], errors: [String(err)] };
   }
-}
-
-/** 발행 후 서명 이벤트 원본을 주문 저장소에 보존한다. */
-async function publishAndSaveRaw(order: TrackedOrder): Promise<PublishResult> {
-  const result = await publishOrder(order);
-  if (result.success && result.raw) {
-    const latest = await getOrder(order.orderId);
-    if (latest) {
-      await saveOrder({ ...latest, raw: result.raw });
-    }
-  }
-  return result;
 }

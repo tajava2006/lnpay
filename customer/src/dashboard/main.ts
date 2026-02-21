@@ -1,6 +1,5 @@
-import { getAllOrders, getOrder, deleteOrder, clearAllOrders } from '../shared/storage';
-import { getStatusMeta, isFinalStatus, isDeletable } from '../shared/order-states';
-import { transitionOrderWithRetry } from '../shared/state-machine';
+import { getAllOrders, deleteOrder, clearAllOrders } from '../shared/storage';
+import { getDisplayMeta, isFinal, isDeletable } from '../shared/order-states';
 import type { TrackedOrder } from '../shared/types';
 import { createPriceTracker } from '@sajwo-tracker/shared';
 
@@ -9,8 +8,8 @@ async function renderDashboard() {
   const orderArray = Object.values(orders).sort((a, b) => a.virtualAccount.expirationDate - b.virtualAccount.expirationDate); // 만료 임박순
 
   // 통계 업데이트 (활성 주문 vs 완료 주문)
-  const activeCount = orderArray.filter((o) => !isFinalStatus(o.status)).length;
-  const completedCount = orderArray.filter((o) => isFinalStatus(o.status)).length;
+  const activeCount = orderArray.filter((o) => !isFinal(o)).length;
+  const completedCount = orderArray.filter((o) => isFinal(o)).length;
 
   document.getElementById('activeCount')!.textContent = String(activeCount);
   document.getElementById('completedCount')!.textContent = String(completedCount);
@@ -41,7 +40,7 @@ async function renderDashboard() {
     btn.addEventListener('click', async (e) => {
       const orderId = (e.target as HTMLElement).dataset.orderId;
       if (orderId && confirm('이 주문을 삭제하시겠습니까?')) {
-        await deleteAndPublishSold(orderId);
+        await deleteOrder(orderId);
         renderDashboard();
       }
     });
@@ -51,18 +50,18 @@ async function renderDashboard() {
   tbody.querySelectorAll('.btn-publish').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       const orderId = (e.target as HTMLElement).dataset.orderId;
-      if (orderId) publishOrder(orderId, e.target as HTMLButtonElement);
+      if (orderId) sendOrderRequest(orderId, e.target as HTMLButtonElement);
     });
   });
 }
 
 function createTableRow(order: TrackedOrder): string {
-  const statusMeta = getStatusMeta(order.status);
+  const displayMeta = getDisplayMeta(order);
   const amount = order.amount > 0 ? `${order.amount.toLocaleString()}원` : '금액 미확인';
   const date = new Date(order.createdAt).toLocaleDateString('ko-KR');
   const orderUrl = `https://mc.coupang.com/ssr/desktop/order/${order.orderId}`;
-  const showPublish = order.status === 'detected';
-  const canDelete = isDeletable(order.status);
+  const showPublish = !order.raw;
+  const canDelete = isDeletable(order);
 
   return `
     <tr>
@@ -72,10 +71,9 @@ function createTableRow(order: TrackedOrder): string {
       <td>${order.productName}</td>
       <td>${amount}</td>
       <td>
-        <span class="order-status" style="background: ${statusMeta.bgColor}; color: ${statusMeta.textColor};">
-          ${statusMeta.label}
+        <span class="order-status" style="background: ${displayMeta.bgColor}; color: ${displayMeta.textColor};">
+          ${displayMeta.label}
         </span>
-        ${order.status === 'paid' ? `<div style="font-size: 11px; color: #666; margin-top: 4px;">${order.claimedBy ? `후원자: ${order.claimedBy.slice(0, 8)}…` : '자가 입금'}</div>` : ''}
       </td>
       <td>${date}</td>
       <td class="actions">
@@ -86,32 +84,15 @@ function createTableRow(order: TrackedOrder): string {
   `;
 }
 
-/**
- * 주문 삭제 + Nostr sold 이벤트 발행.
- * Nostr에 발행된 주문(raw 존재)이면 cancelled 전이 → sold 재발행 후 삭제.
- * 발행된 적 없으면 로컬 삭제만 수행.
- */
-async function deleteAndPublishSold(orderId: string): Promise<void> {
-  const order = await getOrder(orderId);
-  if (!order) return;
-
-  // Nostr에 발행된 비최종 상태 주문: cancelled 전이 → sold 이벤트 발행
-  if (order.raw && !isFinalStatus(order.status)) {
-    await transitionOrderWithRetry(orderId, 'cancelled');
-    await chrome.runtime.sendMessage({ type: 'PUBLISH_ORDER', orderId });
-  }
-
-  await deleteOrder(orderId);
-}
-
-async function publishOrder(orderId: string, btn: HTMLButtonElement) {
+async function sendOrderRequest(orderId: string, btn: HTMLButtonElement) {
   btn.disabled = true;
   btn.textContent = '요청 중...';
 
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'PUBLISH_ORDER',
+      type: 'SEND_REQUEST',
       orderId,
+      action: 'order-request',
     });
 
     if (response?.success) {
@@ -120,12 +101,12 @@ async function publishOrder(orderId: string, btn: HTMLButtonElement) {
     } else {
       btn.textContent = '실패';
       btn.disabled = false;
-      console.error('[Dashboard] Publish failed:', response?.error);
+      console.error('[Dashboard] Send request failed:', response?.errors);
     }
   } catch (err) {
     btn.textContent = '실패';
     btn.disabled = false;
-    console.error('[Dashboard] Publish error:', err);
+    console.error('[Dashboard] Send request error:', err);
   }
 }
 
@@ -134,7 +115,7 @@ document.getElementById('clearAll')?.addEventListener('click', async () => {
   if (confirm('모든 주문을 삭제하시겠습니까?')) {
     const deleted = await clearAllOrders();
     if (!deleted) {
-      alert('거래 진행 중인 주문(클레임 접수/선택 완료)이 있어 전체 삭제할 수 없습니다.');
+      alert('거래 진행 중인 주문이 있어 전체 삭제할 수 없습니다.');
     }
     renderDashboard();
   }

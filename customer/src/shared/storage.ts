@@ -1,8 +1,7 @@
 /**
  * Chrome Storage 관리
  *
- * 주문 데이터의 CRUD 작업을 담당
- * 상태 전이는 state-machine.ts를 통해 수행
+ * 주문 데이터의 CRUD 작업을 담당.
  */
 
 import type { TrackedOrder, VirtualAccountInfo } from './types';
@@ -20,7 +19,6 @@ export async function getAllOrders(): Promise<Record<string, TrackedOrder>> {
 
 /**
  * 모든 주문 저장 (전체 덮어쓰기)
- * 상태 머신에서 원자적 업데이트에 사용
  */
 export async function setAllOrders(orders: Record<string, TrackedOrder>): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEY]: orders });
@@ -60,8 +58,6 @@ export async function createOrder(orderData: {
     productName: orderData.productName,
     amount: orderData.amount,
     virtualAccount: orderData.virtualAccount,
-    status: 'detected', // 초기 상태
-    version: 1, // 초기 버전
     createdAt: orderData.orderedAt,
   };
 
@@ -72,7 +68,7 @@ export async function createOrder(orderData: {
 }
 
 /**
- * 주문 저장 (기존 호환용, 신규 생성에는 createOrder 사용 권장)
+ * 주문 저장 (기존 주문 갱신용)
  */
 export async function saveOrder(order: TrackedOrder): Promise<void> {
   const orders = await getAllOrders();
@@ -82,13 +78,13 @@ export async function saveOrder(order: TrackedOrder): Promise<void> {
 
 /**
  * 주문 삭제
- * 상대방이 관여된 상태(claimed, selected)에서는 삭제 불가
+ * 상대방이 관여된 상태(claimed, verified, escrowed)에서는 삭제 불가
  */
 export async function deleteOrder(orderId: string): Promise<boolean> {
   const orders = await getAllOrders();
   const order = orders[orderId];
   if (!order) return false;
-  if (!isDeletable(order.status)) return false;
+  if (!isDeletable(order)) return false;
 
   delete orders[orderId];
   await setAllOrders(orders);
@@ -97,11 +93,11 @@ export async function deleteOrder(orderId: string): Promise<boolean> {
 
 /**
  * 모든 주문 삭제
- * 삭제 불가능한 주문(claimed, selected)이 하나라도 있으면 전체 삭제 불가
+ * 삭제 불가능한 주문이 하나라도 있으면 전체 삭제 불가
  */
 export async function clearAllOrders(): Promise<boolean> {
   const orders = await getAllOrders();
-  const hasUndeletable = Object.values(orders).some(o => !isDeletable(o.status));
+  const hasUndeletable = Object.values(orders).some(o => !isDeletable(o));
   if (hasUndeletable) return false;
 
   await chrome.storage.local.remove(STORAGE_KEY);

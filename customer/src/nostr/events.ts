@@ -1,6 +1,6 @@
 import { finalizeEvent } from 'nostr-tools/pure';
 import type { EventTemplate, VerifiedEvent } from 'nostr-tools/core';
-import { SAJWO_REQUEST_KIND, SAJWO_REQUEST_EVENT_KIND, APP_PUBKEY, CLIENT_TAG } from '@sajwo-tracker/shared';
+import { SAJWO_REQUEST_KIND, SAJWO_REQUEST_EVENT_KIND, APP_PUBKEY, CLIENT_TAG, type RequestAction } from '@sajwo-tracker/shared';
 import type { TrackedOrder } from '../shared/types';
 
 /**
@@ -17,7 +17,7 @@ import type { TrackedOrder } from '../shared/types';
  *   ['t', 'sajwo-tracker']                  - 클라이언트 식별
  *   ['p', APP_PUBKEY]                       - Admin 참조
  */
-export function buildOrderRequestEvent(order: TrackedOrder): EventTemplate {
+function buildOrderRequestEvent(order: TrackedOrder): EventTemplate {
   const tags: string[][] = [
     ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
     ['action', 'order-request'],
@@ -38,6 +38,19 @@ export function buildOrderRequestEvent(order: TrackedOrder): EventTemplate {
     tags,
     content: '',
   };
+}
+
+/**
+ * action에 따라 적절한 kind 1111 이벤트를 빌드한다.
+ * 현재는 order-request만 지원. 향후 payment-confirm 등 추가 시 여기에 분기.
+ */
+export function buildRequestEvent(order: TrackedOrder, action: RequestAction): EventTemplate {
+  switch (action) {
+    case 'order-request':
+      return buildOrderRequestEvent(order);
+    default:
+      throw new Error(`Unsupported request action: ${action}`);
+  }
 }
 
 /** EventTemplate을 유저의 secret key로 서명한다. */

@@ -110,7 +110,12 @@
   - 입금 감지(hold invoice accepted) 시 `verified → escrowed` 전이
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악
-- [ ] **분쟁 해결 도구**: 문제 발생 시 중재 기능
+- [ ] **분쟁 해결 도구**: `remitted` 상태의 오더에 대한 Admin 중재 기능
+  - Sponsor가 KRW 송금을 주장(`escrowed → remitted`)한 후 Customer가 입금 확인을 하지 않으면 분쟁 진입
+  - Admin이 Sponsor에게 송금 증거 제출 요구 (스크린샷, 이체 확인서 등)
+  - 증거 타당 → `remitted → sponsor_wins`: hold invoice settle → Sponsor에게 BTC 전달
+  - 증거 불충분 → `remitted → customer_wins`: hold invoice 환불 → Customer BTC 반환
+  - `remitted` 상태에서는 `cancelled` 불가 — 반드시 분쟁 판정으로 종결
 
 ## 스팸/DoS 차단
 

@@ -38,6 +38,12 @@ export const ORDER_STATE_META: Record<OrderState, OrderStateMeta> = {
     textColor: '#7C3AED',
     isFinal: false,
   },
+  remitted: {
+    label: '송금 주장',
+    bgColor: '#FCE7F3',
+    textColor: '#BE185D',
+    isFinal: false,
+  },
   paid: {
     label: '완료',
     bgColor: '#D1FAE5',
@@ -48,6 +54,18 @@ export const ORDER_STATE_META: Record<OrderState, OrderStateMeta> = {
     label: '취소',
     bgColor: '#F3F4F6',
     textColor: '#6B7280',
+    isFinal: true,
+  },
+  sponsor_wins: {
+    label: '후원자 승리',
+    bgColor: '#CCFBF1',
+    textColor: '#0F766E',
+    isFinal: true,
+  },
+  customer_wins: {
+    label: '고객 승리',
+    bgColor: '#CFFAFE',
+    textColor: '#0E7490',
     isFinal: true,
   },
 };

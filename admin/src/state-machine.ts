@@ -12,17 +12,25 @@ import type { OrderState } from '@sajwo-tracker/shared';
 /**
  * 허용된 상태 전이 맵
  *
- * requested → claimed → verified → escrowed → paid
+ * requested → claimed → verified → escrowed ─→ remitted ─→ paid
+ *                                     │                ├──→ sponsor_wins
+ *                                     └──→ paid        └──→ customer_wins
  *
- * cancelled: paid를 제외한 모든 상태에서 전이 가능 (터미널)
+ * cancelled: remitted를 제외한 비터미널 상태에서 전이 가능
+ *   (remitted는 반드시 분쟁 판정 경로로 종결: paid / sponsor_wins / customer_wins)
+ *
+ * 터미널: paid, cancelled, sponsor_wins, customer_wins
  */
 const TRANSITIONS: Record<OrderState, readonly OrderState[]> = {
   requested: ['claimed', 'cancelled'],
   claimed: ['verified', 'cancelled'],
   verified: ['escrowed', 'cancelled'],
-  escrowed: ['paid', 'cancelled'],
+  escrowed: ['remitted', 'paid', 'cancelled'],
+  remitted: ['paid', 'sponsor_wins', 'customer_wins'],
   paid: [],
   cancelled: [],
+  sponsor_wins: [],
+  customer_wins: [],
 };
 
 export function canTransition(from: OrderState, to: OrderState): boolean {

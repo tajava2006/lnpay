@@ -118,8 +118,12 @@ Admin이 유일한 발행자이므로 모든 오더의 주소에 Admin pubkey가
 ### 상태 머신 (Admin 단일 FSM)
 
 ```
-requested → claimed → verified → escrowed → paid
-                ↘ rejected        ↘ cancelled
+requested → claimed → verified → escrowed ─→ remitted ─→ paid
+                                    │                ├──→ sponsor_wins
+                                    └──→ paid        └──→ customer_wins
+
+cancelled: remitted를 제외한 비터미널 상태에서 전이 가능
+터미널: paid, cancelled, sponsor_wins, customer_wins
 ```
 
 | 상태 | 의미 | NIP-99 status |
@@ -128,24 +132,31 @@ requested → claimed → verified → escrowed → paid
 | `claimed` | Sponsor가 클레임, Admin이 수락 | `active` |
 | `verified` | Admin이 유동성 검증 완료 | `active` |
 | `escrowed` | Customer가 hold invoice 결제, BTC 에스크로 중 | `active` |
-| `paid` | 거래 완료 (최종) | `sold` |
-| `rejected` | 거절 (최종) | `sold` |
-| `cancelled` | 취소 (최종) | `sold` |
+| `remitted` | Sponsor가 KRW 송금했다고 주장 | `active` |
+| `paid` | 거래 완료 — Customer가 입금 확인 (최종) | `sold` |
+| `cancelled` | 취소 — 거래 불발 (최종) | `sold` |
+| `sponsor_wins` | 분쟁: 후원자 승리 — Admin이 송금 증거 확인, hold invoice settle (최종) | `sold` |
+| `customer_wins` | 분쟁: 고객 승리 — 송금 증거 불충분, hold invoice 환불 (최종) | `sold` |
 
 상태 전이 규칙:
 
 | from | to | 트리거 |
 |------|-----|--------|
 | requested | claimed | Sponsor claim 수신 + Admin 수락 |
-| requested | rejected | Admin 거절 |
 | requested | cancelled | 만료 또는 Customer 취소 |
 | claimed | verified | Admin 유동성 검증 완료 |
-| claimed | rejected | 유동성 검증 실패 |
-| claimed | requested | 클레임 타임아웃 (원복) |
+| claimed | cancelled | 만료 또는 취소 |
 | verified | escrowed | Customer hold invoice 결제 |
 | verified | cancelled | Customer 이탈 |
-| escrowed | paid | KRW 입금 확인, settle |
-| escrowed | cancelled | 분쟁, cancel invoice |
+| escrowed | remitted | Sponsor가 KRW 송금 완료 주장 |
+| escrowed | paid | Customer가 직접 입금 확인 (Sponsor 시그널 없이) |
+| escrowed | cancelled | Sponsor 미행동 타임아웃, hold invoice 환불 |
+| remitted | paid | Customer가 입금 확인 |
+| remitted | sponsor_wins | 분쟁: Admin이 송금 증거 확인 → hold invoice settle → Sponsor에게 BTC 전달 |
+| remitted | customer_wins | 분쟁: 증거 불충분 → hold invoice 환불 → Customer BTC 반환 |
+
+> `remitted` 상태에서는 `cancelled`로 전이할 수 없다.
+> Sponsor가 송금을 주장한 이상 분쟁 판정(paid / sponsor_wins / customer_wins)으로만 종결된다.
 
 > `state` 태그는 다중 문자이므로 릴레이 인덱싱이 보장되지 않는다.
 > 필터링은 클라이언트 사이드에서 수행한다.

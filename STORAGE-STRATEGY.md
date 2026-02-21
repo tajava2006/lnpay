@@ -90,19 +90,24 @@
 
 **상태 머신 (Admin 단일 FSM):**
 
-현재 3개 앱에 분산된 상태 전이를 하나로 통합한다. 세부 설계는 구현 시 확정하되, 큰 흐름은:
-
 ```
-requested → claimed → verified → escrowed → paid
-                ↘ rejected        ↘ cancelled
+requested → claimed → verified → escrowed ─→ remitted ─→ paid
+                                    │                ├──→ sponsor_wins
+                                    └──→ paid        └──→ customer_wins
+
+cancelled: remitted를 제외한 비터미널 상태에서 전이 가능
+터미널: paid, cancelled, sponsor_wins, customer_wins
 ```
 
 - `requested`: Customer가 사줘 요청을 보냄, Admin이 오더 생성
 - `claimed`: Sponsor가 클레임, Admin이 수락
 - `verified`: Admin이 유동성 검증 완료
 - `escrowed`: Customer가 hold invoice 결제, BTC 에스크로 중
+- `remitted`: Sponsor가 KRW 송금했다고 주장
 - `paid`: 거래 완료 (최종)
-- `rejected` / `cancelled`: 거절/취소 (최종)
+- `cancelled`: 취소 (최종)
+- `sponsor_wins`: 분쟁 — 후원자 승리, hold invoice settle (최종)
+- `customer_wins`: 분쟁 — 고객 승리, hold invoice 환불 (최종)
 
 `state` 태그는 다중 문자이므로 릴레이 인덱싱이 보장되지 않는다. 필터링은 클라이언트 사이드에서 수행한다. `status` 태그(`active`/`sold`)는 NIP-99 호환을 위해 유지한다.
 

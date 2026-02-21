@@ -66,11 +66,11 @@ export async function publishOrder(order: Order): Promise<object> {
 
 /**
  * FSM 상태 → NIP-99 listing status 매핑
- * 최종 상태(paid, cancelled)는 'sold', 나머지는 'active'.
+ * 터미널 상태(paid, cancelled, sponsor_wins, customer_wins)는 'sold', 나머지는 'active'.
  */
 function toListingStatus(state: OrderState): 'active' | 'sold' {
-  if (state === 'paid' || state === 'cancelled') {
-    return 'sold';
-  }
-  return 'active';
+  const TERMINAL: ReadonlySet<OrderState> = new Set([
+    'paid', 'cancelled', 'sponsor_wins', 'customer_wins',
+  ]);
+  return TERMINAL.has(state) ? 'sold' : 'active';
 }

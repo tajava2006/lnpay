@@ -24,8 +24,11 @@ const stateLabel: Record<string, string> = {
   claimed: '클레임됨',
   verified: '검증됨',
   escrowed: '에스크로',
+  remitted: '송금 주장',
   paid: '완료',
   cancelled: '취소',
+  sponsor_wins: '후원자 승리',
+  customer_wins: '고객 승리',
 };
 
 const stateColor: Record<string, string> = {
@@ -33,8 +36,11 @@ const stateColor: Record<string, string> = {
   claimed: '#2563EB',
   verified: '#4F46E5',
   escrowed: '#7C3AED',
+  remitted: '#BE185D',
   paid: '#059669',
   cancelled: '#6B7280',
+  sponsor_wins: '#0F766E',
+  customer_wins: '#0E7490',
 };
 
 const stateBg: Record<string, string> = {
@@ -42,8 +48,11 @@ const stateBg: Record<string, string> = {
   claimed: '#DBEAFE',
   verified: '#E0E7FF',
   escrowed: '#EDE9FE',
+  remitted: '#FCE7F3',
   paid: '#D1FAE5',
   cancelled: '#F3F4F6',
+  sponsor_wins: '#CCFBF1',
+  customer_wins: '#CFFAFE',
 };
 
 function formatDate(unixSeconds: number): string {

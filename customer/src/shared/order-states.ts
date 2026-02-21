@@ -46,6 +46,12 @@ const ADMIN_STATE_META: Record<OrderState, DisplayMeta> = {
     textColor: '#7C3AED',
     isFinal: false,
   },
+  remitted: {
+    label: '송금 확인 대기',
+    bgColor: '#FCE7F3',
+    textColor: '#BE185D',
+    isFinal: false,
+  },
   paid: {
     label: '완료',
     bgColor: '#D1FAE5',
@@ -56,6 +62,18 @@ const ADMIN_STATE_META: Record<OrderState, DisplayMeta> = {
     label: '취소',
     bgColor: '#F3F4F6',
     textColor: '#6B7280',
+    isFinal: true,
+  },
+  sponsor_wins: {
+    label: '후원자 승리',
+    bgColor: '#CCFBF1',
+    textColor: '#0F766E',
+    isFinal: true,
+  },
+  customer_wins: {
+    label: '환불 완료',
+    bgColor: '#CFFAFE',
+    textColor: '#0E7490',
     isFinal: true,
   },
 };
@@ -98,7 +116,7 @@ export function isFinal(order: TrackedOrder): boolean {
 /**
  * 삭제 불가: 상대방이 관여된 거래 진행 중 (claimed, verified, escrowed)
  */
-const UNDELETABLE_STATES: ReadonlySet<OrderState> = new Set(['claimed', 'verified', 'escrowed']);
+const UNDELETABLE_STATES: ReadonlySet<OrderState> = new Set(['claimed', 'verified', 'escrowed', 'remitted']);
 
 /**
  * 주문 삭제 가능 여부 확인

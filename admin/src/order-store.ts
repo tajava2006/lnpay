@@ -72,9 +72,10 @@ export function updateOrderState(
   }
 
   const now = Math.floor(Date.now() / 1000);
-  const status = (to === 'paid' || to === 'cancelled')
-    ? 'sold' as const
-    : 'active' as const;
+  const TERMINAL_STATES: ReadonlySet<OrderState> = new Set([
+    'paid', 'cancelled', 'sponsor_wins', 'customer_wins',
+  ]);
+  const status = TERMINAL_STATES.has(to) ? 'sold' as const : 'active' as const;
 
   orders = {
     ...orders,

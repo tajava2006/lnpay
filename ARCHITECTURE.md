@@ -402,6 +402,9 @@ LN 설정 미존재 시 Lightning 기능이 비활성화되고 기존 클레임 
 
 **향후 구현:**
 - **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
+- **분쟁 해결**: Sponsor가 KRW 송금 주장(`remitted`) 후 Customer 미확인 시 Admin이 증거 기반 중재
+  - 증거 타당 → `sponsor_wins` (hold invoice settle)
+  - 증거 불충분 → `customer_wins` (hold invoice 환불)
 - **Customer fidelity bond**: 사줘 요청 시 주문 금액 일부를 hold invoice로 선납 (스팸 차단)
 - **Sponsor 블랙리스트**: Lightning 노드 pubkey 기반 트롤링 차단
 - **릴레이 목록 관리**: kind 10002 이벤트 발행/수정

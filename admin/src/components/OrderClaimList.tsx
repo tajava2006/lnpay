@@ -25,8 +25,11 @@ const stateLabel: Record<string, string> = {
   claimed: '클레임됨',
   verified: '검증됨',
   escrowed: '에스크로',
+  remitted: '송금 주장',
   paid: '완료',
   cancelled: '취소',
+  sponsor_wins: '후원자 승리',
+  customer_wins: '고객 승리',
 };
 
 export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {

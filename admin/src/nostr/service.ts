@@ -7,6 +7,8 @@
  * action별 자동 처리:
  * - order-request: 오더 생성 + kind 30402 발행
  * - claim: 오더 상태 전이 (requested → claimed) + kind 30402 갱신
+ * - payment-confirm: Customer 입금 확인 → paid 전이 + kind 30402 갱신
+ * - cancel-request: Customer 취소 요청 → cancelled 전이 + kind 30402 갱신
  *
  * Admin UI 트리거:
  * - approveOrder: 클레임 승인 (claimed → verified) + kind 30402 갱신
@@ -39,6 +41,10 @@ export async function startAdminSubscription(): Promise<void> {
         void handleOrderRequest(request);
       } else if (request.action === 'claim') {
         void handleClaim(request);
+      } else if (request.action === 'payment-confirm') {
+        void handlePaymentConfirm(request);
+      } else if (request.action === 'cancel-request') {
+        void handleCancelRequest(request);
       }
     },
     onOrder: (event) => {
@@ -130,6 +136,80 @@ async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
     console.log('[Admin] Auto-created order', request.orderId, 'from order-request');
   } catch (e) {
     console.error('[Admin] Failed to publish order for', request.orderId, e);
+  }
+}
+
+/**
+ * payment-confirm 수신 시 오더를 paid로 전이하고 kind 30402를 갱신 발행한다.
+ * escrowed 또는 remitted 상태에서 전이 가능 (Customer의 자동 파싱으로 입금 감지).
+ */
+async function handlePaymentConfirm(request: ProcessedRequest): Promise<void> {
+  const order = getOrder(request.orderId);
+  if (!order) return;
+
+  if (order.customerPubkey !== request.pubkey) {
+    console.warn('[Admin] payment-confirm pubkey mismatch for', request.orderId);
+    return;
+  }
+
+  if (!canTransition(order.state, 'paid')) {
+    console.warn('[Admin] Cannot transition to paid for', request.orderId, '- current state:', order.state);
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const updatedOrder: Order = {
+    ...order,
+    state: 'paid',
+    status: 'sold',
+    updatedAt: now,
+  };
+
+  upsertOrder(updatedOrder);
+
+  try {
+    const signed = await publishOrder(updatedOrder);
+    upsertOrder({ ...updatedOrder, raw: signed, updatedAt: now });
+    console.log('[Admin] Order', request.orderId, 'paid (payment-confirm from customer)');
+  } catch (e) {
+    console.error('[Admin] Failed to publish paid order for', request.orderId, e);
+  }
+}
+
+/**
+ * cancel-request 수신 시 오더를 cancelled로 전이하고 kind 30402를 갱신 발행한다.
+ * remitted 상태에서는 전이 불가 (분쟁 판정 경로로만 종결).
+ */
+async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
+  const order = getOrder(request.orderId);
+  if (!order) return;
+
+  if (order.customerPubkey !== request.pubkey) {
+    console.warn('[Admin] cancel-request pubkey mismatch for', request.orderId);
+    return;
+  }
+
+  if (!canTransition(order.state, 'cancelled')) {
+    console.warn('[Admin] Cannot cancel order', request.orderId, '- current state:', order.state);
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const updatedOrder: Order = {
+    ...order,
+    state: 'cancelled',
+    status: 'sold',
+    updatedAt: now,
+  };
+
+  upsertOrder(updatedOrder);
+
+  try {
+    const signed = await publishOrder(updatedOrder);
+    upsertOrder({ ...updatedOrder, raw: signed, updatedAt: now });
+    console.log('[Admin] Order', request.orderId, 'cancelled (cancel-request from customer)');
+  } catch (e) {
+    console.error('[Admin] Failed to publish cancelled order for', request.orderId, e);
   }
 }
 

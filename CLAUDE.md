@@ -59,7 +59,7 @@ sajwo-tracker/              ← pnpm workspace 모노레포
 
 - **Nostr 프로토콜**: 탈중앙화 P2P 통신. kind 30402 (NIP-99 Classified Listing) addressable event 사용.
 - **StorageAdapter 패턴**: chrome.storage.local과 localStorage의 차이를 인터페이스로 추상화.
-- **상태 머신**: 에스크로 거래의 상태 전이를 FSM + optimistic locking으로 관리.
+- **상태 머신**: 에스크로 거래의 상태 전이를 Admin 단일 FSM으로 관리. 발행 우선 패턴 (publish → 릴레이 에코로 로컬 반영).
 - **pubkey 검증**: 같은 orderId라도 최초 발행자만 갱신/삭제 가능.
 - **NIP-65 Outbox Model**: kind 10002에서 읽기/쓰기 릴레이를 분리 파싱. 이벤트 성격에 따라 릴레이 선택:
   - ① 비즈니스 이벤트 (주문 kind 30402, 클레임 kind 1111) → **읽기 릴레이** (Customer/Sponsor가 write, 모두가 read)
@@ -93,8 +93,7 @@ nostr/service.ts (릴레이 구독) → order-store.ts (localStorage + notify) �
 
 ## 주요 참고 문서
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — 전체 시스템 구조, 거래 흐름, 에스크로 역할
+- [ARCHITECTURE.md](ARCHITECTURE.md) — 전체 시스템 구조, 거래 흐름, 에스크로 역할, 저장소 이중화
 - [PROTOCOL.md](PROTOCOL.md) — Nostr 이벤트 명세, 태그 구조, 구독 필터, 클레임 흐름
 - [TODO.md](TODO.md) — 미구현 기능 목록
-- [STORAGE-STRATEGY.md](STORAGE-STRATEGY.md) — 영구저장소 이중화 전략 (localStorage + IndexedDB)
 - [.specify/memory/constitution.md](.specify/memory/constitution.md) — 개발 헌법 상세

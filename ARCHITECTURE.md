@@ -372,7 +372,9 @@ LND와 CLN 어느 구현체든 대응할 수 있도록 `LightningAdapter` 인터
 interface LightningAdapter {
   getInfo(): Promise<NodeInfo>;
   decodeInvoice(bolt11: string): Promise<DecodedInvoice>;
-  probe(destination: string, amountSat: number, finalCltvDelta?: number, routeHints?: RouteHintHop[][]): Promise<ProbeResult>;
+  probe(destination, amountSat, finalCltvDelta?, routeHints?): Promise<ProbeResult>;
+  createHoldInvoice(orderId, amountSat, expiry?): Promise<HoldInvoiceResult>;
+  lookupHoldInvoice(paymentHash): Promise<HoldInvoiceStatus>;
 }
 ```
 
@@ -401,7 +403,6 @@ LN 설정 미존재 시 Lightning 기능이 비활성화되고 기존 클레임 
 - **BTC/KRW 실시간 가격**: 업비트/빗썸/코인원 WebSocket
 
 **향후 구현:**
-- **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
 - **분쟁 해결**: Sponsor가 KRW 송금 주장(`remitted`) 후 Customer 미확인 시 Admin이 증거 기반 중재
   - 증거 타당 → `sponsor_wins` (hold invoice settle)
   - 증거 불충분 → `customer_wins` (hold invoice 환불)
@@ -418,23 +419,29 @@ admin/
   vite.config.ts          - React + nodePolyfills, dev 서버 포트 5175
   src/
     main.tsx              - React 엔트리
-    App.tsx               - 메인 레이아웃, PriceTracker + NodeTracker 관리
-    types.ts              - ClaimEvent, DecodedBolt11, OrderRef 타입 + 파서
-    claim-store.ts        - 클레임 반응형 스토어 (localStorage)
-    order-store.ts        - 주문 참조 스토어 (localStorage)
+    App.tsx               - 메인 레이아웃, PriceTracker + NodeTracker + InvoiceWatcher 관리
+    types.ts              - ProcessedRequest, DecodedBolt11, Invoice 타입 + 파서
+    state-machine.ts      - 통합 FSM (canTransition, 상태 전이 맵)
+    order-store.ts        - 오더 반응형 스토어 (localStorage, useSyncExternalStore)
+    request-store.ts      - 요청 반응형 스토어 (localStorage, useSyncExternalStore)
+    escrow-store.ts       - 프리이미지 저장소 (localStorage, settle 권한)
+    idb-store.ts          - IndexedDB 장기 저장소 (에스크로 이후 오더+요청 보존)
+    invoice-watcher.ts    - hold invoice 결제 감시 (15초 폴링, verified→escrowed 자동 전이)
+    cleanup.ts            - 만료 삭제 스케줄러 (60초 주기, order+request+escrow 연쇄 삭제)
     nostr/
       storage.ts          - StorageAdapter
       nip46.ts            - NIP-46 원격 서명 (BunkerSigner 세션 관리)
-      ln-config.ts        - NIP-78 LN 설정 타입, 발행, 구독, 복호화
+      ln-config.ts        - NIP-78 LN 설정 타입, 발행
       ln-config-service.ts - LN 설정 구독 서비스 (쓰기 릴레이)
       subscribe.ts        - kind 1111 + 30402 구독
-      service.ts          - 구독 시작/중지
+      service.ts          - 구독 서비스 + 자동 처리 핸들러 + IndexedDB 동기화
+      publish.ts          - kind 30402 오더 발행 (NIP-46 서명)
     lightning/
-      types.ts            - NodeInfo, DecodedInvoice, ProbeResult, LnConnectionConfig
-      adapter.ts          - LightningAdapter 인터페이스 (getInfo, decodeInvoice, probe)
-      lnd.ts              - LND REST 어댑터 (브라우저에서 직접 호출)
-      cln.ts              - CLN clnrest 어댑터 (브라우저에서 직접 호출)
-      node-tracker.ts     - 폴링 트래커 (useSyncExternalStore 호환)
+      types.ts            - NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus
+      adapter.ts          - LightningAdapter 인터페이스
+      lnd.ts              - LND REST 어댑터 (getInfo, probe, createHoldInvoice, lookupHoldInvoice)
+      cln.ts              - CLN clnrest 어댑터 (hold invoice 미지원)
+      node-tracker.ts     - 노드 상태 폴링 트래커 (30초, useSyncExternalStore)
       index.ts            - 팩토리 (LnConfig → LightningAdapter) + re-exports
     components/
       LoginScreen.tsx     - NIP-46 로그인 화면
@@ -446,6 +453,32 @@ admin/
       BtcPrice.tsx        - BTC/KRW 실시간 가격
       NodeStatus.tsx      - Lightning 노드 연결 상태
 ```
+
+#### Admin 저장소 이중화
+
+Admin은 **localStorage**(실시간 큐)와 **IndexedDB**(장기 보존)를 이중으로 운영한다.
+
+```
+localStorage: 실시간 오더/요청 큐 (만료 시 공격적 삭제)
+IndexedDB:    에스크로 책임이 있는 오더 (verified → escrowed 진입 이후)
+```
+
+**IndexedDB 스키마** (DB: `admin-history`, ver 1):
+
+`orders` 스토어 — PK: `orderId`, 인덱스: `createdAt`, `[state, createdAt]`
+`requests` 스토어 — PK: `eventId`, 인덱스: `orderId`
+
+레코드 형식은 localStorage와 동일 (Order, ProcessedRequest 타입 그대로 저장).
+
+**이관 트리거**: `invoice-watcher.ts`에서 `verified → escrowed` 전이 시 해당 오더 + 연관 requests를 `idbMigrateOrder()`로 원자적 일괄 저장.
+
+**동기화 전략**: 릴레이에서 오더/요청 수신 시 (`service.ts` onOrder/onRequest):
+1. localStorage에 upsert
+2. 해당 orderId로 IndexedDB 조회
+3. 존재하면 → IndexedDB에도 upsert (관리 대상)
+4. 미존재 → 무시 (아직 에스크로 전)
+
+**삭제 전략**: localStorage는 `cleanup.ts`가 60초마다 만료 오더+요청+에스크로를 삭제. IndexedDB는 삭제하지 않는다 (장기 보존 목적).
 
 ## 기술 스택
 
@@ -463,4 +496,3 @@ admin/
 
 - [PROTOCOL.md](PROTOCOL.md) - Nostr 이벤트 프로토콜 명세 (3개 앱 공통)
 - [TODO.md](TODO.md) - 향후 구현 계획
-- [STORAGE-STRATEGY.md](STORAGE-STRATEGY.md) - 영구저장소 이중화 전략 (localStorage + IndexedDB)

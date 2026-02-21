@@ -56,10 +56,9 @@
 - [x] **요청 대기열**: kind 1111 요청 수신 (order-request, claim) + kind 30402 오더 발행/관리, 승인/거절 UI
 - [x] **통합 FSM**: Admin 단일 상태 머신 (`requested → claimed → verified → escrowed → paid`, `rejected`/`cancelled` 분기)
 - [x] **kind 30402 오더 발행**: order-request 수신 시 자동 오더 생성, 상태 전이 시 갱신 발행
-- [ ] **payment-confirm / cancel-request 핸들러**: Customer가 쿠팡에서 입금완료/취소를 감지하면 kind 1111로 통보함
-  - 현재: request-store에 저장만 되고 처리 로직 없음 (`admin/src/nostr/service.ts`에서 `order-request`만 분기)
-  - `payment-confirm` 수신 시: escrowed 상태 오더에 대해 입금 확인 플래그 표시 또는 자동 전이
-  - `cancel-request` 수신 시: 해당 오더를 cancelled로 전이 (진행 중인 에스크로가 아닌 경우)
+- [x] **payment-confirm / cancel-request 핸들러**: `admin/src/nostr/service.ts`에서 자동 처리
+  - `payment-confirm` 수신 시: escrowed/remitted → paid 자동 전이
+  - `cancel-request` 수신 시: remitted 제외 비터미널 상태 → cancelled 전이
 - [x] **Lightning 노드 연결**: LND/CLN 어댑터 패턴, 브라우저에서 직접 LN REST API 호출
   - `LightningAdapter` 인터페이스 (getInfo, decodeInvoice, probe)
   - LND: `GET /v1/getinfo` + macaroon 인증 / CLN: `POST /v1/getinfo` + rune 인증
@@ -73,41 +72,40 @@
   - LND: `/v2/router/send` + 랜덤 hash / CLN: `getroute` + `sendpay`/`waitsendpay`
 - [x] ~~**Vite dev 서버 LN 프록시**~~: 제거됨 — 브라우저에서 직접 LN REST 호출로 전환
 
-### 순수 프론트엔드 전환 (진행 중)
+### 순수 프론트엔드 전환 — 완료
 
-- [ ] **NIP-46 인증**: `.env` 기반 `APP_SECRET_KEY` 제거 → NIP-46 원격 서명자 연동
-  - 개인키가 브라우저에 노출되지 않음 (nsecBunker 등에 위임)
-  - `/__admin_config` Vite dev 미들웨어 의존성 완전 제거
-- [ ] **암호화된 LN 설정 저장소**: `VITE_LN_*` 환경변수 제거 → Nostr 릴레이에 암호화 저장
-  - LN URL, 인증정보(macaroon/rune), 구현체 종류를 릴레이에 암호화하여 저장
-  - 앱 시작 시 NIP-46 인증 후 복호화하여 메모리(React 상태)에서만 유지
-  - 프로덕션 빌드에 민감 정보 미포함 → 정적 SPA로 자유롭게 배포 가능
+- [x] **NIP-46 인증**: `.env` 기반 `APP_SECRET_KEY` 제거 → NIP-46 원격 서명자 연동
+  - `admin/src/nostr/nip46.ts`: BunkerSigner 세션 관리, 로그인/복원/클리어
+- [x] **암호화된 LN 설정 저장소**: `VITE_LN_*` 환경변수 제거 → Nostr 릴레이에 암호화 저장
+  - `admin/src/nostr/ln-config.ts` + `ln-config-service.ts`: NIP-78 + NIP-44 암호화
+  - 메모리(React 상태)에서만 유지, 프로덕션 빌드에 민감 정보 미포함
 
-### 저장소 이중화 (Phase 2~3)
+### 저장소 이중화
 
 - [x] **localStorage 삭제 전략 단순화 (Phase 2)**: 만료 오더 + 연관 요청 공격적 삭제
-  - Admin: `cleanup.ts` 스케줄러가 order-store + request-store 연쇄 삭제 (60초 주기)
+  - Admin: `cleanup.ts` 스케줄러가 order-store + request-store + escrow-store 연쇄 삭제 (60초 주기)
   - Sponsor: `order-store.ts` 내장 스케줄러로 만료 오더 삭제 (60초 주기)
   - 삭제 기준: `expiration > 0 && expiration <= now` (상태 무관)
-- [ ] **IndexedDB 도입 (Phase 3)**: 에스크로 책임이 있는 오더의 영구 저장
-  - `orders` + `requests` 오브젝트 스토어
-  - 에스크로 진입 시점에 localStorage → IndexedDB 이동
-  - 히스토리 UI (커서 기반 페이지네이션, 상태 필터)
-  - 상세 설계: STORAGE-STRATEGY.md 섹션 6 참조
+- [x] **IndexedDB 핵심 구현 (Phase 3)**: `admin/src/idb-store.ts`
+  - `orders` + `requests` 오브젝트 스토어 (DB: `admin-history`)
+  - `invoice-watcher.ts`에서 verified → escrowed 전이 시 원자적 이관
+  - `service.ts`에서 릴레이 수신 시 자동 동기화
+  - 상세 설계: ARCHITECTURE.md "Admin 저장소 이중화" 섹션 참조
+- [ ] **히스토리 UI**: IndexedDB 데이터를 보는 별도 화면
+  - 커서 기반 페이지네이션 (`[state, createdAt]` 복합 인덱스 활용)
+  - 상태 필터 지원
 
 ### 기타
 
-- [ ] **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
-  - Admin이 hold invoice 생성 (프리이미지 보유 = settle 권한)
-  - Customer가 hold invoice 결제 → BTC가 HTLC에 잠김
-  - KRW 입금 확인 후 Admin이 settle → BTC 수령 → Sponsor에게 전송
-  - 문제 발생 시 settle 안 함 → CLTV timeout 후 Customer에게 자동 환불
-  - `LightningEscrow` 인터페이스로 LND/CLN 구현체 독립
-  - LND: `AddHoldInvoice` + `SettleInvoice` / CLN: `invoice` (hold) + `holdinvoice` 플러그인
-- [ ] **verified 전이 시 hold invoice 첨부**: `approveOrder` 실행 시 Admin LN 노드에서 hold invoice 생성 후 kind 30402 이벤트에 `['bolt11', invoice]` 태그로 첨부
-  - Customer가 `state: verified` + `bolt11` 태그를 수신하면 해당 인보이스에 입금
-  - 별도 알림 채널 불필요 — 오더 이벤트가 단일 진실 소스
-  - 입금 감지(hold invoice accepted) 시 `verified → escrowed` 전이
+- [x] **에스크로 관리**: Hold invoice로 Customer BTC 에스크로
+  - `createHoldInvoice`: 프리이미지 생성 → SHA-256 → LND `/v2/invoices/hodl`
+  - `lookupHoldInvoice`: LND `/v1/invoice/{hash}` 상태 조회
+  - `escrow-store.ts`: 프리이미지 localStorage 보관 (릴레이 미노출)
+  - `invoice-watcher.ts`: 15초 폴링으로 accepted 감지 → escrowed 자동 전이
+  - 미구현: `settleInvoice` (프리이미지 제출로 BTC 수령), Sponsor에 BTC 전송
+- [x] **verified 전이 시 hold invoice 첨부**: `approveOrder` 실행 시 hold invoice 생성 후 `['bolt11', invoice]` 태그 첨부
+  - 인보이스 만료 = 오더 만료와 통일
+  - 입금 감지(hold invoice accepted) 시 `verified → escrowed` 자동 전이
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악
 - [ ] **분쟁 해결 도구**: `remitted` 상태의 오더에 대한 Admin 중재 기능

@@ -44,12 +44,6 @@ export const ORDER_STATE_META: Record<OrderState, OrderStateMeta> = {
     textColor: '#065F46',
     isFinal: true,
   },
-  rejected: {
-    label: '거절',
-    bgColor: '#FEE2E2',
-    textColor: '#991B1B',
-    isFinal: true,
-  },
   cancelled: {
     label: '취소',
     bgColor: '#F3F4F6',

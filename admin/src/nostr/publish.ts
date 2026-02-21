@@ -66,10 +66,10 @@ export async function publishOrder(order: Order): Promise<object> {
 
 /**
  * FSM 상태 → NIP-99 listing status 매핑
- * 최종 상태(paid, rejected, cancelled)는 'sold', 나머지는 'active'.
+ * 최종 상태(paid, cancelled)는 'sold', 나머지는 'active'.
  */
 function toListingStatus(state: OrderState): 'active' | 'sold' {
-  if (state === 'paid' || state === 'rejected' || state === 'cancelled') {
+  if (state === 'paid' || state === 'cancelled') {
     return 'sold';
   }
   return 'active';

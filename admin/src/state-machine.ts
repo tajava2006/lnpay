@@ -13,15 +13,14 @@ import type { OrderState } from '@sajwo-tracker/shared';
  * 허용된 상태 전이 맵
  *
  * requested → claimed → verified → escrowed → paid
- *                 ↘ rejected        ↘ cancelled
+ *                                       ↘ cancelled
  */
 const TRANSITIONS: Record<OrderState, readonly OrderState[]> = {
-  requested: ['claimed', 'rejected', 'cancelled'],
-  claimed: ['verified', 'rejected', 'requested'],
+  requested: ['claimed', 'cancelled'],
+  claimed: ['verified', 'requested'],
   verified: ['escrowed', 'cancelled'],
   escrowed: ['paid', 'cancelled'],
   paid: [],
-  rejected: [],
   cancelled: [],
 };
 

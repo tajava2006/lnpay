@@ -25,7 +25,6 @@ const stateLabel: Record<string, string> = {
   verified: '검증됨',
   escrowed: '에스크로',
   paid: '완료',
-  rejected: '거절',
   cancelled: '취소',
 };
 
@@ -35,7 +34,6 @@ const stateColor: Record<string, string> = {
   verified: '#4F46E5',
   escrowed: '#7C3AED',
   paid: '#059669',
-  rejected: '#DC2626',
   cancelled: '#6B7280',
 };
 
@@ -45,7 +43,6 @@ const stateBg: Record<string, string> = {
   verified: '#E0E7FF',
   escrowed: '#EDE9FE',
   paid: '#D1FAE5',
-  rejected: '#FEE2E2',
   cancelled: '#F3F4F6',
 };
 

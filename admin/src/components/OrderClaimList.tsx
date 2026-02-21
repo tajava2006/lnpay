@@ -26,7 +26,6 @@ const stateLabel: Record<string, string> = {
   verified: '검증됨',
   escrowed: '에스크로',
   paid: '완료',
-  rejected: '거절',
   cancelled: '취소',
 };
 

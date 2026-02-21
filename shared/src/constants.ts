@@ -43,7 +43,6 @@ export const ORDER_STATES = {
   VERIFIED: 'verified',
   ESCROWED: 'escrowed',
   PAID: 'paid',
-  REJECTED: 'rejected',
   CANCELLED: 'cancelled',
 } as const;
 export type OrderState = typeof ORDER_STATES[keyof typeof ORDER_STATES];

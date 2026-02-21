@@ -72,7 +72,7 @@ export function updateOrderState(
   }
 
   const now = Math.floor(Date.now() / 1000);
-  const status = (to === 'paid' || to === 'rejected' || to === 'cancelled')
+  const status = (to === 'paid' || to === 'cancelled')
     ? 'sold' as const
     : 'active' as const;
 

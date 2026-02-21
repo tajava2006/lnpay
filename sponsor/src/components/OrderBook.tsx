@@ -8,7 +8,7 @@ interface Props {
   tracker: PriceTracker;
 }
 
-const TERMINAL_STATES = new Set(['paid', 'rejected', 'cancelled']);
+const TERMINAL_STATES = new Set(['paid', 'cancelled']);
 
 export function OrderBook({ tracker }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);

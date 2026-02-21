@@ -5,6 +5,7 @@ import {
 } from './nostr/nip46';
 import { startLnConfigSubscription, stopLnConfigSubscription, decryptLnConfig } from './nostr/ln-config-service';
 import { startCleanup, stopCleanup } from './cleanup';
+import { startInvoiceWatcher, stopInvoiceWatcher } from './invoice-watcher';
 import type { LnConfig } from './nostr/ln-config';
 import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
@@ -58,11 +59,13 @@ export function App() {
   useEffect(() => {
     if (!lnAdapter) {
       setNodeTracker(null);
+      stopInvoiceWatcher();
       return;
     }
 
     const nt = createNodeTracker(lnAdapter);
     setNodeTracker(nt);
+    startInvoiceWatcher(lnAdapter);
 
     // 로그인 상태이면 즉시 시작
     if (authState === 'logged-in') {
@@ -71,6 +74,7 @@ export function App() {
 
     return () => {
       nt.stop();
+      stopInvoiceWatcher();
     };
   }, [lnAdapter]); // eslint-disable-line react-hooks/exhaustive-deps
 

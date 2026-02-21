@@ -84,8 +84,8 @@ export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
   const isClaim = request.action === 'claim';
   const decoded = request.invoice?.decoded ?? null;
 
-  // 승인 가능 조건: 클레임 액션 + 유동성 검증 완료 (상태 판단은 FSM에 위임)
-  const canApprove = isClaim && (request.invoice?.liquidityVerified ?? false);
+  // 승인 가능 조건: 클레임 액션 + LN 어댑터 연결 + 유동성 검증 완료 (상태 판단은 FSM에 위임)
+  const canApprove = isClaim && !!lnAdapter && (request.invoice?.liquidityVerified ?? false);
 
   const [copied, setCopied] = useState(false);
   const [probing, setProbing] = useState(false);
@@ -121,9 +121,19 @@ export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
   }
 
   async function handleApprove() {
+    if (!lnAdapter || !order) return;
     setApproving(true);
     setApproveError(null);
-    const result = await approveOrder(request.orderId);
+
+    const snapshot = tracker.getSnapshot();
+    if (!snapshot.price) {
+      setApproveError('BTC 시세 정보 없음');
+      setApproving(false);
+      return;
+    }
+
+    const amountSat = Math.round((order.price / snapshot.price) * 1e8);
+    const result = await approveOrder(request.orderId, lnAdapter, amountSat);
     if (!result.success) {
       setApproveError(result.error ?? '승인 실패');
     }

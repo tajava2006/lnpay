@@ -51,6 +51,14 @@ export type ProbeResult =
   | { status: 'unreachable'; reason: string }
   | { status: 'error'; message: string };
 
+/** Hold invoice 생성 결과 */
+export interface HoldInvoiceResult {
+  /** BOLT-11 인코딩된 hold invoice */
+  bolt11: string;
+  /** payment hash (hex) */
+  paymentHash: string;
+}
+
 /** 노드 연결 상태 */
 export type ConnectionStatus = 'unconfigured' | 'connecting' | 'connected' | 'error';
 

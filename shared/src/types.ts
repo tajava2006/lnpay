@@ -25,6 +25,8 @@ export interface Order {
   createdAt: number;
   updatedAt: number;
   expiration: number;
+  /** verified 전이 시 Admin이 생성한 hold invoice (Customer 결제용) */
+  bolt11?: string;
   raw: object;
 }
 

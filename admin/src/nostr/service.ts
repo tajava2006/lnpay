@@ -21,6 +21,7 @@ import { parseRequestEvent, parseOrderEvent, type ProcessedRequest } from '../ty
 import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
+import type { LightningAdapter } from '../lightning';
 
 let cleanup: (() => void) | null = null;
 
@@ -68,10 +69,13 @@ export function stopAdminSubscription(): void {
 
 /**
  * 클레임을 승인하여 claimed → verified로 전이하고 kind 30402를 발행한다.
+ * hold invoice를 생성하여 오더에 첨부한다. 프리이미지는 escrow-store에 자동 저장된다.
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
 export async function approveOrder(
   orderId: string,
+  lnAdapter: LightningAdapter,
+  amountSat: number,
 ): Promise<{ success: boolean; error?: string }> {
   const order = getOrder(orderId);
   if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
@@ -80,9 +84,21 @@ export async function approveOrder(
     return { success: false, error: `INVALID_TRANSITION: ${order.state} → verified` };
   }
 
+  // hold invoice 생성 (프리이미지는 LN 어댑터 내부에서 escrow-store에 자동 저장)
+  let bolt11: string;
+  try {
+    const result = await lnAdapter.createHoldInvoice(orderId, amountSat);
+    bolt11 = result.bolt11;
+    console.log('[Admin] Hold invoice created for', orderId, '- paymentHash:', result.paymentHash);
+  } catch (e) {
+    console.error('[Admin] Failed to create hold invoice for', orderId, e);
+    return { success: false, error: 'HOLD_INVOICE_FAILED' };
+  }
+
   const updatedOrder: Order = {
     ...order,
     state: 'verified',
+    bolt11,
     updatedAt: Math.floor(Date.now() / 1000),
   };
 

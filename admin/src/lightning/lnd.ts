@@ -1,6 +1,7 @@
 import type { LightningAdapter } from './adapter';
-import type { NodeInfo, DecodedInvoice, ProbeResult, LnConnectionConfig } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, LnConnectionConfig } from './types';
 import type { RouteHintHop } from '../types';
+import { savePreimage } from '../escrow-store';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
 
@@ -69,6 +70,11 @@ function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
+}
+
+/** Uint8Array → hex 문자열 */
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -219,5 +225,44 @@ export class LndAdapter implements LightningAdapter {
       default:
         return { status: 'error', message: `프로브 실패: ${payment.failure_reason}` };
     }
+  }
+
+  async createHoldInvoice(
+    orderId: string,
+    amountSat: number,
+    expiry = 3600,
+  ): Promise<HoldInvoiceResult> {
+    // 1. 32바이트 랜덤 프리이미지 생성
+    const preimage = new Uint8Array(32);
+    crypto.getRandomValues(preimage);
+
+    // 2. SHA-256 해시 → payment hash
+    const hashBuffer = await crypto.subtle.digest('SHA-256', preimage);
+    const paymentHash = new Uint8Array(hashBuffer);
+
+    // 3. LND /v2/invoices/hodl 호출
+    const res = await fetch(`${this.baseUrl}/v2/invoices/hodl`, {
+      method: 'POST',
+      headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hash: bytesToBase64(paymentHash),
+        value: String(amountSat),
+        memo: `sajwo-tracker order ${orderId}`,
+        expiry: String(expiry),
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`LND /v2/invoices/hodl 실패: ${res.status} ${text}`);
+    }
+
+    const data: { payment_request: string } = await res.json();
+    const paymentHashHex = bytesToHex(paymentHash);
+
+    // 4. 프리이미지를 escrow-store에 저장 (settle 시 필요)
+    savePreimage(orderId, bytesToHex(preimage), paymentHashHex);
+
+    return { bolt11: data.payment_request, paymentHash: paymentHashHex };
   }
 }

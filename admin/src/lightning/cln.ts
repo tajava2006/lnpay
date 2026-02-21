@@ -1,5 +1,5 @@
 import type { LightningAdapter } from './adapter';
-import type { NodeInfo, DecodedInvoice, ProbeResult, LnConnectionConfig } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, LnConnectionConfig } from './types';
 import type { RouteHintHop } from '../types';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
@@ -218,6 +218,15 @@ export class ClnAdapter implements LightningAdapter {
 
       return { status: 'error', message: error.message };
     }
+  }
+  async createHoldInvoice(
+    _orderId: string,
+    _amountSat: number,
+    _expiry?: number,
+  ): Promise<HoldInvoiceResult> {
+    throw new Error(
+      'CLN hold invoice는 아직 지원되지 않습니다. LND를 사용해 주세요.',
+    );
   }
 }
 

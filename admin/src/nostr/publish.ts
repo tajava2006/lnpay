@@ -40,6 +40,9 @@ export async function publishOrder(order: Order): Promise<object> {
   if (order.sponsorPubkey) {
     tags.push(['sponsor', order.sponsorPubkey]);
   }
+  if (order.bolt11) {
+    tags.push(['bolt11', order.bolt11]);
+  }
 
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_KIND,

@@ -1,4 +1,4 @@
-import type { NodeInfo, DecodedInvoice, ProbeResult } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult } from './types';
 import type { RouteHintHop } from '../types';
 
 /**
@@ -29,4 +29,20 @@ export interface LightningAdapter {
     finalCltvDelta?: number,
     routeHints?: RouteHintHop[][],
   ): Promise<ProbeResult>;
+
+  /**
+   * Hold invoice를 생성한다.
+   *
+   * 내부에서 32바이트 랜덤 프리이미지를 생성하고 SHA-256 해시를 LN 노드에 전달한다.
+   * 프리이미지는 escrow-store에 orderId 키로 자동 저장된다 (settle 시 필요).
+   *
+   * @param orderId - 오더 식별자 (escrow-store 키)
+   * @param amountSat - 인보이스 금액 (sats)
+   * @param expiry - 인보이스 만료 시간 (초, 기본 3600)
+   */
+  createHoldInvoice(
+    orderId: string,
+    amountSat: number,
+    expiry?: number,
+  ): Promise<HoldInvoiceResult>;
 }

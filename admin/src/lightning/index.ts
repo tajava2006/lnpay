@@ -7,7 +7,7 @@ import { ClnAdapter } from './cln';
 export type { LightningAdapter } from './adapter';
 export type {
   LightningBackend, LnConnectionConfig, NodeInfo, ConnectionStatus, NodeSnapshot,
-  DecodedInvoice, ProbeResult,
+  DecodedInvoice, ProbeResult, HoldInvoiceResult,
 } from './types';
 export { createNodeTracker } from './node-tracker';
 export type { NodeTracker } from './node-tracker';

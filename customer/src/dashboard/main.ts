@@ -1,7 +1,10 @@
 import { getAllOrders, deleteOrder, clearAllOrders } from '../shared/storage';
 import { getDisplayMeta, isFinal, isDeletable } from '../shared/order-states';
 import type { TrackedOrder } from '../shared/types';
+import { showToast } from '../shared/toast';
 import { createPriceTracker } from '@sajwo-tracker/shared';
+
+let initialRenderDone = false;
 
 async function renderDashboard() {
   const orders = await getAllOrders();
@@ -48,6 +51,25 @@ async function renderDashboard() {
       if (orderId) sendOrderRequest(orderId, e.target as HTMLButtonElement);
     });
   });
+
+  // 결제하기 버튼 이벤트 연결
+  tbody.querySelectorAll('.btn-pay').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      const orderId = (e.target as HTMLElement).dataset.orderId;
+      if (!orderId) return;
+      const order = orderArray.find(o => o.orderId === orderId);
+      if (order?.bolt11) {
+        const { showInvoiceModal } = await import('./invoice-modal');
+        await showInvoiceModal(order.orderId, order.bolt11);
+      }
+    });
+  });
+
+  // 초기 렌더 시 ?pay= 쿼리 파라미터 처리 (1회만)
+  if (!initialRenderDone) {
+    initialRenderDone = true;
+    checkPayQueryParam(orders);
+  }
 }
 
 function createTableRow(order: TrackedOrder): string {
@@ -57,6 +79,7 @@ function createTableRow(order: TrackedOrder): string {
   const orderUrl = `https://mc.coupang.com/ssr/desktop/order/${order.orderId}`;
   const showPublish = !order.raw;
   const canDelete = isDeletable(order);
+  const showPayment = order.adminState === 'verified' && order.bolt11;
 
   return `
     <tr>
@@ -73,10 +96,32 @@ function createTableRow(order: TrackedOrder): string {
       <td>${date}</td>
       <td class="actions">
         ${showPublish ? `<button class="btn btn-publish" data-order-id="${order.orderId}">사줘</button>` : ''}
+        ${showPayment ? `<button class="btn btn-pay" data-order-id="${order.orderId}">결제하기</button>` : ''}
         ${canDelete ? `<button class="btn btn-danger btn-delete" data-order-id="${order.orderId}">삭제</button>` : ''}
       </td>
     </tr>
   `;
+}
+
+/**
+ * URL 쿼리 파라미터 ?pay=orderId로 인보이스 모달을 자동 오픈한다.
+ */
+function checkPayQueryParam(orders: Record<string, TrackedOrder>): void {
+  const params = new URLSearchParams(window.location.search);
+  const payOrderId = params.get('pay');
+  if (!payOrderId) return;
+
+  const order = orders[payOrderId];
+  if (order?.bolt11 && order.adminState === 'verified') {
+    import('./invoice-modal').then(({ showInvoiceModal }) => {
+      showInvoiceModal(order.orderId, order.bolt11!);
+    });
+  }
+
+  // URL 정리 (새로고침 시 재오픈 방지)
+  const url = new URL(window.location.href);
+  url.searchParams.delete('pay');
+  history.replaceState(null, '', url.toString());
 }
 
 async function sendOrderRequest(orderId: string, btn: HTMLButtonElement) {
@@ -116,12 +161,36 @@ document.getElementById('clearAll')?.addEventListener('click', async () => {
   }
 });
 
-// Storage 변경 감지하여 실시간 업데이트
+// Storage 변경 감지하여 실시간 업데이트 + 토스트
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes.orders) {
     renderDashboard();
+    detectVerifiedTransitions(changes.orders);
   }
 });
+
+/**
+ * verified 전이를 감지하여 토스트 알림을 표시한다.
+ */
+function detectVerifiedTransitions(change: chrome.storage.StorageChange): void {
+  const oldOrders: Record<string, TrackedOrder> = change.oldValue ?? {};
+  const newOrders: Record<string, TrackedOrder> = change.newValue ?? {};
+
+  for (const [id, order] of Object.entries(newOrders)) {
+    const old = oldOrders[id];
+    if (order.adminState === 'verified' && old?.adminState !== 'verified' && order.bolt11) {
+      showToast({
+        title: '결제가 필요합니다',
+        message: `${order.productName} - 클릭하여 인보이스 확인`,
+        onClick: () => {
+          import('./invoice-modal').then(({ showInvoiceModal }) => {
+            showInvoiceModal(id, order.bolt11!);
+          });
+        },
+      });
+    }
+  }
+}
 
 // BTC 가격 추적
 const priceTracker = createPriceTracker();

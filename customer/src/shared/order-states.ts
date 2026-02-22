@@ -35,9 +35,9 @@ const ADMIN_STATE_META: Record<OrderState, DisplayMeta> = {
     isFinal: false,
   },
   verified: {
-    label: '검증됨',
-    bgColor: '#E0E7FF',
-    textColor: '#4F46E5',
+    label: '결제 대기',
+    bgColor: '#FEE2E2',
+    textColor: '#DC2626',
     isFinal: false,
   },
   escrowed: {

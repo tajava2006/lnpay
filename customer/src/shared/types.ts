@@ -48,6 +48,12 @@ export interface TrackedOrder {
    * 있으면 kind 1111 요청이 릴레이에 발행됨.
    */
   raw?: string;
+
+  /**
+   * Admin이 verified 전이 시 발행한 hold invoice (Customer 결제용).
+   * kind 30402 이벤트의 bolt11 태그에서 추출.
+   */
+  bolt11?: string;
 }
 
 // ============================================================

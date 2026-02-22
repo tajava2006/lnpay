@@ -1,6 +1,7 @@
 import { getAllOrders } from '../shared/storage';
 import { getDisplayMeta } from '../shared/order-states';
 import type { TrackedOrder } from '../shared/types';
+import { showToast } from '../shared/toast';
 import { createPriceTracker } from '@sajwo-tracker/shared';
 
 const MAX_DISPLAY_ORDERS = 5;
@@ -32,12 +33,25 @@ async function renderOrders() {
       if (orderId) sendOrderRequest(orderId, e.target as HTMLButtonElement);
     });
   });
+
+  // 결제하기 버튼 이벤트 연결 (대시보드로 이동)
+  orderList.querySelectorAll('.btn-pay').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const orderId = (e.target as HTMLElement).dataset.orderId;
+      if (orderId) {
+        chrome.tabs.create({
+          url: chrome.runtime.getURL(`src/dashboard/index.html?pay=${orderId}`),
+        });
+      }
+    });
+  });
 }
 
 function createOrderCard(order: TrackedOrder): string {
   const displayMeta = getDisplayMeta(order);
   const amount = order.amount > 0 ? `${order.amount.toLocaleString()}원` : '금액 미확인';
   const showPublish = !order.raw;
+  const showPayment = order.adminState === 'verified' && order.bolt11;
 
   return `
     <div class="order-card">
@@ -50,6 +64,7 @@ function createOrderCard(order: TrackedOrder): string {
         </span>
       </div>
       ${showPublish ? `<button class="btn-publish" data-order-id="${order.orderId}">사줘 요청</button>` : ''}
+      ${showPayment ? `<button class="btn-pay" data-order-id="${order.orderId}">결제하기</button>` : ''}
     </div>
   `;
 }
@@ -88,12 +103,39 @@ document.getElementById('openDashboard')?.addEventListener('click', () => {
   });
 });
 
-// Storage 변경 감지하여 실시간 업데이트
+// Storage 변경 감지하여 실시간 업데이트 + 토스트
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes.orders) {
     renderOrders();
+    detectVerifiedTransitions(changes.orders);
   }
 });
+
+/**
+ * verified 전이를 감지하여 토스트 알림을 표시한다.
+ */
+function detectVerifiedTransitions(change: chrome.storage.StorageChange): void {
+  const oldOrders: Record<string, TrackedOrder> = change.oldValue ?? {};
+  const newOrders: Record<string, TrackedOrder> = change.newValue ?? {};
+
+  for (const [id, order] of Object.entries(newOrders)) {
+    const old = oldOrders[id];
+    if (order.adminState === 'verified' && old?.adminState !== 'verified') {
+      showToast({
+        title: '결제가 필요합니다',
+        message: `${order.productName}`,
+        onClick: () => {
+          chrome.tabs.create({
+            url: chrome.runtime.getURL(`src/dashboard/index.html?pay=${id}`),
+          });
+        },
+      });
+    }
+  }
+}
+
+// 팝업 열릴 때 배지 클리어
+chrome.runtime.sendMessage({ type: 'BADGE_CLEAR' });
 
 // BTC 가격 추적
 const priceTracker = createPriceTracker();

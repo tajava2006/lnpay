@@ -50,8 +50,9 @@ export async function startAdminOrderSubscription(): Promise<void> {
         if (!orderId) return;
 
         const adminState = (event.tags.find(t => t[0] === 'state')?.[1] ?? 'requested') as OrderState;
+        const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
 
-        void handleAdminOrderUpdate(orderId, adminState);
+        void handleAdminOrderUpdate(orderId, adminState, bolt11);
       },
       oneose: () => {
         console.log('[Customer] Admin orders EOSE');
@@ -75,14 +76,26 @@ export function stopAdminOrderSubscription(): void {
 
 /**
  * Admin 오더 상태 갱신을 로컬 스토리지에 반영한다.
- * adminState 필드를 갱신하기만 하면 된다 — Admin이 유일한 상태 소유자.
+ * adminState + bolt11 필드를 갱신한다 — Admin이 유일한 상태 소유자.
  */
-async function handleAdminOrderUpdate(orderId: string, adminState: OrderState): Promise<void> {
+async function handleAdminOrderUpdate(
+  orderId: string,
+  adminState: OrderState,
+  bolt11?: string,
+): Promise<void> {
   const order = await getOrder(orderId);
   if (!order) return;
 
-  if (order.adminState !== adminState) {
-    await saveOrder({ ...order, adminState });
-    console.log('[Customer] Order', orderId, 'adminState →', adminState);
+  const stateChanged = order.adminState !== adminState;
+  const bolt11Changed = bolt11 != null && order.bolt11 !== bolt11;
+
+  if (stateChanged || bolt11Changed) {
+    await saveOrder({
+      ...order,
+      adminState,
+      ...(bolt11 != null ? { bolt11 } : {}),
+    });
+    console.log('[Customer] Order', orderId, 'adminState →', adminState,
+      bolt11Changed ? '(bolt11 updated)' : '');
   }
 }

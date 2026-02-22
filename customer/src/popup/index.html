@@ -119,6 +119,25 @@
         background: #9CA3AF;
         cursor: not-allowed;
       }
+      .btn-pay {
+        width: 100%;
+        margin-top: 8px;
+        padding: 8px 0;
+        background: linear-gradient(135deg, #F59E0B, #EF4444);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        animation: pulse 2s infinite;
+      }
+      .btn-pay:hover { opacity: 0.9; }
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+        50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+      }
       .btc-price {
         display: flex;
         align-items: center;

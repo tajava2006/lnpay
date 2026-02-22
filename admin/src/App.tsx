@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { startAdminSubscription, stopAdminSubscription } from './nostr/service';
+import { startAdminSubscription, stopAdminSubscription, setLnAdapter } from './nostr/service';
 import {
   hasSession, loadSession, restoreSigner, clearSession,
 } from './nostr/nip46';
@@ -59,12 +59,14 @@ export function App() {
   useEffect(() => {
     if (!lnAdapter) {
       setNodeTracker(null);
+      setLnAdapter(null);
       stopInvoiceWatcher();
       return;
     }
 
     const nt = createNodeTracker(lnAdapter);
     setNodeTracker(nt);
+    setLnAdapter(lnAdapter);
     startInvoiceWatcher(lnAdapter);
 
     // 로그인 상태이면 즉시 시작

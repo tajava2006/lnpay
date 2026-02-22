@@ -28,6 +28,11 @@ import { idbGetOrder, idbUpsertOrder, idbUpsertRequest } from '../idb-store';
 let cleanup: (() => void) | null = null;
 let lnAdapterRef: LightningAdapter | null = null;
 
+/** LN 어댑터 참조를 설정한다. App 마운트 시 호출. */
+export function setLnAdapter(adapter: LightningAdapter | null): void {
+  lnAdapterRef = adapter;
+}
+
 export async function startAdminSubscription(): Promise<void> {
   if (cleanup) return;
 
@@ -84,7 +89,6 @@ export async function approveOrder(
   lnAdapter: LightningAdapter,
   amountSat: number,
 ): Promise<{ success: boolean; error?: string }> {
-  lnAdapterRef = lnAdapter;
   const order = getOrder(orderId);
   if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
 

@@ -1,0 +1,44 @@
+import { useEffect, useRef } from 'react';
+import { KeyInit } from './components/KeyInit';
+import { Dashboard } from './components/Dashboard';
+import { startAdminSubscription, stopAdminSubscription } from './nostr/service';
+import { startCleanup, stopCleanup } from './order-store';
+import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
+import type { PriceTracker } from '@sajwo-tracker/shared';
+import { storage } from './nostr/storage';
+
+function AppContent() {
+  const trackerRef = useRef<PriceTracker | null>(null);
+  if (!trackerRef.current) {
+    trackerRef.current = createPriceTracker();
+  }
+  const tracker = trackerRef.current;
+
+  useEffect(() => {
+    const stopRelaySubscription = subscribeRelayLists(storage);
+    startAdminSubscription();
+    startCleanup();
+    tracker.start();
+
+    return () => {
+      stopRelaySubscription();
+      stopAdminSubscription();
+      stopCleanup();
+      tracker.stop();
+    };
+  }, [tracker]);
+
+  return (
+    <div className="container">
+      <Dashboard tracker={tracker} />
+    </div>
+  );
+}
+
+export function App() {
+  return (
+    <KeyInit>
+      <AppContent />
+    </KeyInit>
+  );
+}

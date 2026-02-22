@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>사줘 트래커</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f8f9fa;
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 32px 24px;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      h1 { font-size: 28px; margin: 0; color: #333; }
+      .stats {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .stat-card {
+        flex: 1;
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      .stat-label { font-size: 14px; color: #666; margin-bottom: 4px; }
+      .stat-value { font-size: 32px; font-weight: 700; color: #333; }
+      .stat-value.pending { color: #D97706; }
+      .stat-value.paid { color: #059669; }
+      .stat-value.btc { color: #F59E0B; font-size: 20px; }
+      .btc-dot {
+        display: inline-block;
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: #D1D5DB;
+        margin-left: 6px;
+        vertical-align: middle;
+      }
+      .btc-dot.connected { background: #22C55E; }
+      .section-title { font-size: 18px; color: #333; margin: 0 0 16px 0; }
+      .order-table {
+        width: 100%;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+      }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 16px; text-align: left; border-bottom: 1px solid #eee; }
+      th { background: #f8f9fa; font-weight: 600; color: #666; font-size: 13px; }
+      td { font-size: 14px; color: #333; }
+      tr:last-child td { border-bottom: none; }
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .btn-danger { background: #FEE2E2; color: #991B1B; }
+      .btn-danger:hover { background: #FECACA; }
+      .btn-publish { background: #4F46E5; color: white; }
+      .btn-publish:hover { background: #4338CA; }
+      .btn-publish:disabled { background: #9CA3AF; cursor: not-allowed; }
+      .btn-pay {
+        background: linear-gradient(135deg, #F59E0B, #EF4444);
+        color: white;
+        font-weight: 600;
+        animation: pulse 2s infinite;
+      }
+      .btn-pay:hover { opacity: 0.9; }
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+        50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+      }
+      .btn-secondary { background: #E5E7EB; color: #374151; }
+      .btn-secondary:hover { background: #D1D5DB; }
+      .empty-state { text-align: center; padding: 48px; color: #666; }
+      @keyframes toastIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

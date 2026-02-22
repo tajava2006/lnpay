@@ -22,9 +22,11 @@ import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
+import { getPreimage } from '../escrow-store';
 import { idbGetOrder, idbUpsertOrder, idbUpsertRequest } from '../idb-store';
 
 let cleanup: (() => void) | null = null;
+let lnAdapterRef: LightningAdapter | null = null;
 
 export async function startAdminSubscription(): Promise<void> {
   if (cleanup) return;
@@ -82,6 +84,7 @@ export async function approveOrder(
   lnAdapter: LightningAdapter,
   amountSat: number,
 ): Promise<{ success: boolean; error?: string }> {
+  lnAdapterRef = lnAdapter;
   const order = getOrder(orderId);
   if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
 
@@ -190,6 +193,20 @@ async function handlePaymentConfirm(request: ProcessedRequest): Promise<void> {
     console.log('[Admin] Order', request.orderId, 'paid (payment-confirm from customer)');
   } catch (e) {
     console.error('[Admin] Failed to publish paid order for', request.orderId, e);
+    return;
+  }
+
+  // Hold invoice settle (프리이미지 제출 → BTC 정산)
+  const preimage = getPreimage(request.orderId);
+  if (preimage && lnAdapterRef) {
+    try {
+      await lnAdapterRef.settleInvoice(preimage);
+      console.log('[Admin] Hold invoice settled for', request.orderId);
+    } catch (e) {
+      console.error('[Admin] Failed to settle hold invoice for', request.orderId, e);
+    }
+  } else {
+    console.warn('[Admin] Cannot settle: missing', !preimage ? 'preimage' : 'lnAdapter', 'for', request.orderId);
   }
 }
 

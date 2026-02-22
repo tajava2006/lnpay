@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CustomerOrder } from '../types';
 import { getDisplayMeta, isDeletable } from '../order-states';
-import { publishOrderRequest } from '../nostr/publish';
+import { publishOrderRequest, publishNotification } from '../nostr/publish';
 import { markPublished, deleteOrder } from '../order-store';
 import { InvoiceModal } from './InvoiceModal';
 
@@ -11,11 +11,13 @@ interface Props {
 
 export function OrderRow({ order }: Props) {
   const [publishing, setPublishing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
 
   const meta = getDisplayMeta(order);
   const showPublish = !order.raw && !order.adminState;
   const showPayment = order.adminState === 'verified' && order.bolt11;
+  const showConfirmPaid = order.adminState === 'escrowed';
   const canDelete = isDeletable(order);
 
   async function handlePublish() {
@@ -31,6 +33,21 @@ export function OrderRow({ order }: Props) {
       alert('사줘 요청 발행 중 오류가 발생했습니다.');
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleConfirmPaid() {
+    if (!confirm('입금 완료를 통보하시겠습니까?')) return;
+    setConfirming(true);
+    try {
+      const result = await publishNotification(order, 'payment-confirm');
+      if (!result.success) {
+        alert('입금 확인 통보에 실패했습니다.');
+      }
+    } catch {
+      alert('입금 확인 통보 중 오류가 발생했습니다.');
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -82,6 +99,15 @@ export function OrderRow({ order }: Props) {
                 className="btn btn-pay"
               >
                 결제하기
+              </button>
+            )}
+            {showConfirmPaid && (
+              <button
+                onClick={handleConfirmPaid}
+                disabled={confirming}
+                className="btn btn-publish"
+              >
+                {confirming ? '통보 중...' : '입금 확인'}
               </button>
             )}
             {canDelete && (

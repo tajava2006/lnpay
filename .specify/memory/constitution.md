@@ -13,9 +13,10 @@ Nostr 릴레이를 통해 연결하는 에스크로 거래 플랫폼이다.
 
 ## 레포지토리 구조
 
-pnpm workspace 모노레포. 4개의 패키지로 구성:
+pnpm workspace 모노레포. 5개의 패키지로 구성:
 - `shared/` — Nostr 공통 모듈 (키, 릴레이, 상수, 타입)
-- `customer/` — Chrome Extension (MV3)
+- `customer/` — React 19 SPA (수동 입력 웹앱, 구 Chrome Extension에서 전환)
+- `customer-extension/` — Chrome Extension MV3 (레거시, 참조용 보존)
 - `sponsor/` — React 19 SPA
 - `admin/` — React 19 SPA (에스크로 서비스, 순수 프론트엔드)
 
@@ -74,11 +75,11 @@ Nostr 릴레이 ──→ Nostr 서비스 (백그라운드) ──→ 영구 저
 - 키 관리, 릴레이 디스커버리, 상수는 shared에서 관리
 - shared는 TypeScript 소스를 직접 export, 각 앱의 Vite가 컴파일
 
-### VI. Manifest V3 (Customer 앱)
+### VI. Customer 앱 형태
 
-Chrome Extension Manifest V3 API를 사용한다.
-- Service Worker 기반 background script
-- 권한은 필요한 최소한만 요청
+Customer 앱은 React 19 SPA(웹앱)로 운영한다.
+- 구 Chrome Extension(customer-extension/)은 레거시로 참조용 보존
+- 전환 배경: CUSTOMER-MIGRATION.md 참조
 
 ## 기술 스택
 
@@ -88,7 +89,7 @@ Chrome Extension Manifest V3 API를 사용한다.
 | 빌드 | Vite + CRXJS | Vite | Vite | (앱에서 컴파일) |
 | 저장소 | chrome.storage.local | localStorage | localStorage | StorageAdapter |
 | 통신 | Nostr (nostr-tools 2.x) | Nostr | Nostr | Nostr |
-| 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 (구현 진행 중) | ensureKeypair |
+| 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 | ensureKeypair |
 | 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace | pnpm workspace |
 
 **Version**: 3.0.0 | **Last Amended**: 2026-02-17

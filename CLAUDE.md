@@ -12,12 +12,14 @@ Admin이 에스크로(Lightning 유동성 검증, 분쟁 중재)를 제공한다
 
 ```bash
 pnpm install                          # 의존성 설치
-pnpm build:customer                   # Customer Chrome Extension 빌드
+pnpm build:customer                   # Customer 웹앱 빌드
 pnpm build:sponsor                    # Sponsor React SPA 빌드
 pnpm build:admin                      # Admin React SPA 빌드
-pnpm dev:customer                     # Customer 개발 서버 (대시보드에 Dev 패널 포함)
+pnpm build:customer-ext               # Customer Extension 빌드 (레거시)
+pnpm dev:customer                     # Customer 개발 서버
 pnpm dev:sponsor                      # Sponsor 개발 서버 (port 5174)
 pnpm dev:admin                        # Admin 개발 서버
+pnpm dev:customer-ext                 # Customer Extension 개발 서버 (레거시)
 ```
 
 ## 헌법 (반드시 준수)
@@ -45,42 +47,26 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
 ## 레포지토리 구조
 
 ```
-sajwo-tracker/              ← pnpm workspace 모노레포
-  shared/                   ← @sajwo-tracker/shared (Nostr 공통: 키, 릴레이, 상수, 타입)
-  customer/                 ← @sajwo-tracker/customer (Chrome Extension MV3)
-  sponsor/                  ← @sajwo-tracker/sponsor (React 19 SPA)
-  admin/                    ← @sajwo-tracker/admin (React 19 SPA, 순수 프론트엔드 에스크로)
-  ARCHITECTURE.md           ← 시스템 아키텍처 상세
-  PROTOCOL.md               ← Nostr 이벤트 프로토콜 명세
-  TODO.md                   ← 향후 구현 계획
+sajwo-tracker/                ← pnpm workspace 모노레포
+  shared/                     ← @sajwo-tracker/shared (Nostr 공통: 키, 릴레이, 상수, 타입)
+  customer/                   ← @sajwo-tracker/customer (React 19 SPA, 수동 입력 웹앱)
+  customer-extension/         ← @sajwo-tracker/customer-extension (구 Chrome Extension, 레거시 참조용)
+  sponsor/                    ← @sajwo-tracker/sponsor (React 19 SPA)
+  admin/                      ← @sajwo-tracker/admin (React 19 SPA, 순수 프론트엔드 에스크로)
 ```
 
-## 핵심 아키텍처 결정
+> Customer 앱은 Chrome Extension에서 웹앱으로 전환 완료. customer-extension/은 참조용으로만 보존.
+> 배경 및 Phase 2(유저스크립트, 미정)는 [CUSTOMER-MIGRATION.md](CUSTOMER-MIGRATION.md) 참조.
 
-- **Nostr 프로토콜**: 탈중앙화 P2P 통신. kind 30402 (NIP-99 Classified Listing) addressable event 사용.
-- **StorageAdapter 패턴**: chrome.storage.local과 localStorage의 차이를 인터페이스로 추상화.
-- **상태 머신**: 에스크로 거래의 상태 전이를 Admin 단일 FSM으로 관리. 발행 우선 패턴 (publish → 릴레이 에코로 로컬 반영).
-- **pubkey 검증**: 같은 orderId라도 최초 발행자만 갱신/삭제 가능.
-- **NIP-65 Outbox Model**: kind 10002에서 읽기/쓰기 릴레이를 분리 파싱. 이벤트 성격에 따라 릴레이 선택:
-  - ① 비즈니스 이벤트 (주문 kind 30402, 클레임 kind 1111) → **읽기 릴레이** (Customer/Sponsor가 write, 모두가 read)
-  - ② Admin 전용 데이터 (LN 설정 kind 30078) → **쓰기 릴레이** (Admin이 write+read)
-  - ③ Admin→User 알림 (미구현) → **쓰기 릴레이** (Admin이 write, Customer/Sponsor가 read)
-- **shared 패키지**: TypeScript 소스 직접 export, 각 앱의 Vite가 컴파일.
-- **순수 프론트엔드 배포**: 3개 앱 모두 서버 사이드 없이 정적 파일만 배포. Admin의 인증은 NIP-46 원격 서명, LN 설정은 NIP-78 + NIP-44 암호화로 릴레이에 저장하여 `.env` 의존성 없이 동작.
-- **Lightning 노드 직접 접속**: 어댑터가 브라우저에서 직접 LN 노드 REST API 호출. self-signed TLS 문제는 nginx 리버스 프록시(Let's Encrypt)로 해결.
+## 핵심 설계 요약
 
-## 앱별 데이터 흐름
-
-### Customer (Chrome Extension)
-```
-content/index.ts (쿠팡 파싱) → shared/storage.ts (chrome.storage.local) → popup/dashboard (onChanged 리스너)
-background/index.ts (Nostr 발행) ← PUBLISH_ORDER 메시지 ← popup/dashboard/content
-```
-
-### Sponsor (React SPA)
-```
-nostr/service.ts (릴레이 구독) → order-store.ts (localStorage + notify) → OrderBook (useSyncExternalStore)
-```
+- kind 30402 (NIP-99 addressable event)로 오더, kind 1111 (NIP-22 comment)로 요청
+- Admin이 유일한 FSM/상태 소유자 (발행 우선 패턴: publish → 릴레이 에코로 로컬 반영)
+- StorageAdapter 인터페이스로 chrome.storage.local/localStorage 추상화
+- shared 패키지는 TS 소스 직접 export → 각 앱의 Vite가 컴파일
+- 순수 프론트엔드 배포 (Admin: NIP-46 인증, NIP-78+NIP-44 암호화 설정)
+- Lightning 노드 REST API 브라우저 직접 호출 (nginx Let's Encrypt 프록시 경유)
+- NIP-65 Outbox Model: 비즈니스 이벤트 → 읽기 릴레이, Admin 전용 → 쓰기 릴레이
 
 ## 코딩 규칙
 
@@ -88,12 +74,16 @@ nostr/service.ts (릴레이 구독) → order-store.ts (localStorage + notify) �
 - Nostr 코드는 각 앱의 `nostr/` 디렉토리에 모듈화.
 - 이벤트에는 반드시 `expiration` 태그 포함 (릴레이 찌꺼기 방지).
 - 빌드 확인: 코드 수정 후 `pnpm build:customer && pnpm build:sponsor && pnpm build:admin` 통과 필수.
-- Dev/Prod 데이터 격리: `CLIENT_TAG`가 dev(`sajwo-tracker-dev`) / prod(`sajwo-tracker`)로 분리되어 릴레이 데이터가 격리된다.
-- Dev 전용 코드는 `dev-only/` 디렉토리에 파일 단위로 격리하고, `import.meta.env.DEV` 가드 내에서만 import한다.
+- Dev/Prod 데이터 격리: `CLIENT_TAG`가 dev(`sajwo-tracker-dev`) / prod(`sajwo-tracker`)로 분리.
+- Dev 전용 코드는 `dev-only/` 디렉토리에 파일 단위로 격리하고, `import.meta.env.DEV` 가드 내에서만 import.
 
-## 주요 참고 문서
+## 문서 가이드
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — 전체 시스템 구조, 거래 흐름, 에스크로 역할, 저장소 이중화
-- [PROTOCOL.md](PROTOCOL.md) — Nostr 이벤트 명세, 태그 구조, 구독 필터, 클레임 흐름
-- [TODO.md](TODO.md) — 미구현 기능 목록
-- [.specify/memory/constitution.md](.specify/memory/constitution.md) — 개발 헌법 상세
+작업 내용에 따라 필요한 문서만 참조한다:
+
+| 문서 | 줄 수 | 참조 시점 |
+|------|-------|----------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | ~540 | 앱별 모듈 구조, 데이터 흐름, 저장소 이중화, 설계 결정 이해 필요 시 |
+| [PROTOCOL.md](PROTOCOL.md) | ~620 | Nostr 이벤트 kind/tag, 상태 머신(FSM) 전이 규칙, 구독 필터 확인 시 |
+| [TODO.md](TODO.md) | ~80 | 미구현 기능 목록 확인 시 |
+| [CUSTOMER-MIGRATION.md](CUSTOMER-MIGRATION.md) | ~200 | Customer 앱 전환 배경, Phase 2 유저스크립트 계획 확인 시 |

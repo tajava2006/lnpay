@@ -100,16 +100,19 @@ sajwo-tracker/              ← pnpm workspace 루트
   ARCHITECTURE.md
   PROTOCOL.md
   TODO.md
+  CUSTOMER-MIGRATION.md
   shared/                   ← 3개 앱 공통 Nostr 모듈
-  customer/                 ← Customer용 Chrome Extension
-  sponsor/                  ← Sponsor용 React SPA
+  customer/                 ← Customer 웹앱 (React 19 SPA)
+  customer-extension/       ← 구 Chrome Extension (레거시, 참조용 보존)
+  sponsor/                  ← Sponsor React SPA
   admin/                    ← Admin 에스크로 서비스 (순수 프론트엔드)
 ```
 
 | 폴더 | 설명 | 형태 | 대상 사용자 |
 |------|------|------|------------|
 | `shared/` | Nostr 공통 모듈 (키, 릴레이, 상수, 타입) | TypeScript 라이브러리 | - |
-| `customer/` | 쿠팡 무통장입금 주문 감지 + 사줘 요청 발행 | Chrome Extension (MV3) | 비트코인으로 물건을 사고 싶은 사람 |
+| `customer/` | 주문 수동 입력 + 사줘 요청 발행 | React 19 SPA | 비트코인으로 물건을 사고 싶은 사람 |
+| `customer-extension/` | 쿠팡 자동 파싱 버전 (레거시) | Chrome Extension MV3 | - |
 | `sponsor/` | 오더북에서 사줘 요청 확인 + 클레임 발행 | React SPA | 거래소 없이 BTC를 사고 싶은 사람 |
 | `admin/` | 에스크로 (유동성 검증, 중재) | React SPA (순수 프론트엔드) | 시스템 운영자 |
 
@@ -242,34 +245,15 @@ shared/src/
 
 ### Customer App
 
-비트코인으로 물건을 사고 싶은 사람이 사용하는 Chrome Extension (Manifest V3).
-쿠팡 주문 페이지에서 동작한다.
+비트코인으로 물건을 사고 싶은 사람이 사용하는 React 19 SPA.
+주문 정보를 수동 입력하여 사줘 요청을 발행한다.
 
-- 쿠팡 주문 페이지 파싱 및 무통장입금 주문 감지 (+ 입금 완료/취소 자동 감지)
+> 구 Chrome Extension(customer-extension/)에서 웹앱으로 전환 완료.
+> 전환 배경 및 Phase 2 계획은 [CUSTOMER-MIGRATION.md](CUSTOMER-MIGRATION.md) 참조.
+
 - kind 1111로 Admin에 요청 전송 (order-request, payment-confirm, cancel-request)
 - Admin의 kind 30402 오더 구독으로 상태 자동 반영 (로컬 FSM 없음)
-- 팝업/대시보드에서 사줘 요청 버튼으로 수동 발행
-
-#### Customer 모듈 구조
-
-```
-customer/src/
-  background/index.ts   - Nostr 초기화, 릴레이 구독, SEND_REQUEST 메시지 핸들러
-  content/index.ts      - 쿠팡 페이지 파싱, 주문 감지, 입금완료/취소 자동 감지
-  nostr/
-    storage.ts          - chrome.storage.local 기반 StorageAdapter
-    events.ts           - kind 1111 요청 이벤트 빌드 (order-request, payment-confirm, cancel-request)
-    publish.ts          - SimplePool 기반 요청 브로드캐스트
-    admin-orders.ts     - Admin kind 30402 오더 구독, adminState 자동 반영
-  shared/
-    types.ts            - TrackedOrder, 쿠팡 API 타입
-    storage.ts          - chrome.storage.local 주문 CRUD
-    order-states.ts     - adminState + raw 기반 표시 상태 결정
-    filter.ts           - 쿠팡 데이터 파싱
-  dev-only/             - Dev 환경 전용 (테스트 주문 생성)
-  popup/                - 팝업 UI
-  dashboard/            - 전체화면 대시보드 UI
-```
+- 대시보드에서 사줘 요청 버튼으로 수동 발행
 
 ### Sponsor App
 
@@ -447,14 +431,7 @@ settle 후에도 Admin은 여전히 판정할 수 있다:
 > 자동 settle 실패 + 만료 시: BTC는 Customer에게 자동 환불되고, Admin이 IndexedDB에서 확인 후 수동 판정한다.
 > 시스템이 자동으로 `customer_wins`를 판정하지 않는다 — 판정은 반드시 Admin의 몫이다.
 
-**향후 구현:**
-- **분쟁 해결 도구**: Sponsor가 KRW 송금 주장(`remitted`) 후 Customer 미확인 시 Admin이 증거 기반 중재
-  - 만료 전 판정: sponsor_wins (settle) / customer_wins (cancel → 자동 환불)
-  - 만료 임박 자동 settle 후 판정: sponsor_wins (BTC 전송) / customer_wins (별도 LN 결제로 환불)
-- **Customer fidelity bond**: 사줘 요청 시 주문 금액 일부를 hold invoice로 선납 (스팸 차단)
-- **Sponsor 블랙리스트**: Lightning 노드 pubkey 기반 트롤링 차단
-- **릴레이 목록 관리**: kind 10002 이벤트 발행/수정
-- **모니터링 대시보드**: 시스템 전체 현황 파악
+미구현 기능 목록은 [TODO.md](TODO.md) 참조.
 
 #### Admin 모듈 구조
 
@@ -530,10 +507,10 @@ IndexedDB:    에스크로 책임이 있는 오더 (verified → escrowed 진입
 | 영역 | Customer | Sponsor | Admin | Shared |
 |------|----------|---------|-------|--------|
 | 언어 | TypeScript | TypeScript | TypeScript | TypeScript |
-| 프레임워크 | Chrome Extension (MV3) | React 19 | React 19 | - |
-| 빌드 | Vite + CRXJS | Vite | Vite | (앱에서 컴파일) |
+| 프레임워크 | React 19 | React 19 | React 19 | - |
+| 빌드 | Vite | Vite | Vite | (앱에서 컴파일) |
 | 통신 | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) |
-| 저장소 | chrome.storage.local | localStorage | localStorage | StorageAdapter |
+| 저장소 | localStorage | localStorage | localStorage | StorageAdapter |
 | 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 | ensureKeypair |
 | 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace | pnpm workspace |
 

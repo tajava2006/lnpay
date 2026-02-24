@@ -6,7 +6,7 @@ import {
 import { startLnConfigSubscription, stopLnConfigSubscription, decryptLnConfig } from './nostr/ln-config-service';
 import { startCleanup, stopCleanup } from './cleanup';
 import { startInvoiceWatcher, stopInvoiceWatcher } from './invoice-watcher';
-import type { LnConfig } from './nostr/ln-config';
+import { cacheLnConfig, loadCachedLnConfig, clearCachedLnConfig, type LnConfig } from './nostr/ln-config';
 import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
 import { OrderQueue } from './components/OrderQueue';
@@ -37,12 +37,12 @@ export function App() {
   }
   const tracker = trackerRef.current;
 
-  // ─── LN 설정 (메모리만, 영구저장소 금지) ──────────
+  // ─── LN 설정 (sessionStorage 캐시 + 메모리) ───────
 
   // 릴레이에서 받은 암호화된 NIP-78 content (로그인 전에 도착 가능)
   const [encryptedLnConfig, setEncryptedLnConfig] = useState<string | null>(null);
-  // 복호화된 LN 설정 (React state = 메모리만)
-  const [lnConfig, setLnConfig] = useState<LnConfig | null>(null);
+  // 복호화된 LN 설정 (sessionStorage 캐시에서 즉시 복원, 없으면 릴레이 구독으로 수신)
+  const [lnConfig, setLnConfig] = useState<LnConfig | null>(loadCachedLnConfig);
   // LN 설정 페이지 표시 여부
   const [showLnConfig, setShowLnConfig] = useState(false);
 
@@ -136,6 +136,7 @@ export function App() {
     void decryptLnConfig(encryptedLnConfig).then((config: LnConfig) => {
       if (!cancelled) {
         setLnConfig(config);
+        cacheLnConfig(config);
         console.log('[App] LN config decrypted:', config.backend, config.baseUrl);
       }
     }).catch((err: unknown) => {
@@ -144,6 +145,12 @@ export function App() {
 
     return () => { cancelled = true; };
   }, [authState, encryptedLnConfig]);
+
+  // ─── 로그아웃 시 캐시 정리 ──────────────────────────
+
+  useEffect(() => {
+    if (authState === 'logged-out') clearCachedLnConfig();
+  }, [authState]);
 
   // ─── 네비게이션 ────────────────────────────────────
 
@@ -171,6 +178,7 @@ export function App() {
 
   const handleLnConfigSave = useCallback((config: LnConfig) => {
     setLnConfig(config);
+    cacheLnConfig(config);
     setShowLnConfig(false);
   }, []);
 

@@ -147,7 +147,7 @@ export async function decryptLnConfig(encryptedContent: string): Promise<LnConfi
   return parsed;
 }
 
-function isLnConfig(value: unknown): value is LnConfig {
+export function isLnConfig(value: unknown): value is LnConfig {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   return (
@@ -155,4 +155,27 @@ function isLnConfig(value: unknown): value is LnConfig {
     typeof obj.baseUrl === 'string' &&
     typeof obj.credential === 'string'
   );
+}
+
+// ─── sessionStorage 캐시 (새로고침 생존, 탭 닫기 시 소멸) ────
+
+const LN_CONFIG_CACHE_KEY = 'admin:lnConfig';
+
+export function cacheLnConfig(config: LnConfig): void {
+  sessionStorage.setItem(LN_CONFIG_CACHE_KEY, JSON.stringify(config));
+}
+
+export function loadCachedLnConfig(): LnConfig | null {
+  const raw = sessionStorage.getItem(LN_CONFIG_CACHE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isLnConfig(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearCachedLnConfig(): void {
+  sessionStorage.removeItem(LN_CONFIG_CACHE_KEY);
 }

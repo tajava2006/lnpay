@@ -53,15 +53,21 @@ function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
 
 /** 상태 통보 이벤트 빌드 (payment-confirm, cancel-request) */
 function buildNotificationEvent(order: CustomerOrder, action: RequestAction): EventTemplate {
+  const tags: string[][] = [
+    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+    ['action', action],
+    ['t', CLIENT_TAG],
+    ['p', APP_PUBKEY],
+  ];
+
+  if (order.expiration > 0) {
+    tags.push(['expiration', String(order.expiration)]);
+  }
+
   return {
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
-    tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
-      ['action', action],
-      ['t', CLIENT_TAG],
-      ['p', APP_PUBKEY],
-    ],
+    tags,
     content: '',
   };
 }

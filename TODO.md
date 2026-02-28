@@ -43,26 +43,14 @@
   - 커서 기반 페이지네이션 (`[state, createdAt]` 복합 인덱스 활용)
   - 상태 필터 지원
 
-### 가격 확정 정책 (클레임 시점 확정)
-
-- [x] **hold invoice 금액을 후원자의 bolt11 기준으로 변경**: `handleApprove`가 후원자의 `decoded.amountSat * 1.005` (0.5% 가산)으로 hold invoice 생성
-  - [x] 유효성 검증: `handleClaim`에서 PriceTracker 기준 0.95~1.05 범위 밖이면 클레임 무시 (상태 전이 안 함)
-  - [x] FSM에 `claimed → requested` 전이 추가 + 유동성 프로브 실패 시 클레임 철회 버튼
-  - [x] 확인 완료: Sponsor UI는 릴레이 상태 기반으로만 버튼을 제어하므로, Admin이 클레임을 무시해도 오더가 `requested`에 머물러 재클레임 가능
-
 ### 정산 (BTC 지급/환불)
 
-- [ ] **paid 상태 → 후원자에게 BTC 전송**: 후원자의 원본 bolt11 인보이스로 `lnAdapter.pay()` 호출
-  - bolt11 만료 시 처리: 후원자에게 동일 sat 금액의 새 인보이스 요청 메커니즘 필요
-  - 송금 여부 추적: escrow-store에 `disbursed` 플래그 추가, Admin UI에 미송금 건 표시
-- [ ] **만료 후 고객 승리 → 고객에게 BTC 환불**: 만료 임박 선제 settle로 hold invoice가 이미 settle된 경우, 별도 LN 결제로 고객에게 반환
+- [ ] **bolt11 만료 시 처리**: 후원자의 원본 bolt11이 만료된 경우, 동일 sat 금액의 새 인보이스를 요청하는 메커니즘 필요
+- [ ] **고객 승리 → 고객에게 BTC 환불**: 만료 임박 선제 settle로 hold invoice가 이미 settle된 경우, 별도 LN 결제로 고객에게 반환
   - 고객의 LN 수신 인보이스를 받는 메커니즘 필요
-- [ ] **IndexedDB에 정산 상태 영구 기록**: escrow-store(localStorage)는 만료 시 공격적으로 삭제되므로, 정산 여부(후원자 BTC 전송 완료 / 고객 환불 완료)를 IndexedDB의 오더 레코드에 기록하여 히스토리 UI에서 한눈에 확인 가능하게 해야 함
 
 ### 기타
 
-- [ ] **settleInvoice 구현**: 프리이미지 제출로 BTC 수령 — 정산 시나리오는 ARCHITECTURE.md 참조
-- [ ] **Sponsor에 BTC 전송**: settle 후 Sponsor의 원본 invoice에 결제
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악
 - [ ] **분쟁 해결 도구**: `remitted` 상태의 오더에 대한 Admin 중재 기능
@@ -111,4 +99,4 @@
 
 ---
 
-**Last Updated**: 2026-02-27
+**Last Updated**: 2026-02-28

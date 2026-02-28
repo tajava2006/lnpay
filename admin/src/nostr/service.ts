@@ -12,8 +12,9 @@
  *
  * Admin UI 트리거:
  * - approveOrder: 클레임 승인 (claimed → verified) + kind 30402 갱신
+ * - revertClaim: 클레임 철회 (claimed → requested) + kind 30402 갱신
  */
-import { getReadRelays, type Order } from '@sajwo-tracker/shared';
+import { getReadRelays, type Order, type PriceTracker } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { subscribeAdmin } from './subscribe';
 import { publishOrder } from './publish';
@@ -27,10 +28,16 @@ import { idbGetOrder, idbUpsertOrder, idbUpsertRequest } from '../idb-store';
 
 let cleanup: (() => void) | null = null;
 let lnAdapterRef: LightningAdapter | null = null;
+let priceTrackerRef: PriceTracker | null = null;
 
 /** LN 어댑터 참조를 설정한다. App 마운트 시 호출. */
 export function setLnAdapter(adapter: LightningAdapter | null): void {
   lnAdapterRef = adapter;
+}
+
+/** PriceTracker 참조를 설정한다. App 마운트 시 호출. */
+export function setPriceTracker(tracker: PriceTracker | null): void {
+  priceTrackerRef = tracker;
 }
 
 export async function startAdminSubscription(): Promise<void> {
@@ -126,6 +133,39 @@ export async function approveOrder(
     console.log('[Admin] Order', orderId, 'approved (claimed → verified)');
   } catch (e) {
     console.error('[Admin] Failed to publish verified order for', orderId, e);
+    return { success: false, error: 'PUBLISH_FAILED' };
+  }
+
+  return { success: true };
+}
+
+/**
+ * 유동성 검증 실패 등으로 클레임을 철회하여 claimed → requested로 되돌린다.
+ * sponsorPubkey를 제거하여 다른 후원자가 클레임할 수 있도록 한다.
+ * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
+ */
+export async function revertClaim(
+  orderId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const order = getOrder(orderId);
+  if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
+
+  if (!canTransition(order.state, 'requested')) {
+    return { success: false, error: `INVALID_TRANSITION: ${order.state} → requested` };
+  }
+
+  const updatedOrder: Order = {
+    ...order,
+    state: 'requested',
+    sponsorPubkey: undefined,
+    updatedAt: Math.floor(Date.now() / 1000),
+  };
+
+  try {
+    await publishOrder(updatedOrder);
+    console.log('[Admin] Order', orderId, 'reverted to requested (claim withdrawn)');
+  } catch (e) {
+    console.error('[Admin] Failed to publish reverted order for', orderId, e);
     return { success: false, error: 'PUBLISH_FAILED' };
   }
 
@@ -251,6 +291,8 @@ async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
 /**
  * claim 수신 시 오더를 requested → claimed로 전이하고 kind 30402를 발행한다.
  * - 오더가 없거나 전이 불가면 무시 (선착순: 이미 claimed면 후속 클레임 거부)
+ * - 인보이스가 없거나 디코딩 실패면 무시
+ * - 인보이스 금액이 현재 시세 대비 0.95~1.05 범위 밖이면 무시
  * - sponsorPubkey를 기록하여 이후 유동성 검증 등에 사용
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
@@ -264,6 +306,27 @@ async function handleClaim(request: ProcessedRequest): Promise<void> {
   if (!canTransition(order.state, 'claimed')) {
     console.warn('[Admin] Cannot claim order', request.orderId, '- current state:', order.state);
     return;
+  }
+
+  // ── 인보이스 검증 ──
+  const decoded = request.invoice?.decoded;
+  if (!decoded) {
+    console.warn('[Admin] Claim without valid invoice, ignoring:', request.orderId);
+    return;
+  }
+
+  // ── 가격 범위 검증 (PriceTracker 데이터 있을 때만) ──
+  const btcPrice = priceTrackerRef?.getSnapshot().price;
+  if (btcPrice && btcPrice > 0) {
+    const expectedSat = Math.round((order.price / btcPrice) * 1e8);
+    const ratio = decoded.amountSat / expectedSat;
+    if (ratio < 0.95 || ratio > 1.05) {
+      console.warn(
+        '[Admin] Claim price out of range (ratio: %s), ignoring: %s',
+        ratio.toFixed(3), request.orderId,
+      );
+      return;
+    }
   }
 
   const updatedOrder: Order = {

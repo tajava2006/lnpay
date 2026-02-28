@@ -45,11 +45,10 @@
 
 ### 가격 확정 정책 (클레임 시점 확정)
 
-- [ ] **hold invoice 금액을 후원자의 bolt11 기준으로 변경**: 현재 `handleApprove`가 PriceTracker 시세로 재계산하는데, 후원자가 클레임 시 제출한 `decoded.amountSat`을 기준으로 해야 함
-  - 유효성 검증: PriceTracker 기준 0.9~1.1 범위 밖이면 클레임 무시 (상태 전이 안 함)
-  - 가산: 후원자의 sat 금액에 0.5% 가산하여 hold invoice 생성 (paid 시 후원자에게 LN 결제할 때의 라우팅 수수료 선취)
-  - 가격 급변으로 유효 범위 밖이 되어 거부당한 경우: 후원자가 새 인보이스로 재클레임할 수 있어야 함
-    - 확인 필요: 현재 Sponsor UI가 클레임 발행 후 버튼 비활성화 등으로 재클레임을 막지 않는지 점검 (저장소 구독 패턴이면 문제없을 가능성 높으나 확인 필요)
+- [x] **hold invoice 금액을 후원자의 bolt11 기준으로 변경**: `handleApprove`가 후원자의 `decoded.amountSat * 1.005` (0.5% 가산)으로 hold invoice 생성
+  - [x] 유효성 검증: `handleClaim`에서 PriceTracker 기준 0.95~1.05 범위 밖이면 클레임 무시 (상태 전이 안 함)
+  - [x] FSM에 `claimed → requested` 전이 추가 + 유동성 프로브 실패 시 클레임 철회 버튼
+  - [x] 확인 완료: Sponsor UI는 릴레이 상태 기반으로만 버튼을 제어하므로, Admin이 클레임을 무시해도 오더가 `requested`에 머물러 재클레임 가능
 
 ### 정산 (BTC 지급/환불)
 
@@ -112,4 +111,4 @@
 
 ---
 
-**Last Updated**: 2026-02-25
+**Last Updated**: 2026-02-27

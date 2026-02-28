@@ -3,7 +3,7 @@ import type { ProcessedRequest } from '../types';
 import type { PriceTracker, Order } from '@sajwo-tracker/shared';
 import type { LightningAdapter, ProbeResult } from '../lightning';
 import { updateLiquidityVerified } from '../request-store';
-import { approveOrder } from '../nostr/service';
+import { approveOrder, revertClaim } from '../nostr/service';
 import { SatsAmount } from './SatsAmount';
 
 interface Props {
@@ -92,6 +92,8 @@ export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
   const [probeMsg, setProbeMsg] = useState<{ text: string; color: string } | null>(null);
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [reverting, setReverting] = useState(false);
+  const [revertError, setRevertError] = useState<string | null>(null);
 
   const copyPubkey = (pubkey: string) => {
     navigator.clipboard.writeText(pubkey).then(() => {
@@ -120,19 +122,33 @@ export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
     }
   }
 
+  // 프로브 실패 여부: probeMsg가 실패 색상(빨강/주황)이면 true
+  const probeFailed = !!probeMsg && probeMsg.color !== '#059669';
+
+  async function handleRevert() {
+    setReverting(true);
+    setRevertError(null);
+    const result = await revertClaim(request.orderId);
+    if (!result.success) {
+      setRevertError(result.error ?? '철회 실패');
+    }
+    setReverting(false);
+  }
+
   async function handleApprove() {
     if (!lnAdapter || !order) return;
-    setApproving(true);
-    setApproveError(null);
 
-    const snapshot = tracker.getSnapshot();
-    if (!snapshot.price) {
-      setApproveError('BTC 시세 정보 없음');
-      setApproving(false);
+    const sponsorSat = decoded?.amountSat;
+    if (!sponsorSat) {
+      setApproveError('인보이스 금액 없음');
       return;
     }
 
-    const amountSat = Math.round((order.price / snapshot.price) * 1e8);
+    setApproving(true);
+    setApproveError(null);
+
+    // 후원자의 bolt11 금액 + 0.5% 가산 (paid 시 라우팅 수수료 선취)
+    const amountSat = Math.round(sponsorSat * 1.005);
     const result = await approveOrder(request.orderId, lnAdapter, amountSat);
     if (!result.success) {
       setApproveError(result.error ?? '승인 실패');
@@ -245,6 +261,22 @@ export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
           )}
           {approveError && (
             <span style={styles.errorHint}>{approveError}</span>
+          )}
+        </div>
+      )}
+
+      {/* 클레임 철회 버튼 (유동성 프로브 실패 시 활성화) */}
+      {isClaim && orderState === 'claimed' && probeFailed && (
+        <div style={styles.actions}>
+          <button
+            style={reverting ? styles.revertBtnDisabled : styles.revertBtn}
+            onClick={handleRevert}
+            disabled={reverting}
+          >
+            {reverting ? '철회 중...' : '클레임 철회'}
+          </button>
+          {revertError && (
+            <span style={styles.errorHint}>{revertError}</span>
           )}
         </div>
       )}
@@ -391,5 +423,25 @@ const styles = {
     fontSize: 12,
     color: '#DC2626',
     fontWeight: 500 as const,
+  },
+  revertBtn: {
+    background: '#D97706',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '8px 20px',
+    fontSize: 13,
+    fontWeight: 600 as const,
+    cursor: 'pointer' as const,
+  },
+  revertBtnDisabled: {
+    background: '#D1D5DB',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '8px 20px',
+    fontSize: 13,
+    fontWeight: 600 as const,
+    cursor: 'not-allowed' as const,
   },
 };

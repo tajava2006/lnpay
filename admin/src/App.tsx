@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { startAdminSubscription, stopAdminSubscription, setLnAdapter } from './nostr/service';
+import { startAdminSubscription, stopAdminSubscription, setLnAdapter, setPriceTracker } from './nostr/service';
 import {
   hasSession, loadSession, restoreSigner, clearSession,
 } from './nostr/nip46';
@@ -96,12 +96,14 @@ export function App() {
     startAdminSubscription();
     startLnConfigSubscription(setEncryptedLnConfig);
     startCleanup();
+    setPriceTracker(tracker);
     tracker.start();
     return () => {
       stopRelaySubscription();
       stopAdminSubscription();
       stopLnConfigSubscription();
       stopCleanup();
+      setPriceTracker(null);
       tracker.stop();
     };
   }, [tracker]);

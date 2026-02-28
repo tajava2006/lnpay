@@ -12,7 +12,7 @@ import type { OrderState } from '@sajwo-tracker/shared';
 /**
  * 허용된 상태 전이 맵
  *
- * requested → claimed → verified → escrowed ─→ remitted ─→ paid
+ * requested ⇄ claimed → verified → escrowed ─→ remitted ─→ paid
  *                                     │                ├──→ sponsor_wins
  *                                     └──→ paid        └──→ customer_wins
  *
@@ -23,7 +23,7 @@ import type { OrderState } from '@sajwo-tracker/shared';
  */
 const TRANSITIONS: Record<OrderState, readonly OrderState[]> = {
   requested: ['claimed', 'cancelled'],
-  claimed: ['verified', 'cancelled'],
+  claimed: ['requested', 'verified', 'cancelled'],
   verified: ['escrowed', 'cancelled'],
   escrowed: ['remitted', 'paid', 'cancelled'],
   remitted: ['paid', 'sponsor_wins', 'customer_wins'],

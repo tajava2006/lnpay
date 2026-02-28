@@ -43,6 +43,9 @@ export async function publishOrder(order: Order): Promise<object> {
   if (order.bolt11) {
     tags.push(['bolt11', order.bolt11]);
   }
+  if (order.disbursed) {
+    tags.push(['disbursed', 'true']);
+  }
 
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_KIND,

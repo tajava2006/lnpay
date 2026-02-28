@@ -24,7 +24,7 @@ import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
 import { getPreimage } from '../escrow-store';
-import { idbGetOrder, idbUpsertOrder, idbUpsertRequest } from '../idb-store';
+import { idbGetOrder, idbUpsertOrder, idbUpsertRequest, idbGetRequestsByOrderId } from '../idb-store';
 
 let cleanup: (() => void) | null = null;
 let lnAdapterRef: LightningAdapter | null = null;
@@ -172,6 +172,80 @@ export async function revertClaim(
   return { success: true };
 }
 
+/**
+ * Sponsor에게 BTC를 송금한다.
+ * paid 또는 sponsor_wins 상태에서 호출 가능.
+ * IDB에서 해당 Sponsor의 claim request를 조회하여 원본 bolt11로 결제한다.
+ * 성공 시 order에 disbursed: true를 기록하여 중복 송금을 방지한다.
+ */
+export async function disburseSponsor(
+  orderId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const order = getOrder(orderId);
+  if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
+
+  if (order.state !== 'paid' && order.state !== 'sponsor_wins') {
+    return { success: false, error: `INVALID_STATE: ${order.state}` };
+  }
+  if (order.disbursed) {
+    return { success: false, error: 'ALREADY_DISBURSED' };
+  }
+  if (!order.sponsorPubkey) {
+    return { success: false, error: 'NO_SPONSOR_PUBKEY' };
+  }
+  if (!lnAdapterRef) {
+    return { success: false, error: 'NO_LN_ADAPTER' };
+  }
+
+  // IDB에서 해당 Sponsor의 claim request 조회 → bolt11 추출
+  let sponsorBolt11: string | undefined;
+  try {
+    const requests = await idbGetRequestsByOrderId(orderId);
+    const claimRequest = requests
+      .filter(r => r.action === 'claim' && r.pubkey === order.sponsorPubkey && r.invoice?.bolt11)
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    sponsorBolt11 = claimRequest?.invoice?.bolt11;
+  } catch (e) {
+    console.error('[Admin] IDB request lookup failed for', orderId, e);
+    return { success: false, error: 'IDB_LOOKUP_FAILED' };
+  }
+
+  if (!sponsorBolt11) {
+    return { success: false, error: 'NO_SPONSOR_BOLT11' };
+  }
+
+  // 결제 전송
+  try {
+    const result = await lnAdapterRef.payInvoice(sponsorBolt11);
+    if (result.status !== 'succeeded') {
+      console.warn('[Admin] Disbursement failed for', orderId, result.failureReason);
+      return { success: false, error: result.failureReason ?? 'PAYMENT_FAILED' };
+    }
+    console.log('[Admin] Disbursement succeeded for', orderId, '- preimage:', result.preimage);
+  } catch (e) {
+    console.error('[Admin] Disbursement error for', orderId, e);
+    return { success: false, error: 'PAYMENT_ERROR' };
+  }
+
+  // 성공 → disbursed 플래그 기록
+  const updatedOrder: Order = {
+    ...order,
+    disbursed: true,
+    updatedAt: Math.floor(Date.now() / 1000),
+  };
+
+  try {
+    await publishOrder(updatedOrder);
+    console.log('[Admin] Order', orderId, 'marked as disbursed');
+  } catch (e) {
+    // 결제는 성공했지만 발행 실패 — 로그에 남김 (재시도 시 ALREADY_DISBURSED 아닌 상태)
+    console.error('[Admin] Disbursement publish failed for', orderId, e);
+    return { success: false, error: 'PUBLISH_FAILED_AFTER_PAYMENT' };
+  }
+
+  return { success: true };
+}
+
 // ============================================================
 // Action Handlers (Inbound Request)
 // ============================================================
@@ -246,6 +320,13 @@ async function handlePaymentConfirm(request: ProcessedRequest): Promise<void> {
     try {
       await lnAdapterRef.settleInvoice(preimage);
       console.log('[Admin] Hold invoice settled for', request.orderId);
+
+      // Settle 성공 → Sponsor에게 자동 송금 (fire-and-forget)
+      void disburseSponsor(request.orderId).then(result => {
+        if (!result.success) {
+          console.warn('[Admin] Auto-disbursement failed for', request.orderId, result.error);
+        }
+      });
     } catch (e) {
       console.error('[Admin] Failed to settle hold invoice for', request.orderId, e);
     }

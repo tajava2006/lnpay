@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import {
   subscribe as requestSubscribe,
   getSnapshot as requestSnapshot,
@@ -10,6 +10,7 @@ import {
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import type { LightningAdapter } from '../lightning';
 import type { ProcessedRequest } from '../types';
+import { disburseSponsor } from '../nostr/service';
 import { ClaimCard } from './ClaimCard';
 import { SatsAmount } from './SatsAmount';
 
@@ -32,11 +33,27 @@ const stateLabel: Record<string, string> = {
   customer_wins: '고객 승리',
 };
 
+const DISBURSE_STATES = new Set(['paid', 'sponsor_wins']);
+
 export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
   const requests = useSyncExternalStore(requestSubscribe, requestSnapshot);
   const orders = useSyncExternalStore(orderSubscribe, orderSnapshot);
 
   const order = orders[orderId];
+  const showDisburse = order && DISBURSE_STATES.has(order.state);
+
+  const [disbursing, setDisbursing] = useState(false);
+  const [disburseError, setDisburseError] = useState<string | null>(null);
+
+  async function handleDisburse() {
+    setDisbursing(true);
+    setDisburseError(null);
+    const result = await disburseSponsor(orderId);
+    if (!result.success) {
+      setDisburseError(result.error ?? '송금 실패');
+    }
+    setDisbursing(false);
+  }
 
   // 해당 주문의 요청만 필터 + 정렬 (최신순)
   const requestList = Object.values(requests)
@@ -75,6 +92,29 @@ export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
             </span>
           )}
         </div>
+
+        {/* 송금 상태 (paid / sponsor_wins) */}
+        {showDisburse && (
+          <div style={styles.disburseRow}>
+            {order.disbursed ? (
+              <span style={styles.disbursedBadge}>송금 완료</span>
+            ) : (
+              <>
+                <span style={styles.undisbursedBadge}>미송금</span>
+                <button
+                  style={disbursing ? styles.disburseBtnDisabled : styles.disburseBtn}
+                  onClick={handleDisburse}
+                  disabled={disbursing}
+                >
+                  {disbursing ? '송금 중...' : '수동 송금'}
+                </button>
+                {disburseError && (
+                  <span style={styles.disburseError}>{disburseError}</span>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={styles.stats}>
@@ -163,5 +203,54 @@ const styles = {
     padding: 48,
     color: '#666',
     fontSize: 14,
+  },
+  disburseRow: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  disbursedBadge: {
+    fontSize: 12,
+    fontWeight: 600 as const,
+    color: '#059669',
+    background: '#D1FAE5',
+    borderRadius: 4,
+    padding: '2px 8px',
+  },
+  undisbursedBadge: {
+    fontSize: 12,
+    fontWeight: 600 as const,
+    color: '#DC2626',
+    background: '#FEF2F2',
+    borderRadius: 4,
+    padding: '2px 8px',
+  },
+  disburseBtn: {
+    background: '#4F46E5',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 4,
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 600 as const,
+    cursor: 'pointer' as const,
+    fontFamily: 'inherit',
+  },
+  disburseBtnDisabled: {
+    background: '#D1D5DB',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 4,
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 600 as const,
+    cursor: 'not-allowed' as const,
+    fontFamily: 'inherit',
+  },
+  disburseError: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: 500 as const,
   },
 };

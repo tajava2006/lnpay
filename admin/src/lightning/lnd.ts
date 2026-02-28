@@ -1,5 +1,5 @@
 import type { LightningAdapter } from './adapter';
-import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, LnConnectionConfig } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, LnConnectionConfig, PaymentResult } from './types';
 import type { RouteHintHop } from '../types';
 import { savePreimage } from '../escrow-store';
 
@@ -278,6 +278,53 @@ export class LndAdapter implements LightningAdapter {
       case 'CANCELED':  return 'cancelled';
       default:          throw new Error(`알 수 없는 인보이스 상태: ${data.state}`);
     }
+  }
+
+  async payInvoice(bolt11: string, feeLimitSat?: number): Promise<PaymentResult> {
+    // bolt11을 디코딩하여 금액 기반 fee limit 계산
+    const decoded = await this.decodeInvoice(bolt11);
+    const limit = feeLimitSat ?? Math.max(Math.ceil(decoded.amountSat * 0.01), 10);
+
+    const res = await fetch(`${this.baseUrl}/v2/router/send`, {
+      method: 'POST',
+      headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payment_request: bolt11,
+        timeout_seconds: 60,
+        fee_limit_sat: String(limit),
+        no_inflight_updates: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return { status: 'failed', failureReason: `요청 실패: ${res.status} ${text}` };
+    }
+
+    // /v2/router/send는 NDJSON 스트리밍 응답 — 마지막 줄이 최종 결과
+    const text = await res.text();
+    const lines = text.trim().split('\n').filter(Boolean);
+    const lastLine = lines[lines.length - 1];
+
+    let payment: LndPayment & { payment_preimage?: string };
+    try {
+      const parsed: { result: LndPayment & { payment_preimage?: string } } = JSON.parse(lastLine);
+      payment = parsed.result;
+    } catch {
+      return { status: 'failed', failureReason: `응답 파싱 실패: ${lastLine}` };
+    }
+
+    if (payment.status === 'SUCCEEDED') {
+      return {
+        status: 'succeeded',
+        preimage: payment.payment_preimage,
+      };
+    }
+
+    return {
+      status: 'failed',
+      failureReason: payment.failure_reason,
+    };
   }
 
   async settleInvoice(preimage: string): Promise<void> {

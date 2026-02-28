@@ -1,4 +1,4 @@
-import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus } from './types';
+import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, PaymentResult } from './types';
 import type { RouteHintHop } from '../types';
 
 /**
@@ -60,4 +60,13 @@ export interface LightningAdapter {
    * @param preimage - 프리이미지 (hex)
    */
   settleInvoice(preimage: string): Promise<void>;
+
+  /**
+   * bolt11 인보이스에 결제를 전송한다.
+   * Sponsor에게 BTC를 지급할 때 사용한다.
+   *
+   * @param bolt11 - BOLT-11 인코딩된 인보이스
+   * @param feeLimitSat - 수수료 상한 (sats, 기본: 금액의 1% 또는 최소 10)
+   */
+  payInvoice(bolt11: string, feeLimitSat?: number): Promise<PaymentResult>;
 }

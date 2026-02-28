@@ -68,6 +68,19 @@ export interface HoldInvoiceResult {
  */
 export type HoldInvoiceStatus = 'open' | 'accepted' | 'settled' | 'cancelled';
 
+/**
+ * bolt11 결제 결과.
+ * - succeeded: 결제 성공, preimage는 proof of payment
+ * - failed: 결제 실패, failureReason에 사유
+ */
+export interface PaymentResult {
+  status: 'succeeded' | 'failed';
+  /** 결제 성공 시 프리이미지 (hex) — 결제 증명 */
+  preimage?: string;
+  /** 결제 실패 시 사유 */
+  failureReason?: string;
+}
+
 /** 노드 연결 상태 */
 export type ConnectionStatus = 'unconfigured' | 'connecting' | 'connected' | 'error';
 

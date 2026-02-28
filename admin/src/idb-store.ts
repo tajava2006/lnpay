@@ -101,6 +101,18 @@ export async function idbUpsertRequest(request: ProcessedRequest): Promise<void>
   });
 }
 
+/** orderId로 연관 request를 모두 조회한다 (orderId 인덱스 활용). */
+export async function idbGetRequestsByOrderId(orderId: string): Promise<ProcessedRequest[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('requests', 'readonly');
+    const index = tx.objectStore('requests').index('orderId');
+    const req = index.getAll(orderId);
+    req.onsuccess = () => resolve(req.result as ProcessedRequest[]);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 // ── 일괄 이관 ────────────────────────────────────────
 
 /**

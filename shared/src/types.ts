@@ -27,6 +27,8 @@ export interface Order {
   expiration: number;
   /** verified 전이 시 Admin이 생성한 hold invoice (Customer 결제용) */
   bolt11?: string;
+  /** Sponsor에게 BTC 송금 완료 여부 */
+  disbursed?: boolean;
   raw: object;
 }
 

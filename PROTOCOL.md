@@ -166,9 +166,9 @@ cancelled: remitted를 제외한 비터미널 상태에서 전이 가능
 
 빈 문자열 (`""`). 모든 정보는 태그로 전달된다.
 
-계좌 정보(bankName, accountNumber 등)는 Sponsor가 선택(claimed)된 이후
-해당 Sponsor에게만 별도 전달한다 (DM 등, 추후 구현).
-Lightning invoice 등 비트코인 결제 정보도 별도 채널로 전달한다.
+계좌 정보(bankName, accountNumber 등)는 Customer가 `account-info` kind 1111로
+Sponsor에게 NIP-44 암호화하여 전달한다 (아래 요청 이벤트 섹션 참조).
+Lightning invoice 등 비트코인 결제 정보는 태그로 전달한다.
 
 ### 이벤트 예시
 
@@ -221,6 +221,8 @@ Admin이 요청을 검토하고, 타당하면 kind 30402를 갱신한다.
 | `claim` | Sponsor | 클레임 신청 | `['bolt11', invoice]` |
 | `payment-confirm` | Customer | 입금 완료 신고 | — |
 | `cancel-request` | Customer | 주문 취소 신고 | — |
+| `account-info` | Customer | Sponsor에게 계좌정보 전달 | `['p', sponsorPubkey]`, `['commitment', sha256(plaintext)]` |
+| `remit-request` | Sponsor | 원화 송금 완료 통보 | — |
 
 ### a-tag 참조 규칙
 
@@ -239,7 +241,19 @@ Nostr 릴레이는 a-tag 대상 이벤트의 존재 여부를 검증하지 않�
 
 ### Content
 
-빈 문자열 (`""`). 모든 정보는 태그로 전달된다.
+대부분 빈 문자열 (`""`). 예외: `account-info`는 NIP-44 암호화된 계좌정보 JSON.
+
+#### account-info 이벤트 상세
+
+Customer가 Sponsor에게 무통장입금 계좌정보를 암호화 전달한다.
+`verified` 상태에서 발행하며, 상태 전이를 유발하지 않는다.
+
+- **content**: `NIP-44.encrypt(JSON.stringify({bankName, accountNumber, holderName}), customer_privkey, sponsor_pubkey)`
+- **`['p', sponsorPubkey]`**: Sponsor가 `#p` 필터로 수신 (Admin의 `['p', APP_PUBKEY]`와 함께)
+- **`['commitment', sha256(plaintext)]`**: 분쟁 시 검증용 해시 커밋먼트
+
+**복호화**: Sponsor만 가능 (자기 개인키 + Customer 공개키).
+**분쟁 검증**: Sponsor가 평문 공개 → Admin이 `sha256(평문) == commitment` 태그 대조 → 부인·조작 불가.
 
 ### 이벤트 예시: order-request
 
@@ -462,8 +476,8 @@ Customer                         Admin                          Sponsor
    │ ─────────────────────────────→│  (BTC가 HTLC에 잠김)           │
    │                               │  → state=escrowed 갱신         │
    │                               │                               │
-   │                               │  ③ 계좌 정보 전달              │
-   │                               │ ─────────────────────────────→│
+   │  ③ 계좌 정보 전달 (NIP-44)     │                               │
+   │ ──────────────────────────────────────────────────────────────→│
    │                               │                               │
    │                               │  ④ Sponsor가 KRW 무통장입금    │
    │                               │       (쿠팡 계좌로)            │

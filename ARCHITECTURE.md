@@ -261,8 +261,10 @@ shared/src/
 무통장입금을 대행해주고 그 대가로 BTC를 수령한다.
 
 - Nostr에서 사줘 요청 실시간 구독 (SimplePool.subscribeMany)
+- kind 1111 구독으로 Customer → Sponsor 계좌정보 수신 (#p 필터, NIP-44 복호화)
 - 오더북 형태로 활성 요청 목록 표시 (만료 임박순 정렬, 만료된 것 자동 필터링)
 - localStorage에 주문 영구 캐시 (즉시 로드 후 백그라운드 동기화)
+- IndexedDB에 클레임한 오더 + 관련 request 영구 보존 (Admin IDB 패턴 동일)
 - sold 상태 이벤트 수신 시 주문 자동 삭제
 - 남은 시간 매초 자동 갱신
 - pubkey 기반 이벤트 검증 (같은 orderId라도 최초 발행자만 갱신/삭제 가능)
@@ -272,17 +274,23 @@ shared/src/
 ```
 Nostr 릴레이
     │
-    ▼
-nostr/service.ts  ── 구독, 이벤트 수신 ──→  order-store.ts  ←── localStorage
-                                                │
-                                          useSyncExternalStore
-                                                │
-                                                ▼
-                                          OrderBook.tsx  →  OrderCard.tsx
+    ├── kind 30402 ──→ nostr/service.ts ──→ order-store.ts ←── localStorage
+    │                        │                    │
+    │                        │ (IDB에 있으면)      │
+    │                        └──→ idb-store.ts ←── IndexedDB
+    │
+    └── kind 1111 ──→ nostr/service.ts ──→ NIP-44 복호화 ──→ account-store.ts
+                           │                                       │
+                           └──→ idb-store.ts (request 저장)        │
+                                                             useSyncExternalStore
+                                                                   │
+                                                                   ▼
+                                                      OrderBook.tsx → OrderCard.tsx
 ```
 
-구독 서비스(nostr/service.ts)가 릴레이에서 이벤트를 수신하면 반응형 스토어(order-store.ts)에 반영한다.
-스토어는 localStorage에 영구 저장하면서 리스너에게 변경을 통지한다.
+구독 서비스(nostr/service.ts)가 릴레이에서 이벤트를 수신하면 반응형 스토어에 반영한다.
+kind 30402는 order-store(localStorage), kind 1111 account-info는 account-store(메모리)에 저장.
+클레임한 오더는 IndexedDB에도 동기화하여 영구 보존한다.
 UI 컴포넌트는 `useSyncExternalStore`로 스토어를 구독하여 변경 즉시 리렌더한다.
 구독 서비스와 UI가 분리되어 있으므로, 컴포넌트 마운트/언마운트와 무관하게 구독이 유지된다.
 
@@ -292,16 +300,19 @@ UI 컴포넌트는 `useSyncExternalStore`로 스토어를 구독하여 변경 �
 sponsor/src/
   main.tsx              - React 엔트리
   App.tsx               - 레이아웃 (KeyInit → AppContent), 구독 서비스 시작
-  types.ts              - SajwoRequest 타입, parseEvent()
+  types.ts              - Order 파싱, SponsorRequest, AccountInfoEvent 타입
   order-store.ts        - 반응형 주문 스토어 (localStorage + useSyncExternalStore)
+  account-store.ts      - 반응형 계좌정보 스토어 (메모리, UI 연동용)
+  idb-store.ts          - IndexedDB 영구 저장소 (클레임한 오더 + request 보존)
   nostr/
     storage.ts          - createWebStorage() 싱글턴
-    subscribe.ts        - SimplePool 구독 래퍼 (active/sold 분기)
-    service.ts          - 구독 서비스 (릴레이 → order-store 연결)
+    subscribe.ts        - SimplePool 구독 래퍼 (kind 30402 + kind 1111)
+    service.ts          - 구독 서비스 (릴레이 → store 연결, NIP-44 복호화, IDB 동기화)
+    claim.ts            - 클레임 발행 + IDB 이관, 송금 완료(remit-request) 발행
   components/
     KeyInit.tsx         - 키페어 보장 래퍼 (투명하게 처리)
     OrderBook.tsx       - 오더북 (스토어 구독 + 1초 타이머)
-    OrderCard.tsx       - 개별 요청 카드 (금액, 남은 시간 실시간 갱신)
+    OrderCard.tsx       - 개별 요청 카드 (계좌정보 표시, 송금 완료 버튼)
 ```
 
 ### Admin App

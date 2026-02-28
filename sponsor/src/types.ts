@@ -1,5 +1,64 @@
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, type Order, type OrderState } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, SAJWO_REQUEST_KIND, type Order, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
+
+// ── IDB 저장용 request 타입 ──────────────────────────
+
+/** Sponsor IDB에 저장되는 request (claim, account-info 등) */
+export interface SponsorRequest {
+  eventId: string;
+  orderId: string;
+  action: string;
+  pubkey: string;
+  createdAt: number;
+  expiration: number;
+  /** 복호화된 계좌정보 (account-info 액션인 경우) */
+  accountInfo?: AccountInfo;
+  raw: object;
+}
+
+// ── account-info 이벤트 파싱 ─────────────────────────
+
+/** account-info kind 1111 이벤트에서 추출한 정보 */
+export interface AccountInfoEvent {
+  eventId: string;
+  orderId: string;
+  customerPubkey: string;
+  encryptedContent: string;
+  commitment: string;
+  createdAt: number;
+  expiration: number;
+}
+
+/**
+ * kind 1111 이벤트를 AccountInfoEvent로 파싱한다.
+ * action이 'account-info'인 이벤트만 처리.
+ */
+export function parseAccountInfoEvent(event: Event): AccountInfoEvent | null {
+  const action = event.tags.find(t => t[0] === 'action')?.[1];
+  if (action !== 'account-info') return null;
+
+  const aTag = event.tags.find(t => t[0] === 'a')?.[1];
+  if (!aTag) return null;
+
+  const parts = aTag.split(':');
+  if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return null;
+  const orderId = parts[2]!;
+
+  const commitment = event.tags.find(t => t[0] === 'commitment')?.[1] ?? '';
+  const expiration = Number(event.tags.find(t => t[0] === 'expiration')?.[1] ?? '0');
+
+  return {
+    eventId: event.id,
+    orderId,
+    customerPubkey: event.pubkey,
+    encryptedContent: event.content,
+    commitment,
+    createdAt: event.created_at,
+    expiration,
+  };
+}
+
+// ── kind 30402 오더 이벤트 파싱 ──────────────────────
 
 /**
  * kind 30402 이벤트를 Order로 파싱한다.

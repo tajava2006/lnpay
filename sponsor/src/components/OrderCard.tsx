@@ -1,9 +1,10 @@
 import { useState, useSyncExternalStore } from 'react';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
-import { publishClaim } from '../nostr/claim';
+import { publishClaim, publishRemitRequest } from '../nostr/claim';
 import { getStateMeta } from '../order-states';
 import { decodeBolt11 } from '../utils/bolt11';
 import type { Bolt11Result } from '../utils/bolt11';
+import { subscribeAccountInfo, getAccountInfoSnapshot } from '../account-store';
 
 interface Props {
   order: Order;
@@ -53,6 +54,7 @@ export function OrderCard({ order, now, tracker }: Props) {
   const [showInvoiceInput, setShowInvoiceInput] = useState(false);
   const [invoiceText, setInvoiceText] = useState('');
   const [invoiceResult, setInvoiceResult] = useState<Bolt11Result | null>(null);
+  const [remitting, setRemitting] = useState(false);
 
   const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
   const btcKrw = priceSnap.price;
@@ -60,12 +62,20 @@ export function OrderCard({ order, now, tracker }: Props) {
     ? krwToSats(order.price, btcKrw)
     : null;
 
+  const accountInfoMap = useSyncExternalStore(subscribeAccountInfo, getAccountInfoSnapshot);
+  const accountInfo = accountInfoMap[order.orderId];
+
   const timeLeft = formatTimeLeft(order.expiration, now);
   const isUrgent = order.expiration > 0 && order.expiration - now < 3600;
 
   // 클레임 가능: requested 상태일 때만
   const canClaim = order.state === 'requested';
   const stateMeta = getStateMeta(order.state);
+
+  // 계좌정보 + 송금 관련
+  const showAccountInfo = order.state === 'escrowed' && accountInfo;
+  const showWaitingAccount = order.state === 'escrowed' && !accountInfo;
+  const canRemit = order.state === 'escrowed' && accountInfo;
 
   function handleInvoiceChange(value: string) {
     setInvoiceText(value);
@@ -94,6 +104,22 @@ export function OrderCard({ order, now, tracker }: Props) {
       alert('클레임 발행 중 오류가 발생했습니다.');
     } finally {
       setClaiming(false);
+    }
+  }
+
+  async function handleRemit() {
+    if (!confirm('원화 송금을 완료했습니까? 이 작업은 되돌릴 수 없습니다.')) return;
+    setRemitting(true);
+    try {
+      const ok = await publishRemitRequest(order);
+      if (!ok) {
+        alert('송금 완료 통보에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('[Remit] Error:', err);
+      alert('송금 완료 통보 중 오류가 발생했습니다.');
+    } finally {
+      setRemitting(false);
     }
   }
 
@@ -185,13 +211,46 @@ export function OrderCard({ order, now, tracker }: Props) {
             </button>
           )
         ) : (
-          <span style={{
-            ...styles.statusBadge,
-            background: stateMeta.bgColor,
-            color: stateMeta.textColor,
-          }}>
-            {stateMeta.label}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span style={{
+              ...styles.statusBadge,
+              background: stateMeta.bgColor,
+              color: stateMeta.textColor,
+            }}>
+              {stateMeta.label}
+            </span>
+
+            {showWaitingAccount && (
+              <span style={styles.waitingBadge}>
+                계좌 정보 대기 중
+              </span>
+            )}
+
+            {showAccountInfo && accountInfo && (
+              <div style={styles.accountSection}>
+                <p style={styles.accountTitle}>계좌 정보</p>
+                <p style={styles.accountDetail}>
+                  {accountInfo.bankName} {accountInfo.accountNumber}
+                </p>
+                <p style={styles.accountDetail}>
+                  예금주: {accountInfo.holderName}
+                </p>
+                {canRemit && (
+                  <button
+                    style={{
+                      ...styles.remitBtn,
+                      opacity: !remitting ? 1 : 0.5,
+                      cursor: !remitting ? 'pointer' : 'not-allowed',
+                    }}
+                    onClick={handleRemit}
+                    disabled={remitting}
+                  >
+                    {remitting ? '통보 중...' : '원화 송금했어요'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -305,5 +364,45 @@ const styles = {
   invoiceBtns: {
     display: 'flex',
     gap: 8,
+  },
+  waitingBadge: {
+    display: 'inline-block',
+    padding: '4px 10px',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 500 as const,
+    background: '#FEF3C7',
+    color: '#D97706',
+  },
+  accountSection: {
+    background: '#F9FAFB',
+    borderRadius: 8,
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+  },
+  accountTitle: {
+    fontSize: 12,
+    fontWeight: 600 as const,
+    color: '#333',
+    margin: 0,
+  },
+  accountDetail: {
+    fontSize: 13,
+    color: '#555',
+    margin: 0,
+    fontFamily: 'monospace',
+  },
+  remitBtn: {
+    marginTop: 4,
+    background: '#059669',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '8px 16px',
+    fontSize: 14,
+    fontWeight: 600 as const,
+    cursor: 'pointer',
   },
 };

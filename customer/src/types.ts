@@ -5,7 +5,7 @@
  * Phase 2: 유저스크립트 연동 시 필드 확장 예정
  */
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, type OrderState } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
 
 /**
  * Customer 로컬 주문
@@ -35,6 +35,10 @@ export interface CustomerOrder {
   adminState?: OrderState;
   /** Admin verified 전이 시 hold invoice. */
   bolt11?: string;
+  /** Admin 오더에서 수신한 Sponsor pubkey (claimed 이후) */
+  sponsorPubkey?: string;
+  /** 전달 완료된 계좌정보 (로컬 전용, 재전송 방지) */
+  accountInfo?: AccountInfo;
 }
 
 /** Admin kind 30402 이벤트에서 추출한 갱신 정보 */
@@ -42,6 +46,7 @@ export interface AdminOrderUpdate {
   orderId: string;
   adminState: OrderState;
   bolt11?: string;
+  sponsorPubkey?: string;
 }
 
 /**
@@ -59,6 +64,7 @@ export function parseAdminEvent(event: Event, myPubkey: string): AdminOrderUpdat
 
   const adminState = (event.tags.find(t => t[0] === 'state')?.[1] ?? 'requested') as OrderState;
   const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
+  const sponsorPubkey = event.tags.find(t => t[0] === 'sponsor')?.[1];
 
-  return { orderId, adminState, bolt11 };
+  return { orderId, adminState, bolt11, sponsorPubkey };
 }

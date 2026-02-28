@@ -5,6 +5,7 @@
  * - order-request: 사줘 요청
  * - payment-confirm: 입금 완료 통보
  * - cancel-request: 주문 취소 요청
+ * - account-info: 계좌정보 전달 (NIP-44 암호화)
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
@@ -16,7 +17,10 @@ import {
   CLIENT_TAG,
   getSecretKey,
   getReadRelays,
+  nip44Encrypt,
+  sha256Hex,
   type RequestAction,
+  type AccountInfo,
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import type { CustomerOrder } from '../types';
@@ -121,8 +125,47 @@ export async function publishOrderRequest(order: CustomerOrder): Promise<Publish
 /** 상태 통보를 릴레이에 발행한다 (payment-confirm, cancel-request). */
 export async function publishNotification(
   order: CustomerOrder,
-  action: Exclude<RequestAction, 'order-request' | 'claim'>,
+  action: Exclude<RequestAction, 'order-request' | 'claim' | 'account-info' | 'remit-request'>,
 ): Promise<PublishResult> {
   const template = buildNotificationEvent(order, action);
+  return signAndPublish(template);
+}
+
+/**
+ * 계좌정보를 NIP-44 암호화하여 kind 1111로 발행한다.
+ * Sponsor pubkey로 암호화하며, commitment 태그에 sha256 해시를 포함한다.
+ */
+export async function publishAccountInfo(
+  order: CustomerOrder,
+  accountInfo: AccountInfo,
+): Promise<PublishResult> {
+  const sponsorPubkey = order.sponsorPubkey;
+  if (!sponsorPubkey) throw new Error('sponsorPubkey 없음');
+
+  const sk = await getSecretKey(storage);
+  const plaintext = JSON.stringify(accountInfo);
+  const encrypted = nip44Encrypt(plaintext, sk, sponsorPubkey);
+  const commitment = await sha256Hex(plaintext);
+
+  const tags: string[][] = [
+    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+    ['action', 'account-info'],
+    ['t', CLIENT_TAG],
+    ['p', APP_PUBKEY],
+    ['p', sponsorPubkey],
+    ['commitment', commitment],
+  ];
+
+  if (order.expiration > 0) {
+    tags.push(['expiration', String(order.expiration)]);
+  }
+
+  const template = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: encrypted,
+  };
+
   return signAndPublish(template);
 }

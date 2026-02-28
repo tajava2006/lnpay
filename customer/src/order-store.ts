@@ -10,7 +10,7 @@
  *   Dashboard → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
 import type { CustomerOrder } from './types';
-import type { OrderState } from '@sajwo-tracker/shared';
+import type { OrderState, AccountInfo } from '@sajwo-tracker/shared';
 
 type OrderMap = Record<string, CustomerOrder>;
 type Listener = () => void;
@@ -83,15 +83,21 @@ export function markPublished(orderId: string, raw: string): void {
 
 /**
  * Admin 오더 상태를 오버레이한다.
- * adminState/bolt11이 변경된 경우에만 갱신.
+ * adminState/bolt11/sponsorPubkey가 변경된 경우에만 갱신.
  */
-export function applyAdminUpdate(orderId: string, adminState: OrderState, bolt11?: string): void {
+export function applyAdminUpdate(
+  orderId: string,
+  adminState: OrderState,
+  bolt11?: string,
+  sponsorPubkey?: string,
+): void {
   const existing = orders[orderId];
   if (!existing) return;
 
   const stateChanged = existing.adminState !== adminState;
   const bolt11Changed = bolt11 != null && existing.bolt11 !== bolt11;
-  if (!stateChanged && !bolt11Changed) return;
+  const sponsorChanged = sponsorPubkey != null && existing.sponsorPubkey !== sponsorPubkey;
+  if (!stateChanged && !bolt11Changed && !sponsorChanged) return;
 
   orders = {
     ...orders,
@@ -99,8 +105,18 @@ export function applyAdminUpdate(orderId: string, adminState: OrderState, bolt11
       ...existing,
       adminState,
       ...(bolt11 != null ? { bolt11 } : {}),
+      ...(sponsorPubkey != null ? { sponsorPubkey } : {}),
     },
   };
+  saveToStorage();
+  notify();
+}
+
+/** 계좌정보 전달 완료 시 로컬 저장 */
+export function setAccountInfo(orderId: string, accountInfo: AccountInfo): void {
+  const existing = orders[orderId];
+  if (!existing) return;
+  orders = { ...orders, [orderId]: { ...existing, accountInfo } };
   saveToStorage();
   notify();
 }

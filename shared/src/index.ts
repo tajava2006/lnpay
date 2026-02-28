@@ -1,5 +1,5 @@
 // Types
-export type { StorageAdapter, NostrKeypair, CachedRelayList, Order, AdminRequest } from './types';
+export type { StorageAdapter, NostrKeypair, CachedRelayList, Order, AdminRequest, AccountInfo } from './types';
 
 // Constants
 export {
@@ -24,6 +24,9 @@ export { ensureKeypair, getSecretKey, getUserPubkey } from './keys';
 
 // Relays
 export { subscribeRelayLists, getReadRelays, getWriteRelays, refreshRelayLists } from './relays';
+
+// Crypto (NIP-44)
+export { nip44Encrypt, nip44Decrypt, sha256Hex } from './crypto';
 
 // Price
 export { createPriceTracker } from './price';

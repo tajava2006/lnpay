@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import type { CustomerOrder } from '../types';
+import type { AccountInfo } from '@sajwo-tracker/shared';
 import { getDisplayMeta, isDeletable } from '../order-states';
-import { publishOrderRequest, publishNotification } from '../nostr/publish';
-import { markPublished, deleteOrder } from '../order-store';
+import { publishOrderRequest, publishNotification, publishAccountInfo } from '../nostr/publish';
+import { markPublished, deleteOrder, setAccountInfo } from '../order-store';
 import { InvoiceModal } from './InvoiceModal';
+import { AccountInfoModal } from './AccountInfoModal';
 
 interface Props {
   order: CustomerOrder;
@@ -13,10 +15,14 @@ export function OrderRow({ order }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
+  const [showAccountInfo, setShowAccountInfo] = useState(false);
+  const [sendingAccount, setSendingAccount] = useState(false);
 
   const meta = getDisplayMeta(order);
   const showPublish = !order.raw && !order.adminState;
   const showPayment = order.adminState === 'verified' && order.bolt11;
+  const showAccountBtn = order.adminState === 'verified' && order.sponsorPubkey && !order.accountInfo;
+  const accountSent = order.adminState === 'verified' && order.accountInfo;
   const showConfirmPaid = order.adminState === 'escrowed';
   const canDelete = isDeletable(order);
 
@@ -48,6 +54,23 @@ export function OrderRow({ order }: Props) {
       alert('입금 확인 통보 중 오류가 발생했습니다.');
     } finally {
       setConfirming(false);
+    }
+  }
+
+  async function handleAccountSubmit(info: AccountInfo) {
+    setSendingAccount(true);
+    try {
+      const result = await publishAccountInfo(order, info);
+      if (result.success) {
+        setAccountInfo(order.orderId, info);
+        setShowAccountInfo(false);
+      } else {
+        alert('계좌 정보 전달에 실패했습니다.');
+      }
+    } catch {
+      alert('계좌 정보 전달 중 오류가 발생했습니다.');
+    } finally {
+      setSendingAccount(false);
     }
   }
 
@@ -83,7 +106,7 @@ export function OrderRow({ order }: Props) {
         </td>
         <td>{dateStr}</td>
         <td>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {showPublish && (
               <button
                 onClick={handlePublish}
@@ -100,6 +123,27 @@ export function OrderRow({ order }: Props) {
               >
                 결제하기
               </button>
+            )}
+            {showAccountBtn && (
+              <button
+                onClick={() => setShowAccountInfo(true)}
+                className="btn btn-publish"
+              >
+                결제 완료 + 계좌 전달
+              </button>
+            )}
+            {accountSent && (
+              <span style={{
+                display: 'inline-block',
+                padding: '4px 12px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 500,
+                background: '#D1FAE5',
+                color: '#065F46',
+              }}>
+                계좌 전달 완료
+              </span>
             )}
             {showConfirmPaid && (
               <button
@@ -126,6 +170,14 @@ export function OrderRow({ order }: Props) {
           orderId={order.orderId}
           bolt11={order.bolt11}
           onClose={() => setShowInvoice(false)}
+        />
+      )}
+      {showAccountInfo && (
+        <AccountInfoModal
+          orderId={order.orderId}
+          onClose={() => setShowAccountInfo(false)}
+          onSubmit={handleAccountSubmit}
+          submitting={sendingAccount}
         />
       )}
     </>

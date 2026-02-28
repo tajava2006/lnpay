@@ -93,6 +93,9 @@
 
 ## 기술 부채
 
+- [ ] **Customer 만료 자동삭제 로직 제거**: `order-store.ts`의 `purgeExpired`/`startCleanup`/`stopCleanup` + `App.tsx` 호출부 제거
+  - Phase 1 리팩토링 시 Sponsor 앱 order-store를 템플릿으로 복사하면서 딸려온 코드
+  - Customer는 본인 오더만 저장하므로 localStorage 비대화 문제 없음 (수동 삭제 API 별도 존재)
 - [ ] **테스트 코드 작성**: Admin state-machine, Customer/Sponsor 이벤트 파싱 등 핵심 로직 테스트
 - [ ] **에러 처리 강화**: 네트워크 오류, 파싱 실패 등 예외 상황 처리
 - [ ] **로깅 개선**: 디버깅 용이하도록 구조화된 로그

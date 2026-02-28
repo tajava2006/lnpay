@@ -43,6 +43,13 @@ export interface AdminRequest {
   raw: object;
 }
 
+/** 계좌정보 (Customer → Sponsor 암호화 전달) */
+export interface AccountInfo {
+  bankName: string;
+  accountNumber: string;
+  holderName: string;
+}
+
 /** 캐싱된 릴레이 목록 */
 export interface CachedRelayList {
   relays: string[];

@@ -62,6 +62,10 @@ export async function startAdminSubscription(): Promise<void> {
         void handlePaymentConfirm(request);
       } else if (request.action === 'cancel-request') {
         void handleCancelRequest(request);
+      } else if (request.action === 'account-info') {
+        handleAccountInfo(request);
+      } else if (request.action === 'remit-request') {
+        void handleRemitRequest(request);
       }
     },
     onOrder: (event) => {
@@ -370,6 +374,15 @@ async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
 }
 
 /**
+ * account-info 수신 시 로그만 남긴다 (상태 전이 없음).
+ * Customer가 Sponsor에게 NIP-44 암호화 계좌 정보를 전달한 것으로,
+ * Admin은 분쟁 시 commitment 태그로 검증할 수 있다.
+ */
+function handleAccountInfo(request: ProcessedRequest): void {
+  console.log('[Admin] account-info received for', request.orderId, 'from', request.pubkey);
+}
+
+/**
  * claim 수신 시 오더를 requested → claimed로 전이하고 kind 30402를 발행한다.
  * - 오더가 없거나 전이 불가면 무시 (선착순: 이미 claimed면 후속 클레임 거부)
  * - 인보이스가 없거나 디코딩 실패면 무시
@@ -422,6 +435,39 @@ async function handleClaim(request: ProcessedRequest): Promise<void> {
     console.log('[Admin] Order', request.orderId, 'claimed by', request.pubkey);
   } catch (e) {
     console.error('[Admin] Failed to publish claimed order for', request.orderId, e);
+  }
+}
+
+/**
+ * remit-request 수신 시 오더를 escrowed → remitted로 전이하고 kind 30402를 발행한다.
+ * Sponsor가 원화 송금 완료를 통보한 것으로, sponsorPubkey 검증 후 전이한다.
+ * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
+ */
+async function handleRemitRequest(request: ProcessedRequest): Promise<void> {
+  const order = getOrder(request.orderId);
+  if (!order) return;
+
+  if (order.sponsorPubkey !== request.pubkey) {
+    console.warn('[Admin] remit-request pubkey mismatch for', request.orderId);
+    return;
+  }
+
+  if (!canTransition(order.state, 'remitted')) {
+    console.warn('[Admin] Cannot transition to remitted for', request.orderId, '- current state:', order.state);
+    return;
+  }
+
+  const updatedOrder: Order = {
+    ...order,
+    state: 'remitted',
+    updatedAt: Math.floor(Date.now() / 1000),
+  };
+
+  try {
+    await publishOrder(updatedOrder);
+    console.log('[Admin] Order', request.orderId, 'remitted (remit-request from sponsor)');
+  } catch (e) {
+    console.error('[Admin] Failed to publish remitted order for', request.orderId, e);
   }
 }
 

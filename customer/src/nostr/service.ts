@@ -25,7 +25,7 @@ export async function startAdminSubscription(): Promise<void> {
     onOrder: (event) => {
       const update = parseAdminEvent(event, myPubkey);
       if (update) {
-        applyAdminUpdate(update.orderId, update.adminState, update.bolt11);
+        applyAdminUpdate(update.orderId, update.adminState, update.bolt11, update.sponsorPubkey);
       }
     },
     onEose: () => {

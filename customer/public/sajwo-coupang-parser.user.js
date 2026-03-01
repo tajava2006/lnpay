@@ -6306,11 +6306,12 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     return true;
   }
 
-  // customer/userscript/src/nostr.ts
+  // shared/src/constants.ts
   var APP_PUBKEY = "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5";
-  var KIND_1111 = 1111;
-  var KIND_30402 = 30402;
-  var CLIENT_TAG = "sajwo-tracker";
+  var SAJWO_REQUEST_KIND = 30402;
+  var SAJWO_REQUEST_EVENT_KIND = 1111;
+  var CLIENT_TAG = true ? "sajwo-tracker-dev" : "sajwo-tracker";
+  var NOSTR_SINCE = void 0 ? Number(void 0) : void 0;
   var DISCOVERY_RELAYS = [
     "wss://purplepag.es",
     "wss://relay.damus.io",
@@ -6320,6 +6321,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     "wss://relay.damus.io",
     "wss://nos.lol"
   ];
+
+  // customer/userscript/src/nostr.ts
   function decodeNsec(nsec) {
     const decoded = nip19_exports.decode(nsec);
     if (decoded.type !== "nsec") {
@@ -6442,7 +6445,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     const pubkey = getPublicKey(sk);
     const expiration = Math.floor(payload.expirationDate / 1e3);
     return finalizeEvent({
-      kind: KIND_1111,
+      kind: SAJWO_REQUEST_EVENT_KIND,
       created_at: Math.floor(Date.now() / 1e3),
       tags: [
         ["p", pubkey],
@@ -6455,10 +6458,10 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   }
   function buildPaymentConfirmEvent(sk, orderId) {
     return finalizeEvent({
-      kind: KIND_1111,
+      kind: SAJWO_REQUEST_EVENT_KIND,
       created_at: Math.floor(Date.now() / 1e3),
       tags: [
-        ["a", `${KIND_30402}:${APP_PUBKEY}:${orderId}`],
+        ["a", `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
         ["action", "payment-confirm"],
         ["t", CLIENT_TAG],
         ["p", APP_PUBKEY]
@@ -6468,10 +6471,10 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   }
   function buildCancelRequestEvent(sk, orderId) {
     return finalizeEvent({
-      kind: KIND_1111,
+      kind: SAJWO_REQUEST_EVENT_KIND,
       created_at: Math.floor(Date.now() / 1e3),
       tags: [
-        ["a", `${KIND_30402}:${APP_PUBKEY}:${orderId}`],
+        ["a", `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
         ["action", "cancel-request"],
         ["t", CLIENT_TAG],
         ["p", APP_PUBKEY]

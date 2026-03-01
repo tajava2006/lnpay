@@ -12,6 +12,7 @@
     "dev:admin": "pnpm --filter @sajwo-tracker/admin dev",
     "build:admin": "pnpm --filter @sajwo-tracker/admin build",
     "build:userscript": "node customer/userscript/esbuild.config.mjs",
+    "build:userscript:dev": "SAJWO_DEV=true node customer/userscript/esbuild.config.mjs",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint"
   }

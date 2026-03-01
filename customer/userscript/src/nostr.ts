@@ -6,30 +6,14 @@
  */
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import { nip19 } from 'nostr-tools';
-
-/** 앱 pubkey (shared/constants.ts와 동일) */
-const APP_PUBKEY = '658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5';
-
-/** NIP-22 Comment kind */
-const KIND_1111 = 1111;
-
-/** kind 30402 (NIP-99 Classified Listing) */
-const KIND_30402 = 30402;
-
-/** 클라이언트 식별 태그 */
-const CLIENT_TAG = 'sajwo-tracker';
-
-/** NIP-65 디스커버리용 릴레이 */
-const DISCOVERY_RELAYS = [
-  'wss://purplepag.es',
-  'wss://relay.damus.io',
-  'wss://nos.lol',
-];
-
-const FALLBACK_RELAYS = [
-  'wss://relay.damus.io',
-  'wss://nos.lol',
-];
+import {
+  APP_PUBKEY,
+  SAJWO_REQUEST_KIND,
+  SAJWO_REQUEST_EVENT_KIND,
+  CLIENT_TAG,
+  DISCOVERY_RELAYS,
+  FALLBACK_RELAYS,
+} from '@sajwo-tracker/shared/constants';
 
 // ── nsec 디코딩 ─────────────────────────────────────
 
@@ -214,7 +198,7 @@ export function buildParsedOrderEvent(
   const expiration = Math.floor(payload.expirationDate / 1000);
 
   return finalizeEvent({
-    kind: KIND_1111,
+    kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
       ['p', pubkey],
@@ -229,10 +213,10 @@ export function buildParsedOrderEvent(
 /** payment-confirm 이벤트를 빌드하고 서명한다 (#p=APP_PUBKEY) */
 export function buildPaymentConfirmEvent(sk: Uint8Array, orderId: string) {
   return finalizeEvent({
-    kind: KIND_1111,
+    kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
-      ['a', `${KIND_30402}:${APP_PUBKEY}:${orderId}`],
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', 'payment-confirm'],
       ['t', CLIENT_TAG],
       ['p', APP_PUBKEY],
@@ -244,10 +228,10 @@ export function buildPaymentConfirmEvent(sk: Uint8Array, orderId: string) {
 /** cancel-request 이벤트를 빌드하고 서명한다 (#p=APP_PUBKEY) */
 export function buildCancelRequestEvent(sk: Uint8Array, orderId: string) {
   return finalizeEvent({
-    kind: KIND_1111,
+    kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
-      ['a', `${KIND_30402}:${APP_PUBKEY}:${orderId}`],
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', 'cancel-request'],
       ['t', CLIENT_TAG],
       ['p', APP_PUBKEY],

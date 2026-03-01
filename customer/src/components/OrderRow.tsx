@@ -24,9 +24,13 @@ export function OrderRow({ order }: Props) {
   const showPayment = order.adminState === 'verified' && order.bolt11;
   // 수동 주문만 계좌 입력 모달 버튼 표시
   const showAccountBtn = !isParsed && order.adminState === 'verified' && order.sponsorPubkey && !order.accountInfo;
-  const accountSent = order.adminState === 'verified' && order.accountInfo;
-  // 파싱 주문 verified + sponsorPubkey: 자동 전달 중 표시
-  const autoSendingAccount = isParsed && order.adminState === 'verified' && order.sponsorPubkey && !order.accountInfo;
+  // 수동 주문: verified에서 전달 완료 / 파싱 주문: escrowed에서 자동 전달 완료
+  const accountSent = order.accountInfo && (
+    order.adminState === 'verified' ||
+    (isParsed && order.adminState === 'escrowed')
+  );
+  // 파싱 주문 escrowed + sponsorPubkey: 자동 전달 중 표시
+  const autoSendingAccount = isParsed && order.adminState === 'escrowed' && order.sponsorPubkey && !order.accountInfo;
   const showConfirmPaid = order.adminState === 'escrowed';
   const canDelete = isDeletable(order);
 

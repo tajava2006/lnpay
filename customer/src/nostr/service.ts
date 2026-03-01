@@ -3,7 +3,7 @@
  *
  * 1. Admin kind 30402 이벤트를 구독하고 order-store에 상태를 반영한다.
  * 2. 유저스크립트 kind 1111 이벤트를 구독하고 parsed-store에 반영한다.
- * 3. 파싱 주문이 verified 단계에 도달하면 계좌정보를 자동 전송한다.
+ * 3. 파싱 주문이 escrowed 단계(hold invoice 결제 완료)에 도달하면 계좌정보를 자동 전송한다.
  */
 import { getReadRelays, getUserPubkey } from '@sajwo-tracker/shared';
 import { storage } from './storage';
@@ -33,8 +33,8 @@ async function startAdminSubscription(): Promise<void> {
 
       applyAdminUpdate(update.orderId, update.adminState, update.bolt11, update.sponsorPubkey);
 
-      // 파싱 주문 verified 도달 시 계좌정보 자동 전송
-      if (update.adminState === 'verified' && update.sponsorPubkey) {
+      // 파싱 주문 escrowed 도달 시 계좌정보 자동 전송
+      if (update.adminState === 'escrowed' && update.sponsorPubkey) {
         const order = getSnapshot()[update.orderId];
         if (order?.source === 'parsed' && order.fixedAccountInfo && !order.accountInfo) {
           void autoSendAccountInfo(order.orderId);

@@ -5,7 +5,7 @@
  * nostr-tools/pure의 finalizeEvent + getPublicKey만 사용.
  */
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
-import { nip19 } from 'nostr-tools';
+import * as nip19 from 'nostr-tools/nip19';
 import { v2 as nip44 } from 'nostr-tools/nip44';
 import {
   APP_PUBKEY,

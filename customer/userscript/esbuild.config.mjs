@@ -11,6 +11,7 @@ const isDev = process.env.SAJWO_DEV === 'true';
 await build({
   entryPoints: [resolve(__dirname, 'src/main.ts')],
   bundle: true,
+  minify: !isDev,
   format: 'iife',
   target: 'es2020',
   outfile: resolve(__dirname, '../public/sajwo-coupang-parser.user.js'),

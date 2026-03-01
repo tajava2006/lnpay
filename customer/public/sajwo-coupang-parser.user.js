@@ -78,7 +78,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     return match?.[1] ?? null;
   }
   async function waitForNextData(maxAttempts = 20, interval = 100) {
-    for (let i3 = 0; i3 < maxAttempts; i3++) {
+    for (let i2 = 0; i2 < maxAttempts; i2++) {
       const script = document.getElementById("__NEXT_DATA__");
       if (script) return script;
       await new Promise((r) => setTimeout(r, interval));
@@ -187,8 +187,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     }
   }
   function clean(...arrays) {
-    for (let i3 = 0; i3 < arrays.length; i3++) {
-      arrays[i3].fill(0);
+    for (let i2 = 0; i2 < arrays.length; i2++) {
+      arrays[i2].fill(0);
     }
   }
   function createView(arr) {
@@ -201,14 +201,14 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     // @ts-ignore
     typeof Uint8Array.from([]).toHex === "function" && typeof Uint8Array.fromHex === "function"
   ))();
-  var hexes = /* @__PURE__ */ Array.from({ length: 256 }, (_, i3) => i3.toString(16).padStart(2, "0"));
+  var hexes = /* @__PURE__ */ Array.from({ length: 256 }, (_, i2) => i2.toString(16).padStart(2, "0"));
   function bytesToHex(bytes) {
     abytes(bytes);
     if (hasHexBuiltin)
       return bytes.toHex();
     let hex = "";
-    for (let i3 = 0; i3 < bytes.length; i3++) {
-      hex += hexes[bytes[i3]];
+    for (let i2 = 0; i2 < bytes.length; i2++) {
+      hex += hexes[bytes[i2]];
     }
     return hex;
   }
@@ -245,16 +245,16 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   }
   function concatBytes(...arrays) {
     let sum = 0;
-    for (let i3 = 0; i3 < arrays.length; i3++) {
-      const a = arrays[i3];
+    for (let i2 = 0; i2 < arrays.length; i2++) {
+      const a = arrays[i2];
       abytes(a);
       sum += a.length;
     }
     const res = new Uint8Array(sum);
-    for (let i3 = 0, pad3 = 0; i3 < arrays.length; i3++) {
-      const a = arrays[i3];
-      res.set(a, pad3);
-      pad3 += a.length;
+    for (let i2 = 0, pad2 = 0; i2 < arrays.length; i2++) {
+      const a = arrays[i2];
+      res.set(a, pad2);
+      pad2 += a.length;
     }
     return res;
   }
@@ -341,8 +341,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
         this.process(view, 0);
         pos = 0;
       }
-      for (let i3 = pos; i3 < blockLen; i3++)
-        buffer[i3] = 0;
+      for (let i2 = pos; i2 < blockLen; i2++)
+        buffer[i2] = 0;
       view.setBigUint64(blockLen - 8, BigInt(this.length * 8), isLE2);
       this.process(view, 0);
       const oview = createView(out);
@@ -353,8 +353,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       const state = this.get();
       if (outLen > state.length)
         throw new Error("_sha2: outputLen bigger than state");
-      for (let i3 = 0; i3 < outLen; i3++)
-        oview.setUint32(4 * i3, state[i3], isLE2);
+      for (let i2 = 0; i2 < outLen; i2++)
+        oview.setUint32(4 * i2, state[i2], isLE2);
     }
     digest() {
       const { buffer, outputLen } = this;
@@ -478,19 +478,19 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       this.H = H | 0;
     }
     process(view, offset) {
-      for (let i3 = 0; i3 < 16; i3++, offset += 4)
-        SHA256_W[i3] = view.getUint32(offset, false);
-      for (let i3 = 16; i3 < 64; i3++) {
-        const W15 = SHA256_W[i3 - 15];
-        const W2 = SHA256_W[i3 - 2];
+      for (let i2 = 0; i2 < 16; i2++, offset += 4)
+        SHA256_W[i2] = view.getUint32(offset, false);
+      for (let i2 = 16; i2 < 64; i2++) {
+        const W15 = SHA256_W[i2 - 15];
+        const W2 = SHA256_W[i2 - 2];
         const s0 = rotr(W15, 7) ^ rotr(W15, 18) ^ W15 >>> 3;
         const s1 = rotr(W2, 17) ^ rotr(W2, 19) ^ W2 >>> 10;
-        SHA256_W[i3] = s1 + SHA256_W[i3 - 7] + s0 + SHA256_W[i3 - 16] | 0;
+        SHA256_W[i2] = s1 + SHA256_W[i2 - 7] + s0 + SHA256_W[i2 - 16] | 0;
       }
       let { A, B, C, D, E, F, G, H } = this;
-      for (let i3 = 0; i3 < 64; i3++) {
+      for (let i2 = 0; i2 < 64; i2++) {
         const sigma1 = rotr(E, 6) ^ rotr(E, 11) ^ rotr(E, 25);
-        const T1 = H + sigma1 + Chi(E, F, G) + SHA256_K[i3] + SHA256_W[i3] | 0;
+        const T1 = H + sigma1 + Chi(E, F, G) + SHA256_K[i2] + SHA256_W[i2] | 0;
         const sigma0 = rotr(A, 2) ^ rotr(A, 13) ^ rotr(A, 22);
         const T2 = sigma0 + Maj(A, B, C) | 0;
         H = G;
@@ -588,10 +588,10 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     return Uint8Array.from(bytes);
   }
   function asciiToBytes(ascii) {
-    return Uint8Array.from(ascii, (c, i3) => {
+    return Uint8Array.from(ascii, (c, i2) => {
       const charCode = c.charCodeAt(0);
       if (c.length !== 1 || charCode > 127) {
-        throw new Error(`string contains non-ASCII character "${ascii[i3]}" with code ${charCode} at position ${i3}`);
+        throw new Error(`string contains non-ASCII character "${ascii[i2]}" with code ${charCode} at position ${i2}`);
       }
       return charCode;
     });
@@ -623,11 +623,11 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     const _maxDrbgIters = 1e3;
     let v = u8n(hashLen);
     let k = u8n(hashLen);
-    let i3 = 0;
+    let i2 = 0;
     const reset = () => {
       v.fill(1);
       k.fill(0);
-      i3 = 0;
+      i2 = 0;
     };
     const h = (...msgs) => hmacFn(k, concatBytes(v, ...msgs));
     const reseed = (seed = NULL) => {
@@ -639,7 +639,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       v = h();
     };
     const gen = () => {
-      if (i3++ >= _maxDrbgIters)
+      if (i2++ >= _maxDrbgIters)
         throw new Error("drbg: tried max amount of iterations");
       let len = 0;
       const out = [];
@@ -747,8 +747,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     const n2 = Fp.mul(n, _2n);
     const v = Fp.pow(n2, p5div8);
     const nv = Fp.mul(n, v);
-    const i3 = Fp.mul(Fp.mul(nv, _2n), v);
-    const root = Fp.mul(nv, Fp.sub(i3, Fp.ONE));
+    const i2 = Fp.mul(Fp.mul(nv, _2n), v);
+    const root = Fp.mul(nv, Fp.sub(i2, Fp.ONE));
     assertIsSquare(Fp, root, n);
     return root;
   }
@@ -805,17 +805,17 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       while (!Fp.eql(t, Fp.ONE)) {
         if (Fp.is0(t))
           return Fp.ZERO;
-        let i3 = 1;
+        let i2 = 1;
         let t_tmp = Fp.sqr(t);
         while (!Fp.eql(t_tmp, Fp.ONE)) {
-          i3++;
+          i2++;
           t_tmp = Fp.sqr(t_tmp);
-          if (i3 === M)
+          if (i2 === M)
             throw new Error("Cannot find square root");
         }
-        const exponent = _1n2 << BigInt(M - i3 - 1);
+        const exponent = _1n2 << BigInt(M - i2 - 1);
         const b = Fp.pow(c, exponent);
-        M = i3;
+        M = i2;
         c = Fp.sqr(b);
         t = Fp.mul(t, c);
         R = Fp.mul(R, b);
@@ -883,17 +883,17 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   }
   function FpInvertBatch(Fp, nums, passZero = false) {
     const inverted = new Array(nums.length).fill(passZero ? Fp.ZERO : void 0);
-    const multipliedAcc = nums.reduce((acc, num2, i3) => {
+    const multipliedAcc = nums.reduce((acc, num2, i2) => {
       if (Fp.is0(num2))
         return acc;
-      inverted[i3] = acc;
+      inverted[i2] = acc;
       return Fp.mul(acc, num2);
     }, Fp.ONE);
     const invertedAcc = Fp.inv(multipliedAcc);
-    nums.reduceRight((acc, num2, i3) => {
+    nums.reduceRight((acc, num2, i2) => {
       if (Fp.is0(num2))
         return acc;
-      inverted[i3] = Fp.mul(acc, inverted[i3]);
+      inverted[i2] = Fp.mul(acc, inverted[i2]);
       return Fp.mul(acc, num2);
     }, invertedAcc);
     return inverted;
@@ -1084,7 +1084,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   }
   function normalizeZ(c, points) {
     const invertedZs = FpInvertBatch(c.Fp, points.map((p) => p.Z));
-    return points.map((p, i3) => c.fromAffine(p.toAffine(invertedZs[i3])));
+    return points.map((p, i2) => c.fromAffine(p.toAffine(invertedZs[i2])));
   }
   function validateW(W, bits) {
     if (!Number.isSafeInteger(W) || W <= 0 || W > bits)
@@ -1167,7 +1167,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       for (let window2 = 0; window2 < windows; window2++) {
         base = p;
         points.push(base);
-        for (let i3 = 1; i3 < windowSize; i3++) {
+        for (let i2 = 1; i2 < windowSize; i2++) {
           base = base.add(p);
           points.push(base);
         }
@@ -1301,10 +1301,10 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     CURVE = Object.freeze(Object.assign({}, CURVE));
     return { CURVE, Fp, Fn };
   }
-  function createKeygen(randomSecretKey, getPublicKey3) {
+  function createKeygen(randomSecretKey, getPublicKey2) {
     return function keygen(seed) {
       const secretKey = randomSecretKey(seed);
-      return { secretKey, publicKey: getPublicKey3(secretKey) };
+      return { secretKey, publicKey: getPublicKey2(secretKey) };
     };
   }
 
@@ -1325,16 +1325,16 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       this.blockLen = this.iHash.blockLen;
       this.outputLen = this.iHash.outputLen;
       const blockLen = this.blockLen;
-      const pad3 = new Uint8Array(blockLen);
-      pad3.set(key.length > blockLen ? hash.create().update(key).digest() : key);
-      for (let i3 = 0; i3 < pad3.length; i3++)
-        pad3[i3] ^= 54;
-      this.iHash.update(pad3);
+      const pad2 = new Uint8Array(blockLen);
+      pad2.set(key.length > blockLen ? hash.create().update(key).digest() : key);
+      for (let i2 = 0; i2 < pad2.length; i2++)
+        pad2[i2] ^= 54;
+      this.iHash.update(pad2);
       this.oHash = hash.create();
-      for (let i3 = 0; i3 < pad3.length; i3++)
-        pad3[i3] ^= 54 ^ 92;
-      this.oHash.update(pad3);
-      clean(pad3);
+      for (let i2 = 0; i2 < pad2.length; i2++)
+        pad2[i2] ^= 54 ^ 92;
+      this.oHash.update(pad2);
+      clean(pad2);
     }
     update(buf) {
       aexists(this);
@@ -1855,15 +1855,15 @@ console.log('[사줘] 유저스크립트 로딩 시작');
         if (!Fn.isValidNot0(scalar))
           throw new Error("invalid scalar: out of range");
         let point, fake;
-        const mul3 = (n) => wnaf.cached(this, n, (p) => normalizeZ(_Point, p));
+        const mul = (n) => wnaf.cached(this, n, (p) => normalizeZ(_Point, p));
         if (endo2) {
           const { k1neg, k1, k2neg, k2 } = splitEndoScalarN(scalar);
-          const { p: k1p, f: k1f } = mul3(k1);
-          const { p: k2p, f: k2f } = mul3(k2);
+          const { p: k1p, f: k1f } = mul(k1);
+          const { p: k2p, f: k2f } = mul(k2);
           fake = k1f.add(k2f);
           point = finishEndo(endo2.beta, k1p, k2p, k1neg, k2neg);
         } else {
-          const { p, f } = mul3(scalar);
+          const { p, f } = mul(scalar);
           point = p;
           fake = f;
         }
@@ -1990,7 +1990,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     function randomSecretKey(seed = randomBytes_(lengths.seed)) {
       return mapHashToField(abytes(seed, lengths.seed, "seed"), Fn.ORDER);
     }
-    function getPublicKey3(secretKey, isCompressed = true) {
+    function getPublicKey2(secretKey, isCompressed = true) {
       return Point.BASE.multiply(Fn.fromBytes(secretKey)).toBytes(isCompressed);
     }
     function isProbPub(item) {
@@ -2016,8 +2016,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       isValidPublicKey,
       randomSecretKey
     };
-    const keygen = createKeygen(randomSecretKey, getPublicKey3);
-    return Object.freeze({ getPublicKey: getPublicKey3, getSharedSecret, keygen, Point, utils, lengths });
+    const keygen = createKeygen(randomSecretKey, getPublicKey2);
+    return Object.freeze({ getPublicKey: getPublicKey2, getSharedSecret, keygen, Point, utils, lengths });
   }
   function ecdsa(Point, hash, ecdsaOpts = {}) {
     ahash(hash);
@@ -2033,7 +2033,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     const hmac2 = ecdsaOpts.hmac || ((key, msg) => hmac(hash, key, msg));
     const { Fp, Fn } = Point;
     const { ORDER: CURVE_ORDER, BITS: fnBits } = Fn;
-    const { keygen, getPublicKey: getPublicKey3, getSharedSecret, utils, lengths } = ecdh(Point, ecdsaOpts);
+    const { keygen, getPublicKey: getPublicKey2, getSharedSecret, utils, lengths } = ecdh(Point, ecdsaOpts);
     const defaultSigOpts = {
       prehash: true,
       lowS: typeof ecdsaOpts.lowS === "boolean" ? ecdsaOpts.lowS : true,
@@ -2239,7 +2239,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     }
     return Object.freeze({
       keygen,
-      getPublicKey: getPublicKey3,
+      getPublicKey: getPublicKey2,
       getSharedSecret,
       utils,
       lengths,
@@ -2423,8 +2423,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       return false;
     if (!Array.isArray(event.tags))
       return false;
-    for (let i22 = 0; i22 < event.tags.length; i22++) {
-      let tag = event.tags[i22];
+    for (let i2 = 0; i2 < event.tags.length; i2++) {
+      let tag = event.tags[i2];
       if (!Array.isArray(tag))
         return false;
       for (let j = 0; j < tag.length; j++) {
@@ -2542,24 +2542,24 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     const lettersA = typeof letters === "string" ? letters.split("") : letters;
     const len = lettersA.length;
     astrArr("alphabet", lettersA);
-    const indexes = new Map(lettersA.map((l, i3) => [l, i3]));
+    const indexes = new Map(lettersA.map((l, i2) => [l, i2]));
     return {
       encode: (digits) => {
         aArr(digits);
-        return digits.map((i3) => {
-          if (!Number.isSafeInteger(i3) || i3 < 0 || i3 >= len)
-            throw new Error(`alphabet.encode: digit index outside alphabet "${i3}". Allowed: ${letters}`);
-          return lettersA[i3];
+        return digits.map((i2) => {
+          if (!Number.isSafeInteger(i2) || i2 < 0 || i2 >= len)
+            throw new Error(`alphabet.encode: digit index outside alphabet "${i2}". Allowed: ${letters}`);
+          return lettersA[i2];
         });
       },
       decode: (input) => {
         aArr(input);
         return input.map((letter) => {
           astr("alphabet.decode", letter);
-          const i3 = indexes.get(letter);
-          if (i3 === void 0)
+          const i2 = indexes.get(letter);
+          if (i2 === void 0)
             throw new Error(`Unknown letter: "${letter}". Allowed: ${letters}`);
-          return i3;
+          return i2;
         });
       }
     };
@@ -2608,8 +2608,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   var radix2carry = /* @__NO_SIDE_EFFECTS__ */ (from, to) => from + (to - gcd(from, to));
   var powers = /* @__PURE__ */ (() => {
     let res = [];
-    for (let i3 = 0; i3 < 40; i3++)
-      res.push(2 ** i3);
+    for (let i2 = 0; i2 < 40; i2++)
+      res.push(2 ** i2);
     return res;
   })();
   function convertRadix2(data, from, to, padding2) {
@@ -2701,27 +2701,27 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   function bech32Polymod(pre) {
     const b = pre >> 25;
     let chk = (pre & 33554431) << 5;
-    for (let i3 = 0; i3 < POLYMOD_GENERATORS.length; i3++) {
-      if ((b >> i3 & 1) === 1)
-        chk ^= POLYMOD_GENERATORS[i3];
+    for (let i2 = 0; i2 < POLYMOD_GENERATORS.length; i2++) {
+      if ((b >> i2 & 1) === 1)
+        chk ^= POLYMOD_GENERATORS[i2];
     }
     return chk;
   }
   function bechChecksum(prefix, words, encodingConst = 1) {
     const len = prefix.length;
     let chk = 1;
-    for (let i3 = 0; i3 < len; i3++) {
-      const c = prefix.charCodeAt(i3);
+    for (let i2 = 0; i2 < len; i2++) {
+      const c = prefix.charCodeAt(i2);
       if (c < 33 || c > 126)
         throw new Error(`Invalid prefix (${prefix})`);
       chk = bech32Polymod(chk) ^ c >> 5;
     }
     chk = bech32Polymod(chk);
-    for (let i3 = 0; i3 < len; i3++)
-      chk = bech32Polymod(chk) ^ prefix.charCodeAt(i3) & 31;
+    for (let i2 = 0; i2 < len; i2++)
+      chk = bech32Polymod(chk) ^ prefix.charCodeAt(i2) & 31;
     for (let v of words)
       chk = bech32Polymod(chk) ^ v;
-    for (let i3 = 0; i3 < 6; i3++)
+    for (let i2 = 0; i2 < 6; i2++)
       chk = bech32Polymod(chk);
     chk ^= encodingConst;
     return BECH_ALPHABET.encode(convertRadix2([chk % powers[30]], 30, 5, false));
@@ -2790,6 +2790,95 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   }
   var bech32 = /* @__PURE__ */ genBech32("bech32");
 
+  // node_modules/.pnpm/nostr-tools@2.23.0_typescript@5.9.3/node_modules/nostr-tools/lib/esm/nip19.js
+  var utf8Decoder2 = new TextDecoder("utf-8");
+  var utf8Encoder2 = new TextEncoder();
+  var Bech32MaxSize = 5e3;
+  function decode(code) {
+    let { prefix, words } = bech32.decode(code, Bech32MaxSize);
+    let data = new Uint8Array(bech32.fromWords(words));
+    switch (prefix) {
+      case "nprofile": {
+        let tlv = parseTLV(data);
+        if (!tlv[0]?.[0])
+          throw new Error("missing TLV 0 for nprofile");
+        if (tlv[0][0].length !== 32)
+          throw new Error("TLV 0 should be 32 bytes");
+        return {
+          type: "nprofile",
+          data: {
+            pubkey: bytesToHex(tlv[0][0]),
+            relays: tlv[1] ? tlv[1].map((d) => utf8Decoder2.decode(d)) : []
+          }
+        };
+      }
+      case "nevent": {
+        let tlv = parseTLV(data);
+        if (!tlv[0]?.[0])
+          throw new Error("missing TLV 0 for nevent");
+        if (tlv[0][0].length !== 32)
+          throw new Error("TLV 0 should be 32 bytes");
+        if (tlv[2] && tlv[2][0].length !== 32)
+          throw new Error("TLV 2 should be 32 bytes");
+        if (tlv[3] && tlv[3][0].length !== 4)
+          throw new Error("TLV 3 should be 4 bytes");
+        return {
+          type: "nevent",
+          data: {
+            id: bytesToHex(tlv[0][0]),
+            relays: tlv[1] ? tlv[1].map((d) => utf8Decoder2.decode(d)) : [],
+            author: tlv[2]?.[0] ? bytesToHex(tlv[2][0]) : void 0,
+            kind: tlv[3]?.[0] ? parseInt(bytesToHex(tlv[3][0]), 16) : void 0
+          }
+        };
+      }
+      case "naddr": {
+        let tlv = parseTLV(data);
+        if (!tlv[0]?.[0])
+          throw new Error("missing TLV 0 for naddr");
+        if (!tlv[2]?.[0])
+          throw new Error("missing TLV 2 for naddr");
+        if (tlv[2][0].length !== 32)
+          throw new Error("TLV 2 should be 32 bytes");
+        if (!tlv[3]?.[0])
+          throw new Error("missing TLV 3 for naddr");
+        if (tlv[3][0].length !== 4)
+          throw new Error("TLV 3 should be 4 bytes");
+        return {
+          type: "naddr",
+          data: {
+            identifier: utf8Decoder2.decode(tlv[0][0]),
+            pubkey: bytesToHex(tlv[2][0]),
+            kind: parseInt(bytesToHex(tlv[3][0]), 16),
+            relays: tlv[1] ? tlv[1].map((d) => utf8Decoder2.decode(d)) : []
+          }
+        };
+      }
+      case "nsec":
+        return { type: prefix, data };
+      case "npub":
+      case "note":
+        return { type: prefix, data: bytesToHex(data) };
+      default:
+        throw new Error(`unknown prefix ${prefix}`);
+    }
+  }
+  function parseTLV(data) {
+    let result = {};
+    let rest = data;
+    while (rest.length > 0) {
+      let t = rest[0];
+      let l = rest[1];
+      let v = rest.slice(2, 2 + l);
+      rest = rest.slice(2 + l);
+      if (v.length < l)
+        throw new Error(`not enough data to read on TLV ${t}`);
+      result[t] = result[t] || [];
+      result[t].push(v);
+    }
+    return result;
+  }
+
   // node_modules/.pnpm/@noble+ciphers@2.1.1/node_modules/@noble/ciphers/utils.js
   function isBytes3(a) {
     return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
@@ -2831,23 +2920,14 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     return new Uint32Array(arr.buffer, arr.byteOffset, Math.floor(arr.byteLength / 4));
   }
   function clean2(...arrays) {
-    for (let i3 = 0; i3 < arrays.length; i3++) {
-      arrays[i3].fill(0);
+    for (let i2 = 0; i2 < arrays.length; i2++) {
+      arrays[i2].fill(0);
     }
   }
   function createView2(arr) {
     return new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
   }
   var isLE = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
-  function overlapBytes(a, b) {
-    return a.buffer === b.buffer && // best we can do, may fail with an obscure Proxy
-    a.byteOffset < b.byteOffset + b.byteLength && // a starts before b end
-    b.byteOffset < a.byteOffset + a.byteLength;
-  }
-  function complexOverlapBytes(input, output) {
-    if (overlapBytes(input, output) && input.byteOffset < output.byteOffset)
-      throw new Error("complex overlap of input and output is not supported");
-  }
   function checkOpts(defaults, opts) {
     if (opts == null || typeof opts !== "object")
       throw new Error("options must be defined");
@@ -2858,8 +2938,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     if (a.length !== b.length)
       return false;
     let diff = 0;
-    for (let i3 = 0; i3 < a.length; i3++)
-      diff |= a[i3] ^ b[i3];
+    for (let i2 = 0; i2 < a.length; i2++)
+      diff |= a[i2] ^ b[i2];
     return diff === 0;
   }
   var wrapCipher = /* @__NO_SIDE_EFFECTS__ */ (params, constructor) => {
@@ -2928,363 +3008,6 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   function copyBytes2(bytes) {
     return Uint8Array.from(bytes);
   }
-
-  // node_modules/.pnpm/@noble+ciphers@2.1.1/node_modules/@noble/ciphers/aes.js
-  var BLOCK_SIZE = 16;
-  var POLY = 283;
-  function validateKeyLength(key) {
-    if (![16, 24, 32].includes(key.length))
-      throw new Error('"aes key" expected Uint8Array of length 16/24/32, got length=' + key.length);
-  }
-  function mul2(n) {
-    return n << 1 ^ POLY & -(n >> 7);
-  }
-  function mul(a, b) {
-    let res = 0;
-    for (; b > 0; b >>= 1) {
-      res ^= a & -(b & 1);
-      a = mul2(a);
-    }
-    return res;
-  }
-  var sbox = /* @__PURE__ */ (() => {
-    const t = new Uint8Array(256);
-    for (let i3 = 0, x = 1; i3 < 256; i3++, x ^= mul2(x))
-      t[i3] = x;
-    const box = new Uint8Array(256);
-    box[0] = 99;
-    for (let i3 = 0; i3 < 255; i3++) {
-      let x = t[255 - i3];
-      x |= x << 8;
-      box[t[i3]] = (x ^ x >> 4 ^ x >> 5 ^ x >> 6 ^ x >> 7 ^ 99) & 255;
-    }
-    clean2(t);
-    return box;
-  })();
-  var invSbox = /* @__PURE__ */ sbox.map((_, j) => sbox.indexOf(j));
-  var rotr32_8 = (n) => n << 24 | n >>> 8;
-  var rotl32_8 = (n) => n << 8 | n >>> 24;
-  function genTtable(sbox2, fn) {
-    if (sbox2.length !== 256)
-      throw new Error("Wrong sbox length");
-    const T0 = new Uint32Array(256).map((_, j) => fn(sbox2[j]));
-    const T1 = T0.map(rotl32_8);
-    const T2 = T1.map(rotl32_8);
-    const T3 = T2.map(rotl32_8);
-    const T01 = new Uint32Array(256 * 256);
-    const T23 = new Uint32Array(256 * 256);
-    const sbox22 = new Uint16Array(256 * 256);
-    for (let i3 = 0; i3 < 256; i3++) {
-      for (let j = 0; j < 256; j++) {
-        const idx = i3 * 256 + j;
-        T01[idx] = T0[i3] ^ T1[j];
-        T23[idx] = T2[i3] ^ T3[j];
-        sbox22[idx] = sbox2[i3] << 8 | sbox2[j];
-      }
-    }
-    return { sbox: sbox2, sbox2: sbox22, T0, T1, T2, T3, T01, T23 };
-  }
-  var tableEncoding = /* @__PURE__ */ genTtable(sbox, (s) => mul(s, 3) << 24 | s << 16 | s << 8 | mul(s, 2));
-  var tableDecoding = /* @__PURE__ */ genTtable(invSbox, (s) => mul(s, 11) << 24 | mul(s, 13) << 16 | mul(s, 9) << 8 | mul(s, 14));
-  var xPowers = /* @__PURE__ */ (() => {
-    const p = new Uint8Array(16);
-    for (let i3 = 0, x = 1; i3 < 16; i3++, x = mul2(x))
-      p[i3] = x;
-    return p;
-  })();
-  function expandKeyLE(key) {
-    abytes3(key);
-    const len = key.length;
-    validateKeyLength(key);
-    const { sbox2 } = tableEncoding;
-    const toClean = [];
-    if (!isAligned32(key))
-      toClean.push(key = copyBytes2(key));
-    const k32 = u32(key);
-    const Nk = k32.length;
-    const subByte = (n) => applySbox(sbox2, n, n, n, n);
-    const xk = new Uint32Array(len + 28);
-    xk.set(k32);
-    for (let i3 = Nk; i3 < xk.length; i3++) {
-      let t = xk[i3 - 1];
-      if (i3 % Nk === 0)
-        t = subByte(rotr32_8(t)) ^ xPowers[i3 / Nk - 1];
-      else if (Nk > 6 && i3 % Nk === 4)
-        t = subByte(t);
-      xk[i3] = xk[i3 - Nk] ^ t;
-    }
-    clean2(...toClean);
-    return xk;
-  }
-  function expandKeyDecLE(key) {
-    const encKey = expandKeyLE(key);
-    const xk = encKey.slice();
-    const Nk = encKey.length;
-    const { sbox2 } = tableEncoding;
-    const { T0, T1, T2, T3 } = tableDecoding;
-    for (let i3 = 0; i3 < Nk; i3 += 4) {
-      for (let j = 0; j < 4; j++)
-        xk[i3 + j] = encKey[Nk - i3 - 4 + j];
-    }
-    clean2(encKey);
-    for (let i3 = 4; i3 < Nk - 4; i3++) {
-      const x = xk[i3];
-      const w = applySbox(sbox2, x, x, x, x);
-      xk[i3] = T0[w & 255] ^ T1[w >>> 8 & 255] ^ T2[w >>> 16 & 255] ^ T3[w >>> 24];
-    }
-    return xk;
-  }
-  function apply0123(T01, T23, s0, s1, s2, s3) {
-    return T01[s0 << 8 & 65280 | s1 >>> 8 & 255] ^ T23[s2 >>> 8 & 65280 | s3 >>> 24 & 255];
-  }
-  function applySbox(sbox2, s0, s1, s2, s3) {
-    return sbox2[s0 & 255 | s1 & 65280] | sbox2[s2 >>> 16 & 255 | s3 >>> 16 & 65280] << 16;
-  }
-  function encrypt(xk, s0, s1, s2, s3) {
-    const { sbox2, T01, T23 } = tableEncoding;
-    let k = 0;
-    s0 ^= xk[k++], s1 ^= xk[k++], s2 ^= xk[k++], s3 ^= xk[k++];
-    const rounds = xk.length / 4 - 2;
-    for (let i3 = 0; i3 < rounds; i3++) {
-      const t02 = xk[k++] ^ apply0123(T01, T23, s0, s1, s2, s3);
-      const t12 = xk[k++] ^ apply0123(T01, T23, s1, s2, s3, s0);
-      const t22 = xk[k++] ^ apply0123(T01, T23, s2, s3, s0, s1);
-      const t32 = xk[k++] ^ apply0123(T01, T23, s3, s0, s1, s2);
-      s0 = t02, s1 = t12, s2 = t22, s3 = t32;
-    }
-    const t0 = xk[k++] ^ applySbox(sbox2, s0, s1, s2, s3);
-    const t1 = xk[k++] ^ applySbox(sbox2, s1, s2, s3, s0);
-    const t2 = xk[k++] ^ applySbox(sbox2, s2, s3, s0, s1);
-    const t3 = xk[k++] ^ applySbox(sbox2, s3, s0, s1, s2);
-    return { s0: t0, s1: t1, s2: t2, s3: t3 };
-  }
-  function decrypt(xk, s0, s1, s2, s3) {
-    const { sbox2, T01, T23 } = tableDecoding;
-    let k = 0;
-    s0 ^= xk[k++], s1 ^= xk[k++], s2 ^= xk[k++], s3 ^= xk[k++];
-    const rounds = xk.length / 4 - 2;
-    for (let i3 = 0; i3 < rounds; i3++) {
-      const t02 = xk[k++] ^ apply0123(T01, T23, s0, s3, s2, s1);
-      const t12 = xk[k++] ^ apply0123(T01, T23, s1, s0, s3, s2);
-      const t22 = xk[k++] ^ apply0123(T01, T23, s2, s1, s0, s3);
-      const t32 = xk[k++] ^ apply0123(T01, T23, s3, s2, s1, s0);
-      s0 = t02, s1 = t12, s2 = t22, s3 = t32;
-    }
-    const t0 = xk[k++] ^ applySbox(sbox2, s0, s3, s2, s1);
-    const t1 = xk[k++] ^ applySbox(sbox2, s1, s0, s3, s2);
-    const t2 = xk[k++] ^ applySbox(sbox2, s2, s1, s0, s3);
-    const t3 = xk[k++] ^ applySbox(sbox2, s3, s2, s1, s0);
-    return { s0: t0, s1: t1, s2: t2, s3: t3 };
-  }
-  function validateBlockDecrypt(data) {
-    abytes3(data);
-    if (data.length % BLOCK_SIZE !== 0) {
-      throw new Error("aes-(cbc/ecb).decrypt ciphertext should consist of blocks with size " + BLOCK_SIZE);
-    }
-  }
-  function validateBlockEncrypt(plaintext, pcks5, dst) {
-    abytes3(plaintext);
-    let outLen = plaintext.length;
-    const remaining = outLen % BLOCK_SIZE;
-    if (!pcks5 && remaining !== 0)
-      throw new Error("aec/(cbc-ecb): unpadded plaintext with disabled padding");
-    if (!isAligned32(plaintext))
-      plaintext = copyBytes2(plaintext);
-    const b = u32(plaintext);
-    if (pcks5) {
-      let left = BLOCK_SIZE - remaining;
-      if (!left)
-        left = BLOCK_SIZE;
-      outLen = outLen + left;
-    }
-    dst = getOutput(outLen, dst);
-    complexOverlapBytes(plaintext, dst);
-    const o = u32(dst);
-    return { b, o, out: dst };
-  }
-  function validatePCKS(data, pcks5) {
-    if (!pcks5)
-      return data;
-    const len = data.length;
-    if (!len)
-      throw new Error("aes/pcks5: empty ciphertext not allowed");
-    const lastByte = data[len - 1];
-    if (lastByte <= 0 || lastByte > 16)
-      throw new Error("aes/pcks5: wrong padding");
-    const out = data.subarray(0, -lastByte);
-    for (let i3 = 0; i3 < lastByte; i3++)
-      if (data[len - i3 - 1] !== lastByte)
-        throw new Error("aes/pcks5: wrong padding");
-    return out;
-  }
-  function padPCKS(left) {
-    const tmp = new Uint8Array(16);
-    const tmp32 = u32(tmp);
-    tmp.set(left);
-    const paddingByte = BLOCK_SIZE - left.length;
-    for (let i3 = BLOCK_SIZE - paddingByte; i3 < BLOCK_SIZE; i3++)
-      tmp[i3] = paddingByte;
-    return tmp32;
-  }
-  var cbc = /* @__PURE__ */ wrapCipher({ blockSize: 16, nonceLength: 16 }, function aescbc(key, iv, opts = {}) {
-    const pcks5 = !opts.disablePadding;
-    return {
-      encrypt(plaintext, dst) {
-        const xk = expandKeyLE(key);
-        const { b, o, out: _out } = validateBlockEncrypt(plaintext, pcks5, dst);
-        let _iv = iv;
-        const toClean = [xk];
-        if (!isAligned32(_iv))
-          toClean.push(_iv = copyBytes2(_iv));
-        const n32 = u32(_iv);
-        let s0 = n32[0], s1 = n32[1], s2 = n32[2], s3 = n32[3];
-        let i3 = 0;
-        for (; i3 + 4 <= b.length; ) {
-          s0 ^= b[i3 + 0], s1 ^= b[i3 + 1], s2 ^= b[i3 + 2], s3 ^= b[i3 + 3];
-          ({ s0, s1, s2, s3 } = encrypt(xk, s0, s1, s2, s3));
-          o[i3++] = s0, o[i3++] = s1, o[i3++] = s2, o[i3++] = s3;
-        }
-        if (pcks5) {
-          const tmp32 = padPCKS(plaintext.subarray(i3 * 4));
-          s0 ^= tmp32[0], s1 ^= tmp32[1], s2 ^= tmp32[2], s3 ^= tmp32[3];
-          ({ s0, s1, s2, s3 } = encrypt(xk, s0, s1, s2, s3));
-          o[i3++] = s0, o[i3++] = s1, o[i3++] = s2, o[i3++] = s3;
-        }
-        clean2(...toClean);
-        return _out;
-      },
-      decrypt(ciphertext, dst) {
-        validateBlockDecrypt(ciphertext);
-        const xk = expandKeyDecLE(key);
-        let _iv = iv;
-        const toClean = [xk];
-        if (!isAligned32(_iv))
-          toClean.push(_iv = copyBytes2(_iv));
-        const n32 = u32(_iv);
-        dst = getOutput(ciphertext.length, dst);
-        if (!isAligned32(ciphertext))
-          toClean.push(ciphertext = copyBytes2(ciphertext));
-        complexOverlapBytes(ciphertext, dst);
-        const b = u32(ciphertext);
-        const o = u32(dst);
-        let s0 = n32[0], s1 = n32[1], s2 = n32[2], s3 = n32[3];
-        for (let i3 = 0; i3 + 4 <= b.length; ) {
-          const ps0 = s0, ps1 = s1, ps2 = s2, ps3 = s3;
-          s0 = b[i3 + 0], s1 = b[i3 + 1], s2 = b[i3 + 2], s3 = b[i3 + 3];
-          const { s0: o0, s1: o1, s2: o2, s3: o3 } = decrypt(xk, s0, s1, s2, s3);
-          o[i3++] = o0 ^ ps0, o[i3++] = o1 ^ ps1, o[i3++] = o2 ^ ps2, o[i3++] = o3 ^ ps3;
-        }
-        clean2(...toClean);
-        return validatePCKS(dst, pcks5);
-      }
-    };
-  });
-  function isBytes32(a) {
-    return a instanceof Uint32Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint32Array";
-  }
-  function encryptBlock(xk, block) {
-    abytes3(block, 16, "block");
-    if (!isBytes32(xk))
-      throw new Error("_encryptBlock accepts result of expandKeyLE");
-    const b32 = u32(block);
-    let { s0, s1, s2, s3 } = encrypt(xk, b32[0], b32[1], b32[2], b32[3]);
-    b32[0] = s0, b32[1] = s1, b32[2] = s2, b32[3] = s3;
-    return block;
-  }
-  function dbl(block) {
-    let carry = 0;
-    for (let i3 = BLOCK_SIZE - 1; i3 >= 0; i3--) {
-      const newCarry = (block[i3] & 128) >>> 7;
-      block[i3] = block[i3] << 1 | carry;
-      carry = newCarry;
-    }
-    if (carry) {
-      block[BLOCK_SIZE - 1] ^= 135;
-    }
-    return block;
-  }
-  function xorBlock(a, b) {
-    if (a.length !== b.length)
-      throw new Error("xorBlock: blocks must have same length");
-    for (let i3 = 0; i3 < a.length; i3++) {
-      a[i3] = a[i3] ^ b[i3];
-    }
-    return a;
-  }
-  var _CMAC = class {
-    constructor(key) {
-      __publicField(this, "buffer");
-      __publicField(this, "destroyed");
-      __publicField(this, "k1");
-      __publicField(this, "k2");
-      __publicField(this, "xk");
-      abytes3(key);
-      validateKeyLength(key);
-      this.xk = expandKeyLE(key);
-      this.buffer = new Uint8Array(0);
-      this.destroyed = false;
-      const L = new Uint8Array(BLOCK_SIZE);
-      encryptBlock(this.xk, L);
-      this.k1 = dbl(L);
-      this.k2 = dbl(new Uint8Array(this.k1));
-    }
-    update(data) {
-      const { destroyed, buffer } = this;
-      if (destroyed)
-        throw new Error("CMAC instance was destroyed");
-      abytes3(data);
-      const newBuffer = new Uint8Array(buffer.length + data.length);
-      newBuffer.set(buffer);
-      newBuffer.set(data, buffer.length);
-      this.buffer = newBuffer;
-      return this;
-    }
-    // see https://www.rfc-editor.org/rfc/rfc4493.html#section-2.4
-    digest() {
-      if (this.destroyed)
-        throw new Error("CMAC instance was destroyed");
-      const { buffer } = this;
-      const msgLen = buffer.length;
-      let n = Math.ceil(msgLen / BLOCK_SIZE);
-      let flag;
-      if (n === 0) {
-        n = 1;
-        flag = false;
-      } else {
-        flag = msgLen % BLOCK_SIZE === 0;
-      }
-      const lastBlockStart = (n - 1) * BLOCK_SIZE;
-      const lastBlockData = buffer.subarray(lastBlockStart);
-      let m_last;
-      if (flag) {
-        m_last = xorBlock(new Uint8Array(lastBlockData), this.k1);
-      } else {
-        const padded = new Uint8Array(BLOCK_SIZE);
-        padded.set(lastBlockData);
-        padded[lastBlockData.length] = 128;
-        m_last = xorBlock(padded, this.k2);
-      }
-      let x = new Uint8Array(BLOCK_SIZE);
-      for (let i3 = 0; i3 < n - 1; i3++) {
-        const m_i = buffer.subarray(i3 * BLOCK_SIZE, (i3 + 1) * BLOCK_SIZE);
-        xorBlock(x, m_i);
-        encryptBlock(this.xk, x);
-      }
-      xorBlock(x, m_last);
-      encryptBlock(this.xk, x);
-      clean2(m_last);
-      return x;
-    }
-    destroy() {
-      const { buffer, destroyed, xk, k1, k2 } = this;
-      if (destroyed)
-        return;
-      this.destroyed = true;
-      clean2(buffer, xk, k1, k2);
-    }
-  };
-  var cmac = (key, message) => new _CMAC(key).update(message).digest();
-  cmac.create = (key) => new _CMAC(key);
 
   // node_modules/.pnpm/@noble+ciphers@2.1.1/node_modules/@noble/ciphers/_arx.js
   var encodeStr = (str) => Uint8Array.from(str.split(""), (c) => c.charCodeAt(0));
@@ -3396,8 +3119,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   }
 
   // node_modules/.pnpm/@noble+ciphers@2.1.1/node_modules/@noble/ciphers/_poly1305.js
-  function u8to16(a, i3) {
-    return a[i3++] & 255 | (a[i3++] & 255) << 8;
+  function u8to16(a, i2) {
+    return a[i2++] & 255 | (a[i2++] & 255) << 8;
   }
   var Poly1305 = class {
     // Can be speed-up using BigUint64Array, at the cost of complexity
@@ -3430,8 +3153,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       this.r[7] = (t5 >>> 11 | t6 << 5) & 8065;
       this.r[8] = (t6 >>> 8 | t7 << 8) & 8191;
       this.r[9] = t7 >>> 5 & 127;
-      for (let i3 = 0; i3 < 8; i3++)
-        this.pad[i3] = u8to16(key, 16 + 2 * i3);
+      for (let i2 = 0; i2 < 8; i2++)
+        this.pad[i2] = u8to16(key, 16 + 2 * i2);
     }
     process(data, offset, isLast = false) {
       const hibit = isLast ? 0 : 1 << 11;
@@ -3542,14 +3265,14 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       h[9] = d9;
     }
     finalize() {
-      const { h, pad: pad3 } = this;
+      const { h, pad: pad2 } = this;
       const g = new Uint16Array(10);
       let c = h[1] >>> 13;
       h[1] &= 8191;
-      for (let i3 = 2; i3 < 10; i3++) {
-        h[i3] += c;
-        c = h[i3] >>> 13;
-        h[i3] &= 8191;
+      for (let i2 = 2; i2 < 10; i2++) {
+        h[i2] += c;
+        c = h[i2] >>> 13;
+        h[i2] &= 8191;
       }
       h[0] += c * 5;
       c = h[0] >>> 13;
@@ -3561,18 +3284,18 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       g[0] = h[0] + 5;
       c = g[0] >>> 13;
       g[0] &= 8191;
-      for (let i3 = 1; i3 < 10; i3++) {
-        g[i3] = h[i3] + c;
-        c = g[i3] >>> 13;
-        g[i3] &= 8191;
+      for (let i2 = 1; i2 < 10; i2++) {
+        g[i2] = h[i2] + c;
+        c = g[i2] >>> 13;
+        g[i2] &= 8191;
       }
       g[9] -= 1 << 13;
       let mask = (c ^ 1) - 1;
-      for (let i3 = 0; i3 < 10; i3++)
-        g[i3] &= mask;
+      for (let i2 = 0; i2 < 10; i2++)
+        g[i2] &= mask;
       mask = ~mask;
-      for (let i3 = 0; i3 < 10; i3++)
-        h[i3] = h[i3] & mask | g[i3];
+      for (let i2 = 0; i2 < 10; i2++)
+        h[i2] = h[i2] & mask | g[i2];
       h[0] = (h[0] | h[1] << 13) & 65535;
       h[1] = (h[1] >>> 3 | h[2] << 10) & 65535;
       h[2] = (h[2] >>> 6 | h[3] << 7) & 65535;
@@ -3581,11 +3304,11 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       h[5] = (h[6] >>> 2 | h[7] << 11) & 65535;
       h[6] = (h[7] >>> 5 | h[8] << 8) & 65535;
       h[7] = (h[8] >>> 8 | h[9] << 5) & 65535;
-      let f = h[0] + pad3[0];
+      let f = h[0] + pad2[0];
       h[0] = f & 65535;
-      for (let i3 = 1; i3 < 8; i3++) {
-        f = (h[i3] + pad3[i3] | 0) + (f >>> 16) | 0;
-        h[i3] = f & 65535;
+      for (let i2 = 1; i2 < 8; i2++) {
+        f = (h[i2] + pad2[i2] | 0) + (f >>> 16) | 0;
+        h[i2] = f & 65535;
       }
       clean2(g);
     }
@@ -3629,9 +3352,9 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       }
       this.finalize();
       let opos = 0;
-      for (let i3 = 0; i3 < 8; i3++) {
-        out[opos++] = h[i3] >>> 0;
-        out[opos++] = h[i3] >>> 8;
+      for (let i2 = 0; i2 < 8; i2++) {
+        out[opos++] = h[i2] >>> 0;
+        out[opos++] = h[i2] >>> 8;
       }
       return out;
     }
@@ -3741,8 +3464,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     out[oi++] = y14 + x14 | 0;
     out[oi++] = y15 + x15 | 0;
   }
-  function hchacha(s, k, i3, out) {
-    let x00 = s[0], x01 = s[1], x02 = s[2], x03 = s[3], x04 = k[0], x05 = k[1], x06 = k[2], x07 = k[3], x08 = k[4], x09 = k[5], x10 = k[6], x11 = k[7], x12 = i3[0], x13 = i3[1], x14 = i3[2], x15 = i3[3];
+  function hchacha(s, k, i2, out) {
+    let x00 = s[0], x01 = s[1], x02 = s[2], x03 = s[3], x04 = k[0], x05 = k[1], x06 = k[2], x07 = k[3], x08 = k[4], x09 = k[5], x10 = k[6], x11 = k[7], x12 = i2[0], x13 = i2[1], x14 = i2[2], x15 = i2[3];
     for (let r = 0; r < 20; r += 2) {
       x00 = x00 + x04 | 0;
       x12 = rotl(x12 ^ x00, 16);
@@ -3919,969 +3642,14 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     return okm.slice(0, length);
   }
 
-  // node_modules/.pnpm/nostr-tools@2.23.0_typescript@5.9.3/node_modules/nostr-tools/lib/esm/index.js
-  var __defProp2 = Object.defineProperty;
-  var __export = (target, all) => {
-    for (var name in all)
-      __defProp2(target, name, { get: all[name], enumerable: true });
-  };
-  var verifiedSymbol2 = Symbol("verified");
-  var isRecord2 = (obj) => obj instanceof Object;
-  function validateEvent2(event) {
-    if (!isRecord2(event))
-      return false;
-    if (typeof event.kind !== "number")
-      return false;
-    if (typeof event.content !== "string")
-      return false;
-    if (typeof event.created_at !== "number")
-      return false;
-    if (typeof event.pubkey !== "string")
-      return false;
-    if (!event.pubkey.match(/^[a-f0-9]{64}$/))
-      return false;
-    if (!Array.isArray(event.tags))
-      return false;
-    for (let i22 = 0; i22 < event.tags.length; i22++) {
-      let tag = event.tags[i22];
-      if (!Array.isArray(tag))
-        return false;
-      for (let j = 0; j < tag.length; j++) {
-        if (typeof tag[j] !== "string")
-          return false;
-      }
-    }
-    return true;
-  }
-  var utils_exports = {};
-  __export(utils_exports, {
-    binarySearch: () => binarySearch,
-    bytesToHex: () => bytesToHex,
-    hexToBytes: () => hexToBytes,
-    insertEventIntoAscendingList: () => insertEventIntoAscendingList,
-    insertEventIntoDescendingList: () => insertEventIntoDescendingList,
-    mergeReverseSortedLists: () => mergeReverseSortedLists,
-    normalizeURL: () => normalizeURL,
-    utf8Decoder: () => utf8Decoder2,
-    utf8Encoder: () => utf8Encoder2
-  });
-  var utf8Decoder2 = new TextDecoder("utf-8");
-  var utf8Encoder2 = new TextEncoder();
-  function normalizeURL(url) {
-    try {
-      if (url.indexOf("://") === -1)
-        url = "wss://" + url;
-      let p = new URL(url);
-      if (p.protocol === "http:")
-        p.protocol = "ws:";
-      else if (p.protocol === "https:")
-        p.protocol = "wss:";
-      p.pathname = p.pathname.replace(/\/+/g, "/");
-      if (p.pathname.endsWith("/"))
-        p.pathname = p.pathname.slice(0, -1);
-      if (p.port === "80" && p.protocol === "ws:" || p.port === "443" && p.protocol === "wss:")
-        p.port = "";
-      p.searchParams.sort();
-      p.hash = "";
-      return p.toString();
-    } catch (e) {
-      throw new Error(`Invalid URL: ${url}`);
-    }
-  }
-  function insertEventIntoDescendingList(sortedArray, event) {
-    const [idx, found] = binarySearch(sortedArray, (b) => {
-      if (event.id === b.id)
-        return 0;
-      if (event.created_at === b.created_at)
-        return -1;
-      return b.created_at - event.created_at;
-    });
-    if (!found) {
-      sortedArray.splice(idx, 0, event);
-    }
-    return sortedArray;
-  }
-  function insertEventIntoAscendingList(sortedArray, event) {
-    const [idx, found] = binarySearch(sortedArray, (b) => {
-      if (event.id === b.id)
-        return 0;
-      if (event.created_at === b.created_at)
-        return -1;
-      return event.created_at - b.created_at;
-    });
-    if (!found) {
-      sortedArray.splice(idx, 0, event);
-    }
-    return sortedArray;
-  }
-  function binarySearch(arr, compare) {
-    let start = 0;
-    let end = arr.length - 1;
-    while (start <= end) {
-      const mid = Math.floor((start + end) / 2);
-      const cmp = compare(arr[mid]);
-      if (cmp === 0) {
-        return [mid, true];
-      }
-      if (cmp < 0) {
-        end = mid - 1;
-      } else {
-        start = mid + 1;
-      }
-    }
-    return [start, false];
-  }
-  function mergeReverseSortedLists(list1, list2) {
-    const result = new Array(list1.length + list2.length);
-    result.length = 0;
-    let i1 = 0;
-    let i22 = 0;
-    let sameTimestampIds = [];
-    while (i1 < list1.length && i22 < list2.length) {
-      let next;
-      if (list1[i1]?.created_at > list2[i22]?.created_at) {
-        next = list1[i1];
-        i1++;
-      } else {
-        next = list2[i22];
-        i22++;
-      }
-      if (result.length > 0 && result[result.length - 1].created_at === next.created_at) {
-        if (sameTimestampIds.includes(next.id))
-          continue;
-      } else {
-        sameTimestampIds.length = 0;
-      }
-      result.push(next);
-      sameTimestampIds.push(next.id);
-    }
-    while (i1 < list1.length) {
-      const next = list1[i1];
-      i1++;
-      if (result.length > 0 && result[result.length - 1].created_at === next.created_at) {
-        if (sameTimestampIds.includes(next.id))
-          continue;
-      } else {
-        sameTimestampIds.length = 0;
-      }
-      result.push(next);
-      sameTimestampIds.push(next.id);
-    }
-    while (i22 < list2.length) {
-      const next = list2[i22];
-      i22++;
-      if (result.length > 0 && result[result.length - 1].created_at === next.created_at) {
-        if (sameTimestampIds.includes(next.id))
-          continue;
-      } else {
-        sameTimestampIds.length = 0;
-      }
-      result.push(next);
-      sameTimestampIds.push(next.id);
-    }
-    return result;
-  }
-  var JS2 = class {
-    generateSecretKey() {
-      return schnorr.utils.randomSecretKey();
-    }
-    getPublicKey(secretKey) {
-      return bytesToHex(schnorr.getPublicKey(secretKey));
-    }
-    finalizeEvent(t, secretKey) {
-      const event = t;
-      event.pubkey = bytesToHex(schnorr.getPublicKey(secretKey));
-      event.id = getEventHash2(event);
-      event.sig = bytesToHex(schnorr.sign(hexToBytes(getEventHash2(event)), secretKey));
-      event[verifiedSymbol2] = true;
-      return event;
-    }
-    verifyEvent(event) {
-      if (typeof event[verifiedSymbol2] === "boolean")
-        return event[verifiedSymbol2];
-      const hash = getEventHash2(event);
-      if (hash !== event.id) {
-        event[verifiedSymbol2] = false;
-        return false;
-      }
-      try {
-        const valid = schnorr.verify(hexToBytes(event.sig), hexToBytes(hash), hexToBytes(event.pubkey));
-        event[verifiedSymbol2] = valid;
-        return valid;
-      } catch (err) {
-        event[verifiedSymbol2] = false;
-        return false;
-      }
-    }
-  };
-  function serializeEvent2(evt) {
-    if (!validateEvent2(evt))
-      throw new Error("can't serialize event with wrong or missing properties");
-    return JSON.stringify([0, evt.pubkey, evt.created_at, evt.kind, evt.tags, evt.content]);
-  }
-  function getEventHash2(event) {
-    let eventHash = sha256(utf8Encoder2.encode(serializeEvent2(event)));
-    return bytesToHex(eventHash);
-  }
-  var i2 = new JS2();
-  var generateSecretKey2 = i2.generateSecretKey;
-  var getPublicKey2 = i2.getPublicKey;
-  var finalizeEvent2 = i2.finalizeEvent;
-  var verifyEvent2 = i2.verifyEvent;
-  var kinds_exports = {};
-  __export(kinds_exports, {
-    Application: () => Application,
-    BadgeAward: () => BadgeAward,
-    BadgeDefinition: () => BadgeDefinition,
-    BlockedRelaysList: () => BlockedRelaysList,
-    BlossomServerList: () => BlossomServerList,
-    BookmarkList: () => BookmarkList,
-    Bookmarksets: () => Bookmarksets,
-    Calendar: () => Calendar,
-    CalendarEventRSVP: () => CalendarEventRSVP,
-    ChannelCreation: () => ChannelCreation,
-    ChannelHideMessage: () => ChannelHideMessage,
-    ChannelMessage: () => ChannelMessage,
-    ChannelMetadata: () => ChannelMetadata,
-    ChannelMuteUser: () => ChannelMuteUser,
-    ChatMessage: () => ChatMessage,
-    ClassifiedListing: () => ClassifiedListing,
-    ClientAuth: () => ClientAuth,
-    Comment: () => Comment,
-    CommunitiesList: () => CommunitiesList,
-    CommunityDefinition: () => CommunityDefinition,
-    CommunityPostApproval: () => CommunityPostApproval,
-    Contacts: () => Contacts,
-    CreateOrUpdateProduct: () => CreateOrUpdateProduct,
-    CreateOrUpdateStall: () => CreateOrUpdateStall,
-    Curationsets: () => Curationsets,
-    Date: () => Date2,
-    DirectMessageRelaysList: () => DirectMessageRelaysList,
-    DraftClassifiedListing: () => DraftClassifiedListing,
-    DraftLong: () => DraftLong,
-    Emojisets: () => Emojisets,
-    EncryptedDirectMessage: () => EncryptedDirectMessage,
-    EventDeletion: () => EventDeletion,
-    FavoriteRelays: () => FavoriteRelays,
-    FileMessage: () => FileMessage,
-    FileMetadata: () => FileMetadata,
-    FileServerPreference: () => FileServerPreference,
-    Followsets: () => Followsets,
-    ForumThread: () => ForumThread,
-    GenericRepost: () => GenericRepost,
-    Genericlists: () => Genericlists,
-    GiftWrap: () => GiftWrap,
-    GroupMetadata: () => GroupMetadata,
-    HTTPAuth: () => HTTPAuth,
-    Handlerinformation: () => Handlerinformation,
-    Handlerrecommendation: () => Handlerrecommendation,
-    Highlights: () => Highlights,
-    InterestsList: () => InterestsList,
-    Interestsets: () => Interestsets,
-    JobFeedback: () => JobFeedback,
-    JobRequest: () => JobRequest,
-    JobResult: () => JobResult,
-    Label: () => Label,
-    LightningPubRPC: () => LightningPubRPC,
-    LiveChatMessage: () => LiveChatMessage,
-    LiveEvent: () => LiveEvent,
-    LongFormArticle: () => LongFormArticle,
-    Metadata: () => Metadata,
-    Mutelist: () => Mutelist,
-    NWCWalletInfo: () => NWCWalletInfo,
-    NWCWalletRequest: () => NWCWalletRequest,
-    NWCWalletResponse: () => NWCWalletResponse,
-    NormalVideo: () => NormalVideo,
-    NostrConnect: () => NostrConnect,
-    OpenTimestamps: () => OpenTimestamps,
-    Photo: () => Photo,
-    Pinlist: () => Pinlist,
-    Poll: () => Poll,
-    PollResponse: () => PollResponse,
-    PrivateDirectMessage: () => PrivateDirectMessage,
-    ProblemTracker: () => ProblemTracker,
-    ProfileBadges: () => ProfileBadges,
-    PublicChatsList: () => PublicChatsList,
-    Reaction: () => Reaction,
-    RecommendRelay: () => RecommendRelay,
-    RelayList: () => RelayList,
-    RelayReview: () => RelayReview,
-    Relaysets: () => Relaysets,
-    Report: () => Report,
-    Reporting: () => Reporting,
-    Repost: () => Repost,
-    Seal: () => Seal,
-    SearchRelaysList: () => SearchRelaysList,
-    ShortTextNote: () => ShortTextNote,
-    ShortVideo: () => ShortVideo,
-    Time: () => Time,
-    UserEmojiList: () => UserEmojiList,
-    UserStatuses: () => UserStatuses,
-    Voice: () => Voice,
-    VoiceComment: () => VoiceComment,
-    Zap: () => Zap,
-    ZapGoal: () => ZapGoal,
-    ZapRequest: () => ZapRequest,
-    classifyKind: () => classifyKind,
-    isAddressableKind: () => isAddressableKind,
-    isEphemeralKind: () => isEphemeralKind,
-    isKind: () => isKind,
-    isRegularKind: () => isRegularKind,
-    isReplaceableKind: () => isReplaceableKind
-  });
-  function isRegularKind(kind) {
-    return kind < 1e4 && kind !== 0 && kind !== 3;
-  }
-  function isReplaceableKind(kind) {
-    return kind === 0 || kind === 3 || 1e4 <= kind && kind < 2e4;
-  }
-  function isEphemeralKind(kind) {
-    return 2e4 <= kind && kind < 3e4;
-  }
-  function isAddressableKind(kind) {
-    return 3e4 <= kind && kind < 4e4;
-  }
-  function classifyKind(kind) {
-    if (isRegularKind(kind))
-      return "regular";
-    if (isReplaceableKind(kind))
-      return "replaceable";
-    if (isEphemeralKind(kind))
-      return "ephemeral";
-    if (isAddressableKind(kind))
-      return "parameterized";
-    return "unknown";
-  }
-  function isKind(event, kind) {
-    const kindAsArray = kind instanceof Array ? kind : [kind];
-    return validateEvent2(event) && kindAsArray.includes(event.kind) || false;
-  }
-  var Metadata = 0;
-  var ShortTextNote = 1;
-  var RecommendRelay = 2;
-  var Contacts = 3;
-  var EncryptedDirectMessage = 4;
-  var EventDeletion = 5;
-  var Repost = 6;
-  var Reaction = 7;
-  var BadgeAward = 8;
-  var ChatMessage = 9;
-  var ForumThread = 11;
-  var Seal = 13;
-  var PrivateDirectMessage = 14;
-  var FileMessage = 15;
-  var GenericRepost = 16;
-  var Photo = 20;
-  var NormalVideo = 21;
-  var ShortVideo = 22;
-  var ChannelCreation = 40;
-  var ChannelMetadata = 41;
-  var ChannelMessage = 42;
-  var ChannelHideMessage = 43;
-  var ChannelMuteUser = 44;
-  var OpenTimestamps = 1040;
-  var GiftWrap = 1059;
-  var Poll = 1068;
-  var FileMetadata = 1063;
-  var Comment = 1111;
-  var LiveChatMessage = 1311;
-  var Voice = 1222;
-  var VoiceComment = 1244;
-  var ProblemTracker = 1971;
-  var Report = 1984;
-  var Reporting = 1984;
-  var Label = 1985;
-  var CommunityPostApproval = 4550;
-  var JobRequest = 5999;
-  var JobResult = 6999;
-  var JobFeedback = 7e3;
-  var ZapGoal = 9041;
-  var ZapRequest = 9734;
-  var Zap = 9735;
-  var Highlights = 9802;
-  var PollResponse = 1018;
-  var Mutelist = 1e4;
-  var Pinlist = 10001;
-  var RelayList = 10002;
-  var BookmarkList = 10003;
-  var CommunitiesList = 10004;
-  var PublicChatsList = 10005;
-  var BlockedRelaysList = 10006;
-  var SearchRelaysList = 10007;
-  var FavoriteRelays = 10012;
-  var InterestsList = 10015;
-  var UserEmojiList = 10030;
-  var DirectMessageRelaysList = 10050;
-  var FileServerPreference = 10096;
-  var BlossomServerList = 10063;
-  var NWCWalletInfo = 13194;
-  var LightningPubRPC = 21e3;
-  var ClientAuth = 22242;
-  var NWCWalletRequest = 23194;
-  var NWCWalletResponse = 23195;
-  var NostrConnect = 24133;
-  var HTTPAuth = 27235;
-  var Followsets = 3e4;
-  var Genericlists = 30001;
-  var Relaysets = 30002;
-  var Bookmarksets = 30003;
-  var Curationsets = 30004;
-  var ProfileBadges = 30008;
-  var BadgeDefinition = 30009;
-  var Interestsets = 30015;
-  var CreateOrUpdateStall = 30017;
-  var CreateOrUpdateProduct = 30018;
-  var LongFormArticle = 30023;
-  var DraftLong = 30024;
-  var Emojisets = 30030;
-  var Application = 30078;
-  var LiveEvent = 30311;
-  var UserStatuses = 30315;
-  var ClassifiedListing = 30402;
-  var DraftClassifiedListing = 30403;
-  var Date2 = 31922;
-  var Time = 31923;
-  var Calendar = 31924;
-  var CalendarEventRSVP = 31925;
-  var RelayReview = 31987;
-  var Handlerrecommendation = 31989;
-  var Handlerinformation = 31990;
-  var CommunityDefinition = 34550;
-  var GroupMetadata = 39e3;
-  var fakejson_exports = {};
-  __export(fakejson_exports, {
-    getHex64: () => getHex64,
-    getInt: () => getInt,
-    getSubscriptionId: () => getSubscriptionId,
-    matchEventId: () => matchEventId,
-    matchEventKind: () => matchEventKind,
-    matchEventPubkey: () => matchEventPubkey
-  });
-  function getHex64(json, field) {
-    let len = field.length + 3;
-    let idx = json.indexOf(`"${field}":`) + len;
-    let s = json.slice(idx).indexOf(`"`) + idx + 1;
-    return json.slice(s, s + 64);
-  }
-  function getInt(json, field) {
-    let len = field.length;
-    let idx = json.indexOf(`"${field}":`) + len + 3;
-    let sliced = json.slice(idx);
-    let end = Math.min(sliced.indexOf(","), sliced.indexOf("}"));
-    return parseInt(sliced.slice(0, end), 10);
-  }
-  function getSubscriptionId(json) {
-    let idx = json.slice(0, 22).indexOf(`"EVENT"`);
-    if (idx === -1)
-      return null;
-    let pstart = json.slice(idx + 7 + 1).indexOf(`"`);
-    if (pstart === -1)
-      return null;
-    let start = idx + 7 + 1 + pstart;
-    let pend = json.slice(start + 1, 80).indexOf(`"`);
-    if (pend === -1)
-      return null;
-    let end = start + 1 + pend;
-    return json.slice(start + 1, end);
-  }
-  function matchEventId(json, id) {
-    return id === getHex64(json, "id");
-  }
-  function matchEventPubkey(json, pubkey) {
-    return pubkey === getHex64(json, "pubkey");
-  }
-  function matchEventKind(json, kind) {
-    return kind === getInt(json, "kind");
-  }
-  var nip42_exports = {};
-  __export(nip42_exports, {
-    makeAuthEvent: () => makeAuthEvent
-  });
-  function makeAuthEvent(relayURL, challenge2) {
-    return {
-      kind: ClientAuth,
-      created_at: Math.floor(Date.now() / 1e3),
-      tags: [
-        ["relay", relayURL],
-        ["challenge", challenge2]
-      ],
-      content: ""
-    };
-  }
-  var _WebSocket;
-  try {
-    _WebSocket = WebSocket;
-  } catch {
-  }
-  var _WebSocket2;
-  try {
-    _WebSocket2 = WebSocket;
-  } catch {
-  }
-  var nip19_exports = {};
-  __export(nip19_exports, {
-    BECH32_REGEX: () => BECH32_REGEX,
-    Bech32MaxSize: () => Bech32MaxSize,
-    NostrTypeGuard: () => NostrTypeGuard,
-    decode: () => decode,
-    decodeNostrURI: () => decodeNostrURI,
-    encodeBytes: () => encodeBytes,
-    naddrEncode: () => naddrEncode,
-    neventEncode: () => neventEncode,
-    noteEncode: () => noteEncode,
-    nprofileEncode: () => nprofileEncode,
-    npubEncode: () => npubEncode,
-    nsecEncode: () => nsecEncode
-  });
-  var NostrTypeGuard = {
-    isNProfile: (value) => /^nprofile1[a-z\d]+$/.test(value || ""),
-    isNEvent: (value) => /^nevent1[a-z\d]+$/.test(value || ""),
-    isNAddr: (value) => /^naddr1[a-z\d]+$/.test(value || ""),
-    isNSec: (value) => /^nsec1[a-z\d]{58}$/.test(value || ""),
-    isNPub: (value) => /^npub1[a-z\d]{58}$/.test(value || ""),
-    isNote: (value) => /^note1[a-z\d]+$/.test(value || ""),
-    isNcryptsec: (value) => /^ncryptsec1[a-z\d]+$/.test(value || "")
-  };
-  var Bech32MaxSize = 5e3;
-  var BECH32_REGEX = /[\x21-\x7E]{1,83}1[023456789acdefghjklmnpqrstuvwxyz]{6,}/;
-  function integerToUint8Array(number) {
-    const uint8Array = new Uint8Array(4);
-    uint8Array[0] = number >> 24 & 255;
-    uint8Array[1] = number >> 16 & 255;
-    uint8Array[2] = number >> 8 & 255;
-    uint8Array[3] = number & 255;
-    return uint8Array;
-  }
-  function decodeNostrURI(nip19code) {
-    try {
-      if (nip19code.startsWith("nostr:"))
-        nip19code = nip19code.substring(6);
-      return decode(nip19code);
-    } catch (_err) {
-      return { type: "invalid", data: null };
-    }
-  }
-  function decode(code) {
-    let { prefix, words } = bech32.decode(code, Bech32MaxSize);
-    let data = new Uint8Array(bech32.fromWords(words));
-    switch (prefix) {
-      case "nprofile": {
-        let tlv = parseTLV(data);
-        if (!tlv[0]?.[0])
-          throw new Error("missing TLV 0 for nprofile");
-        if (tlv[0][0].length !== 32)
-          throw new Error("TLV 0 should be 32 bytes");
-        return {
-          type: "nprofile",
-          data: {
-            pubkey: bytesToHex(tlv[0][0]),
-            relays: tlv[1] ? tlv[1].map((d) => utf8Decoder2.decode(d)) : []
-          }
-        };
-      }
-      case "nevent": {
-        let tlv = parseTLV(data);
-        if (!tlv[0]?.[0])
-          throw new Error("missing TLV 0 for nevent");
-        if (tlv[0][0].length !== 32)
-          throw new Error("TLV 0 should be 32 bytes");
-        if (tlv[2] && tlv[2][0].length !== 32)
-          throw new Error("TLV 2 should be 32 bytes");
-        if (tlv[3] && tlv[3][0].length !== 4)
-          throw new Error("TLV 3 should be 4 bytes");
-        return {
-          type: "nevent",
-          data: {
-            id: bytesToHex(tlv[0][0]),
-            relays: tlv[1] ? tlv[1].map((d) => utf8Decoder2.decode(d)) : [],
-            author: tlv[2]?.[0] ? bytesToHex(tlv[2][0]) : void 0,
-            kind: tlv[3]?.[0] ? parseInt(bytesToHex(tlv[3][0]), 16) : void 0
-          }
-        };
-      }
-      case "naddr": {
-        let tlv = parseTLV(data);
-        if (!tlv[0]?.[0])
-          throw new Error("missing TLV 0 for naddr");
-        if (!tlv[2]?.[0])
-          throw new Error("missing TLV 2 for naddr");
-        if (tlv[2][0].length !== 32)
-          throw new Error("TLV 2 should be 32 bytes");
-        if (!tlv[3]?.[0])
-          throw new Error("missing TLV 3 for naddr");
-        if (tlv[3][0].length !== 4)
-          throw new Error("TLV 3 should be 4 bytes");
-        return {
-          type: "naddr",
-          data: {
-            identifier: utf8Decoder2.decode(tlv[0][0]),
-            pubkey: bytesToHex(tlv[2][0]),
-            kind: parseInt(bytesToHex(tlv[3][0]), 16),
-            relays: tlv[1] ? tlv[1].map((d) => utf8Decoder2.decode(d)) : []
-          }
-        };
-      }
-      case "nsec":
-        return { type: prefix, data };
-      case "npub":
-      case "note":
-        return { type: prefix, data: bytesToHex(data) };
-      default:
-        throw new Error(`unknown prefix ${prefix}`);
-    }
-  }
-  function parseTLV(data) {
-    let result = {};
-    let rest = data;
-    while (rest.length > 0) {
-      let t = rest[0];
-      let l = rest[1];
-      let v = rest.slice(2, 2 + l);
-      rest = rest.slice(2 + l);
-      if (v.length < l)
-        throw new Error(`not enough data to read on TLV ${t}`);
-      result[t] = result[t] || [];
-      result[t].push(v);
-    }
-    return result;
-  }
-  function nsecEncode(key) {
-    return encodeBytes("nsec", key);
-  }
-  function npubEncode(hex) {
-    return encodeBytes("npub", hexToBytes(hex));
-  }
-  function noteEncode(hex) {
-    return encodeBytes("note", hexToBytes(hex));
-  }
-  function encodeBech32(prefix, data) {
-    let words = bech32.toWords(data);
-    return bech32.encode(prefix, words, Bech32MaxSize);
-  }
-  function encodeBytes(prefix, bytes) {
-    return encodeBech32(prefix, bytes);
-  }
-  function nprofileEncode(profile) {
-    let data = encodeTLV({
-      0: [hexToBytes(profile.pubkey)],
-      1: (profile.relays || []).map((url) => utf8Encoder2.encode(url))
-    });
-    return encodeBech32("nprofile", data);
-  }
-  function neventEncode(event) {
-    let kindArray;
-    if (event.kind !== void 0) {
-      kindArray = integerToUint8Array(event.kind);
-    }
-    let data = encodeTLV({
-      0: [hexToBytes(event.id)],
-      1: (event.relays || []).map((url) => utf8Encoder2.encode(url)),
-      2: event.author ? [hexToBytes(event.author)] : [],
-      3: kindArray ? [new Uint8Array(kindArray)] : []
-    });
-    return encodeBech32("nevent", data);
-  }
-  function naddrEncode(addr) {
-    let kind = new ArrayBuffer(4);
-    new DataView(kind).setUint32(0, addr.kind, false);
-    let data = encodeTLV({
-      0: [utf8Encoder2.encode(addr.identifier)],
-      1: (addr.relays || []).map((url) => utf8Encoder2.encode(url)),
-      2: [hexToBytes(addr.pubkey)],
-      3: [new Uint8Array(kind)]
-    });
-    return encodeBech32("naddr", data);
-  }
-  function encodeTLV(tlv) {
-    let entries = [];
-    Object.entries(tlv).reverse().forEach(([t, vs]) => {
-      vs.forEach((v) => {
-        let entry = new Uint8Array(v.length + 2);
-        entry.set([parseInt(t)], 0);
-        entry.set([v.length], 1);
-        entry.set(v, 2);
-        entries.push(entry);
-      });
-    });
-    return concatBytes(...entries);
-  }
-  var nip04_exports = {};
-  __export(nip04_exports, {
-    decrypt: () => decrypt2,
-    encrypt: () => encrypt2
-  });
-  function encrypt2(secretKey, pubkey, text) {
-    const privkey = secretKey instanceof Uint8Array ? secretKey : hexToBytes(secretKey);
-    const key = secp256k1.getSharedSecret(privkey, hexToBytes("02" + pubkey));
-    const normalizedKey = getNormalizedX(key);
-    let iv = Uint8Array.from(randomBytes(16));
-    let plaintext = utf8Encoder2.encode(text);
-    let ciphertext = cbc(normalizedKey, iv).encrypt(plaintext);
-    let ctb64 = base64.encode(new Uint8Array(ciphertext));
-    let ivb64 = base64.encode(new Uint8Array(iv.buffer));
-    return `${ctb64}?iv=${ivb64}`;
-  }
-  function decrypt2(secretKey, pubkey, data) {
-    const privkey = secretKey instanceof Uint8Array ? secretKey : hexToBytes(secretKey);
-    let [ctb64, ivb64] = data.split("?iv=");
-    let key = secp256k1.getSharedSecret(privkey, hexToBytes("02" + pubkey));
-    let normalizedKey = getNormalizedX(key);
-    let iv = base64.decode(ivb64);
-    let ciphertext = base64.decode(ctb64);
-    let plaintext = cbc(normalizedKey, iv).decrypt(ciphertext);
-    return utf8Decoder2.decode(plaintext);
-  }
-  function getNormalizedX(key) {
-    return key.slice(1, 33);
-  }
-  var nip05_exports = {};
-  __export(nip05_exports, {
-    NIP05_REGEX: () => NIP05_REGEX,
-    isNip05: () => isNip05,
-    isValid: () => isValid,
-    queryProfile: () => queryProfile,
-    searchDomain: () => searchDomain,
-    useFetchImplementation: () => useFetchImplementation
-  });
-  var NIP05_REGEX = /^(?:([\w.+-]+)@)?([\w_-]+(\.[\w_-]+)+)$/;
-  var isNip05 = (value) => NIP05_REGEX.test(value || "");
-  var _fetch;
-  try {
-    _fetch = fetch;
-  } catch (_) {
-    null;
-  }
-  function useFetchImplementation(fetchImplementation) {
-    _fetch = fetchImplementation;
-  }
-  async function searchDomain(domain, query = "") {
-    try {
-      const url = `https://${domain}/.well-known/nostr.json?name=${query}`;
-      const res = await _fetch(url, { redirect: "manual" });
-      if (res.status !== 200) {
-        throw Error("Wrong response code");
-      }
-      const json = await res.json();
-      return json.names;
-    } catch (_) {
-      return {};
-    }
-  }
-  async function queryProfile(fullname) {
-    const match = fullname.match(NIP05_REGEX);
-    if (!match)
-      return null;
-    const [, name = "_", domain] = match;
-    try {
-      const url = `https://${domain}/.well-known/nostr.json?name=${name}`;
-      const res = await _fetch(url, { redirect: "manual" });
-      if (res.status !== 200) {
-        throw Error("Wrong response code");
-      }
-      const json = await res.json();
-      const pubkey = json.names[name];
-      return pubkey ? { pubkey, relays: json.relays?.[pubkey] } : null;
-    } catch (_e) {
-      return null;
-    }
-  }
-  async function isValid(pubkey, nip05) {
-    const res = await queryProfile(nip05);
-    return res ? res.pubkey === pubkey : false;
-  }
-  var nip10_exports = {};
-  __export(nip10_exports, {
-    parse: () => parse
-  });
-  function parse(event) {
-    const result = {
-      reply: void 0,
-      root: void 0,
-      mentions: [],
-      profiles: [],
-      quotes: []
-    };
-    let maybeParent;
-    let maybeRoot;
-    for (let i22 = event.tags.length - 1; i22 >= 0; i22--) {
-      const tag = event.tags[i22];
-      if (tag[0] === "e" && tag[1]) {
-        const [_, eTagEventId, eTagRelayUrl, eTagMarker, eTagAuthor] = tag;
-        const eventPointer = {
-          id: eTagEventId,
-          relays: eTagRelayUrl ? [eTagRelayUrl] : [],
-          author: eTagAuthor
-        };
-        if (eTagMarker === "root") {
-          result.root = eventPointer;
-          continue;
-        }
-        if (eTagMarker === "reply") {
-          result.reply = eventPointer;
-          continue;
-        }
-        if (eTagMarker === "mention") {
-          result.mentions.push(eventPointer);
-          continue;
-        }
-        if (!maybeParent) {
-          maybeParent = eventPointer;
-        } else {
-          maybeRoot = eventPointer;
-        }
-        result.mentions.push(eventPointer);
-        continue;
-      }
-      if (tag[0] === "q" && tag[1]) {
-        const [_, eTagEventId, eTagRelayUrl] = tag;
-        result.quotes.push({
-          id: eTagEventId,
-          relays: eTagRelayUrl ? [eTagRelayUrl] : []
-        });
-      }
-      if (tag[0] === "p" && tag[1]) {
-        result.profiles.push({
-          pubkey: tag[1],
-          relays: tag[2] ? [tag[2]] : []
-        });
-        continue;
-      }
-    }
-    if (!result.root) {
-      result.root = maybeRoot || maybeParent || result.reply;
-    }
-    if (!result.reply) {
-      result.reply = maybeParent || result.root;
-    }
-    ;
-    [result.reply, result.root].forEach((ref) => {
-      if (!ref)
-        return;
-      let idx = result.mentions.indexOf(ref);
-      if (idx !== -1) {
-        result.mentions.splice(idx, 1);
-      }
-      if (ref.author) {
-        let author = result.profiles.find((p) => p.pubkey === ref.author);
-        if (author && author.relays) {
-          if (!ref.relays) {
-            ref.relays = [];
-          }
-          author.relays.forEach((url) => {
-            if (ref.relays?.indexOf(url) === -1)
-              ref.relays.push(url);
-          });
-          author.relays = ref.relays;
-        }
-      }
-    });
-    result.mentions.forEach((ref) => {
-      if (ref.author) {
-        let author = result.profiles.find((p) => p.pubkey === ref.author);
-        if (author && author.relays) {
-          if (!ref.relays) {
-            ref.relays = [];
-          }
-          author.relays.forEach((url) => {
-            if (ref.relays.indexOf(url) === -1)
-              ref.relays.push(url);
-          });
-          author.relays = ref.relays;
-        }
-      }
-    });
-    return result;
-  }
-  var nip11_exports = {};
-  __export(nip11_exports, {
-    fetchRelayInformation: () => fetchRelayInformation,
-    useFetchImplementation: () => useFetchImplementation2
-  });
-  var _fetch2;
-  try {
-    _fetch2 = fetch;
-  } catch {
-  }
-  function useFetchImplementation2(fetchImplementation) {
-    _fetch2 = fetchImplementation;
-  }
-  async function fetchRelayInformation(url) {
-    return await (await fetch(url.replace("ws://", "http://").replace("wss://", "https://"), {
-      headers: { Accept: "application/nostr+json" }
-    })).json();
-  }
-  var nip13_exports = {};
-  __export(nip13_exports, {
-    fastEventHash: () => fastEventHash,
-    getPow: () => getPow,
-    minePow: () => minePow
-  });
-  function getPow(hex) {
-    let count = 0;
-    for (let i22 = 0; i22 < 64; i22 += 8) {
-      const nibble = parseInt(hex.substring(i22, i22 + 8), 16);
-      if (nibble === 0) {
-        count += 32;
-      } else {
-        count += Math.clz32(nibble);
-        break;
-      }
-    }
-    return count;
-  }
-  function minePow(unsigned, difficulty) {
-    let count = 0;
-    const event = unsigned;
-    const tag = ["nonce", count.toString(), difficulty.toString()];
-    event.tags.push(tag);
-    while (true) {
-      const now2 = Math.floor((/* @__PURE__ */ new Date()).getTime() / 1e3);
-      if (now2 !== event.created_at) {
-        count = 0;
-        event.created_at = now2;
-      }
-      tag[1] = (++count).toString();
-      event.id = fastEventHash(event);
-      if (getPow(event.id) >= difficulty) {
-        break;
-      }
-    }
-    return event;
-  }
-  function fastEventHash(evt) {
-    return bytesToHex(
-      sha256(utf8Encoder2.encode(JSON.stringify([0, evt.pubkey, evt.created_at, evt.kind, evt.tags, evt.content])))
-    );
-  }
-  var nip17_exports = {};
-  __export(nip17_exports, {
-    unwrapEvent: () => unwrapEvent2,
-    unwrapManyEvents: () => unwrapManyEvents2,
-    wrapEvent: () => wrapEvent2,
-    wrapManyEvents: () => wrapManyEvents2
-  });
-  var nip59_exports = {};
-  __export(nip59_exports, {
-    createRumor: () => createRumor,
-    createSeal: () => createSeal,
-    createWrap: () => createWrap,
-    unwrapEvent: () => unwrapEvent,
-    unwrapManyEvents: () => unwrapManyEvents,
-    wrapEvent: () => wrapEvent,
-    wrapManyEvents: () => wrapManyEvents
-  });
-  var nip44_exports = {};
-  __export(nip44_exports, {
-    decrypt: () => decrypt22,
-    encrypt: () => encrypt22,
-    getConversationKey: () => getConversationKey,
-    v2: () => v2
-  });
+  // node_modules/.pnpm/nostr-tools@2.23.0_typescript@5.9.3/node_modules/nostr-tools/lib/esm/nip44.js
+  var utf8Decoder3 = new TextDecoder("utf-8");
+  var utf8Encoder3 = new TextEncoder();
   var minPlaintextSize = 1;
   var maxPlaintextSize = 65535;
   function getConversationKey(privkeyA, pubkeyB) {
     const sharedX = secp256k1.getSharedSecret(privkeyA, hexToBytes("02" + pubkeyB)).subarray(1, 33);
-    return extract(sha256, sharedX, utf8Encoder2.encode("nip44-v2"));
+    return extract(sha256, sharedX, utf8Encoder3.encode("nip44-v2"));
   }
   function getMessageKeys(conversationKey, nonce) {
     const keys = expand(sha256, conversationKey, nonce, 76);
@@ -4908,7 +3676,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     return arr;
   }
   function pad(plaintext) {
-    const unpadded = utf8Encoder2.encode(plaintext);
+    const unpadded = utf8Encoder3.encode(plaintext);
     const unpaddedLen = unpadded.length;
     const prefix = writeU16BE(unpaddedLen);
     const suffix = new Uint8Array(calcPaddedLen(unpaddedLen) - unpaddedLen);
@@ -4919,7 +3687,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     const unpadded = padded.subarray(2, 2 + unpaddedLen);
     if (unpaddedLen < minPlaintextSize || unpaddedLen > maxPlaintextSize || unpadded.length !== unpaddedLen || padded.length !== 2 + calcPaddedLen(unpaddedLen))
       throw new Error("invalid padding");
-    return utf8Decoder2.decode(unpadded);
+    return utf8Decoder3.decode(unpadded);
   }
   function hmacAad(key, message, aad) {
     if (aad.length !== 32)
@@ -4953,14 +3721,14 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       mac: data.subarray(-32)
     };
   }
-  function encrypt22(plaintext, conversationKey, nonce = randomBytes(32)) {
+  function encrypt(plaintext, conversationKey, nonce = randomBytes(32)) {
     const { chacha_key, chacha_nonce, hmac_key } = getMessageKeys(conversationKey, nonce);
     const padded = pad(plaintext);
     const ciphertext = chacha20(chacha_key, chacha_nonce, padded);
     const mac = hmacAad(hmac_key, ciphertext, nonce);
     return base64.encode(concatBytes(new Uint8Array([2]), nonce, ciphertext, mac));
   }
-  function decrypt22(payload, conversationKey) {
+  function decrypt(payload, conversationKey) {
     const { nonce, ciphertext, mac } = decodePayload(payload);
     const { chacha_key, chacha_nonce, hmac_key } = getMessageKeys(conversationKey, nonce);
     const calculatedMac = hmacAad(hmac_key, ciphertext, nonce);
@@ -4974,1456 +3742,15 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       getConversationKey,
       calcPaddedLen
     },
-    encrypt: encrypt22,
-    decrypt: decrypt22
-  };
-  var TWO_DAYS = 2 * 24 * 60 * 60;
-  var now = () => Math.round(Date.now() / 1e3);
-  var randomNow = () => Math.round(now() - Math.random() * TWO_DAYS);
-  var nip44ConversationKey = (privateKey, publicKey) => getConversationKey(privateKey, publicKey);
-  var nip44Encrypt = (data, privateKey, publicKey) => encrypt22(JSON.stringify(data), nip44ConversationKey(privateKey, publicKey));
-  var nip44Decrypt = (data, privateKey) => JSON.parse(decrypt22(data.content, nip44ConversationKey(privateKey, data.pubkey)));
-  function createRumor(event, privateKey) {
-    const rumor = {
-      created_at: now(),
-      content: "",
-      tags: [],
-      ...event,
-      pubkey: getPublicKey2(privateKey)
-    };
-    rumor.id = getEventHash2(rumor);
-    return rumor;
-  }
-  function createSeal(rumor, privateKey, recipientPublicKey) {
-    return finalizeEvent2(
-      {
-        kind: Seal,
-        content: nip44Encrypt(rumor, privateKey, recipientPublicKey),
-        created_at: randomNow(),
-        tags: []
-      },
-      privateKey
-    );
-  }
-  function createWrap(seal, recipientPublicKey) {
-    const randomKey = generateSecretKey2();
-    return finalizeEvent2(
-      {
-        kind: GiftWrap,
-        content: nip44Encrypt(seal, randomKey, recipientPublicKey),
-        created_at: randomNow(),
-        tags: [["p", recipientPublicKey]]
-      },
-      randomKey
-    );
-  }
-  function wrapEvent(event, senderPrivateKey, recipientPublicKey) {
-    const rumor = createRumor(event, senderPrivateKey);
-    const seal = createSeal(rumor, senderPrivateKey, recipientPublicKey);
-    return createWrap(seal, recipientPublicKey);
-  }
-  function wrapManyEvents(event, senderPrivateKey, recipientsPublicKeys) {
-    if (!recipientsPublicKeys || recipientsPublicKeys.length === 0) {
-      throw new Error("At least one recipient is required.");
-    }
-    const senderPublicKey = getPublicKey2(senderPrivateKey);
-    const wrappeds = [wrapEvent(event, senderPrivateKey, senderPublicKey)];
-    recipientsPublicKeys.forEach((recipientPublicKey) => {
-      wrappeds.push(wrapEvent(event, senderPrivateKey, recipientPublicKey));
-    });
-    return wrappeds;
-  }
-  function unwrapEvent(wrap, recipientPrivateKey) {
-    const unwrappedSeal = nip44Decrypt(wrap, recipientPrivateKey);
-    return nip44Decrypt(unwrappedSeal, recipientPrivateKey);
-  }
-  function unwrapManyEvents(wrappedEvents, recipientPrivateKey) {
-    let unwrappedEvents = [];
-    wrappedEvents.forEach((e) => {
-      unwrappedEvents.push(unwrapEvent(e, recipientPrivateKey));
-    });
-    unwrappedEvents.sort((a, b) => a.created_at - b.created_at);
-    return unwrappedEvents;
-  }
-  function createEvent(recipients, message, conversationTitle, replyTo) {
-    const baseEvent = {
-      created_at: Math.ceil(Date.now() / 1e3),
-      kind: PrivateDirectMessage,
-      tags: [],
-      content: message
-    };
-    const recipientsArray = Array.isArray(recipients) ? recipients : [recipients];
-    recipientsArray.forEach(({ publicKey, relayUrl }) => {
-      baseEvent.tags.push(relayUrl ? ["p", publicKey, relayUrl] : ["p", publicKey]);
-    });
-    if (replyTo) {
-      baseEvent.tags.push(["e", replyTo.eventId, replyTo.relayUrl || "", "reply"]);
-    }
-    if (conversationTitle) {
-      baseEvent.tags.push(["subject", conversationTitle]);
-    }
-    return baseEvent;
-  }
-  function wrapEvent2(senderPrivateKey, recipient, message, conversationTitle, replyTo) {
-    const event = createEvent(recipient, message, conversationTitle, replyTo);
-    return wrapEvent(event, senderPrivateKey, recipient.publicKey);
-  }
-  function wrapManyEvents2(senderPrivateKey, recipients, message, conversationTitle, replyTo) {
-    if (!recipients || recipients.length === 0) {
-      throw new Error("At least one recipient is required.");
-    }
-    const senderPublicKey = getPublicKey2(senderPrivateKey);
-    return [{ publicKey: senderPublicKey }, ...recipients].map(
-      (recipient) => wrapEvent2(senderPrivateKey, recipient, message, conversationTitle, replyTo)
-    );
-  }
-  var unwrapEvent2 = unwrapEvent;
-  var unwrapManyEvents2 = unwrapManyEvents;
-  var nip18_exports = {};
-  __export(nip18_exports, {
-    finishRepostEvent: () => finishRepostEvent,
-    getRepostedEvent: () => getRepostedEvent,
-    getRepostedEventPointer: () => getRepostedEventPointer
-  });
-  function finishRepostEvent(t, reposted, relayUrl, privateKey) {
-    let kind;
-    const tags = [...t.tags ?? [], ["e", reposted.id, relayUrl], ["p", reposted.pubkey]];
-    if (reposted.kind === ShortTextNote) {
-      kind = Repost;
-    } else {
-      kind = GenericRepost;
-      tags.push(["k", String(reposted.kind)]);
-    }
-    return finalizeEvent2(
-      {
-        kind,
-        tags,
-        content: t.content === "" || reposted.tags?.find((tag) => tag[0] === "-") ? "" : JSON.stringify(reposted),
-        created_at: t.created_at
-      },
-      privateKey
-    );
-  }
-  function getRepostedEventPointer(event) {
-    if (![Repost, GenericRepost].includes(event.kind)) {
-      return void 0;
-    }
-    let lastETag;
-    let lastPTag;
-    for (let i22 = event.tags.length - 1; i22 >= 0 && (lastETag === void 0 || lastPTag === void 0); i22--) {
-      const tag = event.tags[i22];
-      if (tag.length >= 2) {
-        if (tag[0] === "e" && lastETag === void 0) {
-          lastETag = tag;
-        } else if (tag[0] === "p" && lastPTag === void 0) {
-          lastPTag = tag;
-        }
-      }
-    }
-    if (lastETag === void 0) {
-      return void 0;
-    }
-    return {
-      id: lastETag[1],
-      relays: [lastETag[2], lastPTag?.[2]].filter((x) => typeof x === "string"),
-      author: lastPTag?.[1]
-    };
-  }
-  function getRepostedEvent(event, { skipVerification } = {}) {
-    const pointer = getRepostedEventPointer(event);
-    if (pointer === void 0 || event.content === "") {
-      return void 0;
-    }
-    let repostedEvent;
-    try {
-      repostedEvent = JSON.parse(event.content);
-    } catch (error) {
-      return void 0;
-    }
-    if (repostedEvent.id !== pointer.id) {
-      return void 0;
-    }
-    if (!skipVerification && !verifyEvent2(repostedEvent)) {
-      return void 0;
-    }
-    return repostedEvent;
-  }
-  var nip21_exports = {};
-  __export(nip21_exports, {
-    NOSTR_URI_REGEX: () => NOSTR_URI_REGEX,
-    parse: () => parse2,
-    test: () => test
-  });
-  var NOSTR_URI_REGEX = new RegExp(`nostr:(${BECH32_REGEX.source})`);
-  function test(value) {
-    return typeof value === "string" && new RegExp(`^${NOSTR_URI_REGEX.source}$`).test(value);
-  }
-  function parse2(uri) {
-    const match = uri.match(new RegExp(`^${NOSTR_URI_REGEX.source}$`));
-    if (!match)
-      throw new Error(`Invalid Nostr URI: ${uri}`);
-    return {
-      uri: match[0],
-      value: match[1],
-      decoded: decode(match[1])
-    };
-  }
-  var nip25_exports = {};
-  __export(nip25_exports, {
-    finishReactionEvent: () => finishReactionEvent,
-    getReactedEventPointer: () => getReactedEventPointer
-  });
-  function finishReactionEvent(t, reacted, privateKey) {
-    const inheritedTags = reacted.tags.filter((tag) => tag.length >= 2 && (tag[0] === "e" || tag[0] === "p"));
-    return finalizeEvent2(
-      {
-        ...t,
-        kind: Reaction,
-        tags: [...t.tags ?? [], ...inheritedTags, ["e", reacted.id], ["p", reacted.pubkey]],
-        content: t.content ?? "+"
-      },
-      privateKey
-    );
-  }
-  function getReactedEventPointer(event) {
-    if (event.kind !== Reaction) {
-      return void 0;
-    }
-    let lastETag;
-    let lastPTag;
-    for (let i22 = event.tags.length - 1; i22 >= 0 && (lastETag === void 0 || lastPTag === void 0); i22--) {
-      const tag = event.tags[i22];
-      if (tag.length >= 2) {
-        if (tag[0] === "e" && lastETag === void 0) {
-          lastETag = tag;
-        } else if (tag[0] === "p" && lastPTag === void 0) {
-          lastPTag = tag;
-        }
-      }
-    }
-    if (lastETag === void 0 || lastPTag === void 0) {
-      return void 0;
-    }
-    return {
-      id: lastETag[1],
-      relays: [lastETag[2], lastPTag[2]].filter((x) => x !== void 0),
-      author: lastPTag[1]
-    };
-  }
-  var nip27_exports = {};
-  __export(nip27_exports, {
-    parse: () => parse3
-  });
-  var noCharacter = /\W/m;
-  var noURLCharacter = /[^\w\/] |[^\w\/]$|$|,| /m;
-  var MAX_HASHTAG_LENGTH = 42;
-  function* parse3(content) {
-    let emojis = [];
-    if (typeof content !== "string") {
-      for (let i22 = 0; i22 < content.tags.length; i22++) {
-        const tag = content.tags[i22];
-        if (tag[0] === "emoji" && tag.length >= 3) {
-          emojis.push({ type: "emoji", shortcode: tag[1], url: tag[2] });
-        }
-      }
-      content = content.content;
-    }
-    const max = content.length;
-    let prevIndex = 0;
-    let index = 0;
-    mainloop:
-      while (index < max) {
-        const u = content.indexOf(":", index);
-        const h = content.indexOf("#", index);
-        if (u === -1 && h === -1) {
-          break mainloop;
-        }
-        if (u === -1 || h >= 0 && h < u) {
-          if (h === 0 || content[h - 1].match(noCharacter)) {
-            const m = content.slice(h + 1, h + MAX_HASHTAG_LENGTH).match(noCharacter);
-            const end = m ? h + 1 + m.index : max;
-            yield { type: "text", text: content.slice(prevIndex, h) };
-            yield { type: "hashtag", value: content.slice(h + 1, end) };
-            index = end;
-            prevIndex = index;
-            continue mainloop;
-          }
-          index = h + 1;
-          continue mainloop;
-        }
-        if (content.slice(u - 5, u) === "nostr") {
-          const m = content.slice(u + 60).match(noCharacter);
-          const end = m ? u + 60 + m.index : max;
-          try {
-            let pointer;
-            let { data, type } = decode(content.slice(u + 1, end));
-            switch (type) {
-              case "npub":
-                pointer = { pubkey: data };
-                break;
-              case "note":
-                pointer = { id: data };
-                break;
-              case "nsec":
-                index = end + 1;
-                continue;
-              default:
-                pointer = data;
-            }
-            if (prevIndex !== u - 5) {
-              yield { type: "text", text: content.slice(prevIndex, u - 5) };
-            }
-            yield { type: "reference", pointer };
-            index = end;
-            prevIndex = index;
-            continue mainloop;
-          } catch (_err) {
-            index = u + 1;
-            continue mainloop;
-          }
-        } else if (content.slice(u - 5, u) === "https" || content.slice(u - 4, u) === "http") {
-          const m = content.slice(u + 4).match(noURLCharacter);
-          const end = m ? u + 4 + m.index : max;
-          const prefixLen = content[u - 1] === "s" ? 5 : 4;
-          try {
-            let url = new URL(content.slice(u - prefixLen, end));
-            if (url.hostname.indexOf(".") === -1) {
-              throw new Error("invalid url");
-            }
-            if (prevIndex !== u - prefixLen) {
-              yield { type: "text", text: content.slice(prevIndex, u - prefixLen) };
-            }
-            if (/\.(png|jpe?g|gif|webp|heic|svg)$/i.test(url.pathname)) {
-              yield { type: "image", url: url.toString() };
-              index = end;
-              prevIndex = index;
-              continue mainloop;
-            }
-            if (/\.(mp4|avi|webm|mkv|mov)$/i.test(url.pathname)) {
-              yield { type: "video", url: url.toString() };
-              index = end;
-              prevIndex = index;
-              continue mainloop;
-            }
-            if (/\.(mp3|aac|ogg|opus|wav|flac)$/i.test(url.pathname)) {
-              yield { type: "audio", url: url.toString() };
-              index = end;
-              prevIndex = index;
-              continue mainloop;
-            }
-            yield { type: "url", url: url.toString() };
-            index = end;
-            prevIndex = index;
-            continue mainloop;
-          } catch (_err) {
-            index = end + 1;
-            continue mainloop;
-          }
-        } else if (content.slice(u - 3, u) === "wss" || content.slice(u - 2, u) === "ws") {
-          const m = content.slice(u + 4).match(noURLCharacter);
-          const end = m ? u + 4 + m.index : max;
-          const prefixLen = content[u - 1] === "s" ? 3 : 2;
-          try {
-            let url = new URL(content.slice(u - prefixLen, end));
-            if (url.hostname.indexOf(".") === -1) {
-              throw new Error("invalid ws url");
-            }
-            if (prevIndex !== u - prefixLen) {
-              yield { type: "text", text: content.slice(prevIndex, u - prefixLen) };
-            }
-            yield { type: "relay", url: url.toString() };
-            index = end;
-            prevIndex = index;
-            continue mainloop;
-          } catch (_err) {
-            index = end + 1;
-            continue mainloop;
-          }
-        } else {
-          for (let e = 0; e < emojis.length; e++) {
-            const emoji = emojis[e];
-            if (content[u + emoji.shortcode.length + 1] === ":" && content.slice(u + 1, u + emoji.shortcode.length + 1) === emoji.shortcode) {
-              if (prevIndex !== u) {
-                yield { type: "text", text: content.slice(prevIndex, u) };
-              }
-              yield emoji;
-              index = u + emoji.shortcode.length + 2;
-              prevIndex = index;
-              continue mainloop;
-            }
-          }
-          index = u + 1;
-          continue mainloop;
-        }
-      }
-    if (prevIndex !== max) {
-      yield { type: "text", text: content.slice(prevIndex) };
-    }
-  }
-  var nip28_exports = {};
-  __export(nip28_exports, {
-    channelCreateEvent: () => channelCreateEvent,
-    channelHideMessageEvent: () => channelHideMessageEvent,
-    channelMessageEvent: () => channelMessageEvent,
-    channelMetadataEvent: () => channelMetadataEvent,
-    channelMuteUserEvent: () => channelMuteUserEvent
-  });
-  var channelCreateEvent = (t, privateKey) => {
-    let content;
-    if (typeof t.content === "object") {
-      content = JSON.stringify(t.content);
-    } else if (typeof t.content === "string") {
-      content = t.content;
-    } else {
-      return void 0;
-    }
-    return finalizeEvent2(
-      {
-        kind: ChannelCreation,
-        tags: [...t.tags ?? []],
-        content,
-        created_at: t.created_at
-      },
-      privateKey
-    );
-  };
-  var channelMetadataEvent = (t, privateKey) => {
-    let content;
-    if (typeof t.content === "object") {
-      content = JSON.stringify(t.content);
-    } else if (typeof t.content === "string") {
-      content = t.content;
-    } else {
-      return void 0;
-    }
-    return finalizeEvent2(
-      {
-        kind: ChannelMetadata,
-        tags: [["e", t.channel_create_event_id], ...t.tags ?? []],
-        content,
-        created_at: t.created_at
-      },
-      privateKey
-    );
-  };
-  var channelMessageEvent = (t, privateKey) => {
-    const tags = [["e", t.channel_create_event_id, t.relay_url, "root"]];
-    if (t.reply_to_channel_message_event_id) {
-      tags.push(["e", t.reply_to_channel_message_event_id, t.relay_url, "reply"]);
-    }
-    return finalizeEvent2(
-      {
-        kind: ChannelMessage,
-        tags: [...tags, ...t.tags ?? []],
-        content: t.content,
-        created_at: t.created_at
-      },
-      privateKey
-    );
-  };
-  var channelHideMessageEvent = (t, privateKey) => {
-    let content;
-    if (typeof t.content === "object") {
-      content = JSON.stringify(t.content);
-    } else if (typeof t.content === "string") {
-      content = t.content;
-    } else {
-      return void 0;
-    }
-    return finalizeEvent2(
-      {
-        kind: ChannelHideMessage,
-        tags: [["e", t.channel_message_event_id], ...t.tags ?? []],
-        content,
-        created_at: t.created_at
-      },
-      privateKey
-    );
-  };
-  var channelMuteUserEvent = (t, privateKey) => {
-    let content;
-    if (typeof t.content === "object") {
-      content = JSON.stringify(t.content);
-    } else if (typeof t.content === "string") {
-      content = t.content;
-    } else {
-      return void 0;
-    }
-    return finalizeEvent2(
-      {
-        kind: ChannelMuteUser,
-        tags: [["p", t.pubkey_to_mute], ...t.tags ?? []],
-        content,
-        created_at: t.created_at
-      },
-      privateKey
-    );
-  };
-  var nip30_exports = {};
-  __export(nip30_exports, {
-    EMOJI_SHORTCODE_REGEX: () => EMOJI_SHORTCODE_REGEX,
-    matchAll: () => matchAll,
-    regex: () => regex,
-    replaceAll: () => replaceAll
-  });
-  var EMOJI_SHORTCODE_REGEX = /:(\w+):/;
-  var regex = () => new RegExp(`\\B${EMOJI_SHORTCODE_REGEX.source}\\B`, "g");
-  function* matchAll(content) {
-    const matches = content.matchAll(regex());
-    for (const match of matches) {
-      try {
-        const [shortcode, name] = match;
-        yield {
-          shortcode,
-          name,
-          start: match.index,
-          end: match.index + shortcode.length
-        };
-      } catch (_e) {
-      }
-    }
-  }
-  function replaceAll(content, replacer) {
-    return content.replaceAll(regex(), (shortcode, name) => {
-      return replacer({
-        shortcode,
-        name
-      });
-    });
-  }
-  var nip39_exports = {};
-  __export(nip39_exports, {
-    useFetchImplementation: () => useFetchImplementation3,
-    validateGithub: () => validateGithub
-  });
-  var _fetch3;
-  try {
-    _fetch3 = fetch;
-  } catch {
-  }
-  function useFetchImplementation3(fetchImplementation) {
-    _fetch3 = fetchImplementation;
-  }
-  async function validateGithub(pubkey, username, proof) {
-    try {
-      let res = await (await _fetch3(`https://gist.github.com/${username}/${proof}/raw`)).text();
-      return res === `Verifying that I control the following Nostr public key: ${pubkey}`;
-    } catch (_) {
-      return false;
-    }
-  }
-  var nip47_exports = {};
-  __export(nip47_exports, {
-    makeNwcRequestEvent: () => makeNwcRequestEvent,
-    parseConnectionString: () => parseConnectionString
-  });
-  function parseConnectionString(connectionString) {
-    const { host, pathname, searchParams } = new URL(connectionString);
-    const pubkey = pathname || host;
-    const relay = searchParams.get("relay");
-    const secret = searchParams.get("secret");
-    if (!pubkey || !relay || !secret) {
-      throw new Error("invalid connection string");
-    }
-    return { pubkey, relay, secret };
-  }
-  async function makeNwcRequestEvent(pubkey, secretKey, invoice) {
-    const content = {
-      method: "pay_invoice",
-      params: {
-        invoice
-      }
-    };
-    const encryptedContent = encrypt2(secretKey, pubkey, JSON.stringify(content));
-    const eventTemplate = {
-      kind: NWCWalletRequest,
-      created_at: Math.round(Date.now() / 1e3),
-      content: encryptedContent,
-      tags: [["p", pubkey]]
-    };
-    return finalizeEvent2(eventTemplate, secretKey);
-  }
-  var nip54_exports = {};
-  __export(nip54_exports, {
-    normalizeIdentifier: () => normalizeIdentifier
-  });
-  function normalizeIdentifier(name) {
-    name = name.trim().toLowerCase();
-    name = name.normalize("NFKC");
-    return Array.from(name).map((char) => {
-      if (/\p{Letter}/u.test(char) || /\p{Number}/u.test(char)) {
-        return char;
-      }
-      return "-";
-    }).join("");
-  }
-  var nip57_exports = {};
-  __export(nip57_exports, {
-    getSatoshisAmountFromBolt11: () => getSatoshisAmountFromBolt11,
-    getZapEndpoint: () => getZapEndpoint,
-    makeZapReceipt: () => makeZapReceipt,
-    makeZapRequest: () => makeZapRequest,
-    useFetchImplementation: () => useFetchImplementation4,
-    validateZapRequest: () => validateZapRequest
-  });
-  var _fetch4;
-  try {
-    _fetch4 = fetch;
-  } catch {
-  }
-  function useFetchImplementation4(fetchImplementation) {
-    _fetch4 = fetchImplementation;
-  }
-  async function getZapEndpoint(metadata) {
-    try {
-      let lnurl = "";
-      let { lud06, lud16 } = JSON.parse(metadata.content);
-      if (lud16) {
-        let [name, domain] = lud16.split("@");
-        lnurl = new URL(`/.well-known/lnurlp/${name}`, `https://${domain}`).toString();
-      } else if (lud06) {
-        let { words } = bech32.decode(lud06, 1e3);
-        let data = bech32.fromWords(words);
-        lnurl = utf8Decoder2.decode(data);
-      } else {
-        return null;
-      }
-      let res = await _fetch4(lnurl);
-      let body = await res.json();
-      if (body.allowsNostr && body.nostrPubkey) {
-        return body.callback;
-      }
-    } catch (err) {
-    }
-    return null;
-  }
-  function makeZapRequest(params) {
-    let zr = {
-      kind: 9734,
-      created_at: Math.round(Date.now() / 1e3),
-      content: params.comment || "",
-      tags: [
-        ["p", "pubkey" in params ? params.pubkey : params.event.pubkey],
-        ["amount", params.amount.toString()],
-        ["relays", ...params.relays]
-      ]
-    };
-    if ("event" in params) {
-      zr.tags.push(["e", params.event.id]);
-      if (isReplaceableKind(params.event.kind)) {
-        const a = ["a", `${params.event.kind}:${params.event.pubkey}:`];
-        zr.tags.push(a);
-      } else if (isAddressableKind(params.event.kind)) {
-        let d = params.event.tags.find(([t, v]) => t === "d" && v);
-        if (!d)
-          throw new Error("d tag not found or is empty");
-        const a = ["a", `${params.event.kind}:${params.event.pubkey}:${d[1]}`];
-        zr.tags.push(a);
-      }
-      zr.tags.push(["k", params.event.kind.toString()]);
-    }
-    return zr;
-  }
-  function validateZapRequest(zapRequestString) {
-    let zapRequest;
-    try {
-      zapRequest = JSON.parse(zapRequestString);
-    } catch (err) {
-      return "Invalid zap request JSON.";
-    }
-    if (!validateEvent2(zapRequest))
-      return "Zap request is not a valid Nostr event.";
-    if (!verifyEvent2(zapRequest))
-      return "Invalid signature on zap request.";
-    let p = zapRequest.tags.find(([t, v]) => t === "p" && v);
-    if (!p)
-      return "Zap request doesn't have a 'p' tag.";
-    if (!p[1].match(/^[a-f0-9]{64}$/))
-      return "Zap request 'p' tag is not valid hex.";
-    let e = zapRequest.tags.find(([t, v]) => t === "e" && v);
-    if (e && !e[1].match(/^[a-f0-9]{64}$/))
-      return "Zap request 'e' tag is not valid hex.";
-    let relays = zapRequest.tags.find(([t, v]) => t === "relays" && v);
-    if (!relays)
-      return "Zap request doesn't have a 'relays' tag.";
-    return null;
-  }
-  function makeZapReceipt({
-    zapRequest,
-    preimage,
-    bolt11,
-    paidAt
-  }) {
-    let zr = JSON.parse(zapRequest);
-    let tagsFromZapRequest = zr.tags.filter(([t]) => t === "e" || t === "p" || t === "a");
-    let zap = {
-      kind: 9735,
-      created_at: Math.round(paidAt.getTime() / 1e3),
-      content: "",
-      tags: [...tagsFromZapRequest, ["P", zr.pubkey], ["bolt11", bolt11], ["description", zapRequest]]
-    };
-    if (preimage) {
-      zap.tags.push(["preimage", preimage]);
-    }
-    return zap;
-  }
-  function getSatoshisAmountFromBolt11(bolt11) {
-    if (bolt11.length < 50) {
-      return 0;
-    }
-    bolt11 = bolt11.substring(0, 50);
-    const idx = bolt11.lastIndexOf("1");
-    if (idx === -1) {
-      return 0;
-    }
-    const hrp = bolt11.substring(0, idx);
-    if (!hrp.startsWith("lnbc")) {
-      return 0;
-    }
-    const amount = hrp.substring(4);
-    if (amount.length < 1) {
-      return 0;
-    }
-    const char = amount[amount.length - 1];
-    const digit = char.charCodeAt(0) - "0".charCodeAt(0);
-    const isDigit = digit >= 0 && digit <= 9;
-    let cutPoint = amount.length - 1;
-    if (isDigit) {
-      cutPoint++;
-    }
-    if (cutPoint < 1) {
-      return 0;
-    }
-    const num2 = parseInt(amount.substring(0, cutPoint));
-    switch (char) {
-      case "m":
-        return num2 * 1e5;
-      case "u":
-        return num2 * 100;
-      case "n":
-        return num2 / 10;
-      case "p":
-        return num2 / 1e4;
-      default:
-        return num2 * 1e8;
-    }
-  }
-  var nip77_exports = {};
-  __export(nip77_exports, {
-    Negentropy: () => Negentropy,
-    NegentropyStorageVector: () => NegentropyStorageVector,
-    NegentropySync: () => NegentropySync
-  });
-  var PROTOCOL_VERSION = 97;
-  var ID_SIZE = 32;
-  var FINGERPRINT_SIZE = 16;
-  var Mode = {
-    Skip: 0,
-    Fingerprint: 1,
-    IdList: 2
-  };
-  var WrappedBuffer = class {
-    constructor(buffer) {
-      __publicField(this, "_raw");
-      __publicField(this, "length");
-      if (typeof buffer === "number") {
-        this._raw = new Uint8Array(buffer);
-        this.length = 0;
-      } else if (buffer instanceof Uint8Array) {
-        this._raw = new Uint8Array(buffer);
-        this.length = buffer.length;
-      } else {
-        this._raw = new Uint8Array(512);
-        this.length = 0;
-      }
-    }
-    unwrap() {
-      return this._raw.subarray(0, this.length);
-    }
-    get capacity() {
-      return this._raw.byteLength;
-    }
-    extend(buf) {
-      if (buf instanceof WrappedBuffer)
-        buf = buf.unwrap();
-      if (typeof buf.length !== "number")
-        throw Error("bad length");
-      const targetSize = buf.length + this.length;
-      if (this.capacity < targetSize) {
-        const oldRaw = this._raw;
-        const newCapacity = Math.max(this.capacity * 2, targetSize);
-        this._raw = new Uint8Array(newCapacity);
-        this._raw.set(oldRaw);
-      }
-      this._raw.set(buf, this.length);
-      this.length += buf.length;
-    }
-    shift() {
-      const first = this._raw[0];
-      this._raw = this._raw.subarray(1);
-      this.length--;
-      return first;
-    }
-    shiftN(n = 1) {
-      const firstSubarray = this._raw.subarray(0, n);
-      this._raw = this._raw.subarray(n);
-      this.length -= n;
-      return firstSubarray;
-    }
-  };
-  function decodeVarInt(buf) {
-    let res = 0;
-    while (1) {
-      if (buf.length === 0)
-        throw Error("parse ends prematurely");
-      let byte = buf.shift();
-      res = res << 7 | byte & 127;
-      if ((byte & 128) === 0)
-        break;
-    }
-    return res;
-  }
-  function encodeVarInt(n) {
-    if (n === 0)
-      return new WrappedBuffer(new Uint8Array([0]));
-    let o = [];
-    while (n !== 0) {
-      o.push(n & 127);
-      n >>>= 7;
-    }
-    o.reverse();
-    for (let i22 = 0; i22 < o.length - 1; i22++)
-      o[i22] |= 128;
-    return new WrappedBuffer(new Uint8Array(o));
-  }
-  function getByte(buf) {
-    return getBytes(buf, 1)[0];
-  }
-  function getBytes(buf, n) {
-    if (buf.length < n)
-      throw Error("parse ends prematurely");
-    return buf.shiftN(n);
-  }
-  var Accumulator = class {
-    constructor() {
-      __publicField(this, "buf");
-      this.setToZero();
-    }
-    setToZero() {
-      this.buf = new Uint8Array(ID_SIZE);
-    }
-    add(otherBuf) {
-      let currCarry = 0, nextCarry = 0;
-      let p = new DataView(this.buf.buffer);
-      let po = new DataView(otherBuf.buffer);
-      for (let i22 = 0; i22 < 8; i22++) {
-        let offset = i22 * 4;
-        let orig = p.getUint32(offset, true);
-        let otherV = po.getUint32(offset, true);
-        let next = orig;
-        next += currCarry;
-        next += otherV;
-        if (next > 4294967295)
-          nextCarry = 1;
-        p.setUint32(offset, next & 4294967295, true);
-        currCarry = nextCarry;
-        nextCarry = 0;
-      }
-    }
-    negate() {
-      let p = new DataView(this.buf.buffer);
-      for (let i22 = 0; i22 < 8; i22++) {
-        let offset = i22 * 4;
-        p.setUint32(offset, ~p.getUint32(offset, true));
-      }
-      let one = new Uint8Array(ID_SIZE);
-      one[0] = 1;
-      this.add(one);
-    }
-    getFingerprint(n) {
-      let input = new WrappedBuffer();
-      input.extend(this.buf);
-      input.extend(encodeVarInt(n));
-      let hash = sha256(input.unwrap());
-      return hash.subarray(0, FINGERPRINT_SIZE);
-    }
-  };
-  var NegentropyStorageVector = class {
-    constructor() {
-      __publicField(this, "items");
-      __publicField(this, "sealed");
-      this.items = [];
-      this.sealed = false;
-    }
-    insert(timestamp, id) {
-      if (this.sealed)
-        throw Error("already sealed");
-      const idb = hexToBytes(id);
-      if (idb.byteLength !== ID_SIZE)
-        throw Error("bad id size for added item");
-      this.items.push({ timestamp, id: idb });
-    }
-    seal() {
-      if (this.sealed)
-        throw Error("already sealed");
-      this.sealed = true;
-      this.items.sort(itemCompare);
-      for (let i22 = 1; i22 < this.items.length; i22++) {
-        if (itemCompare(this.items[i22 - 1], this.items[i22]) === 0)
-          throw Error("duplicate item inserted");
-      }
-    }
-    unseal() {
-      this.sealed = false;
-    }
-    size() {
-      this._checkSealed();
-      return this.items.length;
-    }
-    getItem(i22) {
-      this._checkSealed();
-      if (i22 >= this.items.length)
-        throw Error("out of range");
-      return this.items[i22];
-    }
-    iterate(begin, end, cb) {
-      this._checkSealed();
-      this._checkBounds(begin, end);
-      for (let i22 = begin; i22 < end; ++i22) {
-        if (!cb(this.items[i22], i22))
-          break;
-      }
-    }
-    findLowerBound(begin, end, bound) {
-      this._checkSealed();
-      this._checkBounds(begin, end);
-      return this._binarySearch(this.items, begin, end, (a) => itemCompare(a, bound) < 0);
-    }
-    fingerprint(begin, end) {
-      let out = new Accumulator();
-      out.setToZero();
-      this.iterate(begin, end, (item) => {
-        out.add(item.id);
-        return true;
-      });
-      return out.getFingerprint(end - begin);
-    }
-    _checkSealed() {
-      if (!this.sealed)
-        throw Error("not sealed");
-    }
-    _checkBounds(begin, end) {
-      if (begin > end || end > this.items.length)
-        throw Error("bad range");
-    }
-    _binarySearch(arr, first, last, cmp) {
-      let count = last - first;
-      while (count > 0) {
-        let it = first;
-        let step = Math.floor(count / 2);
-        it += step;
-        if (cmp(arr[it])) {
-          first = ++it;
-          count -= step + 1;
-        } else {
-          count = step;
-        }
-      }
-      return first;
-    }
-  };
-  var Negentropy = class {
-    constructor(storage, frameSizeLimit = 6e4) {
-      __publicField(this, "storage");
-      __publicField(this, "frameSizeLimit");
-      __publicField(this, "lastTimestampIn");
-      __publicField(this, "lastTimestampOut");
-      if (frameSizeLimit < 4096)
-        throw Error("frameSizeLimit too small");
-      this.storage = storage;
-      this.frameSizeLimit = frameSizeLimit;
-      this.lastTimestampIn = 0;
-      this.lastTimestampOut = 0;
-    }
-    _bound(timestamp, id) {
-      return { timestamp, id: id || new Uint8Array(0) };
-    }
-    initiate() {
-      let output = new WrappedBuffer();
-      output.extend(new Uint8Array([PROTOCOL_VERSION]));
-      this.splitRange(0, this.storage.size(), this._bound(Number.MAX_VALUE), output);
-      return bytesToHex(output.unwrap());
-    }
-    reconcile(queryMsg, onhave, onneed) {
-      const query = new WrappedBuffer(hexToBytes(queryMsg));
-      this.lastTimestampIn = this.lastTimestampOut = 0;
-      let fullOutput = new WrappedBuffer();
-      fullOutput.extend(new Uint8Array([PROTOCOL_VERSION]));
-      let protocolVersion = getByte(query);
-      if (protocolVersion < 96 || protocolVersion > 111)
-        throw Error("invalid negentropy protocol version byte");
-      if (protocolVersion !== PROTOCOL_VERSION) {
-        throw Error("unsupported negentropy protocol version requested: " + (protocolVersion - 96));
-      }
-      let storageSize = this.storage.size();
-      let prevBound = this._bound(0);
-      let prevIndex = 0;
-      let skip = false;
-      while (query.length !== 0) {
-        let o = new WrappedBuffer();
-        let doSkip = () => {
-          if (skip) {
-            skip = false;
-            o.extend(this.encodeBound(prevBound));
-            o.extend(encodeVarInt(Mode.Skip));
-          }
-        };
-        let currBound = this.decodeBound(query);
-        let mode = decodeVarInt(query);
-        let lower = prevIndex;
-        let upper = this.storage.findLowerBound(prevIndex, storageSize, currBound);
-        if (mode === Mode.Skip) {
-          skip = true;
-        } else if (mode === Mode.Fingerprint) {
-          let theirFingerprint = getBytes(query, FINGERPRINT_SIZE);
-          let ourFingerprint = this.storage.fingerprint(lower, upper);
-          if (compareUint8Array(theirFingerprint, ourFingerprint) !== 0) {
-            doSkip();
-            this.splitRange(lower, upper, currBound, o);
-          } else {
-            skip = true;
-          }
-        } else if (mode === Mode.IdList) {
-          let numIds = decodeVarInt(query);
-          let theirElems = {};
-          for (let i22 = 0; i22 < numIds; i22++) {
-            let e = getBytes(query, ID_SIZE);
-            theirElems[bytesToHex(e)] = e;
-          }
-          skip = true;
-          this.storage.iterate(lower, upper, (item) => {
-            let k = item.id;
-            const id = bytesToHex(k);
-            if (!theirElems[id]) {
-              onhave?.(id);
-            } else {
-              delete theirElems[bytesToHex(k)];
-            }
-            return true;
-          });
-          if (onneed) {
-            for (let v of Object.values(theirElems)) {
-              onneed(bytesToHex(v));
-            }
-          }
-        } else {
-          throw Error("unexpected mode");
-        }
-        if (this.exceededFrameSizeLimit(fullOutput.length + o.length)) {
-          let remainingFingerprint = this.storage.fingerprint(upper, storageSize);
-          fullOutput.extend(this.encodeBound(this._bound(Number.MAX_VALUE)));
-          fullOutput.extend(encodeVarInt(Mode.Fingerprint));
-          fullOutput.extend(remainingFingerprint);
-          break;
-        } else {
-          fullOutput.extend(o);
-        }
-        prevIndex = upper;
-        prevBound = currBound;
-      }
-      return fullOutput.length === 1 ? null : bytesToHex(fullOutput.unwrap());
-    }
-    splitRange(lower, upper, upperBound, o) {
-      let numElems = upper - lower;
-      let buckets = 16;
-      if (numElems < buckets * 2) {
-        o.extend(this.encodeBound(upperBound));
-        o.extend(encodeVarInt(Mode.IdList));
-        o.extend(encodeVarInt(numElems));
-        this.storage.iterate(lower, upper, (item) => {
-          o.extend(item.id);
-          return true;
-        });
-      } else {
-        let itemsPerBucket = Math.floor(numElems / buckets);
-        let bucketsWithExtra = numElems % buckets;
-        let curr = lower;
-        for (let i22 = 0; i22 < buckets; i22++) {
-          let bucketSize = itemsPerBucket + (i22 < bucketsWithExtra ? 1 : 0);
-          let ourFingerprint = this.storage.fingerprint(curr, curr + bucketSize);
-          curr += bucketSize;
-          let nextBound;
-          if (curr === upper) {
-            nextBound = upperBound;
-          } else {
-            let prevItem;
-            let currItem;
-            this.storage.iterate(curr - 1, curr + 1, (item, index) => {
-              if (index === curr - 1)
-                prevItem = item;
-              else
-                currItem = item;
-              return true;
-            });
-            nextBound = this.getMinimalBound(prevItem, currItem);
-          }
-          o.extend(this.encodeBound(nextBound));
-          o.extend(encodeVarInt(Mode.Fingerprint));
-          o.extend(ourFingerprint);
-        }
-      }
-    }
-    exceededFrameSizeLimit(n) {
-      return n > this.frameSizeLimit - 200;
-    }
-    decodeTimestampIn(encoded) {
-      let timestamp = decodeVarInt(encoded);
-      timestamp = timestamp === 0 ? Number.MAX_VALUE : timestamp - 1;
-      if (this.lastTimestampIn === Number.MAX_VALUE || timestamp === Number.MAX_VALUE) {
-        this.lastTimestampIn = Number.MAX_VALUE;
-        return Number.MAX_VALUE;
-      }
-      timestamp += this.lastTimestampIn;
-      this.lastTimestampIn = timestamp;
-      return timestamp;
-    }
-    decodeBound(encoded) {
-      let timestamp = this.decodeTimestampIn(encoded);
-      let len = decodeVarInt(encoded);
-      if (len > ID_SIZE)
-        throw Error("bound key too long");
-      let id = getBytes(encoded, len);
-      return { timestamp, id };
-    }
-    encodeTimestampOut(timestamp) {
-      if (timestamp === Number.MAX_VALUE) {
-        this.lastTimestampOut = Number.MAX_VALUE;
-        return encodeVarInt(0);
-      }
-      let temp = timestamp;
-      timestamp -= this.lastTimestampOut;
-      this.lastTimestampOut = temp;
-      return encodeVarInt(timestamp + 1);
-    }
-    encodeBound(key) {
-      let output = new WrappedBuffer();
-      output.extend(this.encodeTimestampOut(key.timestamp));
-      output.extend(encodeVarInt(key.id.length));
-      output.extend(key.id);
-      return output;
-    }
-    getMinimalBound(prev, curr) {
-      if (curr.timestamp !== prev.timestamp) {
-        return this._bound(curr.timestamp);
-      } else {
-        let sharedPrefixBytes = 0;
-        let currKey = curr.id;
-        let prevKey = prev.id;
-        for (let i22 = 0; i22 < ID_SIZE; i22++) {
-          if (currKey[i22] !== prevKey[i22])
-            break;
-          sharedPrefixBytes++;
-        }
-        return this._bound(curr.timestamp, curr.id.subarray(0, sharedPrefixBytes + 1));
-      }
-    }
-  };
-  function compareUint8Array(a, b) {
-    for (let i22 = 0; i22 < a.byteLength; i22++) {
-      if (a[i22] < b[i22])
-        return -1;
-      if (a[i22] > b[i22])
-        return 1;
-    }
-    if (a.byteLength > b.byteLength)
-      return 1;
-    if (a.byteLength < b.byteLength)
-      return -1;
-    return 0;
-  }
-  function itemCompare(a, b) {
-    if (a.timestamp === b.timestamp) {
-      return compareUint8Array(a.id, b.id);
-    }
-    return a.timestamp - b.timestamp;
-  }
-  var NegentropySync = class {
-    constructor(relay, storage, filter, params = {}) {
-      __publicField(this, "relay");
-      __publicField(this, "storage");
-      __publicField(this, "neg");
-      __publicField(this, "filter");
-      __publicField(this, "subscription");
-      __publicField(this, "onhave");
-      __publicField(this, "onneed");
-      this.relay = relay;
-      this.storage = storage;
-      this.neg = new Negentropy(storage);
-      this.onhave = params.onhave;
-      this.onneed = params.onneed;
-      this.filter = filter;
-      this.subscription = this.relay.prepareSubscription([{}], { label: params.label || "negentropy" });
-      this.subscription.oncustom = (data) => {
-        switch (data[0]) {
-          case "NEG-MSG": {
-            if (data.length < 3) {
-              console.warn(`got invalid NEG-MSG from ${this.relay.url}: ${data}`);
-            }
-            try {
-              const response = this.neg.reconcile(data[2], this.onhave, this.onneed);
-              if (response) {
-                this.relay.send(`["NEG-MSG", "${this.subscription.id}", "${response}"]`);
-              } else {
-                this.close();
-                params.onclose?.();
-              }
-            } catch (error) {
-              console.error("negentropy reconcile error:", error);
-              params?.onclose?.(`reconcile error: ${error}`);
-            }
-            break;
-          }
-          case "NEG-CLOSE": {
-            const reason = data[2];
-            console.warn("negentropy error:", reason);
-            params.onclose?.(reason);
-            break;
-          }
-          case "NEG-ERR": {
-            params.onclose?.();
-          }
-        }
-      };
-    }
-    async start() {
-      const initMsg = this.neg.initiate();
-      this.relay.send(`["NEG-OPEN","${this.subscription.id}",${JSON.stringify(this.filter)},"${initMsg}"]`);
-    }
-    close() {
-      this.relay.send(`["NEG-CLOSE","${this.subscription.id}"]`);
-      this.subscription.close();
-    }
-  };
-  var nip98_exports = {};
-  __export(nip98_exports, {
-    getToken: () => getToken,
-    hashPayload: () => hashPayload,
-    unpackEventFromToken: () => unpackEventFromToken,
-    validateEvent: () => validateEvent22,
-    validateEventKind: () => validateEventKind,
-    validateEventMethodTag: () => validateEventMethodTag,
-    validateEventPayloadTag: () => validateEventPayloadTag,
-    validateEventTimestamp: () => validateEventTimestamp,
-    validateEventUrlTag: () => validateEventUrlTag,
-    validateToken: () => validateToken
-  });
-  var _authorizationScheme = "Nostr ";
-  async function getToken(loginUrl, httpMethod, sign, includeAuthorizationScheme = false, payload) {
-    const event = {
-      kind: HTTPAuth,
-      tags: [
-        ["u", loginUrl],
-        ["method", httpMethod]
-      ],
-      created_at: Math.round((/* @__PURE__ */ new Date()).getTime() / 1e3),
-      content: ""
-    };
-    if (payload) {
-      event.tags.push(["payload", hashPayload(payload)]);
-    }
-    const signedEvent = await sign(event);
-    const authorizationScheme = includeAuthorizationScheme ? _authorizationScheme : "";
-    return authorizationScheme + base64.encode(utf8Encoder2.encode(JSON.stringify(signedEvent)));
-  }
-  async function validateToken(token, url, method) {
-    const event = await unpackEventFromToken(token).catch((error) => {
-      throw error;
-    });
-    const valid = await validateEvent22(event, url, method).catch((error) => {
-      throw error;
-    });
-    return valid;
-  }
-  async function unpackEventFromToken(token) {
-    if (!token) {
-      throw new Error("Missing token");
-    }
-    token = token.replace(_authorizationScheme, "");
-    const eventB64 = utf8Decoder2.decode(base64.decode(token));
-    if (!eventB64 || eventB64.length === 0 || !eventB64.startsWith("{")) {
-      throw new Error("Invalid token");
-    }
-    const event = JSON.parse(eventB64);
-    return event;
-  }
-  function validateEventTimestamp(event) {
-    if (!event.created_at) {
-      return false;
-    }
-    return Math.round((/* @__PURE__ */ new Date()).getTime() / 1e3) - event.created_at < 60;
-  }
-  function validateEventKind(event) {
-    return event.kind === HTTPAuth;
-  }
-  function validateEventUrlTag(event, url) {
-    const urlTag = event.tags.find((t) => t[0] === "u");
-    if (!urlTag) {
-      return false;
-    }
-    return urlTag.length > 0 && urlTag[1] === url;
-  }
-  function validateEventMethodTag(event, method) {
-    const methodTag = event.tags.find((t) => t[0] === "method");
-    if (!methodTag) {
-      return false;
-    }
-    return methodTag.length > 0 && methodTag[1].toLowerCase() === method.toLowerCase();
-  }
-  function hashPayload(payload) {
-    const hash = sha256(utf8Encoder2.encode(JSON.stringify(payload)));
-    return bytesToHex(hash);
-  }
-  function validateEventPayloadTag(event, payload) {
-    const payloadTag = event.tags.find((t) => t[0] === "payload");
-    if (!payloadTag) {
-      return false;
-    }
-    const payloadHash = hashPayload(payload);
-    return payloadTag.length > 0 && payloadTag[1] === payloadHash;
-  }
-  async function validateEvent22(event, url, method, body) {
-    if (!verifyEvent2(event)) {
-      throw new Error("Invalid nostr event, signature invalid");
-    }
-    if (!validateEventKind(event)) {
-      throw new Error("Invalid nostr event, kind invalid");
-    }
-    if (!validateEventTimestamp(event)) {
-      throw new Error("Invalid nostr event, created_at timestamp invalid");
-    }
-    if (!validateEventUrlTag(event, url)) {
-      throw new Error("Invalid nostr event, url tag invalid");
-    }
-    if (!validateEventMethodTag(event, method)) {
-      throw new Error("Invalid nostr event, method tag invalid");
-    }
-    if (Boolean(body) && typeof body === "object" && Object.keys(body).length > 0) {
-      if (!validateEventPayloadTag(event, body)) {
-        throw new Error("Invalid nostr event, payload tag does not match request body hash");
-      }
-    }
-    return true;
-  }
-
-  // node_modules/.pnpm/nostr-tools@2.23.0_typescript@5.9.3/node_modules/nostr-tools/lib/esm/nip44.js
-  var utf8Decoder3 = new TextDecoder("utf-8");
-  var utf8Encoder3 = new TextEncoder();
-  var minPlaintextSize2 = 1;
-  var maxPlaintextSize2 = 65535;
-  function getConversationKey2(privkeyA, pubkeyB) {
-    const sharedX = secp256k1.getSharedSecret(privkeyA, hexToBytes("02" + pubkeyB)).subarray(1, 33);
-    return extract(sha256, sharedX, utf8Encoder3.encode("nip44-v2"));
-  }
-  function getMessageKeys2(conversationKey, nonce) {
-    const keys = expand(sha256, conversationKey, nonce, 76);
-    return {
-      chacha_key: keys.subarray(0, 32),
-      chacha_nonce: keys.subarray(32, 44),
-      hmac_key: keys.subarray(44, 76)
-    };
-  }
-  function calcPaddedLen2(len) {
-    if (!Number.isSafeInteger(len) || len < 1)
-      throw new Error("expected positive integer");
-    if (len <= 32)
-      return 32;
-    const nextPower = 1 << Math.floor(Math.log2(len - 1)) + 1;
-    const chunk = nextPower <= 256 ? 32 : nextPower / 8;
-    return chunk * (Math.floor((len - 1) / chunk) + 1);
-  }
-  function writeU16BE2(num2) {
-    if (!Number.isSafeInteger(num2) || num2 < minPlaintextSize2 || num2 > maxPlaintextSize2)
-      throw new Error("invalid plaintext size: must be between 1 and 65535 bytes");
-    const arr = new Uint8Array(2);
-    new DataView(arr.buffer).setUint16(0, num2, false);
-    return arr;
-  }
-  function pad2(plaintext) {
-    const unpadded = utf8Encoder3.encode(plaintext);
-    const unpaddedLen = unpadded.length;
-    const prefix = writeU16BE2(unpaddedLen);
-    const suffix = new Uint8Array(calcPaddedLen2(unpaddedLen) - unpaddedLen);
-    return concatBytes(prefix, unpadded, suffix);
-  }
-  function unpad2(padded) {
-    const unpaddedLen = new DataView(padded.buffer).getUint16(0);
-    const unpadded = padded.subarray(2, 2 + unpaddedLen);
-    if (unpaddedLen < minPlaintextSize2 || unpaddedLen > maxPlaintextSize2 || unpadded.length !== unpaddedLen || padded.length !== 2 + calcPaddedLen2(unpaddedLen))
-      throw new Error("invalid padding");
-    return utf8Decoder3.decode(unpadded);
-  }
-  function hmacAad2(key, message, aad) {
-    if (aad.length !== 32)
-      throw new Error("AAD associated data must be 32 bytes");
-    const combined = concatBytes(aad, message);
-    return hmac(sha256, key, combined);
-  }
-  function decodePayload2(payload) {
-    if (typeof payload !== "string")
-      throw new Error("payload must be a valid string");
-    const plen = payload.length;
-    if (plen < 132 || plen > 87472)
-      throw new Error("invalid payload length: " + plen);
-    if (payload[0] === "#")
-      throw new Error("unknown encryption version");
-    let data;
-    try {
-      data = base64.decode(payload);
-    } catch (error) {
-      throw new Error("invalid base64: " + error.message);
-    }
-    const dlen = data.length;
-    if (dlen < 99 || dlen > 65603)
-      throw new Error("invalid data length: " + dlen);
-    const vers = data[0];
-    if (vers !== 2)
-      throw new Error("unknown encryption version " + vers);
-    return {
-      nonce: data.subarray(1, 33),
-      ciphertext: data.subarray(33, -32),
-      mac: data.subarray(-32)
-    };
-  }
-  function encrypt3(plaintext, conversationKey, nonce = randomBytes(32)) {
-    const { chacha_key, chacha_nonce, hmac_key } = getMessageKeys2(conversationKey, nonce);
-    const padded = pad2(plaintext);
-    const ciphertext = chacha20(chacha_key, chacha_nonce, padded);
-    const mac = hmacAad2(hmac_key, ciphertext, nonce);
-    return base64.encode(concatBytes(new Uint8Array([2]), nonce, ciphertext, mac));
-  }
-  function decrypt3(payload, conversationKey) {
-    const { nonce, ciphertext, mac } = decodePayload2(payload);
-    const { chacha_key, chacha_nonce, hmac_key } = getMessageKeys2(conversationKey, nonce);
-    const calculatedMac = hmacAad2(hmac_key, ciphertext, nonce);
-    if (!equalBytes(calculatedMac, mac))
-      throw new Error("invalid MAC");
-    const padded = chacha20(chacha_key, chacha_nonce, ciphertext);
-    return unpad2(padded);
-  }
-  var v22 = {
-    utils: {
-      getConversationKey: getConversationKey2,
-      calcPaddedLen: calcPaddedLen2
-    },
-    encrypt: encrypt3,
-    decrypt: decrypt3
+    encrypt,
+    decrypt
   };
 
   // shared/src/constants.ts
   var APP_PUBKEY = "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5";
   var SAJWO_REQUEST_KIND = 30402;
   var SAJWO_REQUEST_EVENT_KIND = 1111;
-  var CLIENT_TAG = false ? "sajwo-tracker-dev" : "sajwo-tracker";
+  var CLIENT_TAG = true ? "sajwo-tracker-dev" : "sajwo-tracker";
   var NOSTR_SINCE = void 0 ? Number(void 0) : void 0;
   var DISCOVERY_RELAYS = [
     "wss://purplepag.es",
@@ -6437,7 +3764,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
 
   // customer/userscript/src/nostr.ts
   function decodeNsec(nsec) {
-    const decoded = nip19_exports.decode(nsec);
+    const decoded = decode(nsec);
     if (decoded.type !== "nsec") {
       throw new Error("\uC62C\uBC14\uB978 nsec \uD615\uC2DD\uC774 \uC544\uB2D9\uB2C8\uB2E4");
     }
@@ -6508,9 +3835,9 @@ console.log('[사줘] 유저스크립트 로딩 시작');
     const results = await Promise.allSettled(
       relays.map((relay) => publishToRelay(signed, relay))
     );
-    for (let i3 = 0; i3 < results.length; i3++) {
-      if (results[i3].status === "fulfilled") {
-        publishedTo.push(relays[i3]);
+    for (let i2 = 0; i2 < results.length; i2++) {
+      if (results[i2].status === "fulfilled") {
+        publishedTo.push(relays[i2]);
       }
     }
     return { success: publishedTo.length > 0, publishedTo };
@@ -6557,8 +3884,8 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   function buildParsedOrderEvent(sk, payload) {
     const pubkey = getPublicKey(sk);
     const expiration = Math.floor(payload.expirationDate / 1e3);
-    const conversationKey = v22.utils.getConversationKey(sk, pubkey);
-    const encrypted = v22.encrypt(JSON.stringify(payload), conversationKey);
+    const conversationKey = v2.utils.getConversationKey(sk, pubkey);
+    const encrypted = v2.encrypt(JSON.stringify(payload), conversationKey);
     return finalizeEvent({
       kind: SAJWO_REQUEST_EVENT_KIND,
       created_at: Math.floor(Date.now() / 1e3),

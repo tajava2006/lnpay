@@ -1,6 +1,5 @@
 packages:
   - 'shared'
-  - 'customer-extension'
   - 'customer'
   - 'sponsor'
   - 'admin'

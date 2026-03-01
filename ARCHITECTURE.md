@@ -87,8 +87,9 @@ KRW 입금이 확인되면 settle하여 BTC를 수령하고 Sponsor에게 전송
    │ Customer │          │ Sponsor │          │  Admin  │
    │   App    │          │   App   │          │   App   │
    └─────────┘          └─────────┘          └─────────┘
-   Chrome Extension      React SPA            React SPA
-   (BTC로 물건 구매)     (KRW→BTC 환전)     (에스크로 + LN 노드 제어)
+   React SPA +            React SPA            React SPA
+   유저스크립트           (KRW→BTC 환전)     (에스크로 + LN 노드 제어)
+   (BTC로 물건 구매)
 ```
 
 ### 레포지토리 구조
@@ -100,10 +101,9 @@ sajwo-tracker/              ← pnpm workspace 루트
   ARCHITECTURE.md
   PROTOCOL.md
   TODO.md
-  CUSTOMER-MIGRATION.md
   shared/                   ← 3개 앱 공통 Nostr 모듈
   customer/                 ← Customer 웹앱 (React 19 SPA)
-  customer-extension/       ← 구 Chrome Extension (레거시, 참조용 보존)
+    customer/userscript/    ← 쿠팡 자동파싱 유저스크립트
   sponsor/                  ← Sponsor React SPA
   admin/                    ← Admin 에스크로 서비스 (순수 프론트엔드)
 ```
@@ -111,8 +111,8 @@ sajwo-tracker/              ← pnpm workspace 루트
 | 폴더 | 설명 | 형태 | 대상 사용자 |
 |------|------|------|------------|
 | `shared/` | Nostr 공통 모듈 (키, 릴레이, 상수, 타입) | TypeScript 라이브러리 | - |
-| `customer/` | 주문 수동 입력 + 사줘 요청 발행 | React 19 SPA | 비트코인으로 물건을 사고 싶은 사람 |
-| `customer-extension/` | 쿠팡 자동 파싱 버전 (레거시) | Chrome Extension MV3 | - |
+| `customer/` | 주문 수동/자동 입력 + 사줘 요청 발행 | React 19 SPA | 비트코인으로 물건을 사고 싶은 사람 |
+| `customer/userscript/` | 쿠팡 무통장입금 자동 감지 + Nostr 발행 | esbuild IIFE (Tampermonkey) | (Customer와 동일) |
 | `sponsor/` | 오더북에서 사줘 요청 확인 + 클레임 발행 | React SPA | 거래소 없이 BTC를 사고 싶은 사람 |
 | `admin/` | 에스크로 (유동성 검증, 중재) | React SPA (순수 프론트엔드) | 시스템 운영자 |
 
@@ -122,11 +122,8 @@ Customer, Sponsor, Admin 세 앱이 공통으로 사용하는 Nostr 관련 코�
 
 ### StorageAdapter 패턴
 
-세 앱은 저장소 계층이 다르다:
-- **Customer**: `chrome.storage.local` (Chrome Extension API, 객체를 직접 저장)
-- **Sponsor/Admin**: `localStorage` (Web Storage API, JSON 직렬화 필요)
-
-이 차이를 `StorageAdapter` 인터페이스로 추상화한다:
+3개 앱 모두 `localStorage`를 사용하지만, `StorageAdapter` 인터페이스로 추상화하여
+shared 함수가 저장소 구현에 의존하지 않도록 한다:
 
 ```typescript
 interface StorageAdapter {
@@ -135,9 +132,7 @@ interface StorageAdapter {
 }
 ```
 
-각 앱은 자신의 저장소에 맞는 어댑터를 생성하여 shared 함수에 전달한다:
-- Customer → `customer/src/nostr/storage.ts` (chrome.storage.local 어댑터)
-- Sponsor → `sponsor/src/nostr/storage.ts` (`createWebStorage()` 사용)
+각 앱은 `createWebStorage(prefix)`로 어댑터를 생성하여 shared 함수에 전달한다.
 
 ### Shared 모듈 구조
 
@@ -246,14 +241,69 @@ shared/src/
 ### Customer App
 
 비트코인으로 물건을 사고 싶은 사람이 사용하는 React 19 SPA.
-주문 정보를 수동 입력하여 사줘 요청을 발행한다.
+수동 입력 또는 유저스크립트 자동 파싱으로 주문을 생성하여 사줘 요청을 발행한다.
 
-> 구 Chrome Extension(customer-extension/)에서 웹앱으로 전환 완료.
-> 전환 배경 및 Phase 2 계획은 [CUSTOMER-MIGRATION.md](CUSTOMER-MIGRATION.md) 참조.
+> 초기에는 Chrome Extension으로 구현했으나, Chrome Web Store 등록 불가(쿠팡 API 스크래핑,
+> 암호화폐 관련 확장)와 MV3 서비스워커 생명주기 문제(~30초 후 종료 → WebSocket 구독 단절)로
+> React SPA + Tampermonkey 유저스크립트 조합으로 전환했다.
 
-- kind 1111로 Admin에 요청 전송 (order-request, payment-confirm, cancel-request)
+- kind 1111로 Admin에 요청 전송 (order-request, payment-confirm, cancel-request, account-info)
 - Admin의 kind 30402 오더 구독으로 상태 자동 반영 (로컬 FSM 없음)
-- 대시보드에서 사줘 요청 버튼으로 수동 발행
+- kind 1111 구독으로 유저스크립트가 발행한 parsed-order 수신 (#p=자기 pubkey)
+- 대시보드에서 수동 입력 또는 감지된 주문으로 사줘 요청 발행
+- 파싱 주문(source='parsed')은 계좌정보 편집 불가, escrowed 시 자동 전달
+- NIP-44 암호화 계좌정보를 Sponsor에게 직접 전달 (SHA-256 commitment 포함)
+
+#### Customer 데이터 흐름
+
+```
+유저스크립트 (쿠팡 페이지)                  Customer 웹앱
+┌──────────────────────────┐           ┌──────────────────────────┐
+│ 쿠팡 __NEXT_DATA__ 파싱    │           │                          │
+│ kind 1111 발행:           │  릴레이   │  kind 30402 구독 (Admin)  │
+│   parsed-order (#p=self)  ├─────────→│  kind 1111 구독 (#p=self) │
+│   payment-confirm         │           │  → order-store (localStorage)
+│   cancel-request          │           │  → parsed-store (localStorage)
+│ GM_storage 키 관리         │           │  → 대시보드 UI             │
+└──────────────────────────┘           └──────────────────────────┘
+```
+
+#### Customer 모듈 구조
+
+```
+customer/src/
+  main.tsx              - React 엔트리
+  App.tsx               - 레이아웃 (KeyInit → AppContent), 구독 서비스 시작
+  types.ts              - CustomerOrder, ParsedOrderPayload, Admin 이벤트 파서
+  order-store.ts        - 반응형 주문 스토어 (localStorage + useSyncExternalStore)
+  parsed-store.ts       - 파싱 주문 스토어 (유저스크립트 감지 주문, 요청 전 대기)
+  order-states.ts       - 주문 상태별 표시 메타 (라벨, 색상)
+  nostr/
+    storage.ts          - createWebStorage() 싱글턴
+    subscribe.ts        - SimplePool 구독 (kind 30402 + kind 1111 유저스크립트)
+    service.ts          - 구독 오케스트레이터 (Admin + 유저스크립트 + auto account-info)
+    publish.ts          - 이벤트 발행 (order-request, notification, account-info NIP-44)
+  components/
+    KeyInit.tsx         - 키페어 보장 래퍼
+    Dashboard.tsx       - 메인 대시보드 (ParsedOrders + OrderForm + OrderTable + Guide)
+    OrderForm.tsx       - 주문 수동 입력 폼
+    OrderTable.tsx      - 주문 목록 테이블
+    OrderRow.tsx        - 개별 주문 행 (계좌정보 잠금 로직 포함)
+    ParsedOrdersSection.tsx - 유저스크립트 감지 주문 목록 (사줘 요청/무시)
+    InvoiceModal.tsx    - hold invoice QR 표시 + 결제
+    AccountInfoModal.tsx - 수동 주문 계좌정보 입력
+    KeyExport.tsx       - nsec 내보내기 (유저스크립트 키 공유)
+    UserscriptGuide.tsx - 유저스크립트 설치 가이드 + 코드블록 복사
+
+customer/userscript/       - Tampermonkey 유저스크립트 (esbuild IIFE 번들)
+  banner.txt              - 메타데이터 헤더
+  esbuild.config.mjs      - 빌드 설정 (dev/prod 지원)
+  src/
+    main.ts              - 엔트리 (주문 감지 → 발행 → 상태 변화 추적)
+    coupang.ts           - 쿠팡 파싱 (__NEXT_DATA__, JSON API, 가상계좌 추출)
+    nostr.ts             - 경량 Nostr (raw WebSocket, shared/constants 참조)
+    storage.ts           - GM_storage 래퍼 (nsec, 처리 이력, 릴레이 캐시)
+```
 
 ### Sponsor App
 
@@ -524,6 +574,14 @@ IndexedDB:    에스크로 책임이 있는 오더 (verified → escrowed 진입
 | 저장소 | localStorage | localStorage | localStorage | StorageAdapter |
 | 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 | ensureKeypair |
 | 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace | pnpm workspace |
+
+## 유저 키 관리
+
+- Customer/Sponsor 모두 최초 실행 시 `generateSecretKey()`로 랜덤 키페어 생성
+- Secret key는 `number[]`로 변환하여 localStorage에 보관
+- 키 관리 로직은 `@sajwo-tracker/shared`의 `ensureKeypair(storage)`로 통일
+- Admin은 NIP-46 원격 서명을 사용하여 `.env` 의존성 없이 동작
+- 유저스크립트 키 공유: 웹앱에서 nsec 표시 → 사용자가 Tampermonkey에 1회 입력 → GM_storage 보관
 
 ## 관련 문서
 

@@ -2,7 +2,7 @@
  * Customer 주문 타입 + Admin 이벤트 파싱 + 유저스크립트 파싱 이벤트
  */
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, SAJWO_REQUEST_EVENT_KIND, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, SAJWO_REQUEST_EVENT_KIND, REQUEST_ACTIONS, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
 
 /**
  * Customer 로컬 주문
@@ -66,7 +66,7 @@ export function parseParsedOrderEvent(event: Event): ParsedOrderPayload | null {
   if (event.kind !== SAJWO_REQUEST_EVENT_KIND) return null;
 
   const action = event.tags.find(t => t[0] === 'action')?.[1];
-  if (action !== 'parsed-order') return null;
+  if (action !== REQUEST_ACTIONS.PARSED_ORDER) return null;
 
   try {
     const payload = JSON.parse(event.content) as ParsedOrderPayload;

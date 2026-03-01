@@ -200,8 +200,9 @@ Lightning invoice 등 비트코인 결제 정보는 태그로 전달한다.
 
 ### 발행자
 
-Customer 또는 Sponsor. Admin에게 **요청**하는 형태다.
-Admin이 요청을 검토하고, 타당하면 kind 30402를 갱신한다.
+Customer 또는 Sponsor. 대부분은 Admin에게 **요청**하는 형태이며,
+Admin이 요청을 검토하고 타당하면 kind 30402를 갱신한다.
+예외: `parsed-order`와 `account-info`는 Admin 방향이 아닌 Customer 자체 알림/Sponsor 전달용이다.
 
 ### 공통 태그
 
@@ -223,6 +224,7 @@ Admin이 요청을 검토하고, 타당하면 kind 30402를 갱신한다.
 | `cancel-request` | Customer | 주문 취소 신고 | — |
 | `account-info` | Customer | Sponsor에게 계좌정보 전달 | `['p', sponsorPubkey]`, `['commitment', sha256(plaintext)]` |
 | `remit-request` | Sponsor | 원화 송금 완료 통보 | — |
+| `parsed-order` | Customer (유저스크립트) | 쿠팡 주문 자동 감지 알림 | `['p', ownPubkey]`, content=JSON |
 
 ### a-tag 참조 규칙
 
@@ -246,7 +248,10 @@ Nostr 릴레이는 a-tag 대상 이벤트의 존재 여부를 검증하지 않�
 #### account-info 이벤트 상세
 
 Customer가 Sponsor에게 무통장입금 계좌정보를 암호화 전달한다.
-`verified` 상태에서 발행하며, 상태 전이를 유발하지 않는다.
+상태 전이를 유발하지 않는다.
+
+- **수동 주문**: `verified` 상태에서 사용자가 수동으로 발행
+- **파싱 주문**: `escrowed` 상태에서 웹앱이 자동 발행 (hold invoice 결제 확인 후)
 
 - **content**: `NIP-44.encrypt(JSON.stringify({bankName, accountNumber, holderName}), customer_privkey, sponsor_pubkey)`
 - **`['p', sponsorPubkey]`**: Sponsor가 `#p` 필터로 수신 (Admin의 `['p', APP_PUBKEY]`와 함께)
@@ -297,6 +302,33 @@ Customer가 Sponsor에게 무통장입금 계좌정보를 암호화 전달한다
 }
 ```
 
+#### parsed-order 이벤트 상세
+
+유저스크립트(Tampermonkey)가 쿠팡 무통장입금 주문을 감지하여 Customer 웹앱에 알린다.
+Admin에게 전달되지 않으며, 사용자가 웹앱에서 사줘 요청 여부를 직접 결정한다.
+
+- **`['p', ownPubkey]`**: 자기 pubkey — Customer 웹앱만 `#p` 필터로 수신
+- **`['action', 'parsed-order']`**: 액션 식별
+- **content**: `JSON.stringify({coupangOrderId, productName, price, bankName, accountNumber, depositor, expirationDate})`
+- **a-tag 없음**: 아직 Admin 오더가 생성되지 않은 상태이므로 a-tag을 포함하지 않는다
+
+```json
+{
+  "kind": 1111,
+  "pubkey": "<customer-pubkey>",
+  "created_at": 1770372000,
+  "tags": [
+    ["p", "<customer-pubkey>"],
+    ["action", "parsed-order"],
+    ["t", "sajwo-tracker"],
+    ["expiration", "1770458336"]
+  ],
+  "content": "{\"coupangOrderId\":\"123456789\",\"productName\":\"상품명\",\"price\":22950,\"bankName\":\"국민은행\",\"accountNumber\":\"123-456-789\",\"depositor\":\"쿠팡\",\"expirationDate\":1770458336000}",
+  "id": "<event-id>",
+  "sig": "<signature>"
+}
+```
+
 ## 구독 필터
 
 ### Customer — 자기 오더 상태 추적
@@ -313,6 +345,20 @@ Admin이 발행한 모든 오더를 수신한 뒤, `customer` 태그가 자기 p
 
 > `#customer`는 다중 문자 태그이므로 릴레이 인덱싱이 보장되지 않는다.
 > `authors` + `#t`까지만 서버에서 필터링하고, `customer` 매칭은 클라이언트에서 수행한다.
+
+### Customer — 유저스크립트 알림 수신
+
+```json
+{
+  "kinds": [1111],
+  "#p": ["<customer-own-pubkey>"],
+  "#t": ["sajwo-tracker"]
+}
+```
+
+유저스크립트가 자기 pubkey를 `p` 태그에 넣어 발행한 `parsed-order` 이벤트를 수신한다.
+Admin/Sponsor는 이 이벤트를 수신하지 않는다 (p 태그가 APP_PUBKEY가 아니므로).
+수신된 파싱 데이터는 "감지된 주문" 목록으로 표시되며, 사용자가 사줘 요청 여부를 결정한다.
 
 ### Sponsor — 오더북
 
@@ -607,12 +653,11 @@ Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
 ## 유저 키 관리
 
 - Customer/Sponsor 모두 최초 실행 시 `generateSecretKey()`로 랜덤 키페어 생성
-- Secret key는 `number[]`로 변환하여 영구저장소에 보관
-  - Customer: `chrome.storage.local` (Chrome Extension API)
-  - Sponsor: `localStorage` (Web Storage API)
+- Secret key는 `number[]`로 변환하여 localStorage에 보관
 - 키 관리 로직은 `@sajwo-tracker/shared`의 `ensureKeypair(storage)`로 통일
 - NIP-07/NIP-46 등 기존 Nostr 로그인 시스템은 사용하지 않음 (Customer/Sponsor용)
 - Admin은 NIP-46 원격 서명을 사용하여 `.env` 의존성 없이 동작
+- 유저스크립트 키 공유: Customer 웹앱에서 nsec(bech32) 표시 → Tampermonkey에 1회 입력 → GM_storage 보관
 - 일반 유저 대상이므로 Nostr의 존재를 노출하지 않음
 
 ## 참조 NIP

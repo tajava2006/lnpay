@@ -14,18 +14,13 @@
   - Admin이 릴레이에서 만료 이벤트 자동 처리하므로 로컬 상태 전이 불필요
   - UI에서 만료 시간 경과 시 시각적 표시 + 알림 기능 추가
 
-- [ ] **입금 완료 자동 감지 → `payment-confirm` 전송**: 현재 페이지 방문 시에만 감지됨
-  - Background script에서 주기적으로 쿠팡 API 호출하여 상태 확인
-  - 입금 감지 시 `SEND_REQUEST` + `action: 'payment-confirm'`으로 Admin에 통보
-
-- [ ] **주문 취소 자동 감지 → `cancel-request` 전송**: 현재 페이지 방문 시에만 감지됨
-  - Background script에서 주기적으로 쿠팡 API 확인
-  - 취소 감지 시 `SEND_REQUEST` + `action: 'cancel-request'`로 Admin에 통보
-  - Admin은 만료 전이라도 즉시 취소 처리 가능
+- [ ] **입금/취소 자동 감지 주기적 폴링**: 현재 유저스크립트가 쿠팡 페이지 방문 시에만 감지
+  - 유저스크립트에서 주기적 API 폴링 또는 Service Worker 활용 고려
+  - 페이지 방문 없이도 상태 변화 감지 가능하도록 확장
 
 ### UI/UX
 
-- [ ] **알림 기능**: 상태 변경 시 Chrome 알림
+- [ ] **알림 기능**: 상태 변경 시 브라우저 알림
   - Admin 오더 상태 변경 수신 시 (claimed, verified, escrowed, paid 등)
   - 입금 완료 시
 

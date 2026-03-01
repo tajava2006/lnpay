@@ -211,31 +211,39 @@ export function buildParsedOrderEvent(
 }
 
 /** payment-confirm 이벤트를 빌드하고 서명한다 (#p=APP_PUBKEY) */
-export function buildPaymentConfirmEvent(sk: Uint8Array, orderId: string) {
+export function buildPaymentConfirmEvent(sk: Uint8Array, orderId: string, expiration: number) {
+  const tags = [
+    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+    ['action', 'payment-confirm'],
+    ['t', CLIENT_TAG],
+    ['p', APP_PUBKEY],
+  ];
+  if (expiration > 0) {
+    tags.push(['expiration', String(expiration)]);
+  }
   return finalizeEvent({
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
-    tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
-      ['action', 'payment-confirm'],
-      ['t', CLIENT_TAG],
-      ['p', APP_PUBKEY],
-    ],
+    tags,
     content: '',
   }, sk);
 }
 
 /** cancel-request 이벤트를 빌드하고 서명한다 (#p=APP_PUBKEY) */
-export function buildCancelRequestEvent(sk: Uint8Array, orderId: string) {
+export function buildCancelRequestEvent(sk: Uint8Array, orderId: string, expiration: number) {
+  const tags = [
+    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+    ['action', 'cancel-request'],
+    ['t', CLIENT_TAG],
+    ['p', APP_PUBKEY],
+  ];
+  if (expiration > 0) {
+    tags.push(['expiration', String(expiration)]);
+  }
   return finalizeEvent({
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
-    tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
-      ['action', 'cancel-request'],
-      ['t', CLIENT_TAG],
-      ['p', APP_PUBKEY],
-    ],
+    tags,
     content: '',
   }, sk);
 }

@@ -70,7 +70,7 @@ async function main() {
   const processed = getProcessedOrders();
 
   // 6. 신규 주문: 무통장입금 미결제 → parsed-order 발행
-  if (!processed[orderId] && isTargetOrder(orderData, orderId)) {
+  if (!processed[orderId]?.status && isTargetOrder(orderData, orderId)) {
     const account = extractVirtualAccount(orderData, orderId);
     if (!account) {
       console.log('[사줘] Failed to extract virtual account');
@@ -93,7 +93,7 @@ async function main() {
     const result = await publishToRelays(signed, relays);
 
     if (result.success) {
-      markProcessed(orderId, 'parsed');
+      markProcessed(orderId, 'parsed', Math.floor(account.expirationDate / 1000));
       console.log('[사줘] parsed-order published to', result.publishedTo.length, 'relays');
       showNotification('주문 감지됨', `${payload.productName} — ₩${payload.price.toLocaleString()}`);
     } else {
@@ -103,33 +103,36 @@ async function main() {
   }
 
   // 7. 기존 처리 주문: 상태 변화 감지
-  if (processed[orderId]) {
+  const entry = processed[orderId];
+  if (entry) {
+    const { status, expiration } = entry;
+
     // 취소 감지
-    if (isCancelled(orderData, orderId) && processed[orderId] !== 'cancelled') {
+    if (isCancelled(orderData, orderId) && status !== 'cancelled') {
       console.log('[사줘] Cancellation detected for', orderId);
-      const signed = buildCancelRequestEvent(sk, orderId);
+      const signed = buildCancelRequestEvent(sk, orderId, expiration);
       const result = await publishToRelays(signed, relays);
       if (result.success) {
-        markProcessed(orderId, 'cancelled');
+        markProcessed(orderId, 'cancelled', expiration);
         console.log('[사줘] cancel-request published');
       }
       return;
     }
 
     // 입금 완료 감지
-    if (isPaid(orderData, orderId) && processed[orderId] !== 'paid') {
+    if (isPaid(orderData, orderId) && status !== 'paid') {
       console.log('[사줘] Payment detected for', orderId);
-      const signed = buildPaymentConfirmEvent(sk, orderId);
+      const signed = buildPaymentConfirmEvent(sk, orderId, expiration);
       const result = await publishToRelays(signed, relays);
       if (result.success) {
-        markProcessed(orderId, 'paid');
+        markProcessed(orderId, 'paid', expiration);
         console.log('[사줘] payment-confirm published');
         showNotification('입금 완료 감지', '쿠팡 입금이 확인되었습니다.');
       }
       return;
     }
 
-    console.log('[사줘] Order already processed as:', processed[orderId]);
+    console.log('[사줘] Order already processed as:', status);
   }
 }
 

@@ -43,17 +43,34 @@ export function ensureNsec(): string | null {
 // ── 처리된 주문 관리 ────────────────────────────────
 
 type OrderStatus = 'parsed' | 'paid' | 'cancelled';
-type ProcessedOrders = Record<string, OrderStatus>;
+
+interface ProcessedEntry {
+  status: OrderStatus;
+  /** 오더 만료 시각 (Unix seconds). 후속 이벤트(payment-confirm 등)에 expiration 태그로 사용. */
+  expiration: number;
+}
+
+type ProcessedOrders = Record<string, ProcessedEntry>;
 
 const KEY_PROCESSED = 'sajwo:processed-orders';
 
 export function getProcessedOrders(): ProcessedOrders {
-  return GM_getValue<ProcessedOrders>(KEY_PROCESSED, {});
+  const raw = GM_getValue<Record<string, unknown>>(KEY_PROCESSED, {});
+  const result: ProcessedOrders = {};
+  for (const [id, val] of Object.entries(raw)) {
+    if (typeof val === 'string') {
+      // 하위 호환: 이전 형식(상태 문자열만 저장)
+      result[id] = { status: val as OrderStatus, expiration: 0 };
+    } else {
+      result[id] = val as ProcessedEntry;
+    }
+  }
+  return result;
 }
 
-export function markProcessed(orderId: string, status: OrderStatus): void {
+export function markProcessed(orderId: string, status: OrderStatus, expiration: number): void {
   const orders = getProcessedOrders();
-  orders[orderId] = status;
+  orders[orderId] = { status, expiration };
   GM_setValue(KEY_PROCESSED, orders);
 }
 

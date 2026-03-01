@@ -37,11 +37,20 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   }
   var KEY_PROCESSED = "sajwo:processed-orders";
   function getProcessedOrders() {
-    return GM_getValue(KEY_PROCESSED, {});
+    const raw = GM_getValue(KEY_PROCESSED, {});
+    const result = {};
+    for (const [id, val] of Object.entries(raw)) {
+      if (typeof val === "string") {
+        result[id] = { status: val, expiration: 0 };
+      } else {
+        result[id] = val;
+      }
+    }
+    return result;
   }
-  function markProcessed(orderId, status) {
+  function markProcessed(orderId, status, expiration) {
     const orders = getProcessedOrders();
-    orders[orderId] = status;
+    orders[orderId] = { status, expiration };
     GM_setValue(KEY_PROCESSED, orders);
   }
   var KEY_RELAYS = "sajwo:relays";
@@ -6310,7 +6319,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
   var APP_PUBKEY = "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5";
   var SAJWO_REQUEST_KIND = 30402;
   var SAJWO_REQUEST_EVENT_KIND = 1111;
-  var CLIENT_TAG = true ? "sajwo-tracker-dev" : "sajwo-tracker";
+  var CLIENT_TAG = false ? "sajwo-tracker-dev" : "sajwo-tracker";
   var NOSTR_SINCE = void 0 ? Number(void 0) : void 0;
   var DISCOVERY_RELAYS = [
     "wss://purplepag.es",
@@ -6456,29 +6465,37 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       content: JSON.stringify(payload)
     }, sk);
   }
-  function buildPaymentConfirmEvent(sk, orderId) {
+  function buildPaymentConfirmEvent(sk, orderId, expiration) {
+    const tags = [
+      ["a", `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ["action", "payment-confirm"],
+      ["t", CLIENT_TAG],
+      ["p", APP_PUBKEY]
+    ];
+    if (expiration > 0) {
+      tags.push(["expiration", String(expiration)]);
+    }
     return finalizeEvent({
       kind: SAJWO_REQUEST_EVENT_KIND,
       created_at: Math.floor(Date.now() / 1e3),
-      tags: [
-        ["a", `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
-        ["action", "payment-confirm"],
-        ["t", CLIENT_TAG],
-        ["p", APP_PUBKEY]
-      ],
+      tags,
       content: ""
     }, sk);
   }
-  function buildCancelRequestEvent(sk, orderId) {
+  function buildCancelRequestEvent(sk, orderId, expiration) {
+    const tags = [
+      ["a", `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ["action", "cancel-request"],
+      ["t", CLIENT_TAG],
+      ["p", APP_PUBKEY]
+    ];
+    if (expiration > 0) {
+      tags.push(["expiration", String(expiration)]);
+    }
     return finalizeEvent({
       kind: SAJWO_REQUEST_EVENT_KIND,
       created_at: Math.floor(Date.now() / 1e3),
-      tags: [
-        ["a", `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
-        ["action", "cancel-request"],
-        ["t", CLIENT_TAG],
-        ["p", APP_PUBKEY]
-      ],
+      tags,
       content: ""
     }, sk);
   }
@@ -6518,7 +6535,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       return;
     }
     const processed = getProcessedOrders();
-    if (!processed[orderId] && isTargetOrder(orderData, orderId)) {
+    if (!processed[orderId]?.status && isTargetOrder(orderData, orderId)) {
       const account = extractVirtualAccount(orderData, orderId);
       if (!account) {
         console.log("[\uC0AC\uC918] Failed to extract virtual account");
@@ -6537,7 +6554,7 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       const signed = buildParsedOrderEvent(sk, payload);
       const result = await publishToRelays(signed, relays);
       if (result.success) {
-        markProcessed(orderId, "parsed");
+        markProcessed(orderId, "parsed", Math.floor(account.expirationDate / 1e3));
         console.log("[\uC0AC\uC918] parsed-order published to", result.publishedTo.length, "relays");
         showNotification("\uC8FC\uBB38 \uAC10\uC9C0\uB428", `${payload.productName} \u2014 \u20A9${payload.price.toLocaleString()}`);
       } else {
@@ -6545,29 +6562,31 @@ console.log('[사줘] 유저스크립트 로딩 시작');
       }
       return;
     }
-    if (processed[orderId]) {
-      if (isCancelled(orderData, orderId) && processed[orderId] !== "cancelled") {
+    const entry = processed[orderId];
+    if (entry) {
+      const { status, expiration } = entry;
+      if (isCancelled(orderData, orderId) && status !== "cancelled") {
         console.log("[\uC0AC\uC918] Cancellation detected for", orderId);
-        const signed = buildCancelRequestEvent(sk, orderId);
+        const signed = buildCancelRequestEvent(sk, orderId, expiration);
         const result = await publishToRelays(signed, relays);
         if (result.success) {
-          markProcessed(orderId, "cancelled");
+          markProcessed(orderId, "cancelled", expiration);
           console.log("[\uC0AC\uC918] cancel-request published");
         }
         return;
       }
-      if (isPaid(orderData, orderId) && processed[orderId] !== "paid") {
+      if (isPaid(orderData, orderId) && status !== "paid") {
         console.log("[\uC0AC\uC918] Payment detected for", orderId);
-        const signed = buildPaymentConfirmEvent(sk, orderId);
+        const signed = buildPaymentConfirmEvent(sk, orderId, expiration);
         const result = await publishToRelays(signed, relays);
         if (result.success) {
-          markProcessed(orderId, "paid");
+          markProcessed(orderId, "paid", expiration);
           console.log("[\uC0AC\uC918] payment-confirm published");
           showNotification("\uC785\uAE08 \uC644\uB8CC \uAC10\uC9C0", "\uCFE0\uD321 \uC785\uAE08\uC774 \uD655\uC778\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
         }
         return;
       }
-      console.log("[\uC0AC\uC918] Order already processed as:", processed[orderId]);
+      console.log("[\uC0AC\uC918] Order already processed as:", status);
     }
   }
   function showNotification(title, message) {

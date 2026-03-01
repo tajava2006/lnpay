@@ -35,6 +35,7 @@ export const REQUEST_ACTIONS = {
   CANCEL_REQUEST: 'cancel-request',
   ACCOUNT_INFO: 'account-info',
   REMIT_REQUEST: 'remit-request',
+  PARSED_ORDER: 'parsed-order',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 

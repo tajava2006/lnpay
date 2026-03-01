@@ -19,10 +19,14 @@ export function OrderRow({ order }: Props) {
   const [sendingAccount, setSendingAccount] = useState(false);
 
   const meta = getDisplayMeta(order);
+  const isParsed = order.source === 'parsed';
   const showPublish = !order.raw && !order.adminState;
   const showPayment = order.adminState === 'verified' && order.bolt11;
-  const showAccountBtn = order.adminState === 'verified' && order.sponsorPubkey && !order.accountInfo;
+  // 수동 주문만 계좌 입력 모달 버튼 표시
+  const showAccountBtn = !isParsed && order.adminState === 'verified' && order.sponsorPubkey && !order.accountInfo;
   const accountSent = order.adminState === 'verified' && order.accountInfo;
+  // 파싱 주문 verified + sponsorPubkey: 자동 전달 중 표시
+  const autoSendingAccount = isParsed && order.adminState === 'verified' && order.sponsorPubkey && !order.accountInfo;
   const showConfirmPaid = order.adminState === 'escrowed';
   const canDelete = isDeletable(order);
 
@@ -87,7 +91,14 @@ export function OrderRow({ order }: Props) {
     <>
       <tr>
         <td>{order.orderId}</td>
-        <td>{order.memo}</td>
+        <td>
+          {order.memo}
+          {isParsed && order.fixedAccountInfo && (
+            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+              {order.fixedAccountInfo.bankName} {order.fixedAccountInfo.accountNumber} ({order.fixedAccountInfo.holderName})
+            </div>
+          )}
+        </td>
         <td>{order.price.toLocaleString()}원</td>
         <td>
           <span
@@ -131,6 +142,19 @@ export function OrderRow({ order }: Props) {
               >
                 결제 완료 + 계좌 전달
               </button>
+            )}
+            {autoSendingAccount && (
+              <span style={{
+                display: 'inline-block',
+                padding: '4px 12px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 500,
+                background: '#FEF3C7',
+                color: '#D97706',
+              }}>
+                계좌 자동 전달 중...
+              </span>
             )}
             {accountSent && (
               <span style={{

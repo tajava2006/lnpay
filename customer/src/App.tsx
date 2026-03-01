@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { KeyInit } from './components/KeyInit';
 import { Dashboard } from './components/Dashboard';
-import { startAdminSubscription, stopAdminSubscription } from './nostr/service';
+import { startSubscriptions, stopSubscriptions } from './nostr/service';
 import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { storage } from './nostr/storage';
@@ -15,12 +15,12 @@ function AppContent() {
 
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);
-    startAdminSubscription();
+    startSubscriptions();
     tracker.start();
 
     return () => {
       stopRelaySubscription();
-      stopAdminSubscription();
+      stopSubscriptions();
       tracker.stop();
     };
   }, [tracker]);

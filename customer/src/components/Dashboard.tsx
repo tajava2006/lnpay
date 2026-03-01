@@ -5,6 +5,8 @@ import type { PriceTracker } from '@sajwo-tracker/shared';
 import { OrderForm } from './OrderForm';
 import { OrderTable } from './OrderTable';
 import { BtcPrice } from './BtcPrice';
+import { ParsedOrdersSection } from './ParsedOrdersSection';
+import { UserscriptGuide } from './UserscriptGuide';
 import { ToastContainer } from './Toast';
 import type { CustomerOrder } from '../types';
 
@@ -51,10 +53,13 @@ export function Dashboard({ tracker }: Props) {
         </div>
       </div>
 
+      <ParsedOrdersSection />
       <OrderForm />
 
       <h2 className="section-title">주문 목록</h2>
       <OrderTable />
+
+      <UserscriptGuide />
 
       <ToastContainer />
     </>

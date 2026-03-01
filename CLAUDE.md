@@ -69,7 +69,7 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 
 - TypeScript strict 모드. `any` 금지.
 - Nostr 코드는 각 앱의 `nostr/` 디렉토리에 모듈화.
-- 이벤트에는 반드시 `expiration` 태그 포함 (릴레이 찌꺼기 방지).
+- 이벤트에는 반드시 `expiration` 태그 포함 (릴레이 찌꺼기 방지). **예외: `dispute-message` 이벤트는 분쟁 증거 보존 목적으로 만료 없음.**
 - 빌드 확인: 코드 수정 후 `pnpm build:customer && pnpm build:sponsor && pnpm build:admin` 통과 필수.
 - Dev/Prod 데이터 격리: `CLIENT_TAG`가 dev(`sajwo-tracker-dev`) / prod(`sajwo-tracker`)로 분리.
 - Dev 전용 코드는 `dev-only/` 디렉토리에 파일 단위로 격리하고, `import.meta.env.DEV` 가드 내에서만 import.

@@ -2,7 +2,7 @@
  * Customer 주문 타입 + Admin 이벤트 파싱 + 유저스크립트 파싱 이벤트
  */
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, SAJWO_REQUEST_EVENT_KIND, REQUEST_ACTIONS, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, SAJWO_REQUEST_EVENT_KIND, REQUEST_ACTIONS, nip44Decrypt, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
 
 /**
  * Customer 로컬 주문
@@ -60,16 +60,18 @@ export interface ParsedOrderPayload {
 
 /**
  * 유저스크립트가 발행한 kind 1111 parsed-order 이벤트를 파싱한다.
+ * content는 NIP-44 self-encryption(자기 pubkey로 암호화)되어 있으므로 복호화 필요.
  * 자기 pubkey로 발행된 이벤트만 수신되므로 pubkey 검증은 불필요.
  */
-export function parseParsedOrderEvent(event: Event): ParsedOrderPayload | null {
+export function parseParsedOrderEvent(event: Event, sk: Uint8Array): ParsedOrderPayload | null {
   if (event.kind !== SAJWO_REQUEST_EVENT_KIND) return null;
 
   const action = event.tags.find(t => t[0] === 'action')?.[1];
   if (action !== REQUEST_ACTIONS.PARSED_ORDER) return null;
 
   try {
-    const payload = JSON.parse(event.content) as ParsedOrderPayload;
+    const plaintext = nip44Decrypt(event.content, sk, event.pubkey);
+    const payload = JSON.parse(plaintext) as ParsedOrderPayload;
     if (!payload.coupangOrderId || !payload.price) return null;
     return payload;
   } catch {

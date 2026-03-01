@@ -5,7 +5,7 @@
  * 2. 유저스크립트 kind 1111 이벤트를 구독하고 parsed-store에 반영한다.
  * 3. 파싱 주문이 escrowed 단계(hold invoice 결제 완료)에 도달하면 계좌정보를 자동 전송한다.
  */
-import { getReadRelays, getUserPubkey } from '@sajwo-tracker/shared';
+import { getReadRelays, getUserPubkey, getSecretKey } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { subscribeAdminOrders, subscribeUserscriptEvents } from './subscribe';
 import { publishAccountInfo } from './publish';
@@ -53,14 +53,15 @@ async function startAdminSubscription(): Promise<void> {
 async function startUserscriptSubscription(): Promise<void> {
   if (cleanupUserscript) return;
 
-  const [relays, myPubkey] = await Promise.all([
+  const [relays, myPubkey, sk] = await Promise.all([
     getReadRelays(storage),
     getUserPubkey(storage),
+    getSecretKey(storage),
   ]);
 
   cleanupUserscript = subscribeUserscriptEvents(relays, myPubkey, {
     onEvent: (event) => {
-      const payload = parseParsedOrderEvent(event);
+      const payload = parseParsedOrderEvent(event, sk);
       if (payload) {
         addParsedOrder(event.id, payload);
       }

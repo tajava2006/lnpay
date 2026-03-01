@@ -6,6 +6,7 @@
  */
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import { nip19 } from 'nostr-tools';
+import { v2 as nip44 } from 'nostr-tools/nip44';
 import {
   APP_PUBKEY,
   SAJWO_REQUEST_KIND,
@@ -189,13 +190,17 @@ interface ParsedOrderPayload {
   expirationDate: number;
 }
 
-/** parsed-order 이벤트를 빌드하고 서명한다 (#p=ownPubkey) */
+/** parsed-order 이벤트를 빌드하고 서명한다 (#p=ownPubkey, content NIP-44 자기암호화) */
 export function buildParsedOrderEvent(
   sk: Uint8Array,
   payload: ParsedOrderPayload,
 ) {
   const pubkey = getPublicKey(sk);
   const expiration = Math.floor(payload.expirationDate / 1000);
+
+  // 계좌정보가 포함되므로 NIP-44 self-encryption (자기 pubkey로 암호화)
+  const conversationKey = nip44.utils.getConversationKey(sk, pubkey);
+  const encrypted = nip44.encrypt(JSON.stringify(payload), conversationKey);
 
   return finalizeEvent({
     kind: SAJWO_REQUEST_EVENT_KIND,
@@ -206,7 +211,7 @@ export function buildParsedOrderEvent(
       ['t', CLIENT_TAG],
       ['expiration', String(expiration)],
     ],
-    content: JSON.stringify(payload),
+    content: encrypted,
   }, sk);
 }
 

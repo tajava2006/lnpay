@@ -11,6 +11,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
 import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
+import { HistoryPage } from './components/HistoryPage';
 import { BtcPrice } from './components/BtcPrice';
 import { NodeStatus } from './components/NodeStatus';
 import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
@@ -24,6 +25,11 @@ type AuthState = 'checking' | 'logged-out' | 'logged-in';
 /** URL search params에서 orderId를 읽는다 */
 function getOrderIdFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('order');
+}
+
+/** URL search params에서 page를 읽는다 */
+function getPageFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get('page');
 }
 
 export function App() {
@@ -157,10 +163,14 @@ export function App() {
   // ─── 네비게이션 ────────────────────────────────────
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(getOrderIdFromUrl);
+  const [currentPage, setCurrentPage] = useState<string | null>(getPageFromUrl);
 
   // popstate (브라우저 뒤로가기/앞으로가기) 리스너
   useEffect(() => {
-    const handlePopState = () => setSelectedOrderId(getOrderIdFromUrl());
+    const handlePopState = () => {
+      setSelectedOrderId(getOrderIdFromUrl());
+      setCurrentPage(getPageFromUrl());
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -168,10 +178,23 @@ export function App() {
   const selectOrder = useCallback((orderId: string) => {
     history.pushState(null, '', `?order=${orderId}`);
     setSelectedOrderId(orderId);
+    setCurrentPage(null);
   }, []);
 
   const goBack = useCallback(() => {
     history.back();
+  }, []);
+
+  const goHistory = useCallback(() => {
+    history.pushState(null, '', '?page=history');
+    setCurrentPage('history');
+    setSelectedOrderId(null);
+  }, []);
+
+  const goQueue = useCallback(() => {
+    history.pushState(null, '', '/');
+    setCurrentPage(null);
+    setSelectedOrderId(null);
   }, []);
 
   const handleLogin = useCallback(() => {
@@ -214,6 +237,9 @@ export function App() {
       <header style={styles.header}>
         <div style={styles.titleRow}>
           <h1 style={styles.title}>사줘 트래커 어드민</h1>
+          <button style={styles.navBtn} onClick={goHistory}>
+            히스토리
+          </button>
           <button
             style={lnConfig ? styles.lnConfigBtn : styles.lnConfigBtnWarn}
             onClick={() => setShowLnConfig(true)}
@@ -222,7 +248,11 @@ export function App() {
           </button>
         </div>
         <p style={styles.subtitle}>
-          {selectedOrderId ? `주문 #${selectedOrderId} 클레임` : '클레임 대기열'}
+          {selectedOrderId
+            ? `주문 #${selectedOrderId} 클레임`
+            : currentPage === 'history'
+              ? '거래 이력'
+              : '클레임 대기열'}
         </p>
         <BtcPrice tracker={tracker} />
         {nodeTracker && <NodeStatus tracker={nodeTracker} />}
@@ -234,6 +264,12 @@ export function App() {
             onBack={goBack}
             tracker={tracker}
             lnAdapter={lnAdapter}
+          />
+        ) : currentPage === 'history' ? (
+          <HistoryPage
+            onSelectOrder={selectOrder}
+            onBack={goQueue}
+            tracker={tracker}
           />
         ) : (
           <OrderQueue onSelectOrder={selectOrder} tracker={tracker} />
@@ -274,6 +310,16 @@ const styles = {
     padding: 80,
     color: '#999',
     fontSize: 14,
+  },
+  navBtn: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 500 as const,
+    color: '#4F46E5',
+    background: '#EEF2FF',
+    border: '1px solid #C7D2FE',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
   },
   lnConfigBtn: {
     padding: '4px 12px',

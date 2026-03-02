@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { idbGetOrdersPage } from '../idb-store';
-import { SatsAmount } from './SatsAmount';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 
 interface Props {
-  onSelectOrder: (orderId: string) => void;
   onBack: () => void;
   tracker: PriceTracker;
 }
@@ -47,7 +45,7 @@ const stateBg: Record<string, string> = {
   customer_wins: '#CFFAFE',
 };
 
-export function HistoryPage({ onSelectOrder, onBack, tracker }: Props) {
+export function HistoryPage({ onBack, tracker }: Props) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -75,10 +73,14 @@ export function HistoryPage({ onSelectOrder, onBack, tracker }: Props) {
     void loadPage(last.createdAt);
   }, [loading, hasMore, orders, loadPage]);
 
+  // BTC 시세로 sats 환산
+  const snap = tracker.getSnapshot();
+  const btcPrice = snap.price;
+
   return (
     <div>
       <button style={styles.backBtn} onClick={onBack}>
-        ← 대기열
+        ← 요청 목록
       </button>
 
       {orders.length === 0 && !loading && (
@@ -86,41 +88,45 @@ export function HistoryPage({ onSelectOrder, onBack, tracker }: Props) {
       )}
 
       <div style={styles.list}>
-        {orders.map(order => (
-          <button
-            key={order.orderId}
-            style={styles.card}
-            onClick={() => onSelectOrder(order.orderId)}
-          >
-            <div style={styles.top}>
-              <div style={styles.orderInfo}>
-                <span style={styles.orderId}>#{order.orderId}</span>
-                <span style={styles.price}>
-                  {order.price.toLocaleString()}원
+        {orders.map(order => {
+          const sats = btcPrice !== null && btcPrice > 0
+            ? Math.round((order.price / btcPrice) * 1e8)
+            : null;
+
+          return (
+            <div key={order.orderId} style={styles.card}>
+              <div style={styles.top}>
+                <div style={styles.orderInfo}>
+                  <span style={styles.orderId}>#{order.orderId}</span>
+                  <span style={styles.price}>
+                    {order.price.toLocaleString()}원
+                  </span>
+                  {sats !== null && (
+                    <span style={styles.sats}>~{sats.toLocaleString()} sats</span>
+                  )}
+                </div>
+                <span style={{
+                  ...styles.stateBadge,
+                  background: stateBg[order.state] ?? '#F3F4F6',
+                  color: stateColor[order.state] ?? '#666',
+                }}>
+                  {stateLabel[order.state] ?? order.state}
                 </span>
-                <SatsAmount krw={order.price} tracker={tracker} />
               </div>
-              <span style={{
-                ...styles.stateBadge,
-                background: stateBg[order.state] ?? '#F3F4F6',
-                color: stateColor[order.state] ?? '#666',
-              }}>
-                {stateLabel[order.state] ?? order.state}
-              </span>
+              <div style={styles.meta}>
+                <span>
+                  {new Date(order.createdAt * 1000).toLocaleString('ko-KR', {
+                    year: 'numeric', month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit',
+                  })}
+                </span>
+                {order.disbursed && (
+                  <span style={styles.disbursed}>송금 완료</span>
+                )}
+              </div>
             </div>
-            <div style={styles.meta}>
-              <span>
-                {new Date(order.createdAt * 1000).toLocaleString('ko-KR', {
-                  year: 'numeric', month: 'short', day: 'numeric',
-                  hour: '2-digit', minute: '2-digit',
-                })}
-              </span>
-              {order.disbursed && (
-                <span style={styles.disbursed}>송금 완료</span>
-              )}
-            </div>
-          </button>
-        ))}
+          );
+        })}
       </div>
 
       {hasMore && (
@@ -158,16 +164,10 @@ const styles = {
     gap: 8,
   },
   card: {
-    display: 'block',
-    width: '100%',
     background: '#fff',
     border: '1px solid #E5E7EB',
     borderRadius: 8,
     padding: '14px 20px',
-    cursor: 'pointer',
-    textAlign: 'left' as const,
-    transition: 'background 0.15s',
-    fontFamily: 'inherit',
   },
   top: {
     display: 'flex',
@@ -189,6 +189,10 @@ const styles = {
     fontSize: 18,
     fontWeight: 700 as const,
     color: '#4F46E5',
+  },
+  sats: {
+    fontSize: 12,
+    color: '#999',
   },
   stateBadge: {
     display: 'inline-block',

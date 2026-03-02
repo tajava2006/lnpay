@@ -23,7 +23,7 @@ import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
-import { getPreimage } from '../escrow-store';
+import { getPreimage, getEscrowEntry } from '../escrow-store';
 import { idbGetOrder, idbUpsertOrder, idbUpsertRequest, idbGetRequestsByOrderId } from '../idb-store';
 
 let cleanup: (() => void) | null = null;
@@ -251,6 +251,141 @@ export async function disburseSponsor(
   }
 
   return { success: true };
+}
+
+/**
+ * 분쟁 판정: Sponsor 승리 (remitted → sponsor_wins).
+ *
+ * 1. FSM 검증
+ * 2. Hold invoice settle (아직 accepted 상태인 경우)
+ * 3. kind 30402 발행 (state: sponsor_wins)
+ * 4. Sponsor에게 BTC 자동 송금 (fire-and-forget)
+ */
+export async function resolveDisputeSponsorWins(
+  orderId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const order = getOrder(orderId);
+  if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
+
+  if (!canTransition(order.state, 'sponsor_wins')) {
+    return { success: false, error: `INVALID_TRANSITION: ${order.state} → sponsor_wins` };
+  }
+
+  // Hold invoice settle (프리이미지가 있고 아직 accepted 상태인 경우)
+  const preimage = getPreimage(orderId);
+  if (preimage && lnAdapterRef) {
+    const entry = getEscrowEntry(orderId);
+    if (entry) {
+      try {
+        const status = await lnAdapterRef.lookupHoldInvoice(entry.paymentHash);
+        if (status === 'accepted') {
+          await lnAdapterRef.settleInvoice(preimage);
+          console.log('[Admin] Hold invoice settled for sponsor_wins:', orderId);
+        } else if (status === 'settled') {
+          console.log('[Admin] Hold invoice already settled (safety net) for:', orderId);
+        } else if (status === 'cancelled') {
+          // BTC 이미 환불됨 — sponsor_wins 판정이지만 BTC 정산 불가
+          console.error('[Admin] Hold invoice cancelled, cannot settle for sponsor_wins:', orderId);
+          return { success: false, error: 'INVOICE_ALREADY_CANCELLED' };
+        }
+      } catch (e) {
+        console.error('[Admin] Hold invoice settle failed for sponsor_wins:', orderId, e);
+        return { success: false, error: 'SETTLE_FAILED' };
+      }
+    }
+  } else {
+    console.warn('[Admin] Cannot settle: missing', !preimage ? 'preimage' : 'lnAdapter', 'for', orderId);
+  }
+
+  const updatedOrder: Order = {
+    ...order,
+    state: 'sponsor_wins',
+    status: 'sold',
+    updatedAt: Math.floor(Date.now() / 1000),
+  };
+
+  try {
+    await publishOrder(updatedOrder);
+    console.log('[Admin] Order', orderId, 'resolved: sponsor_wins');
+  } catch (e) {
+    console.error('[Admin] Failed to publish sponsor_wins for', orderId, e);
+    return { success: false, error: 'PUBLISH_FAILED' };
+  }
+
+  // Sponsor에게 BTC 자동 송금 (fire-and-forget)
+  void disburseSponsor(orderId).then(result => {
+    if (!result.success) {
+      console.warn('[Admin] Auto-disbursement failed for sponsor_wins:', orderId, result.error);
+    }
+  });
+
+  return { success: true };
+}
+
+/**
+ * 분쟁 판정: Customer 승리 (remitted → customer_wins).
+ *
+ * 1. FSM 검증
+ * 2. Hold invoice cancel (아직 accepted 상태인 경우) → BTC 자동 환불
+ *    이미 settled인 경우 → 경고 (별도 LN 결제 환불 필요)
+ * 3. kind 30402 발행 (state: customer_wins)
+ */
+export async function resolveDisputeCustomerWins(
+  orderId: string,
+): Promise<{ success: boolean; error?: string; warning?: string }> {
+  const order = getOrder(orderId);
+  if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
+
+  if (!canTransition(order.state, 'customer_wins')) {
+    return { success: false, error: `INVALID_TRANSITION: ${order.state} → customer_wins` };
+  }
+
+  let warning: string | undefined;
+
+  // Hold invoice cancel (아직 accepted 상태인 경우 → BTC 자동 환불)
+  const entry = getEscrowEntry(orderId);
+  if (entry && lnAdapterRef) {
+    try {
+      const status = await lnAdapterRef.lookupHoldInvoice(entry.paymentHash);
+      if (status === 'accepted') {
+        await lnAdapterRef.cancelInvoice(entry.paymentHash);
+        console.log('[Admin] Hold invoice cancelled for customer_wins:', orderId);
+      } else if (status === 'settled') {
+        // Safety net이 이미 settle함 → BTC가 Admin에게 확정됨
+        // 별도 LN 결제로 Customer에게 환불 필요 (수동 처리)
+        warning = 'INVOICE_ALREADY_SETTLED';
+        console.warn(
+          '[Admin] Hold invoice already settled for customer_wins:',
+          orderId,
+          '— manual LN refund to customer required',
+        );
+      } else if (status === 'cancelled') {
+        console.log('[Admin] Hold invoice already cancelled (CLTV timeout) for:', orderId);
+      }
+    } catch (e) {
+      console.error('[Admin] Hold invoice cancel failed for customer_wins:', orderId, e);
+      return { success: false, error: 'CANCEL_FAILED' };
+    }
+  } else {
+    console.warn('[Admin] Cannot cancel: missing', !entry ? 'escrowEntry' : 'lnAdapter', 'for', orderId);
+  }
+
+  const updatedOrder: Order = {
+    ...order,
+    state: 'customer_wins',
+    status: 'sold',
+    updatedAt: Math.floor(Date.now() / 1000),
+  };
+
+  try {
+    await publishOrder(updatedOrder);
+    console.log('[Admin] Order', orderId, 'resolved: customer_wins');
+  } catch (e) {
+    console.error('[Admin] Failed to publish customer_wins for', orderId, e);
+    return { success: false, error: 'PUBLISH_FAILED' };
+  }
+
+  return { success: true, warning };
 }
 
 // ============================================================

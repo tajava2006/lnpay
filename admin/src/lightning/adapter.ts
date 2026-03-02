@@ -62,6 +62,15 @@ export interface LightningAdapter {
   settleInvoice(preimage: string): Promise<void>;
 
   /**
+   * Hold invoice를 취소(cancel)한다.
+   * HTLC를 거부하여 Customer에게 BTC를 자동 환불한다.
+   * 분쟁 판정에서 customer_wins 시 사용한다.
+   *
+   * @param paymentHash - payment hash (hex)
+   */
+  cancelInvoice(paymentHash: string): Promise<void>;
+
+  /**
    * bolt11 인보이스에 결제를 전송한다.
    * Sponsor에게 BTC를 지급할 때 사용한다.
    *

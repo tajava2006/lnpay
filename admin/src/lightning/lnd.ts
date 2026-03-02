@@ -341,4 +341,19 @@ export class LndAdapter implements LightningAdapter {
       throw new Error(`LND /v2/invoices/settle 실패: ${res.status} ${text}`);
     }
   }
+
+  async cancelInvoice(paymentHash: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/v2/invoices/cancel`, {
+      method: 'POST',
+      headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payment_hash: hexToBase64(paymentHash),
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`LND /v2/invoices/cancel 실패: ${res.status} ${text}`);
+    }
+  }
 }

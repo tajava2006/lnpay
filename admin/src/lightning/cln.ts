@@ -241,6 +241,12 @@ export class ClnAdapter implements LightningAdapter {
     );
   }
 
+  async cancelInvoice(_paymentHash: string): Promise<void> {
+    throw new Error(
+      'CLN hold invoice는 아직 지원되지 않습니다. LND를 사용해 주세요.',
+    );
+  }
+
   async payInvoice(_bolt11: string, _feeLimitSat?: number): Promise<PaymentResult> {
     throw new Error(
       'CLN 결제는 아직 지원되지 않습니다. LND를 사용해 주세요.',

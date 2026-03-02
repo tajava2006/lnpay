@@ -46,6 +46,7 @@ export async function subscribeChatMessages(
     {
       kinds: [SAJWO_REQUEST_EVENT_KIND],
       '#a': [aCoord],
+      '#p': [myPubkey],
       '#t': [CLIENT_TAG],
     },
     {
@@ -53,11 +54,8 @@ export async function subscribeChatMessages(
         const action = event.tags.find(t => t[0] === 'action')?.[1];
         if (action !== REQUEST_ACTIONS.DISPUTE_MESSAGE) return;
 
-        const recipientPubkey = event.tags.find(t => t[0] === 'p')?.[1];
+        const recipientPubkey = event.tags.find(t => t[0] === 'p' && t[1] !== event.pubkey)?.[1];
         if (!recipientPubkey) return;
-
-        // 자기가 참여한 대화만 처리 (발신 or 수신)
-        if (event.pubkey !== myPubkey && recipientPubkey !== myPubkey) return;
 
         let plaintext: string;
         try {

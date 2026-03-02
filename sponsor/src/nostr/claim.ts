@@ -4,7 +4,7 @@
  * - claim: kind 1111로 클레임 요청을 발행한다.
  * - remit-request: 원화 송금 완료 통보를 발행한다.
  */
-import { finalizeEvent } from 'nostr-tools/pure';
+import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import {
   SAJWO_REQUEST_EVENT_KIND,
@@ -164,6 +164,7 @@ export async function publishDisputeMessage(
   payload: DisputeMessagePayload,
 ): Promise<boolean> {
   const sk = await getSecretKey(storage);
+  const myPubkey = getPublicKey(sk);
   const relays = await getReadRelays(storage);
   const plaintext = JSON.stringify(payload);
   const encrypted = nip44Encrypt(plaintext, sk, APP_PUBKEY);
@@ -178,6 +179,7 @@ export async function publishDisputeMessage(
       ['a', aCoord],
       ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
       ['p', APP_PUBKEY],
+      ['p', myPubkey],
       ['t', CLIENT_TAG],
     ],
     content: encrypted,

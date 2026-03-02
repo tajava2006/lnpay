@@ -7,7 +7,7 @@
  * - cancel-request: 주문 취소 요청
  * - account-info: 계좌정보 전달 (NIP-44 암호화)
  */
-import { finalizeEvent } from 'nostr-tools/pure';
+import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
@@ -182,6 +182,7 @@ export async function publishDisputeMessage(
   payload: DisputeMessagePayload,
 ): Promise<PublishResult> {
   const sk = await getSecretKey(storage);
+  const myPubkey = getPublicKey(sk);
   const plaintext = JSON.stringify(payload);
   const encrypted = nip44Encrypt(plaintext, sk, APP_PUBKEY);
 
@@ -193,6 +194,7 @@ export async function publishDisputeMessage(
       ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
       ['t', CLIENT_TAG],
       ['p', APP_PUBKEY],
+      ['p', myPubkey],
     ],
     content: encrypted,
   };

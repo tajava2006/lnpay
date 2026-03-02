@@ -43,6 +43,7 @@ export async function subscribeChatMessages(
     {
       kinds: [SAJWO_REQUEST_EVENT_KIND],
       '#a': [aCoord],
+      '#p': [APP_PUBKEY],
       '#t': [CLIENT_TAG],
     },
     {
@@ -55,7 +56,7 @@ export async function subscribeChatMessages(
   );
 
   async function handleEvent(event: Event): Promise<void> {
-    const recipientPubkey = event.tags.find(t => t[0] === 'p')?.[1];
+    const recipientPubkey = event.tags.find(t => t[0] === 'p' && t[1] !== event.pubkey)?.[1];
     if (!recipientPubkey) return;
 
     let plaintext: string;

@@ -110,6 +110,7 @@ export async function publishDisputeMessage(
       ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
       ['t', CLIENT_TAG],
       ['p', recipientPubkey],
+      ['p', APP_PUBKEY],
     ],
     content: encrypted,
   };

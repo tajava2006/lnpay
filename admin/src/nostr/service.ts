@@ -66,6 +66,9 @@ export async function startAdminSubscription(): Promise<void> {
         handleAccountInfo(request);
       } else if (request.action === 'remit-request') {
         void handleRemitRequest(request);
+      } else if (request.action === 'dispute-message') {
+        // dispute-message는 디테일 페이지 on-demand 구독에서 처리 (Phase 3)
+        // 메인 구독에서는 skip — 복호화 및 IDB 저장은 채팅 구독 모듈이 담당
       }
     },
     onOrder: (event) => {

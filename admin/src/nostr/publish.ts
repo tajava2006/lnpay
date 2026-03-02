@@ -9,10 +9,14 @@ import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
   SAJWO_REQUEST_KIND,
+  SAJWO_REQUEST_EVENT_KIND,
+  APP_PUBKEY,
   CLIENT_TAG,
+  REQUEST_ACTIONS,
   getReadRelays,
   type Order,
   type OrderState,
+  type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
 import { getSigner } from './nip46';
 import { storage } from './storage';
@@ -79,4 +83,49 @@ function toListingStatus(state: OrderState): 'active' | 'sold' {
     'paid', 'cancelled', 'sponsor_wins', 'customer_wins',
   ]);
   return TERMINAL.has(state) ? 'sold' : 'active';
+}
+
+/**
+ * 분쟁 채팅 메시지를 NIP-44 암호화하여 kind 1111로 발행한다.
+ * Admin은 Customer/Sponsor 양쪽 모두에게 발행 가능.
+ * dispute-message는 증거 보존 목적으로 expiration 없음.
+ */
+export async function publishDisputeMessage(
+  orderId: string,
+  recipientPubkey: string,
+  payload: DisputeMessagePayload,
+): Promise<object> {
+  const signer = getSigner();
+  if (!signer) throw new Error('로그인되지 않음: signer 없음');
+
+  const plaintext = JSON.stringify(payload);
+  const encrypted = await signer.nip44Encrypt(recipientPubkey, plaintext);
+  const now = Math.floor(Date.now() / 1000);
+
+  const template: EventTemplate = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: now,
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
+      ['t', CLIENT_TAG],
+      ['p', recipientPubkey],
+    ],
+    content: encrypted,
+  };
+
+  const signed = await signer.signEvent(template);
+
+  const relays = await getReadRelays(storage);
+  const pool = new SimplePool();
+  try {
+    const results = await Promise.allSettled(pool.publish(relays, signed));
+    const ok = results.some(r => r.status === 'fulfilled');
+    if (!ok) throw new Error('모든 릴레이에 발행 실패');
+    console.log('[Admin] Published dispute-message for', orderId, 'to', recipientPubkey.slice(0, 12));
+  } finally {
+    pool.destroy();
+  }
+
+  return signed;
 }

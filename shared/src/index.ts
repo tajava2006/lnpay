@@ -1,5 +1,5 @@
 // Types
-export type { StorageAdapter, NostrKeypair, CachedRelayList, Order, AdminRequest, AccountInfo } from './types';
+export type { StorageAdapter, NostrKeypair, CachedRelayList, Order, AdminRequest, AccountInfo, DisputeMessagePayload, ChatMessage } from './types';
 
 // Constants
 export {

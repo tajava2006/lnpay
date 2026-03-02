@@ -36,6 +36,7 @@ export const REQUEST_ACTIONS = {
   ACCOUNT_INFO: 'account-info',
   REMIT_REQUEST: 'remit-request',
   PARSED_ORDER: 'parsed-order',
+  DISPUTE_MESSAGE: 'dispute-message',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 

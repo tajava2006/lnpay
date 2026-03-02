@@ -50,6 +50,25 @@ export interface AccountInfo {
   holderName: string;
 }
 
+/** dispute-message 이벤트의 NIP-44 암호화 페이로드 */
+export interface DisputeMessagePayload {
+  type: 'text' | 'account-reveal';
+  /** 텍스트 메시지 (type: 'text') */
+  content?: string;
+  /** 계좌정보 평문 제출 (type: 'account-reveal', 커밋먼트 대조 검증용) */
+  accountInfo?: AccountInfo;
+}
+
+/** 복호화된 채팅 메시지 (IDB 저장용) */
+export interface ChatMessage {
+  eventId: string;
+  orderId: string;
+  senderPubkey: string;
+  recipientPubkey: string;
+  payload: DisputeMessagePayload;
+  createdAt: number;
+}
+
 /** 캐싱된 릴레이 목록 */
 export interface CachedRelayList {
   relays: string[];

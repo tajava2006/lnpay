@@ -15,12 +15,14 @@ import {
   SAJWO_REQUEST_EVENT_KIND,
   APP_PUBKEY,
   CLIENT_TAG,
+  REQUEST_ACTIONS,
   getSecretKey,
   getReadRelays,
   nip44Encrypt,
   sha256Hex,
   type RequestAction,
   type AccountInfo,
+  type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import type { CustomerOrder } from '../types';
@@ -164,6 +166,34 @@ export async function publishAccountInfo(
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags,
+    content: encrypted,
+  };
+
+  return signAndPublish(template);
+}
+
+/**
+ * 분쟁 채팅 메시지를 NIP-44 암호화하여 kind 1111로 발행한다.
+ * 수신자는 항상 APP_PUBKEY (Admin).
+ * dispute-message는 증거 보존 목적으로 expiration 없음.
+ */
+export async function publishDisputeMessage(
+  order: CustomerOrder,
+  payload: DisputeMessagePayload,
+): Promise<PublishResult> {
+  const sk = await getSecretKey(storage);
+  const plaintext = JSON.stringify(payload);
+  const encrypted = nip44Encrypt(plaintext, sk, APP_PUBKEY);
+
+  const template: EventTemplate = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
+      ['t', CLIENT_TAG],
+      ['p', APP_PUBKEY],
+    ],
     content: encrypted,
   };
 

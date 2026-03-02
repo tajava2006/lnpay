@@ -11,9 +11,12 @@ import {
   SAJWO_REQUEST_KIND,
   CLIENT_TAG,
   APP_PUBKEY,
+  REQUEST_ACTIONS,
   getSecretKey,
   getReadRelays,
+  nip44Encrypt,
   type Order,
+  type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { idbMigrateClaim } from '../idb-store';
@@ -145,6 +148,49 @@ export async function publishRemitRequest(order: Order): Promise<boolean> {
         console.warn('[Nostr] Remit-request publish failed:', String(r.reason));
       }
     }
+    return ok;
+  } finally {
+    pool.destroy();
+  }
+}
+
+/**
+ * 분쟁 채팅 메시지를 NIP-44 암호화하여 kind 1111로 발행한다.
+ * 수신자는 항상 APP_PUBKEY (Admin).
+ * dispute-message는 증거 보존 목적으로 expiration 없음.
+ */
+export async function publishDisputeMessage(
+  order: Order,
+  payload: DisputeMessagePayload,
+): Promise<boolean> {
+  const sk = await getSecretKey(storage);
+  const relays = await getReadRelays(storage);
+  const plaintext = JSON.stringify(payload);
+  const encrypted = nip44Encrypt(plaintext, sk, APP_PUBKEY);
+
+  const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`;
+  const now = Math.floor(Date.now() / 1000);
+
+  const template = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: now,
+    tags: [
+      ['a', aCoord],
+      ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
+      ['p', APP_PUBKEY],
+      ['t', CLIENT_TAG],
+    ],
+    content: encrypted,
+  };
+
+  const signed = finalizeEvent(template, sk);
+
+  console.log('[Nostr] Publishing dispute-message for order', order.orderId, 'event:', signed.id);
+
+  const pool = new SimplePool();
+  try {
+    const results = await Promise.allSettled(pool.publish(relays, signed));
+    const ok = results.some(r => r.status === 'fulfilled');
     return ok;
   } finally {
     pool.destroy();

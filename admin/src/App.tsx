@@ -12,6 +12,7 @@ import { LnConfigPage } from './components/LnConfigPage';
 import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
 import { HistoryPage } from './components/HistoryPage';
+import { OrderDetail } from './components/OrderDetail';
 import { BtcPrice } from './components/BtcPrice';
 import { NodeStatus } from './components/NodeStatus';
 import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
@@ -181,6 +182,12 @@ export function App() {
     setCurrentPage(null);
   }, []);
 
+  const selectOrderDetail = useCallback((orderId: string) => {
+    history.pushState(null, '', `?page=detail&order=${orderId}`);
+    setCurrentPage('detail');
+    setSelectedOrderId(orderId);
+  }, []);
+
   const goBack = useCallback(() => {
     history.back();
   }, []);
@@ -248,17 +255,25 @@ export function App() {
           </button>
         </div>
         <p style={styles.subtitle}>
-          {selectedOrderId
-            ? `주문 #${selectedOrderId} 클레임`
-            : currentPage === 'history'
-              ? '거래 이력'
-              : '클레임 대기열'}
+          {currentPage === 'detail' && selectedOrderId
+            ? `주문 #${selectedOrderId} 상세`
+            : selectedOrderId
+              ? `주문 #${selectedOrderId} 클레임`
+              : currentPage === 'history'
+                ? '거래 이력'
+                : '클레임 대기열'}
         </p>
         <BtcPrice tracker={tracker} />
         {nodeTracker && <NodeStatus tracker={nodeTracker} />}
       </header>
       <main>
-        {selectedOrderId ? (
+        {currentPage === 'detail' && selectedOrderId ? (
+          <OrderDetail
+            orderId={selectedOrderId}
+            onBack={goBack}
+            tracker={tracker}
+          />
+        ) : selectedOrderId ? (
           <OrderClaimList
             orderId={selectedOrderId}
             onBack={goBack}
@@ -267,7 +282,7 @@ export function App() {
           />
         ) : currentPage === 'history' ? (
           <HistoryPage
-            onSelectOrder={selectOrder}
+            onSelectOrder={selectOrderDetail}
             onBack={goQueue}
             tracker={tracker}
           />

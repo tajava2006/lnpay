@@ -3,6 +3,7 @@ import { idbGetOrdersPage } from '../idb-store';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 
 interface Props {
+  onSelectOrder: (orderId: string) => void;
   onBack: () => void;
   tracker: PriceTracker;
 }
@@ -45,7 +46,7 @@ const stateBg: Record<string, string> = {
   customer_wins: '#CFFAFE',
 };
 
-export function HistoryPage({ onBack, tracker }: Props) {
+export function HistoryPage({ onSelectOrder, onBack, tracker }: Props) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -94,7 +95,11 @@ export function HistoryPage({ onBack, tracker }: Props) {
             : null;
 
           return (
-            <div key={order.orderId} style={styles.card}>
+            <button
+              key={order.orderId}
+              style={styles.card}
+              onClick={() => onSelectOrder(order.orderId)}
+            >
               <div style={styles.top}>
                 <div style={styles.orderInfo}>
                   <span style={styles.orderId}>#{order.orderId}</span>
@@ -124,7 +129,7 @@ export function HistoryPage({ onBack, tracker }: Props) {
                   <span style={styles.disbursed}>송금 완료</span>
                 )}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -164,10 +169,15 @@ const styles = {
     gap: 8,
   },
   card: {
+    display: 'block',
+    width: '100%',
     background: '#fff',
     border: '1px solid #E5E7EB',
     borderRadius: 8,
     padding: '14px 20px',
+    cursor: 'pointer' as const,
+    textAlign: 'left' as const,
+    fontFamily: 'inherit',
   },
   top: {
     display: 'flex',

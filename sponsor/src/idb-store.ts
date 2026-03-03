@@ -69,6 +69,17 @@ export async function idbHasOrder(orderId: string): Promise<boolean> {
   });
 }
 
+/** orderId로 오더를 단건 조회한다. */
+export async function idbGetOrder(orderId: string): Promise<Order | null> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('orders', 'readonly');
+    const req = tx.objectStore('orders').get(orderId);
+    req.onsuccess = () => resolve((req.result as Order) ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 /** 오더를 upsert한다. 기존 레코드의 updatedAt보다 새 값이 클 때만 갱신. */
 export async function idbUpsertOrder(order: Order): Promise<void> {
   const db = await openDb();

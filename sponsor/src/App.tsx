@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyInit } from './components/KeyInit';
 import { OrderBook } from './components/OrderBook';
 import { HistoryPage } from './components/HistoryPage';
+import { OrderDetail } from './components/OrderDetail';
 import { BtcPrice } from './components/BtcPrice';
 import { startOrderSubscription, stopOrderSubscription } from './nostr/service';
 import { startCleanup, stopCleanup } from './order-store';
@@ -14,6 +15,11 @@ function getPageFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('page');
 }
 
+/** URL search params에서 orderId를 읽는다 */
+function getOrderIdFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get('order');
+}
+
 function AppContent() {
   const trackerRef = useRef<PriceTracker | null>(null);
   if (!trackerRef.current) {
@@ -22,9 +28,13 @@ function AppContent() {
   const tracker = trackerRef.current;
 
   const [currentPage, setCurrentPage] = useState<string | null>(getPageFromUrl);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(getOrderIdFromUrl);
 
   useEffect(() => {
-    const handlePopState = () => setCurrentPage(getPageFromUrl());
+    const handlePopState = () => {
+      setCurrentPage(getPageFromUrl());
+      setSelectedOrderId(getOrderIdFromUrl());
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -32,11 +42,23 @@ function AppContent() {
   const goHistory = useCallback(() => {
     history.pushState(null, '', '?page=history');
     setCurrentPage('history');
+    setSelectedOrderId(null);
   }, []);
 
   const goHome = useCallback(() => {
     history.pushState(null, '', '/');
     setCurrentPage(null);
+    setSelectedOrderId(null);
+  }, []);
+
+  const selectOrderDetail = useCallback((orderId: string) => {
+    history.pushState(null, '', `?page=detail&order=${orderId}`);
+    setCurrentPage('detail');
+    setSelectedOrderId(orderId);
+  }, []);
+
+  const goBack = useCallback(() => {
+    history.back();
   }, []);
 
   useEffect(() => {
@@ -62,13 +84,27 @@ function AppContent() {
           </button>
         </div>
         <p style={styles.subtitle}>
-          {currentPage === 'history' ? '거래 이력' : '사줘 요청 목록'}
+          {currentPage === 'detail' && selectedOrderId
+            ? `주문 #${selectedOrderId} 상세`
+            : currentPage === 'history'
+              ? '거래 이력'
+              : '사줘 요청 목록'}
         </p>
         <BtcPrice tracker={tracker} />
       </header>
       <main>
-        {currentPage === 'history' ? (
-          <HistoryPage onBack={goHome} tracker={tracker} />
+        {currentPage === 'detail' && selectedOrderId ? (
+          <OrderDetail
+            orderId={selectedOrderId}
+            onBack={goBack}
+            tracker={tracker}
+          />
+        ) : currentPage === 'history' ? (
+          <HistoryPage
+            onSelectOrder={selectOrderDetail}
+            onBack={goHome}
+            tracker={tracker}
+          />
         ) : (
           <OrderBook tracker={tracker} />
         )}

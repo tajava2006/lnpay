@@ -6,6 +6,7 @@ import { publishOrderRequest, publishNotification, publishAccountInfo } from '..
 import { markPublished, deleteOrder, setAccountInfo } from '../order-store';
 import { InvoiceModal } from './InvoiceModal';
 import { AccountInfoModal } from './AccountInfoModal';
+import { OrderDetail } from './OrderDetail';
 
 interface Props {
   order: CustomerOrder;
@@ -16,6 +17,7 @@ export function OrderRow({ order }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showAccountInfo, setShowAccountInfo] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
   const [sendingAccount, setSendingAccount] = useState(false);
 
   const meta = getDisplayMeta(order);
@@ -182,6 +184,14 @@ export function OrderRow({ order }: Props) {
                 {confirming ? '통보 중...' : '입금 확인'}
               </button>
             )}
+            {order.adminState && (
+              <button
+                onClick={() => setShowDetail(true)}
+                className="btn"
+              >
+                상세
+              </button>
+            )}
             {canDelete && (
               <button
                 onClick={handleDelete}
@@ -206,6 +216,12 @@ export function OrderRow({ order }: Props) {
           onClose={() => setShowAccountInfo(false)}
           onSubmit={handleAccountSubmit}
           submitting={sendingAccount}
+        />
+      )}
+      {showDetail && (
+        <OrderDetail
+          order={order}
+          onClose={() => setShowDetail(false)}
         />
       )}
     </>

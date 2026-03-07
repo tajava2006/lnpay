@@ -1,0 +1,16 @@
+{
+  "name": "사줘 트래커 - 후원자",
+  "short_name": "사줘 후원",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#4F46E5",
+  "background_color": "#f8f9fa",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

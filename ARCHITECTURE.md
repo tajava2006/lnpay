@@ -247,12 +247,13 @@ shared/src/
 > 암호화폐 관련 확장)와 MV3 서비스워커 생명주기 문제(~30초 후 종료 → WebSocket 구독 단절)로
 > React SPA + Tampermonkey 유저스크립트 조합으로 전환했다.
 
-- kind 1111로 Admin에 요청 전송 (order-request, payment-confirm, cancel-request, account-info)
+- kind 1111로 Admin에 요청 전송 (order-request, payment-confirm, cancel-request, account-info, dispute-message)
 - Admin의 kind 30402 오더 구독으로 상태 자동 반영 (로컬 FSM 없음)
-- kind 1111 구독으로 유저스크립트가 발행한 parsed-order 수신 (#p=자기 pubkey)
+- kind 1111 구독으로 유저스크립트가 발행한 parsed-order + dispute-message 수신 (#p=자기 pubkey)
 - 대시보드에서 수동 입력 또는 감지된 주문으로 사줘 요청 발행
 - 파싱 주문(source='parsed')은 계좌정보 편집 불가, escrowed 시 자동 전달
 - NIP-44 암호화 계좌정보를 Sponsor에게 직접 전달 (SHA-256 commitment 포함)
+- IndexedDB에 분쟁 채팅 메시지 영구 보존 (오더/리퀘스트는 기존 localStorage 유지)
 
 #### Customer 데이터 흐름
 
@@ -277,18 +278,23 @@ customer/src/
   types.ts              - CustomerOrder, ParsedOrderPayload, Admin 이벤트 파서
   order-store.ts        - 반응형 주문 스토어 (localStorage + useSyncExternalStore)
   parsed-store.ts       - 파싱 주문 스토어 (유저스크립트 감지 주문, 요청 전 대기)
+  chat-store.ts         - 분쟁 채팅 스토어 (인메모리, useSyncExternalStore)
+  idb-store.ts          - IndexedDB 저장소 (분쟁 채팅 메시지 영구 보존)
   order-states.ts       - 주문 상태별 표시 메타 (라벨, 색상)
   nostr/
     storage.ts          - createWebStorage() 싱글턴
     subscribe.ts        - SimplePool 구독 (kind 30402 + kind 1111 유저스크립트)
-    service.ts          - 구독 오케스트레이터 (Admin + 유저스크립트 + auto account-info)
-    publish.ts          - 이벤트 발행 (order-request, notification, account-info NIP-44)
+    service.ts          - 구독 오케스트레이터 (Admin + 유저스크립트 + auto account-info + dispute-message IDB 저장)
+    publish.ts          - 이벤트 발행 (order-request, notification, account-info, dispute-message)
+    chat-subscribe.ts   - 분쟁 채팅 on-demand 구독 (디테일 페이지용)
   components/
     KeyInit.tsx         - 키페어 보장 래퍼
     Dashboard.tsx       - 메인 대시보드 (ParsedOrders + OrderForm + OrderTable + Guide)
     OrderForm.tsx       - 주문 수동 입력 폼
     OrderTable.tsx      - 주문 목록 테이블
     OrderRow.tsx        - 개별 주문 행 (계좌정보 잠금 로직 포함)
+    OrderDetail.tsx     - 오더 상세 + 분쟁 채팅창
+    ChatWindow.tsx      - 채팅 UI
     ParsedOrdersSection.tsx - 유저스크립트 감지 주문 목록 (사줘 요청/무시)
     InvoiceModal.tsx    - hold invoice QR 표시 + 결제
     AccountInfoModal.tsx - 수동 주문 계좌정보 입력
@@ -314,7 +320,7 @@ customer/userscript/       - Tampermonkey 유저스크립트 (esbuild IIFE 번�
 - kind 1111 구독으로 Customer → Sponsor 계좌정보 수신 (#p 필터, NIP-44 복호화)
 - 오더북 형태로 활성 요청 목록 표시 (만료 임박순 정렬, 만료된 것 자동 필터링)
 - localStorage에 주문 영구 캐시 (즉시 로드 후 백그라운드 동기화)
-- IndexedDB에 클레임한 오더 + 관련 request 영구 보존 (Admin IDB 패턴 동일)
+- IndexedDB에 클레임한 오더 + 관련 request + 분쟁 채팅 메시지 영구 보존 (Admin IDB 패턴 동일)
 - sold 상태 이벤트 수신 시 주문 자동 삭제
 - 남은 시간 매초 자동 갱신
 - pubkey 기반 이벤트 검증 (같은 orderId라도 최초 발행자만 갱신/삭제 가능)
@@ -329,9 +335,15 @@ Nostr 릴레이
     │                        │ (IDB에 있으면)      │
     │                        └──→ idb-store.ts ←── IndexedDB
     │
-    └── kind 1111 ──→ nostr/service.ts ──→ NIP-44 복호화 ──→ account-store.ts
-                           │                                       │
-                           └──→ idb-store.ts (request 저장)        │
+    └── kind 1111 ──→ nostr/service.ts
+                           │
+                           ├── account-info ──→ NIP-44 복호화 ──→ account-store.ts
+                           │                                          │
+                           │                   idb-store.ts ←─────────┘
+                           │                   (request 저장)
+                           │
+                           └── dispute-message ──→ NIP-44 복호화 ──→ idb-store.ts
+                                                                    (messages 저장)
                                                              useSyncExternalStore
                                                                    │
                                                                    ▼
@@ -353,16 +365,21 @@ sponsor/src/
   types.ts              - Order 파싱, SponsorRequest, AccountInfoEvent 타입
   order-store.ts        - 반응형 주문 스토어 (localStorage + useSyncExternalStore)
   account-store.ts      - 반응형 계좌정보 스토어 (메모리, UI 연동용)
-  idb-store.ts          - IndexedDB 영구 저장소 (클레임한 오더 + request 보존)
+  chat-store.ts         - 분쟁 채팅 스토어 (인메모리, useSyncExternalStore)
+  idb-store.ts          - IndexedDB 영구 저장소 (오더 + request + 채팅 메시지 보존)
   nostr/
     storage.ts          - createWebStorage() 싱글턴
     subscribe.ts        - SimplePool 구독 래퍼 (kind 30402 + kind 1111)
     service.ts          - 구독 서비스 (릴레이 → store 연결, NIP-44 복호화, IDB 동기화)
-    claim.ts            - 클레임 발행 + IDB 이관, 송금 완료(remit-request) 발행
+    claim.ts            - 클레임 발행 + IDB 이관, 송금 완료(remit-request) + dispute-message 발행
+    chat-subscribe.ts   - 분쟁 채팅 on-demand 구독 (디테일 페이지용)
   components/
     KeyInit.tsx         - 키페어 보장 래퍼 (투명하게 처리)
     OrderBook.tsx       - 오더북 (스토어 구독 + 1초 타이머)
     OrderCard.tsx       - 개별 요청 카드 (계좌정보 표시, 송금 완료 버튼)
+    HistoryPage.tsx     - 히스토리 목록 (IDB 기반 거래 이력)
+    OrderDetail.tsx     - 오더 상세 + 분쟁 채팅창 + 계좌정보 공개 버튼
+    ChatWindow.tsx      - 채팅 UI
 ```
 
 ### Admin App
@@ -492,6 +509,30 @@ settle 후에도 Admin은 여전히 판정할 수 있다:
 > 자동 settle 실패 + 만료 시: BTC는 Customer에게 자동 환불되고, Admin이 IndexedDB에서 확인 후 수동 판정한다.
 > 시스템이 자동으로 `customer_wins`를 판정하지 않는다 — 판정은 반드시 Admin의 몫이다.
 
+#### 분쟁 중재 (Dispute Mediation)
+
+`remitted` 상태에서 Customer가 입금 확인을 하지 않으면, Admin이 양쪽과 각각 1:1 채팅으로 대화하고 증거를 검토한 뒤 `sponsor_wins` 또는 `customer_wins`를 판정한다.
+
+**채팅 전송**: kind 1111 `dispute-message` + NIP-44 암호화.
+기존 요청 이벤트 인프라를 재사용하여 NIP-17(gift wrap) 없이 구현한다.
+Admin의 BunkerSigner가 NIP-44를 완벽히 지원하고, `a` 태그로 orderId 필터링이 가능하다.
+상세 스펙은 [PROTOCOL.md](PROTOCOL.md)의 dispute-message 섹션 참조.
+
+**채팅 저장**: IndexedDB + 릴레이 하이브리드.
+메인 구독(kind 1111)으로 수신한 dispute-message를 NIP-44 복호화하여 IDB `messages` 스토어에 fire-and-forget 저장한다.
+다른 요청 이벤트(order-request, claim 등)와 달리 localStorage에는 저장하지 않는다 — 디테일 페이지의 인메모리 chat-store + IDB만 사용한다.
+이로써 expiration 태그 없이도 localStorage 데이터 비대화 문제가 발생하지 않으며, 증거를 영구 보존할 수 있다.
+
+**채팅 UI**: 디테일 페이지 진입 시 IDB에서 기존 메시지 즉시 로드 → 릴레이 on-demand 구독으로 신규 메시지 실시간 수신.
+인메모리 chat-store(`useSyncExternalStore`)로 리액티브 렌더링하고, 페이지 이탈 시 구독 해제 + 메모리 해제.
+
+**분쟁 판정**: Admin이 remitted 상태에서 판정 버튼으로 실행한다.
+- `sponsor_wins`: hold invoice settle → Sponsor에게 BTC 전송 (disburseSponsor 재사용)
+- `customer_wins`: hold invoice cancel → Customer BTC 자동 환불 (이미 settle된 경우 경고)
+
+**커밋먼트 검증**: Sponsor가 `account-reveal` 메시지로 계좌정보를 공개하면,
+Admin이 원본 `account-info` 이벤트의 `commitment` 태그와 `sha256(JSON.stringify(revealedAccountInfo))`를 대조하여 자동 검증한다.
+
 미구현 기능 목록은 [TODO.md](TODO.md) 참조.
 
 #### Admin 모듈 구조
@@ -508,7 +549,8 @@ admin/
     order-store.ts        - 오더 반응형 스토어 (localStorage, useSyncExternalStore)
     request-store.ts      - 요청 반응형 스토어 (localStorage, useSyncExternalStore)
     escrow-store.ts       - 프리이미지 저장소 (localStorage, settle 권한)
-    idb-store.ts          - IndexedDB 장기 저장소 (에스크로 이후 오더+요청 보존)
+    chat-store.ts         - 분쟁 채팅 스토어 (인메모리, useSyncExternalStore)
+    idb-store.ts          - IndexedDB 장기 저장소 (오더+요청+채팅 메시지 보존)
     invoice-watcher.ts    - hold invoice 결제 감시 (15초 폴링, verified→escrowed 자동 전이)
     cleanup.ts            - 만료 삭제 스케줄러 (60초 주기, order+request+escrow 연쇄 삭제)
     nostr/
@@ -518,7 +560,8 @@ admin/
       ln-config-service.ts - LN 설정 구독 서비스 (쓰기 릴레이)
       subscribe.ts        - kind 1111 + 30402 구독
       service.ts          - 구독 서비스 + 자동 처리 핸들러 + IndexedDB 동기화
-      publish.ts          - kind 30402 오더 발행 (NIP-46 서명)
+      publish.ts          - kind 30402 오더 + dispute-message 발행 (NIP-46 서명)
+      chat-subscribe.ts   - 분쟁 채팅 on-demand 구독 (디테일 페이지용)
     lightning/
       types.ts            - NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus
       adapter.ts          - LightningAdapter 인터페이스
@@ -532,6 +575,9 @@ admin/
       OrderQueue.tsx      - 주문 단위 클레임 대기열
       OrderClaimList.tsx  - 주문별 클레임 목록
       ClaimCard.tsx       - 개별 클레임 카드 (승인/거절 + 유동성 검증)
+      HistoryPage.tsx     - 히스토리 목록 (IDB 커서 기반 페이지네이션, 상태 필터)
+      OrderDetail.tsx     - 오더 상세 + 분쟁 채팅창 2개 + 판정 버튼
+      ChatWindow.tsx      - 채팅 UI (커밋먼트 검증 배지 포함)
       SatsAmount.tsx      - 사토시 금액 포맷팅
       BtcPrice.tsx        - BTC/KRW 실시간 가격
       NodeStatus.tsx      - Lightning 노드 연결 상태
@@ -546,12 +592,14 @@ localStorage: 실시간 오더/요청 큐 (만료 시 공격적 삭제)
 IndexedDB:    에스크로 책임이 있는 오더 (verified → escrowed 진입 이후)
 ```
 
-**IndexedDB 스키마** (DB: `admin-history`, ver 1):
+**IndexedDB 스키마** (DB: `admin-history`, ver 2):
 
 `orders` 스토어 — PK: `orderId`, 인덱스: `createdAt`, `[state, createdAt]`
 `requests` 스토어 — PK: `eventId`, 인덱스: `orderId`
+`messages` 스토어 — PK: `eventId`, 인덱스: `orderId`, `createdAt`, `[orderId, createdAt]`
 
 레코드 형식은 localStorage와 동일 (Order, ProcessedRequest 타입 그대로 저장).
+messages 스토어는 분쟁 채팅 메시지(ChatMessage 타입)를 영구 보존한다.
 
 **이관 트리거**: `invoice-watcher.ts`에서 `verified → escrowed` 전이 시 해당 오더 + 연관 requests를 `idbMigrateOrder()`로 원자적 일괄 저장.
 
@@ -571,7 +619,7 @@ IndexedDB:    에스크로 책임이 있는 오더 (verified → escrowed 진입
 | 프레임워크 | React 19 | React 19 | React 19 | - |
 | 빌드 | Vite | Vite | Vite | (앱에서 컴파일) |
 | 통신 | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) | Nostr (nostr-tools) |
-| 저장소 | localStorage | localStorage | localStorage | StorageAdapter |
+| 저장소 | localStorage + IDB | localStorage + IDB | localStorage + IDB | StorageAdapter |
 | 키 관리 | 랜덤 생성 | 랜덤 생성 | NIP-46 원격 서명 | ensureKeypair |
 | 패키지 관리 | pnpm workspace | pnpm workspace | pnpm workspace | pnpm workspace |
 

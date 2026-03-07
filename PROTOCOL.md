@@ -224,6 +224,7 @@ Admin이 요청을 검토하고 타당하면 kind 30402를 갱신한다.
 | `cancel-request` | Customer | 주문 취소 신고 | — |
 | `account-info` | Customer | Sponsor에게 계좌정보 전달 | `['p', sponsorPubkey]`, `['commitment', sha256(plaintext)]` |
 | `remit-request` | Sponsor | 원화 송금 완료 통보 | — |
+| `dispute-message` | Customer / Sponsor / Admin | 분쟁 채팅 메시지 (NIP-44 암호화) | `['p', recipientPubkey]`, content=NIP-44 JSON |
 | `parsed-order` | Customer (유저스크립트) | 쿠팡 주문 자동 감지 알림 | `['p', ownPubkey]`, content=JSON |
 
 ### a-tag 참조 규칙
@@ -241,9 +242,17 @@ Nostr 릴레이는 a-tag 대상 이벤트의 존재 여부를 검증하지 않�
 - 만료된 과거 요청이 릴레이에 남아 불필요하게 수신되는 것을 방지한다
 - Admin이 오프라인이었다가 복귀했을 때, 이미 만료된 요청을 받아 처리하려는 상황을 차단한다
 
+**예외: `dispute-message`는 만료 태그를 포함하지 않는다.**
+dispute-message는 메인 구독(kind 1111)으로 수신되지만, localStorage가 아닌 IndexedDB(messages 스토어)에만 저장된다.
+다른 요청 이벤트(order-request, claim 등)는 localStorage에 저장되어 만료 시 삭제해야 데이터 비대화를 방지하지만,
+dispute-message는 localStorage를 거치지 않으므로 이 문제가 없다. 분쟁 채팅은 판정 이후에도 참조될 수 있는 법적 증거 기록이므로 영구 보존한다.
+릴레이가 자체 정책으로 삭제해도 IDB가 영구보존을 담당하므로 무방하다.
+
 ### Content
 
-대부분 빈 문자열 (`""`). 예외: `account-info`는 NIP-44 암호화된 계좌정보 JSON.
+대부분 빈 문자열 (`""`). 예외:
+- `account-info`: NIP-44 암호화된 계좌정보 JSON
+- `dispute-message`: NIP-44 암호화된 채팅 메시지 JSON
 
 #### account-info 이벤트 상세
 
@@ -324,6 +333,66 @@ Admin에게 전달되지 않으며, 사용자가 웹앱에서 사줘 요청 여�
     ["expiration", "1770458336"]
   ],
   "content": "{\"coupangOrderId\":\"123456789\",\"productName\":\"상품명\",\"price\":22950,\"bankName\":\"국민은행\",\"accountNumber\":\"123-456-789\",\"depositor\":\"쿠팡\",\"expirationDate\":1770458336000}",
+  "id": "<event-id>",
+  "sig": "<signature>"
+}
+```
+
+#### dispute-message 이벤트 상세
+
+분쟁 상태(`remitted`)에서 Admin이 Customer/Sponsor 양쪽과 개별 채팅으로 증거를 검토하기 위한 메시지다.
+Admin, Customer, Sponsor 모두 발행할 수 있다. NIP-44로 암호화하여 당사자만 읽을 수 있다.
+
+- **발행자**: Customer, Sponsor, Admin 모두 가능
+- **수신 경로**: 메인 구독(kind 1111)으로 수신. 다른 요청 이벤트와 동일한 필터로 도달한다.
+- **저장**: localStorage가 아닌 IndexedDB `messages` 스토어에만 저장 (데이터 비대화 방지 + 증거 영구보존)
+- **리액티브 UI**: 디테일 페이지 진입 시 on-demand 릴레이 구독 + 인메모리 chat-store로 실시간 렌더링
+- **만료 태그**: 없음 (증거 보존 목적, 위의 "만료 태그 통일" 예외 참조)
+
+**태그 구조:**
+
+| Tag | Value | 설명 |
+|-----|-------|------|
+| `a` | `30402:<admin-pubkey>:<orderId>` | 대상 오더 참조 |
+| `action` | `dispute-message` | 액션 식별 |
+| `t` | `sajwo-tracker` | 클라이언트 식별 |
+| `p` | recipientPubkey, senderPubkey | 수신자 + 발신자 (dual p-tag, 릴레이 `#p` 필터 최적화) |
+
+**Content (NIP-44 암호화 JSON):**
+
+```typescript
+// 일반 텍스트 메시지
+{ "type": "text", "content": "메시지 내용" }
+
+// 계좌정보 공개 (Sponsor가 분쟁 시 증거 제출)
+{ "type": "account-reveal", "accountInfo": { "bankName": "...", "accountNumber": "...", "holderName": "..." } }
+```
+
+**암호화/복호화:**
+- Customer/Sponsor → Admin: `nip44Encrypt(plaintext, senderSk, APP_PUBKEY)` / Admin은 `signer.nip44Decrypt(senderPubkey, ciphertext)`
+- Admin → Customer/Sponsor: `signer.nip44Encrypt(recipientPubkey, plaintext)` / 상대방은 `nip44Decrypt(ciphertext, sk, APP_PUBKEY)`
+- Admin이 자기 발신 에코를 복호화할 때: `signer.nip44Decrypt(recipientPubkey, ciphertext)` (NIP-44 conversation key는 대칭)
+
+**커밋먼트 검증 (account-reveal):**
+Sponsor가 `account-reveal` 메시지를 보내면 Admin이 자동 검증한다:
+1. IDB에서 해당 오더의 `account-info` 요청 이벤트 조회
+2. `commitment` 태그의 해시값 추출
+3. `sha256(JSON.stringify(revealedAccountInfo))` === commitment 비교
+4. UI에 검증 결과 배지 표시 (녹색 체크: 일치, 경고: 불일치)
+
+```json
+{
+  "kind": 1111,
+  "pubkey": "<sender-pubkey>",
+  "created_at": 1770372200,
+  "tags": [
+    ["a", "30402:658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5:123456789"],
+    ["action", "dispute-message"],
+    ["t", "sajwo-tracker"],
+    ["p", "<recipient-pubkey>"],
+    ["p", "<sender-pubkey>"]
+  ],
+  "content": "<NIP-44 encrypted JSON>",
   "id": "<event-id>",
   "sig": "<signature>"
 }
@@ -668,7 +737,7 @@ Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
 | NIP-22 | Comment (kind 1111, 모든 요청 이벤트에 사용) |
 | NIP-33 | Addressable event (kind 30000-40000, d-tag) |
 | NIP-40 | Expiration Timestamp (`['expiration', timestamp]`) |
-| NIP-44 | Versioned Encryption (Admin 전용 데이터 암호화) |
+| NIP-44 | Versioned Encryption (Admin 전용 데이터 암호화, 계좌정보/분쟁 채팅 E2E 암호화) |
 | NIP-46 | Nostr Connect (Admin 원격 서명 + 암호화 위임) |
 | NIP-65 | Relay List Metadata (kind 10002, outbox model) |
 | NIP-78 | Arbitrary Custom App Data (kind 30078, Admin 설정 저장) |

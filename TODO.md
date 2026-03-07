@@ -27,14 +27,14 @@
 ## Sponsor App
 
 - [ ] **오더북 페이지네이션**: 주문이 많아질 경우 대비
-- [ ] **히스토리 UI**: IndexedDB에 저장된 클레임 히스토리를 보는 별도 화면
+- [x] **히스토리 UI**: IndexedDB에 저장된 클레임 히스토리를 보는 별도 화면
 - [ ] **스타일링 고도화**: 현재 인라인 스타일 → CSS 또는 스타일링 라이브러리
 
 ## Admin App (에스크로 서비스)
 
 ### 저장소 이중화
 
-- [ ] **히스토리 UI**: IndexedDB 데이터를 보는 별도 화면
+- [x] **히스토리 UI**: IndexedDB 데이터를 보는 별도 화면
   - 커서 기반 페이지네이션 (`[state, createdAt]` 복합 인덱스 활용)
   - 상태 필터 지원
 
@@ -48,20 +48,13 @@
 
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악
-- [ ] **분쟁 해결 도구**: `remitted` 상태의 오더에 대한 Admin 중재 기능
-  - Sponsor가 KRW 송금을 주장(`escrowed → remitted`)한 후 Customer가 입금 확인을 하지 않으면 분쟁 진입
-  - Admin이 Sponsor에게 송금 증거 제출 요구 (스크린샷, 이체 확인서 등)
-  - 만료 전 판정:
-    - 증거 타당 → `remitted → sponsor_wins`: hold invoice settle → Sponsor에게 BTC 전달
-    - 증거 불충분 → `remitted → customer_wins`: hold invoice cancel → Customer BTC 자동 환불
-  - 만료 임박 자동 settle (판정 미완료 시):
-    - `invoice-watcher`가 remitted 오더의 만료 임박 감지 → 선제 settle → BTC를 Admin 노드에 확보
-    - 이후 sponsor_wins: Sponsor에게 BTC 전송 (정상 흐름)
-    - 이후 customer_wins: 별도 LN 결제로 Customer에게 BTC 반환 (hold invoice는 이미 settle됨)
-    - 비대칭 손실 원칙: settle은 선택권 보존, 만료는 회수 불가
-  - `remitted` 상태에서는 `cancelled` 불가 — 반드시 분쟁 판정으로 종결
-  - 자동 settle 실패 + 만료 시: BTC는 Customer에게 자동 환불, Admin이 IndexedDB에서 확인 후 수동 판정
-  - 시스템이 자동으로 `customer_wins`를 판정하지 않음 — 판정은 반드시 Admin의 몫
+- [x] **분쟁 해결 도구**: `remitted` 상태의 오더에 대한 Admin 중재 기능
+  - kind 1111 `dispute-message` + NIP-44 암호화 채팅 구현
+  - Admin ↔ Customer, Admin ↔ Sponsor 1:1 채팅
+  - 분쟁 판정: `sponsor_wins` (hold invoice settle + BTC 전송) / `customer_wins` (hold invoice cancel + BTC 환불)
+  - Sponsor 계좌정보 공개 + Admin 커밋먼트 SHA-256 검증 배지
+  - IDB 채팅 메시지 영구 보존 (메인 구독에서 자동 저장)
+  - 히스토리 UI + 오더 상세 페이지 (Admin/Sponsor/Customer 모두)
 
 ## 스팸/DoS 차단
 
@@ -94,4 +87,4 @@
 
 ---
 
-**Last Updated**: 2026-03-01
+**Last Updated**: 2026-03-07

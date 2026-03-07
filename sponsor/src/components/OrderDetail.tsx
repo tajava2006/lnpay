@@ -5,10 +5,11 @@ import {
   addMessage, loadFromIdb, clearMessages,
 } from '../chat-store';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
-import { publishDisputeMessage } from '../nostr/claim';
+import { publishDisputeMessage, publishAccountReveal } from '../nostr/claim';
 import { ChatWindow } from './ChatWindow';
 import { getUserPubkey } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
+import { idbGetRequestsByOrderId } from '../idb-store';
 import { storage } from '../nostr/storage';
 
 interface Props {
@@ -38,11 +39,16 @@ const stateBg: Record<string, string> = {
 export function OrderDetail({ orderId, onBack, tracker }: Props) {
   const [order, setOrder] = useState<Order | null>(null);
   const [myPubkey, setMyPubkey] = useState<string | null>(null);
+  const [hasAccountInfo, setHasAccountInfo] = useState(false);
+  const [revealing, setRevealing] = useState(false);
 
-  // Load order + own pubkey
+  // Load order + own pubkey + account info availability
   useEffect(() => {
     void idbGetOrder(orderId).then(o => { if (o) setOrder(o); });
     void getUserPubkey(storage).then(setMyPubkey);
+    void idbGetRequestsByOrderId(orderId).then(reqs => {
+      setHasAccountInfo(reqs.some(r => r.action === 'account-info' && r.accountInfo));
+    });
   }, [orderId]);
 
   // Chat subscription lifecycle
@@ -67,6 +73,21 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
     if (!order) return;
     const payload: DisputeMessagePayload = { type: 'text', content: text };
     await publishDisputeMessage(order, payload);
+  }, [order]);
+
+  // 계좌정보 공개 (분쟁 시 Admin에게 증거 제출)
+  const handleAccountReveal = useCallback(async () => {
+    if (!order) return;
+    if (!confirm('계좌정보를 Admin에게 공개하시겠습니까?\n원래 전달한 계좌정보의 커밋먼트와 대조 검증됩니다.')) return;
+    setRevealing(true);
+    try {
+      const ok = await publishAccountReveal(order);
+      if (!ok) alert('계좌정보 공개에 실패했습니다.');
+    } catch {
+      alert('계좌정보 공개 중 오류가 발생했습니다.');
+    } finally {
+      setRevealing(false);
+    }
   }, [order]);
 
   // BTC sats conversion
@@ -120,6 +141,22 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
         </div>
         {order.disbursed && <div style={styles.disbursed}>BTC 수령 완료</div>}
       </div>
+
+      {/* 계좌정보 공개 (분쟁 상태에서만 표시) */}
+      {hasAccountInfo && (order.state === 'remitted' || order.state === 'sponsor_wins' || order.state === 'customer_wins') && (
+        <div style={styles.revealSection}>
+          <button
+            style={styles.revealBtn}
+            onClick={() => void handleAccountReveal()}
+            disabled={revealing}
+          >
+            {revealing ? '전송 중...' : '계좌정보 공개'}
+          </button>
+          <span style={styles.revealHint}>
+            Admin에게 원래 전달받은 계좌정보를 공개하여 커밋먼트 검증을 받습니다
+          </span>
+        </div>
+      )}
 
       {/* Chat Window (Sponsor ↔ Admin) */}
       {myPubkey && (
@@ -206,5 +243,32 @@ const styles = {
     fontSize: 12,
     fontWeight: 500 as const,
     color: '#059669',
+  },
+  revealSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    background: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    borderRadius: 8,
+    padding: '12px 16px',
+    marginBottom: 16,
+  },
+  revealBtn: {
+    padding: '8px 16px',
+    fontSize: 13,
+    fontWeight: 600 as const,
+    color: '#fff',
+    background: '#D97706',
+    border: 'none',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap' as const,
+  },
+  revealHint: {
+    fontSize: 11,
+    color: '#92400E',
+    lineHeight: 1.4,
   },
 } as const;

@@ -5,13 +5,25 @@
  * 2. 유저스크립트 kind 1111 이벤트를 구독하고 parsed-store에 반영한다.
  * 3. 파싱 주문이 escrowed 단계(hold invoice 결제 완료)에 도달하면 계좌정보를 자동 전송한다.
  */
-import { getReadRelays, getUserPubkey, getSecretKey } from '@sajwo-tracker/shared';
+import {
+  getReadRelays,
+  getUserPubkey,
+  getSecretKey,
+  nip44Decrypt,
+  APP_PUBKEY,
+  SAJWO_REQUEST_KIND,
+  REQUEST_ACTIONS,
+  type ChatMessage,
+  type DisputeMessagePayload,
+} from '@sajwo-tracker/shared';
+import type { Event } from 'nostr-tools/core';
 import { storage } from './storage';
 import { subscribeAdminOrders, subscribeUserscriptEvents } from './subscribe';
 import { publishAccountInfo } from './publish';
 import { parseAdminEvent, parseParsedOrderEvent } from '../types';
 import { applyAdminUpdate, getSnapshot, setAccountInfo, markSynced } from '../order-store';
 import { addParsedOrder } from '../parsed-store';
+import { idbUpsertMessage } from '../idb-store';
 
 let cleanupAdmin: (() => void) | null = null;
 let cleanupUserscript: (() => void) | null = null;
@@ -61,6 +73,13 @@ async function startUserscriptSubscription(): Promise<void> {
 
   cleanupUserscript = subscribeUserscriptEvents(relays, myPubkey, {
     onEvent: (event) => {
+      // dispute-message 백그라운드 IDB 자동 저장
+      const action = event.tags.find(t => t[0] === 'action')?.[1];
+      if (action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
+        void handleDisputeMessage(event as Event, sk);
+        return;
+      }
+
       const payload = parseParsedOrderEvent(event, sk);
       if (payload) {
         addParsedOrder(event.id, payload);
@@ -91,6 +110,50 @@ async function autoSendAccountInfo(orderId: string): Promise<void> {
   } catch (e) {
     console.error('[Customer] Account info auto-send error for', orderId, e);
   }
+}
+
+// ── dispute-message 백그라운드 IDB 저장 ──────────────
+
+/**
+ * dispute-message 수신 시 NIP-44 복호화 후 IDB에 자동 저장한다.
+ * 디테일 페이지 미진입 상태에서도 분쟁 메시지를 영구 보존하기 위함.
+ */
+async function handleDisputeMessage(event: Event, sk: Uint8Array): Promise<void> {
+  const aTag = event.tags.find(t => t[0] === 'a')?.[1];
+  if (!aTag) return;
+  const parts = aTag.split(':');
+  if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return;
+  const orderId = parts[2]!;
+
+  const recipientPubkey = event.tags.find(t => t[0] === 'p' && t[1] !== event.pubkey)?.[1];
+  if (!recipientPubkey) return;
+
+  let plaintext: string;
+  try {
+    plaintext = nip44Decrypt(event.content, sk, APP_PUBKEY);
+  } catch {
+    return;
+  }
+
+  let payload: DisputeMessagePayload;
+  try {
+    payload = JSON.parse(plaintext) as DisputeMessagePayload;
+  } catch {
+    return;
+  }
+
+  const msg: ChatMessage = {
+    eventId: event.id,
+    orderId,
+    senderPubkey: event.pubkey,
+    recipientPubkey,
+    payload,
+    createdAt: event.created_at,
+  };
+
+  void idbUpsertMessage(msg).catch(err => {
+    console.warn('[Customer] IDB message auto-save failed for', msg.eventId, err);
+  });
 }
 
 // ── 공개 API ───────────────────────────────────────

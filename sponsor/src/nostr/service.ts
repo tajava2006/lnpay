@@ -12,13 +12,19 @@ import {
   getUserPubkey,
   getSecretKey,
   nip44Decrypt,
+  APP_PUBKEY,
+  SAJWO_REQUEST_KIND,
+  REQUEST_ACTIONS,
   type AccountInfo,
+  type ChatMessage,
+  type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
+import type { Event } from 'nostr-tools/core';
 import { storage } from './storage';
 import { subscribeSajwoRequests, subscribeRequests } from './subscribe';
 import { parseEvent, parseAccountInfoEvent } from '../types';
 import { upsertOrder, markSynced } from '../order-store';
-import { idbHasOrder, idbUpsertOrder, idbUpsertRequest } from '../idb-store';
+import { idbHasOrder, idbUpsertOrder, idbUpsertRequest, idbUpsertMessage } from '../idb-store';
 import { setAccountInfo } from '../account-store';
 import type { AccountInfoEvent, SponsorRequest } from '../types';
 
@@ -46,12 +52,20 @@ export async function startOrderSubscription(): Promise<void> {
     },
   });
 
-  // kind 1111 구독 (account-info 수신)
+  // kind 1111 구독 (account-info + dispute-message 수신)
   const myPubkey = await getUserPubkey(storage);
   cleanupReqs = subscribeRequests(relays, myPubkey, {
     onRequest: (event) => {
       const parsed = parseAccountInfoEvent(event);
-      if (parsed) void handleAccountInfo(parsed);
+      if (parsed) {
+        void handleAccountInfo(parsed);
+        return;
+      }
+      // dispute-message 백그라운드 IDB 자동 저장
+      const action = event.tags.find(t => t[0] === 'action')?.[1];
+      if (action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
+        void handleDisputeMessage(event as Event);
+      }
     },
     onEose: () => {
       console.log('[Sponsor] Request subscription EOSE');
@@ -110,4 +124,52 @@ async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
   } catch (err) {
     console.warn('[Sponsor] IDB account-info save failed for', event.orderId, err);
   }
+}
+
+// ── dispute-message 백그라운드 IDB 저장 ──────────────
+
+/**
+ * dispute-message 수신 시 NIP-44 복호화 후 IDB에 자동 저장한다.
+ * 디테일 페이지 미진입 상태에서도 분쟁 메시지를 영구 보존하기 위함.
+ */
+async function handleDisputeMessage(event: Event): Promise<void> {
+  const aTag = event.tags.find(t => t[0] === 'a')?.[1];
+  if (!aTag) return;
+  const parts = aTag.split(':');
+  if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return;
+  const orderId = parts[2]!;
+
+  // 클레임한 건만 저장
+  if (!await idbHasOrder(orderId)) return;
+
+  const recipientPubkey = event.tags.find(t => t[0] === 'p' && t[1] !== event.pubkey)?.[1];
+  if (!recipientPubkey) return;
+
+  const sk = await getSecretKey(storage);
+  let plaintext: string;
+  try {
+    plaintext = nip44Decrypt(event.content, sk, APP_PUBKEY);
+  } catch {
+    return;
+  }
+
+  let payload: DisputeMessagePayload;
+  try {
+    payload = JSON.parse(plaintext) as DisputeMessagePayload;
+  } catch {
+    return;
+  }
+
+  const msg: ChatMessage = {
+    eventId: event.id,
+    orderId,
+    senderPubkey: event.pubkey,
+    recipientPubkey,
+    payload,
+    createdAt: event.created_at,
+  };
+
+  void idbUpsertMessage(msg).catch(err => {
+    console.warn('[Sponsor] IDB message auto-save failed for', msg.eventId, err);
+  });
 }

@@ -1,14 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChatMessage } from '@sajwo-tracker/shared';
+import { sha256Hex } from '@sajwo-tracker/shared';
+import type { ChatMessage, AccountInfo } from '@sajwo-tracker/shared';
 
 interface Props {
   label: string;
   messages: ChatMessage[];
   myPubkey: string;
   onSend: (text: string) => Promise<void>;
+  /** account-info 커밋먼트 해시 (Sponsor 채팅에서만 사용) */
+  accountCommitment?: string;
 }
 
-export function ChatWindow({ label, messages, myPubkey, onSend }: Props) {
+/** account-reveal 메시지의 커밋먼트 검증 배지 */
+function CommitmentBadge({ accountInfo, commitment }: { accountInfo: AccountInfo; commitment: string }) {
+  const [verified, setVerified] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void sha256Hex(JSON.stringify(accountInfo)).then(hash => {
+      setVerified(hash === commitment);
+    });
+  }, [accountInfo, commitment]);
+
+  if (verified === null) return null;
+  if (verified) {
+    return (
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#059669', marginTop: 4 }}>
+        &#x2713; 커밋먼트 검증 완료
+      </div>
+    );
+  }
+  return (
+    <div style={{ fontSize: 11, fontWeight: 600, color: '#DC2626', marginTop: 4 }}>
+      &#x26A0; 커밋먼트 불일치
+    </div>
+  );
+}
+
+export function ChatWindow({ label, messages, myPubkey, onSend, accountCommitment }: Props) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -65,6 +93,12 @@ export function ChatWindow({ label, messages, myPubkey, onSend }: Props) {
                     <div>{msg.payload.accountInfo.bankName}</div>
                     <div>{msg.payload.accountInfo.accountNumber}</div>
                     <div>{msg.payload.accountInfo.holderName}</div>
+                    {accountCommitment && (
+                      <CommitmentBadge
+                        accountInfo={msg.payload.accountInfo}
+                        commitment={accountCommitment}
+                      />
+                    )}
                   </div>
                 ) : (
                   <div style={styles.text}>{msg.payload.content}</div>

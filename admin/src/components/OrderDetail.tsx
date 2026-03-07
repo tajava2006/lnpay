@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { idbGetOrder } from '../idb-store';
+import { idbGetOrder, idbGetRequestsByOrderId } from '../idb-store';
 import {
   subscribeChatStore, getChatSnapshot,
   addMessage, loadFromIdb, clearMessages,
@@ -43,10 +43,19 @@ function shortPubkey(pk: string): string {
 export function OrderDetail({ orderId, onBack, tracker }: Props) {
   const [order, setOrder] = useState<Order | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [accountCommitment, setAccountCommitment] = useState<string | undefined>();
 
-  // Load order from IDB
+  // Load order + account-info commitment from IDB
   useEffect(() => {
     void idbGetOrder(orderId).then(o => { if (o) setOrder(o); });
+    void idbGetRequestsByOrderId(orderId).then(reqs => {
+      const aiReq = reqs.find(r => r.action === 'account-info');
+      if (aiReq?.raw) {
+        const raw = aiReq.raw as { tags?: string[][] };
+        const commitment = raw.tags?.find(t => t[0] === 'commitment')?.[1];
+        if (commitment) setAccountCommitment(commitment);
+      }
+    });
   }, [orderId]);
 
   // Chat subscription lifecycle
@@ -212,6 +221,7 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
             messages={sponsorMessages}
             myPubkey={APP_PUBKEY}
             onSend={sendToSponsor}
+            accountCommitment={accountCommitment}
           />
         )}
         {!customerPubkey && !sponsorPubkey && (

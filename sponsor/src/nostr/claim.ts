@@ -19,7 +19,7 @@ import {
   type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
-import { idbMigrateClaim } from '../idb-store';
+import { idbMigrateClaim, idbGetRequestsByOrderId } from '../idb-store';
 import type { SponsorRequest } from '../types';
 
 /**
@@ -197,4 +197,25 @@ export async function publishDisputeMessage(
   } finally {
     pool.destroy();
   }
+}
+
+/**
+ * 분쟁 상황에서 계좌정보를 Admin에게 공개한다.
+ * IDB에 저장된 account-info의 계좌정보를 account-reveal 타입 메시지로 발행.
+ * Admin은 이를 수신하여 원본 commitment와 해시 대조 검증한다.
+ */
+export async function publishAccountReveal(order: Order): Promise<boolean> {
+  const requests = await idbGetRequestsByOrderId(order.orderId);
+  const accountInfoReq = requests.find(r => r.action === 'account-info');
+  if (!accountInfoReq?.accountInfo) {
+    console.warn('[Nostr] No account info found for order', order.orderId);
+    return false;
+  }
+
+  const payload: DisputeMessagePayload = {
+    type: 'account-reveal',
+    accountInfo: accountInfoReq.accountInfo,
+  };
+
+  return publishDisputeMessage(order, payload);
 }

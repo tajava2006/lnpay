@@ -14,17 +14,25 @@
  * - approveOrder: 클레임 승인 (claimed → verified) + kind 30402 갱신
  * - revertClaim: 클레임 철회 (claimed → requested) + kind 30402 갱신
  */
-import { getReadRelays, type Order, type PriceTracker } from '@sajwo-tracker/shared';
+import {
+  getReadRelays,
+  APP_PUBKEY,
+  type Order,
+  type PriceTracker,
+  type ChatMessage,
+  type DisputeMessagePayload,
+} from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { subscribeAdmin } from './subscribe';
 import { publishOrder } from './publish';
+import { getSigner } from './nip46';
 import { parseRequestEvent, parseOrderEvent, type ProcessedRequest } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
 import { getPreimage, getEscrowEntry } from '../escrow-store';
-import { idbGetOrder, idbUpsertOrder, idbUpsertRequest, idbGetRequestsByOrderId } from '../idb-store';
+import { idbGetOrder, idbUpsertOrder, idbUpsertRequest, idbUpsertMessage, idbGetRequestsByOrderId } from '../idb-store';
 
 let cleanup: (() => void) | null = null;
 let lnAdapterRef: LightningAdapter | null = null;
@@ -50,6 +58,12 @@ export async function startAdminSubscription(): Promise<void> {
       const request = parseRequestEvent(event);
       if (!request) return;
 
+      // dispute-message는 messages IDB에만 저장 (requests 스토어 skip)
+      if (request.action === 'dispute-message') {
+        void handleDisputeMessage(request);
+        return;
+      }
+
       upsertRequest(request);
       void syncRequestToIdb(request);
 
@@ -66,9 +80,6 @@ export async function startAdminSubscription(): Promise<void> {
         handleAccountInfo(request);
       } else if (request.action === 'remit-request') {
         void handleRemitRequest(request);
-      } else if (request.action === 'dispute-message') {
-        // dispute-message는 디테일 페이지 on-demand 구독에서 처리 (Phase 3)
-        // 메인 구독에서는 skip — 복호화 및 IDB 저장은 채팅 구독 모듈이 담당
       }
     },
     onOrder: (event) => {
@@ -518,6 +529,50 @@ async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
  */
 function handleAccountInfo(request: ProcessedRequest): void {
   console.log('[Admin] account-info received for', request.orderId, 'from', request.pubkey);
+}
+
+/**
+ * dispute-message 수신 시 NIP-44 복호화 후 IDB에 자동 저장한다.
+ * 디테일 페이지 미진입 상태에서도 분쟁 메시지를 영구 보존하기 위함.
+ * 리액티브 스토어는 갱신하지 않음 (on-demand 구독이 담당).
+ */
+async function handleDisputeMessage(request: ProcessedRequest): Promise<void> {
+  const signer = getSigner();
+  if (!signer) return;
+
+  const event = request.raw as { id: string; pubkey: string; content: string; tags: string[][]; created_at: number };
+  const recipientPubkey = event.tags.find(t => t[0] === 'p' && t[1] !== event.pubkey)?.[1];
+  if (!recipientPubkey) return;
+
+  let plaintext: string;
+  try {
+    const remotePubkey = event.pubkey === APP_PUBKEY
+      ? recipientPubkey
+      : event.pubkey;
+    plaintext = await signer.nip44Decrypt(remotePubkey, event.content);
+  } catch {
+    return;
+  }
+
+  let payload: DisputeMessagePayload;
+  try {
+    payload = JSON.parse(plaintext) as DisputeMessagePayload;
+  } catch {
+    return;
+  }
+
+  const msg: ChatMessage = {
+    eventId: event.id,
+    orderId: request.orderId,
+    senderPubkey: event.pubkey,
+    recipientPubkey,
+    payload,
+    createdAt: event.created_at,
+  };
+
+  void idbUpsertMessage(msg).catch(err => {
+    console.warn('[Admin] IDB message auto-save failed for', msg.eventId, err);
+  });
 }
 
 /**

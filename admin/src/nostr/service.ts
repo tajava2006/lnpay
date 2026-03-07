@@ -53,6 +53,11 @@ export async function startAdminSubscription(): Promise<void> {
 
   const relays = await getReadRelays(storage);
 
+  // EOSE까지 리퀘스트를 버퍼링하여 catch-up 중 stale 상태 기반 처리를 방지한다.
+  // 오더 에코가 먼저 로컬에 반영된 후 버퍼의 리퀘스트를 처리하면
+  // canTransition이 과거 리퀘스트를 정확히 거부한다.
+  let pendingRequests: ProcessedRequest[] | null = [];
+
   cleanup = subscribeAdmin(relays, {
     onRequest: (event) => {
       const request = parseRequestEvent(event);
@@ -67,20 +72,13 @@ export async function startAdminSubscription(): Promise<void> {
       upsertRequest(request);
       void syncRequestToIdb(request);
 
-      // action별 분기 처리
-      if (request.action === 'order-request') {
-        void handleOrderRequest(request);
-      } else if (request.action === 'claim') {
-        void handleClaim(request);
-      } else if (request.action === 'payment-confirm') {
-        void handlePaymentConfirm(request);
-      } else if (request.action === 'cancel-request') {
-        void handleCancelRequest(request);
-      } else if (request.action === 'account-info') {
-        handleAccountInfo(request);
-      } else if (request.action === 'remit-request') {
-        void handleRemitRequest(request);
+      // catch-up 중이면 버퍼에 쌓고, EOSE 이후에 처리
+      if (pendingRequests) {
+        pendingRequests.push(request);
+        return;
       }
+
+      dispatchRequest(request);
     },
     onOrder: (event) => {
       const order = parseOrderEvent(event);
@@ -91,8 +89,33 @@ export async function startAdminSubscription(): Promise<void> {
     },
     onEose: () => {
       markSynced();
+      // 오더 상태가 최신으로 반영된 후 버퍼의 리퀘스트를 순차 처리
+      const buffered = pendingRequests;
+      pendingRequests = null;
+      if (buffered) {
+        for (const req of buffered) {
+          dispatchRequest(req);
+        }
+      }
     },
   });
+}
+
+/** 리퀘스트를 action별 핸들러에 분배한다. */
+function dispatchRequest(request: ProcessedRequest): void {
+  if (request.action === 'order-request') {
+    void handleOrderRequest(request);
+  } else if (request.action === 'claim') {
+    void handleClaim(request);
+  } else if (request.action === 'payment-confirm') {
+    void handlePaymentConfirm(request);
+  } else if (request.action === 'cancel-request') {
+    void handleCancelRequest(request);
+  } else if (request.action === 'account-info') {
+    handleAccountInfo(request);
+  } else if (request.action === 'remit-request') {
+    void handleRemitRequest(request);
+  }
 }
 
 export function stopAdminSubscription(): void {

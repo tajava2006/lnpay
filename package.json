@@ -11,6 +11,7 @@
     "build:admin": "pnpm --filter @sajwo-tracker/admin build",
     "build:userscript": "node customer/userscript/esbuild.config.mjs",
     "build:userscript:dev": "SAJWO_DEV=true node customer/userscript/esbuild.config.mjs",
+    "deploy": "git pull && pnpm install --frozen-lockfile && pnpm build:userscript && pnpm build:customer && pnpm build:sponsor && pnpm build:admin",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint"
   }

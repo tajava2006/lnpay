@@ -20,6 +20,8 @@
 
 ### UI/UX
 
+- [ ] **주문 취소 버튼**: `cancel-request` 발행 함수는 구현되어 있으나 OrderRow UI에 버튼 미연결
+- [ ] **만료 시간 표시**: OrderRow에 입금 기한 카운트다운 또는 만료 배지 없음
 - [ ] **알림 기능**: 상태 변경 시 브라우저 알림
   - Admin 오더 상태 변경 수신 시 (claimed, verified, escrowed, paid 등)
   - 입금 완료 시
@@ -27,16 +29,9 @@
 ## Sponsor App
 
 - [ ] **오더북 페이지네이션**: 주문이 많아질 경우 대비
-- [x] **히스토리 UI**: IndexedDB에 저장된 클레임 히스토리를 보는 별도 화면
 - [ ] **스타일링 고도화**: 현재 인라인 스타일 → CSS 또는 스타일링 라이브러리
 
 ## Admin App (에스크로 서비스)
-
-### 저장소 이중화
-
-- [x] **히스토리 UI**: IndexedDB 데이터를 보는 별도 화면
-  - 커서 기반 페이지네이션 (`[state, createdAt]` 복합 인덱스 활용)
-  - 상태 필터 지원
 
 ### 정산 (BTC 지급/환불)
 
@@ -48,13 +43,6 @@
 
 - [ ] **릴레이 목록 관리**: kind 10002 이벤트 발행/수정 UI
 - [ ] **모니터링 대시보드**: 시스템 전체 현황 파악
-- [x] **분쟁 해결 도구**: `remitted` 상태의 오더에 대한 Admin 중재 기능
-  - kind 1111 `dispute-message` + NIP-44 암호화 채팅 구현
-  - Admin ↔ Customer, Admin ↔ Sponsor 1:1 채팅
-  - 분쟁 판정: `sponsor_wins` (hold invoice settle + BTC 전송) / `customer_wins` (hold invoice cancel + BTC 환불)
-  - Sponsor 계좌정보 공개 + Admin 커밋먼트 SHA-256 검증 배지
-  - IDB 채팅 메시지 영구 보존 (메인 구독에서 자동 저장)
-  - 히스토리 UI + 오더 상세 페이지 (Admin/Sponsor/Customer 모두)
 
 ## 스팸/DoS 차단
 
@@ -81,6 +69,7 @@
 
 ## 기술 부채
 
+- [ ] **CLN hold invoice 지원**: 현재 LND 전용 (`holdInvoice`, `settleInvoice`). CLN은 probe만 가능하고 hold invoice API 미구현
 - [ ] **테스트 코드 작성**: Admin state-machine, Customer/Sponsor 이벤트 파싱 등 핵심 로직 테스트
 - [ ] **에러 처리 강화**: 네트워크 오류, 파싱 실패 등 예외 상황 처리
 - [ ] **로깅 개선**: 디버깅 용이하도록 구조화된 로그

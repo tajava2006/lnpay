@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import type { ProcessedRequest } from '../types';
-import type { PriceTracker, Order } from '@sajwo-tracker/shared';
+import type { Order } from '@sajwo-tracker/shared';
 import type { LightningAdapter, ProbeResult } from '../lightning';
 import { updateLiquidityVerified } from '../request-store';
 import { approveOrder, revertClaim } from '../nostr/service';
-import { SatsAmount } from './SatsAmount';
 
 interface Props {
   request: ProcessedRequest;
   order: Order | undefined;
-  tracker: PriceTracker;
   lnAdapter: LightningAdapter | null;
 }
 
@@ -19,16 +17,13 @@ const actionLabel: Record<string, string> = {
   'payment-confirm': '결제 확인',
 };
 
-const stateLabel: Record<string, string> = {
-  requested: '요청됨',
-  claimed: '클레임됨',
-  verified: '검증됨',
-  escrowed: '에스크로',
-  remitted: '송금 주장',
-  paid: '완료',
-  cancelled: '취소',
-  sponsor_wins: '후원자 승리',
-  customer_wins: '고객 승리',
+const senderLabel: Record<string, string> = {
+  'order-request': '고객',
+  claim: '후원자',
+  'payment-confirm': '고객',
+  'cancel-request': '고객',
+  'remit-request': '후원자',
+  'account-info': '고객',
 };
 
 const stateColor: Record<string, string> = {
@@ -41,18 +36,6 @@ const stateColor: Record<string, string> = {
   cancelled: '#6B7280',
   sponsor_wins: '#0F766E',
   customer_wins: '#0E7490',
-};
-
-const stateBg: Record<string, string> = {
-  requested: '#FEF3C7',
-  claimed: '#DBEAFE',
-  verified: '#E0E7FF',
-  escrowed: '#EDE9FE',
-  remitted: '#FCE7F3',
-  paid: '#D1FAE5',
-  cancelled: '#F3F4F6',
-  sponsor_wins: '#CCFBF1',
-  customer_wins: '#CFFAFE',
 };
 
 function formatDate(unixSeconds: number): string {
@@ -79,7 +62,7 @@ function probeResultMessage(result: ProbeResult): { text: string; color: string 
   }
 }
 
-export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
+export function ClaimCard({ request, order, lnAdapter }: Props) {
   const orderState = order?.state;
   const isClaim = request.action === 'claim';
   const decoded = request.invoice?.decoded ?? null;
@@ -162,38 +145,12 @@ export function ClaimCard({ request, order, tracker, lnAdapter }: Props) {
       borderLeft: `4px solid ${orderState ? (stateColor[orderState] ?? '#999') : '#999'}`,
     }}>
       <div style={styles.top}>
-        <div style={styles.topLeft}>
-          <span style={styles.actionBadge}>
-            {actionLabel[request.action] ?? request.action}
-          </span>
-          {order && (
-            <>
-              <span style={styles.price}>
-                {order.price.toLocaleString()}원
-              </span>
-              <SatsAmount krw={order.price} tracker={tracker} />
-            </>
-          )}
-        </div>
-        {orderState && (
-          <span style={{
-            ...styles.statusBadge,
-            background: stateBg[orderState] ?? '#F3F4F6',
-            color: stateColor[orderState] ?? '#666',
-          }}>
-            {stateLabel[orderState] ?? orderState}
-          </span>
-        )}
-      </div>
-
-      <div style={styles.meta}>
-        <span>
-          {isClaim ? '후원자' : '요청자'}: {shortenKey(request.pubkey)}
+        <span style={styles.actionBadge}>
+          {actionLabel[request.action] ?? request.action}
         </span>
-        {order?.customerPubkey && (
-          <span>고객: {shortenKey(order.customerPubkey)}</span>
-        )}
-        <span>{formatDate(request.createdAt)}</span>
+        <span style={styles.metaText}>
+          {senderLabel[request.action] ?? '알 수 없음'} · {formatDate(request.createdAt)}
+        </span>
       </div>
 
       {/* 인보이스 디코딩 결과 (클레임만) */}
@@ -293,14 +250,9 @@ const styles = {
   },
   top: {
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  topLeft: {
-    display: 'flex',
-    alignItems: 'baseline',
     gap: 8,
+    marginBottom: 8,
   },
   actionBadge: {
     fontSize: 12,
@@ -310,24 +262,9 @@ const styles = {
     borderRadius: 4,
     padding: '2px 8px',
   },
-  price: {
-    fontSize: 18,
-    fontWeight: 700 as const,
-    color: '#4F46E5',
-  },
-  statusBadge: {
-    display: 'inline-block',
-    borderRadius: 6,
-    padding: '4px 10px',
-    fontSize: 12,
-    fontWeight: 600 as const,
-  },
-  meta: {
-    display: 'flex',
-    gap: 16,
+  metaText: {
     fontSize: 12,
     color: '#999',
-    marginBottom: 8,
   },
   invoiceInfo: {
     background: '#F9FAFB',

@@ -92,6 +92,14 @@ export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
             </span>
           )}
         </div>
+        {order && (
+          <div style={styles.pubkeys}>
+            <span>고객: {order.customerPubkey.slice(0, 8)}...{order.customerPubkey.slice(-4)}</span>
+            {order.sponsorPubkey && (
+              <span>후원자: {order.sponsorPubkey.slice(0, 8)}...{order.sponsorPubkey.slice(-4)}</span>
+            )}
+          </div>
+        )}
 
         {/* 송금 상태 (paid / sponsor_wins) */}
         {showDisburse && (
@@ -130,7 +138,6 @@ export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
               key={request.eventId}
               request={request}
               order={order}
-              tracker={tracker}
               lnAdapter={lnAdapter}
             />
           ))}
@@ -252,5 +259,13 @@ const styles = {
     fontSize: 12,
     color: '#DC2626',
     fontWeight: 500 as const,
+  },
+  pubkeys: {
+    display: 'flex',
+    gap: 16,
+    fontSize: 12,
+    color: '#999',
+    marginTop: 6,
+    fontFamily: 'monospace',
   },
 };

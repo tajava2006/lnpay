@@ -290,6 +290,7 @@ export function App() {
           <OrderQueue onSelectOrder={selectOrder} tracker={tracker} />
         )}
       </main>
+      <p style={styles.version}>{__COMMIT_HASH__}</p>
     </div>
   );
 }
@@ -355,5 +356,11 @@ const styles = {
     border: '1px solid #FECACA',
     borderRadius: 6,
     cursor: 'pointer' as const,
+  },
+  version: {
+    marginTop: 64,
+    textAlign: 'right' as const,
+    fontSize: 10,
+    color: '#ccc',
   },
 } as const;

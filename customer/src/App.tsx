@@ -28,6 +28,7 @@ function AppContent() {
   return (
     <div className="container">
       <Dashboard tracker={tracker} />
+      <p style={{ marginTop: 64, textAlign: 'right', fontSize: 10, color: '#ccc' }}>{__COMMIT_HASH__}</p>
     </div>
   );
 }

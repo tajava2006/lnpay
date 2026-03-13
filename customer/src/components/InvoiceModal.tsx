@@ -1,14 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import type { PriceTracker } from '@sajwo-tracker/shared';
+import { decodeBolt11 } from '../utils/bolt11';
 
 interface Props {
   orderId: string;
   bolt11: string;
+  price: number;
+  tracker: PriceTracker;
   onClose: () => void;
 }
 
-export function InvoiceModal({ orderId, bolt11, onClose }: Props) {
+const FAIR_RATIO_LIMIT = 1.05;
+
+function formatSats(sats: number): string {
+  return sats.toLocaleString() + ' sats';
+}
+
+export function InvoiceModal({ orderId, bolt11, price, tracker, onClose }: Props) {
   const [copied, setCopied] = useState(false);
+
+  const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
+  const btcKrw = priceSnap.price;
+
+  const decoded = useMemo(() => decodeBolt11(bolt11), [bolt11]);
+
+  // 시세 대비 적정성: 주문 KRW를 현재 BTC 가격으로 환산한 sats와 비교
+  const fairness = useMemo(() => {
+    if (!decoded || !btcKrw || price <= 0) return null;
+    const expectedSats = Math.round((price / btcKrw) * 1e8);
+    const ratio = decoded.amountSat / expectedSats;
+    return { expectedSats, ratio };
+  }, [decoded, btcKrw, price]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -50,6 +73,33 @@ export function InvoiceModal({ orderId, bolt11, onClose }: Props) {
         </div>
         <div style={styles.body}>
           <p style={styles.orderLabel}>주문 #{orderId}</p>
+
+          {decoded && (
+            <div style={styles.amountSection}>
+              <span style={styles.amountValue}>{formatSats(decoded.amountSat)}</span>
+              {fairness && (() => {
+                const diffPct = Math.round((fairness.ratio - 1) * 100);
+                const isFair = fairness.ratio <= FAIR_RATIO_LIMIT;
+                return (
+                  <span style={{
+                    ...styles.fairnessLabel,
+                    color: isFair ? '#059669' : '#D97706',
+                  }}>
+                    {isFair
+                      ? `현재 시세 대비 적정 (${diffPct >= 0 ? '+' : ''}${diffPct}%) 합니다.`
+                      : `시세 대비 ${diffPct}% 높음`
+                    }
+                  </span>
+                );
+              })()}
+              {fairness && (
+                <span style={styles.fairnessDetail}>
+                  현재 시세 기준 약 {formatSats(fairness.expectedSats)}
+                </span>
+              )}
+            </div>
+          )}
+
           <div style={styles.qrContainer}>
             <QRCodeSVG
               value={`lightning:${bolt11}`}
@@ -116,7 +166,30 @@ const styles = {
   orderLabel: {
     fontSize: 14,
     color: '#666',
-    margin: '0 0 16px',
+    margin: '0 0 12px',
+  },
+  amountSection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 16,
+    padding: '12px 16px',
+    background: '#F9FAFB',
+    borderRadius: 10,
+  },
+  amountValue: {
+    fontSize: 22,
+    fontWeight: 700 as const,
+    color: '#333',
+  },
+  fairnessLabel: {
+    fontSize: 13,
+    fontWeight: 600 as const,
+  },
+  fairnessDetail: {
+    fontSize: 12,
+    color: '#999',
   },
   qrContainer: {
     display: 'flex',

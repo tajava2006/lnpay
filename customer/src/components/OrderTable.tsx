@@ -3,8 +3,13 @@ import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
 import { isFinal } from '../order-states';
 import { OrderRow } from './OrderRow';
 import type { CustomerOrder } from '../types';
+import type { PriceTracker } from '@sajwo-tracker/shared';
 
-export function OrderTable() {
+interface Props {
+  tracker: PriceTracker;
+}
+
+export function OrderTable({ tracker }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
   const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
 
@@ -48,7 +53,7 @@ export function OrderTable() {
             </tr>
           ) : (
             sorted.map(order => (
-              <OrderRow key={order.orderId} order={order} />
+              <OrderRow key={order.orderId} order={order} tracker={tracker} />
             ))
           )}
         </tbody>

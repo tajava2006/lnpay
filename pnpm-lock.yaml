@@ -53,6 +53,9 @@ importers:
       '@sajwo-tracker/shared':
         specifier: workspace:*
         version: link:../shared
+      light-bolt11-decoder:
+        specifier: ^3.2.0
+        version: 3.2.0
       nostr-tools:
         specifier: ^2.23.0
         version: 2.23.0(typescript@5.9.3)

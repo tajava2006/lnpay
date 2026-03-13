@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { CustomerOrder } from '../types';
-import type { AccountInfo } from '@sajwo-tracker/shared';
+import type { AccountInfo, PriceTracker } from '@sajwo-tracker/shared';
 import { getDisplayMeta, isDeletable } from '../order-states';
 import { publishOrderRequest, publishNotification, publishAccountInfo } from '../nostr/publish';
 import { markPublished, deleteOrder, setAccountInfo } from '../order-store';
@@ -10,9 +10,10 @@ import { OrderDetail } from './OrderDetail';
 
 interface Props {
   order: CustomerOrder;
+  tracker: PriceTracker;
 }
 
-export function OrderRow({ order }: Props) {
+export function OrderRow({ order, tracker }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
@@ -207,6 +208,8 @@ export function OrderRow({ order }: Props) {
         <InvoiceModal
           orderId={order.orderId}
           bolt11={order.bolt11}
+          price={order.price}
+          tracker={tracker}
           onClose={() => setShowInvoice(false)}
         />
       )}

@@ -57,7 +57,7 @@ export function Dashboard({ tracker }: Props) {
       <OrderForm />
 
       <h2 className="section-title">주문 목록</h2>
-      <OrderTable />
+      <OrderTable tracker={tracker} />
 
       <UserscriptGuide />
 

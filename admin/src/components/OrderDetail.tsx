@@ -141,7 +141,7 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
 
   return (
     <div>
-      <button style={styles.backBtn} onClick={onBack}>← 히스토리</button>
+      <button style={styles.backBtn} onClick={onBack}>← 목록 보기</button>
 
       {/* Order Summary */}
       <div style={styles.summary}>

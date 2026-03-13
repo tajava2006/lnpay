@@ -188,10 +188,6 @@ export function App() {
     setSelectedOrderId(orderId);
   }, []);
 
-  const goBack = useCallback(() => {
-    history.back();
-  }, []);
-
   const goHistory = useCallback(() => {
     history.pushState(null, '', '?page=history');
     setCurrentPage('history');
@@ -244,8 +240,17 @@ export function App() {
       <header style={styles.header}>
         <div style={styles.titleRow}>
           <h1 style={styles.title}>사줘 트래커 어드민</h1>
-          <button style={styles.navBtn} onClick={goHistory}>
-            히스토리
+          <button
+            style={currentPage !== 'history' && currentPage !== 'detail' ? styles.navBtnActive : styles.navBtn}
+            onClick={goQueue}
+          >
+            오더북
+          </button>
+          <button
+            style={currentPage === 'history' || currentPage === 'detail' ? styles.navBtnActive : styles.navBtn}
+            onClick={goHistory}
+          >
+            주문 히스토리
           </button>
           <button
             style={lnConfig ? styles.lnConfigBtn : styles.lnConfigBtnWarn}
@@ -270,20 +275,19 @@ export function App() {
         {currentPage === 'detail' && selectedOrderId ? (
           <OrderDetail
             orderId={selectedOrderId}
-            onBack={goBack}
+            onBack={goHistory}
             tracker={tracker}
           />
         ) : selectedOrderId ? (
           <OrderClaimList
             orderId={selectedOrderId}
-            onBack={goBack}
+            onBack={goQueue}
             tracker={tracker}
             lnAdapter={lnAdapter}
           />
         ) : currentPage === 'history' ? (
           <HistoryPage
             onSelectOrder={selectOrderDetail}
-            onBack={goQueue}
             tracker={tracker}
           />
         ) : (
@@ -334,6 +338,16 @@ const styles = {
     color: '#4F46E5',
     background: '#EEF2FF',
     border: '1px solid #C7D2FE',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
+  },
+  navBtnActive: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 600 as const,
+    color: '#fff',
+    background: '#4F46E5',
+    border: '1px solid #4F46E5',
     borderRadius: 6,
     cursor: 'pointer' as const,
   },

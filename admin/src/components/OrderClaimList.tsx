@@ -63,7 +63,7 @@ export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
   return (
     <div>
       <button style={styles.backBtn} onClick={onBack}>
-        ← 오더 목록
+        ← 목록 보기
       </button>
 
       <div style={styles.orderHeader}>

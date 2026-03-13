@@ -57,10 +57,6 @@ function AppContent() {
     setSelectedOrderId(orderId);
   }, []);
 
-  const goBack = useCallback(() => {
-    history.back();
-  }, []);
-
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);
     startOrderSubscription();
@@ -79,8 +75,17 @@ function AppContent() {
       <header style={styles.header}>
         <div style={styles.titleRow}>
           <h1 style={styles.title}>사줘 트래커</h1>
-          <button style={styles.navBtn} onClick={goHistory}>
-            히스토리
+          <button
+            style={currentPage !== 'history' && currentPage !== 'detail' ? styles.navBtnActive : styles.navBtn}
+            onClick={goHome}
+          >
+            오더북
+          </button>
+          <button
+            style={currentPage === 'history' || currentPage === 'detail' ? styles.navBtnActive : styles.navBtn}
+            onClick={goHistory}
+          >
+            주문 히스토리
           </button>
         </div>
         <p style={styles.subtitle}>
@@ -96,13 +101,12 @@ function AppContent() {
         {currentPage === 'detail' && selectedOrderId ? (
           <OrderDetail
             orderId={selectedOrderId}
-            onBack={goBack}
+            onBack={goHistory}
             tracker={tracker}
           />
         ) : currentPage === 'history' ? (
           <HistoryPage
             onSelectOrder={selectOrderDetail}
-            onBack={goHome}
             tracker={tracker}
           />
         ) : (
@@ -155,6 +159,16 @@ const styles = {
     color: '#4F46E5',
     background: '#EEF2FF',
     border: '1px solid #C7D2FE',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
+  },
+  navBtnActive: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 600 as const,
+    color: '#fff',
+    background: '#4F46E5',
+    border: '1px solid #4F46E5',
     borderRadius: 6,
     cursor: 'pointer' as const,
   },

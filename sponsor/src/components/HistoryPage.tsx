@@ -4,7 +4,6 @@ import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 
 interface Props {
   onSelectOrder: (orderId: string) => void;
-  onBack: () => void;
   tracker: PriceTracker;
 }
 
@@ -46,7 +45,7 @@ const stateBg: Record<string, string> = {
   customer_wins: '#CFFAFE',
 };
 
-export function HistoryPage({ onSelectOrder, onBack, tracker }: Props) {
+export function HistoryPage({ onSelectOrder, tracker }: Props) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -80,10 +79,6 @@ export function HistoryPage({ onSelectOrder, onBack, tracker }: Props) {
 
   return (
     <div>
-      <button style={styles.backBtn} onClick={onBack}>
-        ← 요청 목록
-      </button>
-
       {orders.length === 0 && !loading && (
         <div style={styles.empty}>거래 이력이 없습니다</div>
       )}
@@ -148,21 +143,6 @@ export function HistoryPage({ onSelectOrder, onBack, tracker }: Props) {
 }
 
 const styles = {
-  backBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '6px 12px',
-    marginBottom: 16,
-    fontSize: 13,
-    fontWeight: 500 as const,
-    color: '#4F46E5',
-    background: 'none',
-    border: '1px solid #C7D2FE',
-    borderRadius: 6,
-    cursor: 'pointer' as const,
-    fontFamily: 'inherit',
-  },
   list: {
     display: 'flex',
     flexDirection: 'column' as const,

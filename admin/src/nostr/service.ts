@@ -24,7 +24,7 @@ import {
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
 import { subscribeAdmin } from './subscribe';
-import { publishOrder } from './publish';
+import { publishOrder, publishClaimPriceError } from './publish';
 import { getSigner } from './nip46';
 import { parseRequestEvent, parseOrderEvent, type ProcessedRequest } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
@@ -635,6 +635,8 @@ async function handleClaim(request: ProcessedRequest): Promise<void> {
         '[Admin] Claim price out of range (ratio: %s), ignoring: %s',
         ratio.toFixed(3), request.orderId,
       );
+      // 가격 오류 알림 (best-effort, 실패해도 무시)
+      void publishClaimPriceError(request.orderId, request.pubkey, expectedSat).catch(() => {});
       return;
     }
   }

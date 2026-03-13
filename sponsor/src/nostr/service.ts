@@ -26,6 +26,7 @@ import { parseEvent, parseAccountInfoEvent } from '../types';
 import { upsertOrder, markSynced } from '../order-store';
 import { idbHasOrder, idbUpsertOrder, idbUpsertRequest, idbUpsertMessage } from '../idb-store';
 import { setAccountInfo } from '../account-store';
+import { setClaimError } from '../claim-error-store';
 import type { AccountInfoEvent, SponsorRequest } from '../types';
 
 let cleanupOrders: (() => void) | null = null;
@@ -61,8 +62,13 @@ export async function startOrderSubscription(): Promise<void> {
         void handleAccountInfo(parsed);
         return;
       }
-      // dispute-message 백그라운드 IDB 자동 저장
       const action = event.tags.find(t => t[0] === 'action')?.[1];
+      // claim-price-error: 가격 에러 알림
+      if (action === REQUEST_ACTIONS.CLAIM_PRICE_ERROR) {
+        handleClaimPriceError(event as Event);
+        return;
+      }
+      // dispute-message 백그라운드 IDB 자동 저장
       if (action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
         void handleDisputeMessage(event as Event);
       }
@@ -124,6 +130,22 @@ async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
   } catch (err) {
     console.warn('[Sponsor] IDB account-info save failed for', event.orderId, err);
   }
+}
+
+// ── claim-price-error 처리 ────────────────────────────
+
+function handleClaimPriceError(event: Event): void {
+  const aTag = event.tags.find(t => t[0] === 'a')?.[1];
+  if (!aTag) return;
+  const parts = aTag.split(':');
+  if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return;
+  const orderId = parts[2]!;
+
+  const expectedSats = Number(event.tags.find(t => t[0] === 'expected-sats')?.[1]);
+  if (!expectedSats || expectedSats <= 0) return;
+
+  setClaimError(orderId, expectedSats);
+  console.log('[Sponsor] Claim price error for', orderId, '- expected:', expectedSats, 'sats');
 }
 
 // ── dispute-message 백그라운드 IDB 저장 ──────────────

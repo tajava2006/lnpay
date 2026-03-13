@@ -5,6 +5,7 @@ import { getStateMeta } from '../order-states';
 import { decodeBolt11 } from '../utils/bolt11';
 import type { Bolt11Result } from '../utils/bolt11';
 import { subscribeAccountInfo, getAccountInfoSnapshot } from '../account-store';
+import { subscribeClaimErrors, getClaimErrorSnapshot, clearClaimError } from '../claim-error-store';
 
 interface Props {
   order: Order;
@@ -52,18 +53,22 @@ function krwToSats(krw: number, btcKrw: number): number {
 export function OrderCard({ order, now, tracker }: Props) {
   const [claiming, setClaiming] = useState(false);
   const [showInvoiceInput, setShowInvoiceInput] = useState(false);
+  const [frozenBtcPrice, setFrozenBtcPrice] = useState<number | null>(null);
   const [invoiceText, setInvoiceText] = useState('');
   const [invoiceResult, setInvoiceResult] = useState<Bolt11Result | null>(null);
   const [remitting, setRemitting] = useState(false);
 
   const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
-  const btcKrw = priceSnap.price;
+  const btcKrw = frozenBtcPrice ?? priceSnap.price;
   const expectedSats = btcKrw && order.price > 0
     ? krwToSats(order.price, btcKrw)
     : null;
 
   const accountInfoMap = useSyncExternalStore(subscribeAccountInfo, getAccountInfoSnapshot);
   const accountInfo = accountInfoMap[order.orderId];
+
+  const claimErrors = useSyncExternalStore(subscribeClaimErrors, getClaimErrorSnapshot);
+  const claimError = claimErrors[order.orderId];
 
   const timeLeft = formatTimeLeft(order.expiration, now);
   const isUrgent = order.expiration > 0 && order.expiration - now < 3600;
@@ -94,6 +99,7 @@ export function OrderCard({ order, now, tracker }: Props) {
       const ok = await publishClaim(order, invoiceText.trim().toLowerCase());
       if (ok) {
         setShowInvoiceInput(false);
+        setFrozenBtcPrice(null);
         setInvoiceText('');
         setInvoiceResult(null);
       } else {
@@ -123,14 +129,14 @@ export function OrderCard({ order, now, tracker }: Props) {
     }
   }
 
-  // 금액 범위 검증: invoice 금액이 예상 BTC 환산의 90~110% 이내인지
-  const amountInRange = (() => {
+  // 금액 일치 검증: invoice 금액이 고정된 예상 sats와 동일한지
+  const amountMatch = (() => {
     if (!invoiceResult?.valid || !expectedSats) return true;
     const invoiceSats = Math.floor(invoiceResult.amountMsat! / 1000);
-    return invoiceSats >= expectedSats * 0.9 && invoiceSats <= expectedSats * 1.1;
+    return invoiceSats === expectedSats;
   })();
 
-  const isInvoiceValid = invoiceResult?.valid === true && amountInRange;
+  const isInvoiceValid = invoiceResult?.valid === true && amountMatch;
 
   return (
     <div style={styles.card}>
@@ -150,13 +156,21 @@ export function OrderCard({ order, now, tracker }: Props) {
         {canClaim ? (
           showInvoiceInput ? (
             <div style={styles.invoiceSection}>
+              {claimError && (
+                <p style={styles.priceErrorMsg}>
+                  인보이스 금액이 현재 시세와 맞지 않습니다.
+                  현재 시세 기준 {claimError.expectedSats.toLocaleString()} sats로 재발행해 주세요.
+                </p>
+              )}
               <p style={styles.invoiceDesc}>
-                유동성 검증을 위해 <strong>{order.price.toLocaleString()}원
-                {expectedSats !== null && ` (약 ${expectedSats.toLocaleString()} sats)`}</strong> 상당의
-                Lightning invoice를 붙여넣어 주세요.
+                유동성 검증을 위해{' '}
+                {expectedSats !== null
+                  ? <strong>{expectedSats.toLocaleString()} sats</strong>
+                  : <strong>{order.price.toLocaleString()}원</strong>
+                }의 Lightning invoice를 붙여넣어 주세요.
               </p>
               <p style={styles.invoiceHint}>
-                본인 지갑에서 해당 금액의 invoice를 생성한 뒤 여기에 붙여넣으면,
+                본인 지갑에서 위 금액의 invoice를 생성한 뒤 여기에 붙여넣으면,
                 에스크로가 Lightning 경로를 검증합니다. 실제 결제는 발생하지 않습니다.
               </p>
               <textarea
@@ -170,10 +184,10 @@ export function OrderCard({ order, now, tracker }: Props) {
                 <p style={styles.invoiceError}>{invoiceResult.error}</p>
               )}
               {invoiceResult?.valid && (
-                <p style={amountInRange ? styles.invoiceSuccess : styles.invoiceError}>
+                <p style={amountMatch ? styles.invoiceSuccess : styles.invoiceError}>
                   {formatSats(invoiceResult.amountMsat!)}
-                  {!amountInRange && expectedSats !== null && (
-                    ` — 예상 범위(${Math.floor(expectedSats * 0.9).toLocaleString()}~${Math.ceil(expectedSats * 1.1).toLocaleString()} sats)를 벗어납니다.`
+                  {!amountMatch && expectedSats !== null && (
+                    ` — ${expectedSats.toLocaleString()} sats로 발행해 주세요.`
                   )}
                 </p>
               )}
@@ -193,6 +207,7 @@ export function OrderCard({ order, now, tracker }: Props) {
                   style={styles.cancelBtn}
                   onClick={() => {
                     setShowInvoiceInput(false);
+                    setFrozenBtcPrice(null);
                     setInvoiceText('');
                     setInvoiceResult(null);
                   }}
@@ -203,12 +218,24 @@ export function OrderCard({ order, now, tracker }: Props) {
               </div>
             </div>
           ) : (
-            <button
-              style={styles.claimBtn}
-              onClick={() => setShowInvoiceInput(true)}
-            >
-              사줄게
-            </button>
+            <>
+              <button
+                style={styles.claimBtn}
+                onClick={() => {
+                  clearClaimError(order.orderId);
+                  setFrozenBtcPrice(priceSnap.price);
+                  setShowInvoiceInput(true);
+                }}
+              >
+                사줄게
+              </button>
+              {claimError && (
+                <p style={styles.priceErrorMsg}>
+                  클레임이 거부되었습니다.
+                  현재 시세 기준 {claimError.expectedSats.toLocaleString()} sats로 재발행해 주세요.
+                </p>
+              )}
+            </>
           )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -393,6 +420,16 @@ const styles = {
     color: '#555',
     margin: 0,
     fontFamily: 'monospace',
+  },
+  priceErrorMsg: {
+    fontSize: 12,
+    color: '#DC2626',
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: 6,
+    padding: '8px 12px',
+    margin: 0,
+    lineHeight: 1.5,
   },
   remitBtn: {
     marginTop: 4,

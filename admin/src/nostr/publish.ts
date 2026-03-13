@@ -130,3 +130,44 @@ export async function publishDisputeMessage(
 
   return signed;
 }
+
+/**
+ * 클레임 가격 오류 알림을 kind 1111로 발행한다.
+ * 인보이스 금액이 현재 시세 범위를 벗어날 때 Sponsor에게 재발행을 요청한다.
+ * 오더 상태에 영향 없음 (사용성 개선 목적 알림).
+ */
+export async function publishClaimPriceError(
+  orderId: string,
+  sponsorPubkey: string,
+  expectedSats: number,
+): Promise<void> {
+  const signer = getSigner();
+  if (!signer) return;
+
+  const now = Math.floor(Date.now() / 1000);
+
+  const template: EventTemplate = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: now,
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ['action', REQUEST_ACTIONS.CLAIM_PRICE_ERROR],
+      ['t', CLIENT_TAG],
+      ['p', sponsorPubkey],
+      ['expected-sats', String(expectedSats)],
+      ['expiration', String(now + 3600)],
+    ],
+    content: '',
+  };
+
+  const signed = await signer.signEvent(template);
+
+  const relays = await getReadRelays(storage);
+  const pool = new SimplePool();
+  try {
+    await Promise.allSettled(pool.publish(relays, signed));
+    console.log('[Admin] Published claim-price-error for', orderId, 'to', sponsorPubkey.slice(0, 12));
+  } finally {
+    pool.destroy();
+  }
+}

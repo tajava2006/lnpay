@@ -11,6 +11,7 @@ import { ChatWindow } from './ChatWindow';
 import { SatsAmount } from './SatsAmount';
 import { APP_PUBKEY } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
+import type { ProcessedRequest } from '../types';
 
 interface Props {
   orderId: string;
@@ -36,19 +37,48 @@ const stateBg: Record<string, string> = {
   cancelled: '#F3F4F6', sponsor_wins: '#CCFBF1', customer_wins: '#CFFAFE',
 };
 
+const requestActionLabel: Record<string, string> = {
+  'order-request': '주문 요청',
+  claim: '클레임',
+  'payment-confirm': '결제 확인',
+  'cancel-request': '취소 요청',
+  'remit-request': '송금 완료',
+  'account-info': '계좌 정보',
+};
+
+const requestSenderLabel: Record<string, string> = {
+  'order-request': '고객',
+  claim: '후원자',
+  'payment-confirm': '고객',
+  'cancel-request': '고객',
+  'remit-request': '후원자',
+  'account-info': '고객',
+};
+
 function shortPubkey(pk: string): string {
   return pk.length > 16 ? `${pk.slice(0, 8)}…${pk.slice(-8)}` : pk;
 }
 
+function formatDate(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleString('ko-KR', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function OrderDetail({ orderId, onBack, tracker }: Props) {
   const [order, setOrder] = useState<Order | null>(null);
+  const [requests, setRequests] = useState<ProcessedRequest[]>([]);
   const [resolving, setResolving] = useState(false);
   const [accountCommitment, setAccountCommitment] = useState<string | undefined>();
 
-  // Load order + account-info commitment from IDB
+  // Load order + requests from IDB
   useEffect(() => {
     void idbGetOrder(orderId).then(o => { if (o) setOrder(o); });
     void idbGetRequestsByOrderId(orderId).then(reqs => {
+      setRequests(reqs.sort((a, b) => b.createdAt - a.createdAt));
       const aiReq = reqs.find(r => r.action === 'account-info');
       if (aiReq?.raw) {
         const raw = aiReq.raw as { tags?: string[][] };
@@ -205,6 +235,33 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
         </div>
       )}
 
+      {/* Requests */}
+      {requests.length > 0 && (
+        <div style={styles.requestSection}>
+          <div style={styles.requestTitle}>요청 {requests.length}건</div>
+          <div style={styles.requestList}>
+            {requests.map(req => (
+              <div key={req.eventId} style={styles.requestCard}>
+                <div style={styles.requestTop}>
+                  <span style={styles.requestActionBadge}>
+                    {requestActionLabel[req.action] ?? req.action}
+                  </span>
+                  <span style={styles.requestMeta}>
+                    {requestSenderLabel[req.action] ?? '알 수 없음'} · {formatDate(req.createdAt)}
+                  </span>
+                </div>
+                {req.invoice?.decoded && (
+                  <div style={styles.requestInvoice}>
+                    <span>노드: {shortPubkey(req.invoice.decoded.destination)}</span>
+                    <span>금액: {req.invoice.decoded.amountSat.toLocaleString()} sats</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Chat Windows */}
       <div style={styles.chatSection}>
         {customerPubkey && (
@@ -349,6 +406,50 @@ const styles = {
     borderRadius: 8,
     cursor: 'pointer' as const,
     fontFamily: 'inherit',
+  },
+  requestSection: {
+    marginBottom: 16,
+  },
+  requestTitle: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 8,
+  },
+  requestList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 8,
+  },
+  requestCard: {
+    background: '#fff',
+    border: '1px solid #E5E7EB',
+    borderRadius: 8,
+    padding: '12px 16px',
+  },
+  requestTop: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  requestActionBadge: {
+    fontSize: 12,
+    fontWeight: 600 as const,
+    color: '#4F46E5',
+    background: '#EEF2FF',
+    borderRadius: 4,
+    padding: '2px 8px',
+  },
+  requestMeta: {
+    fontSize: 12,
+    color: '#999',
+  },
+  requestInvoice: {
+    display: 'flex',
+    gap: 16,
+    marginTop: 6,
+    fontSize: 12,
+    color: '#555',
+    fontFamily: 'monospace',
   },
   chatSection: {
     display: 'flex',

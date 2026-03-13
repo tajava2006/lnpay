@@ -32,7 +32,7 @@ import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
 import { getPreimage, getEscrowEntry } from '../escrow-store';
-import { idbGetOrder, idbUpsertOrder, idbUpsertRequest, idbUpsertMessage, idbGetRequestsByOrderId } from '../idb-store';
+import { idbGetOrder, idbUpsertOrder, idbUpsertRequest, idbUpsertMessage, idbGetRequestsByOrderId, idbMigrateOrder } from '../idb-store';
 
 let cleanup: (() => void) | null = null;
 let lnAdapterRef: LightningAdapter | null = null;
@@ -453,7 +453,13 @@ async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
     console.log('[Admin] Auto-created order', request.orderId, 'from order-request');
   } catch (e) {
     console.error('[Admin] Failed to publish order for', request.orderId, e);
+    return;
   }
+
+  // 오더 생성 시점부터 IDB에 이관하여 히스토리 + 채팅을 즉시 활성화 (fire-and-forget)
+  idbMigrateOrder(newOrder, [request]).catch((err: unknown) =>
+    console.warn('[Admin] IndexedDB migration failed for', request.orderId, err),
+  );
 }
 
 /**

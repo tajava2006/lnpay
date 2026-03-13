@@ -1,8 +1,8 @@
 /**
  * Admin IndexedDB 저장소 (히스토리 장기 보존)
  *
- * 에스크로 책임이 시작되는 시점(verified → escrowed)에
- * 오더와 연관 request를 일괄 이관하고, 이후 릴레이 수신 시 동기화한다.
+ * 오더 생성 시점(requested)에 즉시 이관하여 히스토리 + 채팅을 활성화하고,
+ * 이후 릴레이 수신 시 동기화한다.
  *
  * 오브젝트 스토어:
  * - orders: PK orderId, 인덱스 createdAt, [state, createdAt]
@@ -178,7 +178,7 @@ export async function idbGetOrdersPage(
 
 /**
  * 오더 1건 + 연관 request N건을 단일 트랜잭션으로 원자적 저장한다.
- * escrowed 진입 시 호출된다.
+ * 오더 생성(requested) 시 최초 호출, escrowed 진입 시 안전망으로 재호출 (멱등).
  */
 export async function idbMigrateOrder(
   order: Order,

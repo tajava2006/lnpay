@@ -151,7 +151,7 @@ async function transitionOrder(
     return;
   }
 
-  // escrowed 진입 시 IndexedDB에 오더 + 연관 requests 이관 (fire-and-forget)
+  // escrowed 진입 시 안전망: requested에서 이미 IDB 이관되었으나 멱등 재호출 (fire-and-forget)
   if (to === 'escrowed') {
     const allRequests = Object.values(getRequestSnapshot());
     const related = allRequests.filter(r => r.orderId === order.orderId);

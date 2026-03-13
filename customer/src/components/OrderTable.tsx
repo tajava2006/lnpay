@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
 import { isFinal } from '../order-states';
 import { OrderRow } from './OrderRow';
@@ -12,6 +12,12 @@ interface Props {
 export function OrderTable({ tracker }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
   const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
+
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const orderArray = Object.values(orders)
     .sort((a: CustomerOrder, b: CustomerOrder) => {
@@ -53,7 +59,7 @@ export function OrderTable({ tracker }: Props) {
             </tr>
           ) : (
             sorted.map(order => (
-              <OrderRow key={order.orderId} order={order} tracker={tracker} />
+              <OrderRow key={order.orderId} order={order} tracker={tracker} now={now} />
             ))
           )}
         </tbody>

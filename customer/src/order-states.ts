@@ -125,3 +125,16 @@ export function isDeletable(order: CustomerOrder): boolean {
   if (!order.adminState) return true;
   return !UNDELETABLE_STATES.has(order.adminState);
 }
+
+/**
+ * 취소 가능: 에스크로 전 (돈이 오가기 전) 상태
+ */
+const CANCELLABLE_STATES: ReadonlySet<OrderState> = new Set(['requested', 'claimed', 'verified']);
+
+/**
+ * 주문 취소 요청 가능 여부 확인
+ */
+export function isCancellable(order: CustomerOrder): boolean {
+  if (!order.adminState) return false; // Admin에 등록되지 않은 주문은 삭제로 처리
+  return CANCELLABLE_STATES.has(order.adminState);
+}

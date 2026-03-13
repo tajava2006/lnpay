@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CustomerOrder } from '../types';
 import type { AccountInfo, PriceTracker } from '@sajwo-tracker/shared';
-import { getDisplayMeta, isDeletable } from '../order-states';
+import { getDisplayMeta, isDeletable, isCancellable, isFinal } from '../order-states';
 import { publishOrderRequest, publishNotification, publishAccountInfo } from '../nostr/publish';
 import { markPublished, deleteOrder, setAccountInfo } from '../order-store';
 import { InvoiceModal } from './InvoiceModal';
@@ -11,11 +11,24 @@ import { OrderDetail } from './OrderDetail';
 interface Props {
   order: CustomerOrder;
   tracker: PriceTracker;
+  now: number;
 }
 
-export function OrderRow({ order, tracker }: Props) {
+function formatTimeLeft(expiration: number, now: number): string {
+  const diff = expiration - now;
+  if (diff <= 0) return '만료됨';
+  const hours = Math.floor(diff / 3600);
+  const minutes = Math.floor((diff % 3600) / 60);
+  const seconds = diff % 60;
+  if (hours > 0) return `${hours}시간 ${minutes}분 남음`;
+  if (minutes > 0) return `${minutes}분 ${seconds}초 남음`;
+  return `${seconds}초 남음`;
+}
+
+export function OrderRow({ order, tracker, now }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showAccountInfo, setShowAccountInfo] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -32,7 +45,10 @@ export function OrderRow({ order, tracker }: Props) {
   // 파싱 주문 escrowed + sponsorPubkey: 자동 전달 중 표시
   const autoSendingAccount = isParsed && order.adminState === 'escrowed' && order.sponsorPubkey && !order.accountInfo;
   const showConfirmPaid = order.adminState === 'escrowed';
+  const canCancel = isCancellable(order);
   const canDelete = isDeletable(order);
+  const isExpired = order.expiration > 0 && order.expiration <= now;
+  const isUrgent = order.expiration > 0 && !isExpired && order.expiration - now < 3600;
 
   async function handlePublish() {
     setPublishing(true);
@@ -82,6 +98,21 @@ export function OrderRow({ order, tracker }: Props) {
     }
   }
 
+  async function handleCancel() {
+    if (!confirm('이 주문을 취소하시겠습니까?')) return;
+    setCancelling(true);
+    try {
+      const result = await publishNotification(order, 'cancel-request');
+      if (!result.success) {
+        alert('취소 요청에 실패했습니다.');
+      }
+    } catch {
+      alert('취소 요청 중 오류가 발생했습니다.');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   function handleDelete() {
     if (confirm('이 주문을 삭제하시겠습니까?')) {
       deleteOrder(order.orderId);
@@ -119,7 +150,19 @@ export function OrderRow({ order, tracker }: Props) {
             {meta.label}
           </span>
         </td>
-        <td>{dateStr}</td>
+        <td>
+          <div>{dateStr}</div>
+          {order.expiration > 0 && !isFinal(order) && (
+            <div style={{
+              fontSize: 11,
+              fontWeight: 500,
+              marginTop: 2,
+              color: isExpired ? '#DC2626' : isUrgent ? '#D97706' : '#999',
+            }}>
+              {formatTimeLeft(order.expiration, now)}
+            </div>
+          )}
+        </td>
         <td>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {showPublish && (
@@ -188,6 +231,15 @@ export function OrderRow({ order, tracker }: Props) {
                 className="btn"
               >
                 상세
+              </button>
+            )}
+            {canCancel && (
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="btn btn-danger"
+              >
+                {cancelling ? '취소 중...' : '취소'}
               </button>
             )}
             {canDelete && (

@@ -16,7 +16,8 @@ import type { OrderState } from '@sajwo-tracker/shared';
  *                                     │                ├──→ sponsor_wins
  *                                     └──→ paid        └──→ customer_wins
  *
- * cancelled: remitted를 제외한 비터미널 상태에서 전이 가능
+ * cancelled: requested, claimed, verified에서만 전이 가능
+ *   (escrowed 이후는 상대방이 행동할 수 있는 상태이므로 일방 취소 불가)
  *   (remitted는 반드시 분쟁 판정 경로로 종결: paid / sponsor_wins / customer_wins)
  *
  * 터미널: paid, cancelled, sponsor_wins, customer_wins
@@ -25,7 +26,7 @@ const TRANSITIONS: Record<OrderState, readonly OrderState[]> = {
   requested: ['claimed', 'cancelled'],
   claimed: ['requested', 'verified', 'cancelled'],
   verified: ['escrowed', 'cancelled'],
-  escrowed: ['remitted', 'paid', 'cancelled'],
+  escrowed: ['remitted', 'paid'],
   remitted: ['paid', 'sponsor_wins', 'customer_wins'],
   paid: [],
   cancelled: [],

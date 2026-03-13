@@ -122,7 +122,8 @@ requested → claimed → verified → escrowed ─→ remitted ─→ paid
                                     │                ├──→ sponsor_wins
                                     └──→ paid        └──→ customer_wins
 
-cancelled: remitted를 제외한 비터미널 상태에서 전이 가능
+cancelled: requested, claimed, verified에서만 전이 가능
+  (escrowed 이후는 상대방이 행동할 수 있으므로 일방 취소 불가)
 터미널: paid, cancelled, sponsor_wins, customer_wins
 ```
 
@@ -150,13 +151,15 @@ cancelled: remitted를 제외한 비터미널 상태에서 전이 가능
 | verified | cancelled | Customer 이탈 |
 | escrowed | remitted | Sponsor가 KRW 송금 완료 주장 |
 | escrowed | paid | Customer가 직접 입금 확인 (Sponsor 시그널 없이) |
-| escrowed | cancelled | Sponsor 미행동 타임아웃, hold invoice 환불 |
 | remitted | paid | Customer가 입금 확인 |
 | remitted | sponsor_wins | 분쟁: Admin이 송금 증거 확인 → hold invoice settle → Sponsor에게 BTC 전달 |
 | remitted | customer_wins | 분쟁: 증거 불충분 → hold invoice 환불 → Customer BTC 반환 |
 
-> `remitted` 상태에서는 `cancelled`로 전이할 수 없다.
-> Sponsor가 송금을 주장한 이상 분쟁 판정(paid / sponsor_wins / customer_wins)으로만 종결된다.
+> `escrowed` 이후 상태에서는 `cancelled`로 전이할 수 없다.
+> 에스크로가 잡힌 시점부터 Sponsor가 행동할 수 있으므로, Customer 일방의 취소를 허용하면
+> 어뷰징 벡터가 생긴다 (상세: [THREAT-MODEL.md](THREAT-MODEL.md) §T-002).
+> Sponsor가 미행동 시 hold invoice는 CLTV timeout으로 자동 환불되며, 앱 상태는 `escrowed`로 유지된다.
+> `remitted`는 반드시 분쟁 판정(paid / sponsor_wins / customer_wins)으로만 종결된다.
 
 > `state` 태그는 다중 문자이므로 릴레이 인덱싱이 보장되지 않는다.
 > 필터링은 클라이언트 사이드에서 수행한다.
@@ -609,7 +612,7 @@ Customer                         Admin                          Sponsor
    │  [문제 발생 시]                 │                               │
    │                               │  settle 안 함 → CLTV timeout   │
    │ ←── BTC 자동 환불 ────────────│  후 Customer에게 BTC 반환      │
-   │                               │  → state=cancelled 갱신        │
+   │                               │  (앱 상태는 escrowed 유지)      │
 ```
 
 #### Hold Invoice 원리 (에스크로 용도)

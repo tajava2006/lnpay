@@ -1,6 +1,7 @@
 import type { LightningAdapter } from './adapter';
 import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, LnConnectionConfig, PaymentResult } from './types';
 import type { RouteHintHop } from '../types';
+import { savePreimage } from '../escrow-store';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
 
@@ -30,6 +31,19 @@ interface ClnDecodeResponse {
   created_at: number;
   expiry: number;
   min_final_cltv_expiry: number;
+}
+
+/** CLN listholdinvoices 응답 (Boltz hold 플러그인) */
+interface ClnListHoldInvoicesResponse {
+  holdinvoices: Array<{
+    state: 'unpaid' | 'accepted' | 'paid' | 'cancelled';
+  }>;
+}
+
+/** CLN pay 응답 */
+interface ClnPayResponse {
+  status: string;
+  payment_preimage?: string;
 }
 
 /** CLN clnrest POST /v1/getroute 응답 */
@@ -220,37 +234,79 @@ export class ClnAdapter implements LightningAdapter {
     }
   }
   async createHoldInvoice(
-    _orderId: string,
-    _amountSat: number,
+    orderId: string,
+    amountSat: number,
     _expiry?: number,
   ): Promise<HoldInvoiceResult> {
-    throw new Error(
-      'CLN hold invoice는 아직 지원되지 않습니다. LND를 사용해 주세요.',
-    );
+    // 1. 32바이트 랜덤 프리이미지 생성
+    const preimage = new Uint8Array(32);
+    crypto.getRandomValues(preimage);
+
+    // 2. SHA-256 해시 → payment hash
+    const hashBuffer = await crypto.subtle.digest('SHA-256', preimage);
+    const paymentHashHex = bytesToHex(new Uint8Array(hashBuffer));
+
+    // 3. holdinvoice 호출 (Boltz hold 플러그인, 금액은 msat 단위)
+    const data = await this.postJson<{ bolt11: string }>('/v1/holdinvoice', {
+      payment_hash: paymentHashHex,
+      amount: amountSat * 1000,
+    });
+
+    // 4. 프리이미지를 escrow-store에 저장 (settle 시 필요)
+    savePreimage(orderId, bytesToHex(preimage), paymentHashHex);
+
+    return { bolt11: data.bolt11, paymentHash: paymentHashHex };
   }
 
-  async lookupHoldInvoice(_paymentHash: string): Promise<HoldInvoiceStatus> {
-    throw new Error(
-      'CLN hold invoice는 아직 지원되지 않습니다. LND를 사용해 주세요.',
+  async lookupHoldInvoice(paymentHash: string): Promise<HoldInvoiceStatus> {
+    const data = await this.postJson<ClnListHoldInvoicesResponse>(
+      '/v1/listholdinvoices',
+      { payment_hash: paymentHash },
     );
+
+    if (data.holdinvoices.length === 0) {
+      throw new Error(`hold invoice를 찾을 수 없습니다: ${paymentHash}`);
+    }
+
+    const state = data.holdinvoices[0].state;
+    switch (state) {
+      case 'unpaid':    return 'open';
+      case 'accepted':  return 'accepted';
+      case 'paid':      return 'settled';
+      case 'cancelled': return 'cancelled';
+      default:          throw new Error(`알 수 없는 hold invoice 상태: ${state}`);
+    }
   }
 
-  async settleInvoice(_preimage: string): Promise<void> {
-    throw new Error(
-      'CLN hold invoice는 아직 지원되지 않습니다. LND를 사용해 주세요.',
-    );
+  async settleInvoice(preimage: string): Promise<void> {
+    await this.postJson('/v1/settleholdinvoice', { preimage });
   }
 
-  async cancelInvoice(_paymentHash: string): Promise<void> {
-    throw new Error(
-      'CLN hold invoice는 아직 지원되지 않습니다. LND를 사용해 주세요.',
-    );
+  async cancelInvoice(paymentHash: string): Promise<void> {
+    await this.postJson('/v1/cancelholdinvoice', { payment_hash: paymentHash });
   }
 
-  async payInvoice(_bolt11: string, _feeLimitSat?: number): Promise<PaymentResult> {
-    throw new Error(
-      'CLN 결제는 아직 지원되지 않습니다. LND를 사용해 주세요.',
-    );
+  async payInvoice(bolt11: string, feeLimitSat?: number): Promise<PaymentResult> {
+    const decoded = await this.decodeInvoice(bolt11);
+    const limit = feeLimitSat ?? Math.max(Math.ceil(decoded.amountSat * 0.01), 10);
+
+    try {
+      const data = await this.postJson<ClnPayResponse>('/v1/pay', {
+        bolt11,
+        maxfeepercent: 100,
+        maxfee: limit * 1000,
+      });
+
+      if (data.status === 'complete') {
+        return { status: 'succeeded', preimage: data.payment_preimage };
+      }
+      return { status: 'failed', failureReason: `결제 상태: ${data.status}` };
+    } catch (err: unknown) {
+      return {
+        status: 'failed',
+        failureReason: err instanceof Error ? err.message : String(err),
+      };
+    }
   }
 }
 

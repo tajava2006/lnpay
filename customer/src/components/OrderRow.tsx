@@ -44,7 +44,7 @@ export function OrderRow({ order, tracker, now }: Props) {
   const accountSent = order.accountInfo && order.adminState === 'escrowed';
   // 파싱 주문 escrowed + sponsorPubkey: 자동 전달 중 표시
   const autoSendingAccount = isParsed && order.adminState === 'escrowed' && order.sponsorPubkey && !order.accountInfo;
-  const showConfirmPaid = order.adminState === 'escrowed';
+  const showConfirmPaid = order.adminState === 'escrowed' || order.adminState === 'remitted';
   const canCancel = isCancellable(order);
   const canDelete = isDeletable(order);
   const isExpired = order.expiration > 0 && order.expiration <= now;

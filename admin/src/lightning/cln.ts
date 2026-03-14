@@ -293,7 +293,6 @@ export class ClnAdapter implements LightningAdapter {
     try {
       const data = await this.postJson<ClnPayResponse>('/v1/pay', {
         bolt11,
-        maxfeepercent: 100,
         maxfee: limit * 1000,
       });
 

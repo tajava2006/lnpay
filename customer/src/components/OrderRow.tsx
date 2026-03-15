@@ -67,7 +67,10 @@ export function OrderRow({ order, tracker, now }: Props) {
   }
 
   async function handleConfirmPaid() {
-    if (!confirm('입금 완료를 통보하시겠습니까?')) return;
+    if (!confirm(
+      '실제로 원화 입금이 확인되었습니까?\n\n'
+      + '입금되지 않은 상태에서 확인을 누르면 btc가 상대방에게 송금되고, 이후 돌려받을 수 없습니다.',
+    )) return;
     setConfirming(true);
     try {
       const result = await publishNotification(order, 'payment-confirm');

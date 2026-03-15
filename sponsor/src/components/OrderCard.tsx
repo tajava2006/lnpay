@@ -121,7 +121,10 @@ export function OrderCard({ order, now, tracker }: Props) {
   }
 
   async function handleRemit() {
-    if (!confirm('원화 송금을 완료했습니까? 이 작업은 되돌릴 수 없습니다.')) return;
+    if (!confirm(
+      '지정된 금액을 지정된 계좌로 송금하셨습니까?\n\n'
+      + '송금하지 않고 송금을 주장할 경우, 분쟁 발생 시 불리하게 적용될 수 있습니다.',
+    )) return;
     setRemitting(true);
     try {
       const ok = await publishRemitRequest(order);

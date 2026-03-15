@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { KeyExport } from './KeyExport';
+import { nsecEncode } from 'nostr-tools/nip19';
+import { getSecretKey } from '@sajwo-tracker/shared';
+import { storage } from '../nostr/storage';
+
+const NSEC_PLACEHOLDER = '%%NSEC_PLACEHOLDER%%';
 
 export function UserscriptGuide() {
   const [expanded, setExpanded] = useState(false);
@@ -10,9 +14,14 @@ export function UserscriptGuide() {
     setExpanded(prev => !prev);
     if (!scriptContent) {
       try {
-        const res = await fetch('/sajwo-coupang-parser.user.js');
+        const [res, sk] = await Promise.all([
+          fetch('/sajwo-coupang-parser.user.js'),
+          getSecretKey(storage),
+        ]);
         if (res.ok) {
-          setScriptContent(await res.text());
+          const raw = await res.text();
+          const nsec = nsecEncode(sk);
+          setScriptContent(raw.split(NSEC_PLACEHOLDER).join(nsec));
         } else {
           setScriptContent('// 유저스크립트 파일을 찾을 수 없습니다. pnpm build:userscript를 실행하세요.');
         }
@@ -40,17 +49,14 @@ export function UserscriptGuide() {
         <div style={styles.body}>
           <div style={styles.steps}>
             <p style={styles.step}><strong>1.</strong> Tampermonkey 확장 프로그램을 설치합니다.</p>
-            <p style={styles.step}><strong>2.</strong> 아래 "유저스크립트 키"를 복사합니다.</p>
-            <p style={styles.step}><strong>3.</strong> Tampermonkey에서 새 스크립트를 만들고 아래 코드를 붙여넣습니다.</p>
-            <p style={styles.step}><strong>4.</strong> 쿠팡 주문 상세 페이지를 방문하면 자동으로 주문이 감지됩니다.</p>
+            <p style={styles.step}><strong>2.</strong> Tampermonkey에서 새 스크립트를 만들고 아래 코드를 붙여넣습니다.</p>
+            <p style={styles.step}><strong>3.</strong> 쿠팡 주문 상세 페이지를 방문하면 자동으로 주문이 감지됩니다.</p>
           </div>
-
-          <KeyExport />
 
           {scriptContent && (
             <div style={styles.codeSection}>
               <div style={styles.codeHeader}>
-                <span style={styles.codeTitle}>유저스크립트</span>
+                <span style={styles.codeTitle}>유저스크립트 (키 포함)</span>
                 <button onClick={handleCopy} style={styles.copyBtn}>
                   {copied ? '복사됨' : '코드 복사'}
                 </button>

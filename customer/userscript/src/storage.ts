@@ -10,6 +10,12 @@ declare function GM_setValue(key: string, value: unknown): void;
 
 // ── 키 관리 ─────────────────────────────────────────
 
+/**
+ * 빌드 시점에는 빈 문자열. 고객앱이 fetch 후 실제 nsec로 치환하여 표시한다.
+ * 플레이스홀더 문자열은 치환 대상 마커로만 사용된다.
+ */
+const PRELOADED_NSEC = '%%NSEC_PLACEHOLDER%%';
+
 const KEY_NSEC = 'sajwo:nsec';
 
 export function getStoredNsec(): string | null {
@@ -21,23 +27,19 @@ export function setStoredNsec(nsec: string): void {
 }
 
 /**
- * nsec가 저장되어 있지 않으면 prompt로 입력받는다.
- * 반환: nsec 문자열. 입력 취소 시 null.
+ * 저장된 nsec 또는 고객앱이 주입한 nsec를 반환한다.
+ * (과거에는 prompt()로 수동 입력을 받았으나, 고객앱이 코드 복사 시점에 자동 치환하므로 제거함)
  */
 export function ensureNsec(): string | null {
   const stored = getStoredNsec();
   if (stored) return stored;
 
-  const input = prompt(
-    '[사줘 트래커] Nostr 키(nsec)를 입력하세요.\n'
-    + 'Customer 웹앱의 "유저스크립트 키" 버튼에서 복사할 수 있습니다.',
-  );
+  if (PRELOADED_NSEC.startsWith('nsec1')) {
+    setStoredNsec(PRELOADED_NSEC);
+    return PRELOADED_NSEC;
+  }
 
-  if (!input?.trim()) return null;
-
-  const nsec = input.trim();
-  setStoredNsec(nsec);
-  return nsec;
+  return null;
 }
 
 // ── 처리된 주문 관리 ────────────────────────────────

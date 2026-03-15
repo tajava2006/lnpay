@@ -6,7 +6,7 @@ import {
 import { startLnConfigSubscription, stopLnConfigSubscription, decryptLnConfig } from './nostr/ln-config-service';
 import { startCleanup, stopCleanup } from './cleanup';
 import { startInvoiceWatcher, stopInvoiceWatcher } from './invoice-watcher';
-import { cacheLnConfig, loadCachedLnConfig, clearCachedLnConfig, type LnConfig } from './nostr/ln-config';
+import { cacheLnConfig, loadCachedLnConfig, clearCachedLnConfig, publishLnConfig, type LnConfig } from './nostr/ln-config';
 import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
 import { OrderQueue } from './components/OrderQueue';
@@ -157,6 +157,10 @@ export function App() {
         setLnConfig(config);
         cacheLnConfig(config);
         console.log('[App] LN config decrypted:', config.backend, config.baseUrl);
+        // 쓰기 릴레이 전체에 재브로드캐스트 (릴레이 데이터 유실 방어)
+        void publishLnConfig(config).catch((err: unknown) => {
+          console.warn('[App] LN config re-broadcast failed:', err);
+        });
       }
     }).catch((err: unknown) => {
       console.warn('[App] LN config decryption failed:', err);

@@ -237,6 +237,7 @@ export class ClnAdapter implements LightningAdapter {
     orderId: string,
     amountSat: number,
     _expiry?: number,
+    cltvExpiry?: number,
   ): Promise<HoldInvoiceResult> {
     // 1. 32바이트 랜덤 프리이미지 생성
     const preimage = new Uint8Array(32);
@@ -250,6 +251,7 @@ export class ClnAdapter implements LightningAdapter {
     const data = await this.postJson<{ bolt11: string }>('/v1/holdinvoice', {
       payment_hash: paymentHashHex,
       amount: amountSat * 1000,
+      ...(cltvExpiry != null ? { cltv_expiry: cltvExpiry } : {}),
     });
 
     // 4. 프리이미지를 escrow-store에 저장 (settle 시 필요)

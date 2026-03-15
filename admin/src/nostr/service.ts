@@ -151,10 +151,16 @@ export async function approveOrder(
     return { success: false, error: 'ORDER_EXPIRED' };
   }
 
+  // CLTV 타임아웃 = 오더 만료까지 남은 시간 + 48시간 (분쟁 판정 여유)
+  // 오더 만료 후에도 Admin이 settle/cancel할 시간을 확보한다.
+  // 10분/블록 기준으로 초 → 블록 수 변환 (올림)
+  const DISPUTE_MARGIN_SECONDS = 48 * 60 * 60;
+  const cltvExpiry = Math.ceil((expiry + DISPUTE_MARGIN_SECONDS) / 600);
+
   // hold invoice 생성 (프리이미지는 LN 어댑터 내부에서 escrow-store에 자동 저장)
   let bolt11: string;
   try {
-    const result = await lnAdapter.createHoldInvoice(orderId, amountSat, expiry);
+    const result = await lnAdapter.createHoldInvoice(orderId, amountSat, expiry, cltvExpiry);
     bolt11 = result.bolt11;
     console.log('[Admin] Hold invoice created for', orderId, '- paymentHash:', result.paymentHash);
   } catch (e) {

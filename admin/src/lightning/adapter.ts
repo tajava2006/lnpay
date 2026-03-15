@@ -39,11 +39,15 @@ export interface LightningAdapter {
    * @param orderId - 오더 식별자 (escrow-store 키)
    * @param amountSat - 인보이스 금액 (sats)
    * @param expiry - 인보이스 만료 시간 (초, 기본 3600)
+   * @param cltvExpiry - CLTV 타임아웃 (블록 수). HTLC가 유지되는 최대 기간.
+   *   미지정 시 노드 기본값 사용. 에스크로 용도에서는 분쟁 판정 여유를 위해
+   *   오더 만료보다 충분히 길게 설정해야 한다.
    */
   createHoldInvoice(
     orderId: string,
     amountSat: number,
     expiry?: number,
+    cltvExpiry?: number,
   ): Promise<HoldInvoiceResult>;
 
   /**

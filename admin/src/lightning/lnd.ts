@@ -231,6 +231,7 @@ export class LndAdapter implements LightningAdapter {
     orderId: string,
     amountSat: number,
     expiry = 3600,
+    cltvExpiry?: number,
   ): Promise<HoldInvoiceResult> {
     // 1. 32바이트 랜덤 프리이미지 생성
     const preimage = new Uint8Array(32);
@@ -249,6 +250,7 @@ export class LndAdapter implements LightningAdapter {
         value: String(amountSat),
         memo: `sajwo-tracker order ${orderId}`,
         expiry: String(expiry),
+        ...(cltvExpiry != null ? { cltv_expiry: String(cltvExpiry) } : {}),
       }),
     });
 

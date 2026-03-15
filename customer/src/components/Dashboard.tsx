@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, clearDeletableOrders } from '../order-store';
-import { isFinal, isDeletable } from '../order-states';
+import { isDeletable } from '../order-states';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { OrderForm } from './OrderForm';
 import { OrderTable } from './OrderTable';
@@ -8,18 +8,13 @@ import { BtcPrice } from './BtcPrice';
 import { ParsedOrdersSection } from './ParsedOrdersSection';
 import { UserscriptGuide } from './UserscriptGuide';
 import { ToastContainer } from './Toast';
-import type { CustomerOrder } from '../types';
 
 interface Props {
   tracker: PriceTracker;
 }
 
 export function Dashboard({ tracker }: Props) {
-  const orders = useSyncExternalStore(subscribe, getSnapshot);
-  const orderArray = Object.values(orders);
-
-  const activeCount = orderArray.filter((o: CustomerOrder) => !isFinal(o)).length;
-  const completedCount = orderArray.filter((o: CustomerOrder) => isFinal(o)).length;
+  useSyncExternalStore(subscribe, getSnapshot);
 
   function handleClearAll() {
     if (!confirm('모든 주문을 삭제하시겠습니까?')) return;
@@ -34,24 +29,7 @@ export function Dashboard({ tracker }: Props) {
         <button className="btn btn-secondary" onClick={handleClearAll}>전체 삭제</button>
       </div>
 
-      <div className="stats">
-        <div className="stat-card">
-          <div className="stat-label">활성 주문</div>
-          <div className="stat-value pending">{activeCount}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">완료</div>
-          <div className="stat-value paid">{completedCount}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">전체</div>
-          <div className="stat-value">{orderArray.length}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">BTC/KRW</div>
-          <BtcPrice tracker={tracker} />
-        </div>
-      </div>
+      <BtcPrice tracker={tracker} />
 
       <ParsedOrdersSection />
       <OrderForm />

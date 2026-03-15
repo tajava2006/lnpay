@@ -18,7 +18,16 @@ function AppContent() {
     startSubscriptions();
     tracker.start();
 
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        stopSubscriptions();
+        startSubscriptions();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       stopRelaySubscription();
       stopSubscriptions();
       tracker.stop();

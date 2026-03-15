@@ -62,7 +62,17 @@ function AppContent() {
     startOrderSubscription();
     startCleanup();
     tracker.start();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        stopOrderSubscription();
+        startOrderSubscription();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       stopRelaySubscription();
       stopOrderSubscription();
       stopCleanup();

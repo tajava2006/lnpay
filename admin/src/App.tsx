@@ -105,7 +105,17 @@ export function App() {
     startCleanup();
     setPriceTracker(tracker);
     tracker.start();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        stopAdminSubscription();
+        startAdminSubscription();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       stopRelaySubscription();
       stopAdminSubscription();
       stopLnConfigSubscription();

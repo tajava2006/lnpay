@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useState, useCallback, useSyncExternalStore } from 'react';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim, publishRemitRequest } from '../nostr/claim';
 import { getStateMeta } from '../order-states';
@@ -6,6 +6,7 @@ import { decodeBolt11 } from '../utils/bolt11';
 import type { Bolt11Result } from '../utils/bolt11';
 import { subscribeAccountInfo, getAccountInfoSnapshot } from '../account-store';
 import { subscribeClaimErrors, getClaimErrorSnapshot, clearClaimError } from '../claim-error-store';
+import { QrScanner } from './QrScanner';
 
 interface Props {
   order: Order;
@@ -57,6 +58,12 @@ export function OrderCard({ order, now, tracker }: Props) {
   const [invoiceText, setInvoiceText] = useState('');
   const [invoiceResult, setInvoiceResult] = useState<Bolt11Result | null>(null);
   const [remitting, setRemitting] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
+
+  const handleQrScan = useCallback((data: string) => {
+    setShowQrScanner(false);
+    handleInvoiceChange(data);
+  }, []);
 
   const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
   const btcKrw = frozenBtcPrice ?? priceSnap.price;
@@ -173,13 +180,26 @@ export function OrderCard({ order, now, tracker }: Props) {
                 본인 지갑에서 위 금액의 invoice를 생성한 뒤 여기에 붙여넣으면,
                 에스크로가 Lightning 경로를 검증합니다. 실제 결제는 발생하지 않습니다.
               </p>
-              <textarea
-                style={styles.invoiceInput}
-                placeholder="lnbc..."
-                value={invoiceText}
-                onChange={e => handleInvoiceChange(e.target.value)}
-                rows={3}
-              />
+              <div style={styles.invoiceInputRow}>
+                <textarea
+                  style={styles.invoiceInput}
+                  placeholder="lnbc..."
+                  value={invoiceText}
+                  onChange={e => handleInvoiceChange(e.target.value)}
+                  rows={3}
+                />
+                <button
+                  style={styles.qrBtn}
+                  onClick={() => setShowQrScanner(true)}
+                  title="QR 코드 스캔"
+                  type="button"
+                >
+                  📷
+                </button>
+              </div>
+              {showQrScanner && (
+                <QrScanner onScan={handleQrScan} onClose={() => setShowQrScanner(false)} />
+              )}
               {invoiceResult && !invoiceResult.valid && (
                 <p style={styles.invoiceError}>{invoiceResult.error}</p>
               )}
@@ -367,8 +387,13 @@ const styles = {
     margin: 0,
     lineHeight: 1.5,
   },
+  invoiceInputRow: {
+    display: 'flex',
+    gap: 6,
+    alignItems: 'flex-start',
+  },
   invoiceInput: {
-    width: '100%',
+    flex: 1,
     padding: 10,
     border: '1px solid #ddd',
     borderRadius: 6,
@@ -376,6 +401,16 @@ const styles = {
     fontFamily: 'monospace',
     resize: 'vertical' as const,
     boxSizing: 'border-box' as const,
+  },
+  qrBtn: {
+    padding: '10px 12px',
+    border: '1px solid #ddd',
+    borderRadius: 6,
+    background: '#f9f9f9',
+    cursor: 'pointer',
+    fontSize: 18,
+    lineHeight: 1,
+    flexShrink: 0,
   },
   invoiceError: {
     fontSize: 12,

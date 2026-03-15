@@ -37,7 +37,8 @@ export function OrderRow({ order, tracker, now }: Props) {
   const meta = getDisplayMeta(order);
   const isParsed = order.source === 'parsed';
   const showPublish = !order.raw && !order.adminState;
-  const showPayment = order.adminState === 'verified' && order.bolt11;
+  const isExpired = order.expiration > 0 && order.expiration <= now;
+  const showPayment = order.adminState === 'verified' && order.bolt11 && !isExpired;
   // 수동 주문: escrowed에서 계좌 입력 모달 버튼 표시
   const showAccountBtn = !isParsed && order.adminState === 'escrowed' && order.sponsorPubkey && !order.accountInfo;
   // 계좌 전달 완료 표시 (수동/파싱 공통: escrowed에서 전달)
@@ -47,7 +48,6 @@ export function OrderRow({ order, tracker, now }: Props) {
   const showConfirmPaid = order.adminState === 'escrowed' || order.adminState === 'remitted';
   const canCancel = isCancellable(order);
   const canDelete = isDeletable(order);
-  const isExpired = order.expiration > 0 && order.expiration <= now;
   const isUrgent = order.expiration > 0 && !isExpired && order.expiration - now < 3600;
 
   async function handlePublish() {

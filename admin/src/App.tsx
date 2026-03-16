@@ -50,6 +50,8 @@ export function App() {
   const [encryptedLnConfig, setEncryptedLnConfig] = useState<string | null>(null);
   // 복호화된 LN 설정 (sessionStorage 캐시에서 즉시 복원, 없으면 릴레이 구독으로 수신)
   const [lnConfig, setLnConfig] = useState<LnConfig | null>(loadCachedLnConfig);
+  // 세션당 1회만 재브로드캐스트 (구독 에코 → 무한 루프 방지)
+  const lnConfigBroadcastedRef = useRef(false);
   // LN 설정 페이지 표시 여부
   const [showLnConfig, setShowLnConfig] = useState(false);
 
@@ -154,13 +156,23 @@ export function App() {
     let cancelled = false;
     void decryptLnConfig(encryptedLnConfig).then((config: LnConfig) => {
       if (!cancelled) {
-        setLnConfig(config);
-        cacheLnConfig(config);
-        console.log('[App] LN config decrypted:', config.backend, config.baseUrl);
-        // 쓰기 릴레이 전체에 재브로드캐스트 (릴레이 데이터 유실 방어)
-        void publishLnConfig(config).catch((err: unknown) => {
-          console.warn('[App] LN config re-broadcast failed:', err);
+        // 내용이 같으면 이전 참조 유지 → useMemo/useEffect 재실행 방지
+        setLnConfig(prev => {
+          if (prev && prev.backend === config.backend && prev.baseUrl === config.baseUrl && prev.credential === config.credential) {
+            return prev;
+          }
+          cacheLnConfig(config);
+          console.log('[App] LN config decrypted:', config.backend, config.baseUrl);
+          return config;
         });
+        // 쓰기 릴레이 전체에 재브로드캐스트 (릴레이 데이터 유실 방어, 내용 변경 여부와 무관)
+        // 세션당 1회만 실행 (구독 에코로 인한 무한 루프 방지)
+        if (!lnConfigBroadcastedRef.current) {
+          lnConfigBroadcastedRef.current = true;
+          void publishLnConfig(config).catch((err: unknown) => {
+            console.warn('[App] LN config re-broadcast failed:', err);
+          });
+        }
       }
     }).catch((err: unknown) => {
       console.warn('[App] LN config decryption failed:', err);

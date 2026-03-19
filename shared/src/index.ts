@@ -45,6 +45,7 @@ export {
 
 // Components
 export { BtcPrice } from './components/BtcPrice';
+export { KeyInit } from './components/KeyInit';
 
 // Chat Store (리액티브 인메모리 채팅)
 export { subscribeChatStore, getChatSnapshot, addMessage, loadFromIdb, clearMessages } from './chat-store';

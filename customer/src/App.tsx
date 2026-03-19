@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { KeyInit } from './components/KeyInit';
 import { Dashboard } from './components/Dashboard';
 import { startSubscriptions, stopSubscriptions } from './nostr/service';
-import { createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
+import { KeyInit, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 
 function AppContent() {

@@ -30,8 +30,8 @@ import {
   type PriceTracker,
   type ChatMessage,
   type DisputeMessagePayload,
+  storage,
 } from '@sajwo-tracker/shared';
-import { storage } from './storage';
 import { subscribeAdmin } from './subscribe';
 import { publishOrder, publishClaimPriceError } from './publish';
 import { getSigner } from './nip46';

@@ -2,15 +2,15 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   subscribeChatStore, getChatSnapshot,
   addMessage, loadFromIdb, clearMessages,
+  getUserPubkey,
+  storage,
 } from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage } from '../nostr/publish';
 import { ChatWindow } from './ChatWindow';
 import { getDisplayMeta } from '../order-states';
-import { getUserPubkey } from '@sajwo-tracker/shared';
 import type { DisputeMessagePayload } from '@sajwo-tracker/shared';
 import type { CustomerOrder } from '../types';
-import { storage } from '../nostr/storage';
 
 interface Props {
   order: CustomerOrder;

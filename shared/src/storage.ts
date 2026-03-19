@@ -1,6 +1,6 @@
 import type { StorageAdapter } from './types';
 
-/** localStorage 기반 StorageAdapter (웹앱용: sponsor, admin) */
+/** localStorage 기반 StorageAdapter (웹앱용: customer, sponsor, admin) */
 export function createWebStorage(): StorageAdapter {
   return {
     async get<T>(key: string): Promise<T | null> {
@@ -17,3 +17,6 @@ export function createWebStorage(): StorageAdapter {
     },
   };
 }
+
+/** localStorage 기반 StorageAdapter 싱글턴 */
+export const storage = createWebStorage();

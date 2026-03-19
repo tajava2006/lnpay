@@ -15,9 +15,8 @@ import { HistoryPage } from './components/HistoryPage';
 import { OrderDetail } from './components/OrderDetail';
 import { BtcPrice } from './components/BtcPrice';
 import { NodeStatus } from './components/NodeStatus';
-import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
+import { createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
-import { storage } from './nostr/storage';
 import { createLightningAdapter, createNodeTracker } from './lightning';
 import type { LightningAdapter, NodeTracker } from './lightning';
 

@@ -16,9 +16,9 @@ import {
   idbUpsertMessage,
   type ChatMessage,
   type DisputeMessagePayload,
+  storage,
 } from '@sajwo-tracker/shared';
 import type { Event } from 'nostr-tools/core';
-import { storage } from './storage';
 import { subscribeAdminOrders, subscribeUserscriptEvents } from './subscribe';
 import { publishAccountInfo } from './publish';
 import { parseAdminEvent, parseParsedOrderEvent } from '../types';

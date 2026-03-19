@@ -17,9 +17,7 @@ import {
   nip44Encrypt,
   type Order,
   type DisputeMessagePayload,
-} from '@sajwo-tracker/shared';
-import { storage } from './storage';
-import {
+  storage,
   idbMigrateOrderWithRequests,
   idbGetRequestsByOrderId,
   type ClaimRequest,

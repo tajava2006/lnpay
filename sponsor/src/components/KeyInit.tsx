@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ensureKeypair } from '@sajwo-tracker/shared';
-import { storage } from '../nostr/storage';
+import { ensureKeypair, storage } from '@sajwo-tracker/shared';
 
 interface Props {
   children: ReactNode;

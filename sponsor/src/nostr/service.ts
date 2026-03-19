@@ -23,9 +23,9 @@ import {
   type AccountInfoRequest,
   type ChatMessage,
   type DisputeMessagePayload,
+  storage,
 } from '@sajwo-tracker/shared';
 import type { Event } from 'nostr-tools/core';
-import { storage } from './storage';
 import { subscribeSajwoRequests, subscribeRequests } from './subscribe';
 import { parseEvent, parseAccountInfoEvent } from '../types';
 import { upsertOrder, markSynced } from '../order-store';

@@ -18,7 +18,7 @@ export {
 export type { RequestAction, OrderState } from './constants';
 
 // Storage adapters
-export { createWebStorage } from './storage';
+export { createWebStorage, storage } from './storage';
 
 // Keys
 export { ensureKeypair, getSecretKey, getUserPubkey } from './keys';

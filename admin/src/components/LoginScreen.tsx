@@ -9,8 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { getReadRelays } from '@sajwo-tracker/shared';
-import { storage } from '../nostr/storage';
+import { getReadRelays, storage } from '@sajwo-tracker/shared';
 import {
   createLoginContext,
   waitForConnection,

@@ -10,9 +10,8 @@
  */
 import { SimplePool } from 'nostr-tools/pool';
 import type { Event, EventTemplate } from 'nostr-tools/core';
-import { APP_PUBKEY, CLIENT_TAG, getWriteRelays } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, CLIENT_TAG, getWriteRelays, storage } from '@sajwo-tracker/shared';
 import { getSigner } from './nip46';
-import { storage } from './storage';
 
 const APP_DATA_KIND = 30078;
 

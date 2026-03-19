@@ -2,9 +2,8 @@ import { useEffect, useRef } from 'react';
 import { KeyInit } from './components/KeyInit';
 import { Dashboard } from './components/Dashboard';
 import { startSubscriptions, stopSubscriptions } from './nostr/service';
-import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
+import { createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
-import { storage } from './nostr/storage';
 
 function AppContent() {
   const trackerRef = useRef<PriceTracker | null>(null);

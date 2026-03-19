@@ -18,8 +18,8 @@ import {
   nip44Decrypt,
   type ChatMessage,
   type DisputeMessagePayload,
+  storage,
 } from '@sajwo-tracker/shared';
-import { storage } from './storage';
 
 /**
  * 특정 오더의 dispute-message를 실시간 구독한다.

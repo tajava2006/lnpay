@@ -17,9 +17,9 @@ import {
   type Order,
   type OrderState,
   type DisputeMessagePayload,
+  storage,
 } from '@sajwo-tracker/shared';
 import { getSigner } from './nip46';
-import { storage } from './storage';
 
 /**
  * Order 데이터로 kind 30402 이벤트를 빌드, 서명, 발행한다.

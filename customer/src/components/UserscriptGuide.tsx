@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { nsecEncode } from 'nostr-tools/nip19';
-import { getSecretKey } from '@sajwo-tracker/shared';
-import { storage } from '../nostr/storage';
+import { getSecretKey, storage } from '@sajwo-tracker/shared';
 
 const NSEC_PLACEHOLDER = '%%NSEC_PLACEHOLDER%%';
 

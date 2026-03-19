@@ -23,8 +23,8 @@ import {
   type RequestAction,
   type AccountInfo,
   type DisputeMessagePayload,
+  storage,
 } from '@sajwo-tracker/shared';
-import { storage } from './storage';
 import type { CustomerOrder } from '../types';
 
 export interface PublishResult {

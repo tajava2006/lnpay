@@ -6,9 +6,8 @@ import { OrderDetail } from './components/OrderDetail';
 import { BtcPrice } from './components/BtcPrice';
 import { startOrderSubscription, stopOrderSubscription } from './nostr/service';
 import { startCleanup, stopCleanup } from './order-store';
-import { createPriceTracker, subscribeRelayLists } from '@sajwo-tracker/shared';
+import { createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
-import { storage } from './nostr/storage';
 
 /** URL search params에서 page를 읽는다 */
 function getPageFromUrl(): string | null {

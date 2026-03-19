@@ -4,8 +4,7 @@
  * startAdminSubscription()과 동일한 생명주기 패턴으로,
  * 앱 시작 시 즉시 구독을 열어 암호화된 LN 설정을 수신한다.
  */
-import { getWriteRelays } from '@sajwo-tracker/shared';
-import { storage } from './storage';
+import { getWriteRelays, storage } from '@sajwo-tracker/shared';
 import { subscribeLnConfig, decryptLnConfig } from './ln-config';
 
 export { decryptLnConfig } from './ln-config';

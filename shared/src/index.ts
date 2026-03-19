@@ -43,6 +43,10 @@ export {
   idbMigrateOrderWithRequests,
 } from './idb';
 
+// Dispute Message (공통 처리)
+export { extractOrderId, processDisputeEvent } from './dispute-message';
+export type { DisputeEvent } from './dispute-message';
+
 // Components
 export { BtcPrice } from './components/BtcPrice';
 export { KeyInit } from './components/KeyInit';

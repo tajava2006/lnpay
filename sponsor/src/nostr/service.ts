@@ -13,16 +13,14 @@ import {
   getSecretKey,
   nip44Decrypt,
   APP_PUBKEY,
-  SAJWO_REQUEST_KIND,
   REQUEST_ACTIONS,
   idbHasOrder,
   idbUpsertOrder,
   idbUpsertRequest,
-  idbUpsertMessage,
+  extractOrderId,
+  processDisputeEvent,
   type AccountInfo,
   type AccountInfoRequest,
-  type ChatMessage,
-  type DisputeMessagePayload,
   storage,
 } from '@sajwo-tracker/shared';
 import type { Event } from 'nostr-tools/core';
@@ -139,11 +137,8 @@ async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
 // ── claim-price-error 처리 ────────────────────────────
 
 function handleClaimPriceError(event: Event): void {
-  const aTag = event.tags.find(t => t[0] === 'a')?.[1];
-  if (!aTag) return;
-  const parts = aTag.split(':');
-  if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return;
-  const orderId = parts[2]!;
+  const orderId = extractOrderId(event.tags);
+  if (!orderId) return;
 
   const expectedSats = Number(event.tags.find(t => t[0] === 'expected-sats')?.[1]);
   if (!expectedSats || expectedSats <= 0) return;
@@ -154,48 +149,10 @@ function handleClaimPriceError(event: Event): void {
 
 // ── dispute-message 백그라운드 IDB 저장 ──────────────
 
-/**
- * dispute-message 수신 시 NIP-44 복호화 후 IDB에 자동 저장한다.
- * 디테일 페이지 미진입 상태에서도 분쟁 메시지를 영구 보존하기 위함.
- */
 async function handleDisputeMessage(event: Event): Promise<void> {
-  const aTag = event.tags.find(t => t[0] === 'a')?.[1];
-  if (!aTag) return;
-  const parts = aTag.split(':');
-  if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return;
-  const orderId = parts[2]!;
-
-  // 클레임한 건만 저장
+  const orderId = extractOrderId(event.tags);
+  if (!orderId) return;
   if (!await idbHasOrder(orderId)) return;
-
-  const recipientPubkey = event.tags.find(t => t[0] === 'p' && t[1] !== event.pubkey)?.[1];
-  if (!recipientPubkey) return;
-
   const sk = await getSecretKey(storage);
-  let plaintext: string;
-  try {
-    plaintext = nip44Decrypt(event.content, sk, APP_PUBKEY);
-  } catch {
-    return;
-  }
-
-  let payload: DisputeMessagePayload;
-  try {
-    payload = JSON.parse(plaintext) as DisputeMessagePayload;
-  } catch {
-    return;
-  }
-
-  const msg: ChatMessage = {
-    eventId: event.id,
-    orderId,
-    senderPubkey: event.pubkey,
-    recipientPubkey,
-    payload,
-    createdAt: event.created_at,
-  };
-
-  void idbUpsertMessage(msg).catch(err => {
-    console.warn('[Sponsor] IDB message auto-save failed for', msg.eventId, err);
-  });
+  await processDisputeEvent(event, orderId, (content) => nip44Decrypt(content, sk, APP_PUBKEY));
 }

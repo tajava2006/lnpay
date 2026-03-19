@@ -20,16 +20,14 @@ import {
   idbGetOrder,
   idbUpsertOrder,
   idbUpsertRequest,
-  idbUpsertMessage,
   idbGetRequestsByOrderId,
   idbMigrateOrderWithRequests,
+  processDisputeEvent,
   type Order,
   type Request,
   type OrderRequest,
   type ClaimRequest,
   type PriceTracker,
-  type ChatMessage,
-  type DisputeMessagePayload,
   storage,
 } from '@sajwo-tracker/shared';
 import { subscribeAdmin } from './subscribe';
@@ -582,39 +580,10 @@ function handleAccountInfo(request: Request): void {
 async function handleDisputeMessage(request: Request): Promise<void> {
   const signer = getSigner();
   if (!signer) return;
-
   const event = request.raw as { id: string; pubkey: string; content: string; tags: string[][]; created_at: number };
-  const recipientPubkey = event.tags.find(t => t[0] === 'p' && t[1] !== event.pubkey)?.[1];
-  if (!recipientPubkey) return;
-
-  let plaintext: string;
-  try {
-    const remotePubkey = event.pubkey === APP_PUBKEY
-      ? recipientPubkey
-      : event.pubkey;
-    plaintext = await signer.nip44Decrypt(remotePubkey, event.content);
-  } catch {
-    return;
-  }
-
-  let payload: DisputeMessagePayload;
-  try {
-    payload = JSON.parse(plaintext) as DisputeMessagePayload;
-  } catch {
-    return;
-  }
-
-  const msg: ChatMessage = {
-    eventId: event.id,
-    orderId: request.orderId,
-    senderPubkey: event.pubkey,
-    recipientPubkey,
-    payload,
-    createdAt: event.created_at,
-  };
-
-  void idbUpsertMessage(msg).catch(err => {
-    console.warn('[Admin] IDB message auto-save failed for', msg.eventId, err);
+  await processDisputeEvent(event, request.orderId, (_content, senderPubkey, recipientPubkey) => {
+    const remotePubkey = senderPubkey === APP_PUBKEY ? recipientPubkey : senderPubkey;
+    return signer.nip44Decrypt(remotePubkey, event.content);
   });
 }
 

@@ -1,5 +1,5 @@
 import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, PaymentResult } from './types';
-import type { RouteHintHop } from '../types';
+import type { RouteHintHop } from '@sajwo-tracker/shared';
 
 /**
  * Lightning 노드 어댑터 인터페이스.

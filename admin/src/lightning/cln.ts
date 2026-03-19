@@ -1,6 +1,6 @@
 import type { LightningAdapter } from './adapter';
 import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, LnConnectionConfig, PaymentResult } from './types';
-import type { RouteHintHop } from '../types';
+import type { RouteHintHop } from '@sajwo-tracker/shared';
 import { savePreimage } from '../escrow-store';
 
 // ─── 응답 타입 ───────────────────────────────────────────────

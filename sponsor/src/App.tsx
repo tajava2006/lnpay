@@ -3,10 +3,9 @@ import { KeyInit } from './components/KeyInit';
 import { OrderBook } from './components/OrderBook';
 import { HistoryPage } from './components/HistoryPage';
 import { OrderDetail } from './components/OrderDetail';
-import { BtcPrice } from './components/BtcPrice';
 import { startOrderSubscription, stopOrderSubscription } from './nostr/service';
 import { startCleanup, stopCleanup } from './order-store';
-import { createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
+import { BtcPrice, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 
 /** URL search params에서 page를 읽는다 */

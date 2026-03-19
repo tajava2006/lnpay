@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, clearDeletableOrders } from '../order-store';
 import { isDeletable } from '../order-states';
+import { BtcPrice } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { OrderForm } from './OrderForm';
 import { OrderTable } from './OrderTable';
-import { BtcPrice } from './BtcPrice';
 import { ParsedOrdersSection } from './ParsedOrdersSection';
 import { UserscriptGuide } from './UserscriptGuide';
 import { ToastContainer } from './Toast';

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { PriceTracker } from '@sajwo-tracker/shared';
+import type { PriceTracker } from '../price';
 
 interface Props {
   tracker: PriceTracker;

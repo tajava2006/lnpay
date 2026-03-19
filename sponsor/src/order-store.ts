@@ -13,7 +13,7 @@ import type { Order } from '@sajwo-tracker/shared';
 type OrderMap = Record<string, Order>;
 type Listener = () => void;
 
-const ORDERS_KEY = 'nostr:orders';
+const ORDERS_KEY = 'sponsor:orders';
 
 // ── 내부 상태 ──────────────────────────────────────
 

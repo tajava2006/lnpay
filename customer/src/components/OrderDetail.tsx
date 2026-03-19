@@ -4,10 +4,10 @@ import {
   addMessage, loadFromIdb, clearMessages,
   getUserPubkey,
   storage,
+  ChatWindow,
 } from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage } from '../nostr/publish';
-import { ChatWindow } from './ChatWindow';
 import { getDisplayMeta } from '../order-states';
 import type { DisputeMessagePayload } from '@sajwo-tracker/shared';
 import type { CustomerOrder } from '../types';

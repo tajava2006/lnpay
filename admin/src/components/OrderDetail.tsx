@@ -4,12 +4,13 @@ import {
   addMessage, loadFromIdb, clearMessages,
   idbGetOrder, idbGetRequestsByOrderId,
   APP_PUBKEY,
+  ChatWindow,
 } from '@sajwo-tracker/shared';
 import type { Order, Request, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage } from '../nostr/publish';
 import { resolveDisputeSponsorWins, resolveDisputeCustomerWins } from '../nostr/service';
-import { ChatWindow } from './ChatWindow';
+import { CommitmentBadge } from './CommitmentBadge';
 import { SatsAmount } from './SatsAmount';
 
 interface Props {
@@ -277,7 +278,9 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
             messages={sponsorMessages}
             myPubkey={APP_PUBKEY}
             onSend={sendToSponsor}
-            accountCommitment={accountCommitment}
+            renderAccountExtra={accountCommitment
+              ? (info) => <CommitmentBadge accountInfo={info} commitment={accountCommitment} />
+              : undefined}
           />
         )}
         {!customerPubkey && !sponsorPubkey && (

@@ -5,11 +5,11 @@ import {
   idbGetOrder, idbGetRequestsByOrderId,
   getUserPubkey,
   storage,
+  ChatWindow,
 } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage, publishAccountReveal } from '../nostr/claim';
-import { ChatWindow } from './ChatWindow';
 
 interface Props {
   orderId: string;

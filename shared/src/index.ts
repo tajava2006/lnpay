@@ -50,6 +50,7 @@ export type { DisputeEvent } from './dispute-message';
 // Components
 export { BtcPrice } from './components/BtcPrice';
 export { KeyInit } from './components/KeyInit';
+export { ChatWindow } from './components/ChatWindow';
 
 // Chat Store (리액티브 인메모리 채팅)
 export { subscribeChatStore, getChatSnapshot, addMessage, loadFromIdb, clearMessages } from './chat-store';

@@ -32,16 +32,66 @@ export interface Order {
   raw: object;
 }
 
-/** kind 1111 요청 이벤트 (Customer/Sponsor → Admin) */
-export interface AdminRequest {
+/** kind 1111 요청 이벤트 공통 필드 */
+export interface RequestBase {
   eventId: string;
   orderId: string;
-  action: import('./constants').RequestAction;
   pubkey: string;
   createdAt: number;
   expiration: number;
   raw: object;
 }
+
+// ── Lightning Invoice 타입 ─────────────────────────
+
+export interface RouteHintHop {
+  pubkey: string;
+  shortChannelId: string;
+  feeBaseMsat: number;
+  feeProportionalMillionths: number;
+  cltvExpiryDelta: number;
+}
+
+export interface DecodedBolt11 {
+  destination: string;
+  amountSat: number;
+  paymentHash: string;
+  expiresAt: number;
+  routeHints: RouteHintHop[][];
+}
+
+export interface Invoice {
+  bolt11: string;
+  decoded: DecodedBolt11 | null;
+  liquidityVerified: boolean;
+}
+
+// ── Request 디스크리미네이티드 유니온 ──────────────
+
+/** 오더 생성 요청 (Customer/Userscript → Admin) */
+export interface OrderRequest extends RequestBase {
+  action: 'order-request' | 'parsed-order';
+  price: number;
+}
+
+/** 클레임 요청 (Sponsor → Admin) */
+export interface ClaimRequest extends RequestBase {
+  action: 'claim';
+  invoice: Invoice | null;
+}
+
+/** 계좌정보 전달 (Customer → Sponsor, Admin 경유) */
+export interface AccountInfoRequest extends RequestBase {
+  action: 'account-info';
+  accountInfo?: AccountInfo;
+}
+
+/** 추가 데이터 없는 요청 */
+export interface SimpleRequest extends RequestBase {
+  action: 'payment-confirm' | 'cancel-request' | 'remit-request' | 'dispute-message' | 'claim-price-error';
+}
+
+export type Request = OrderRequest | ClaimRequest | AccountInfoRequest | SimpleRequest;
 
 /** 계좌정보 (Customer → Sponsor 암호화 전달) */
 export interface AccountInfo {

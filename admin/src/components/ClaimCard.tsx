@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import type { ProcessedRequest } from '../types';
-import type { Order } from '@sajwo-tracker/shared';
+import type { Request, Order } from '@sajwo-tracker/shared';
 import type { LightningAdapter, ProbeResult } from '../lightning';
 import { updateLiquidityVerified } from '../request-store';
 import { approveOrder, revertClaim } from '../nostr/service';
 
 interface Props {
-  request: ProcessedRequest;
+  request: Request;
   order: Order | undefined;
   lnAdapter: LightningAdapter | null;
 }
@@ -65,10 +64,11 @@ function probeResultMessage(result: ProbeResult): { text: string; color: string 
 export function ClaimCard({ request, order, lnAdapter }: Props) {
   const orderState = order?.state;
   const isClaim = request.action === 'claim';
-  const decoded = request.invoice?.decoded ?? null;
+  const invoice = isClaim ? request.invoice : null;
+  const decoded = invoice?.decoded ?? null;
 
   // 승인 가능 조건: 클레임 액션 + LN 어댑터 연결 + 유동성 검증 완료 (상태 판단은 FSM에 위임)
-  const canApprove = isClaim && !!lnAdapter && (request.invoice?.liquidityVerified ?? false);
+  const canApprove = isClaim && !!lnAdapter && (invoice?.liquidityVerified ?? false);
 
   const [copied, setCopied] = useState(false);
   const [probing, setProbing] = useState(false);
@@ -186,7 +186,7 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
               >
                 {probing ? '검증 중...' : '유동성 검증'}
               </button>
-              {request.invoice?.liquidityVerified && !probeMsg && (
+              {invoice?.liquidityVerified && !probeMsg && (
                 <span style={styles.verifiedBadge}>검증됨</span>
               )}
               {probeMsg && (
@@ -197,7 +197,7 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
             </div>
           )}
         </div>
-      ) : request.invoice && (
+      ) : invoice && (
         <div style={styles.decodeFailed}>인보이스 디코딩 실패</div>
       )}
 
@@ -213,7 +213,7 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
           >
             {approving ? '승인 중...' : '승인'}
           </button>
-          {!request.invoice?.liquidityVerified && (
+          {!invoice?.liquidityVerified && (
             <span style={styles.unverifiedHint}>유동성 미검증</span>
           )}
           {approveError && (

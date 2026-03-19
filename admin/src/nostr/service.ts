@@ -17,7 +17,16 @@
 import {
   getReadRelays,
   APP_PUBKEY,
+  idbGetOrder,
+  idbUpsertOrder,
+  idbUpsertRequest,
+  idbUpsertMessage,
+  idbGetRequestsByOrderId,
+  idbMigrateOrderWithRequests,
   type Order,
+  type Request,
+  type OrderRequest,
+  type ClaimRequest,
   type PriceTracker,
   type ChatMessage,
   type DisputeMessagePayload,
@@ -26,13 +35,12 @@ import { storage } from './storage';
 import { subscribeAdmin } from './subscribe';
 import { publishOrder, publishClaimPriceError } from './publish';
 import { getSigner } from './nip46';
-import { parseRequestEvent, parseOrderEvent, type ProcessedRequest } from '../types';
+import { parseRequestEvent, parseOrderEvent } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
 import { getPreimage, getEscrowEntry } from '../escrow-store';
-import { idbGetOrder, idbUpsertOrder, idbUpsertRequest, idbUpsertMessage, idbGetRequestsByOrderId, idbMigrateOrder } from '../idb-store';
 
 let cleanup: (() => void) | null = null;
 let lnAdapterRef: LightningAdapter | null = null;
@@ -56,7 +64,7 @@ export async function startAdminSubscription(): Promise<void> {
   // EOSE까지 리퀘스트를 버퍼링하여 catch-up 중 stale 상태 기반 처리를 방지한다.
   // 오더 에코가 먼저 로컬에 반영된 후 버퍼의 리퀘스트를 처리하면
   // canTransition이 과거 리퀘스트를 정확히 거부한다.
-  let pendingRequests: ProcessedRequest[] | null = [];
+  let pendingRequests: Request[] | null = [];
 
   cleanup = subscribeAdmin(relays, {
     onRequest: (event) => {
@@ -102,7 +110,7 @@ export async function startAdminSubscription(): Promise<void> {
 }
 
 /** 리퀘스트를 action별 핸들러에 분배한다. */
-function dispatchRequest(request: ProcessedRequest): void {
+function dispatchRequest(request: Request): void {
   if (request.action === 'order-request') {
     void handleOrderRequest(request);
   } else if (request.action === 'claim') {
@@ -249,7 +257,7 @@ export async function disburseSponsor(
   try {
     const requests = await idbGetRequestsByOrderId(orderId);
     const claimRequest = requests
-      .filter(r => r.action === 'claim' && r.pubkey === order.sponsorPubkey && r.invoice?.bolt11)
+      .filter((r): r is ClaimRequest => r.action === 'claim' && r.pubkey === order.sponsorPubkey && !!r.invoice?.bolt11)
       .sort((a, b) => b.createdAt - a.createdAt)[0];
     sponsorBolt11 = claimRequest?.invoice?.bolt11;
   } catch (e) {
@@ -437,7 +445,7 @@ export async function resolveDisputeCustomerWins(
  * 이미 존재하는 orderId면 중복 생성하지 않는다.
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
-async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
+async function handleOrderRequest(request: OrderRequest): Promise<void> {
   const existing = getOrder(request.orderId);
   if (existing) return;
 
@@ -463,7 +471,7 @@ async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
   }
 
   // 오더 생성 시점부터 IDB에 이관하여 히스토리 + 채팅을 즉시 활성화 (fire-and-forget)
-  idbMigrateOrder(newOrder, [request]).catch((err: unknown) =>
+  idbMigrateOrderWithRequests(newOrder, [request]).catch((err: unknown) =>
     console.warn('[Admin] IndexedDB migration failed for', request.orderId, err),
   );
 }
@@ -473,7 +481,7 @@ async function handleOrderRequest(request: ProcessedRequest): Promise<void> {
  * escrowed 또는 remitted 상태에서 전이 가능 (Customer의 자동 파싱으로 입금 감지).
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
-async function handlePaymentConfirm(request: ProcessedRequest): Promise<void> {
+async function handlePaymentConfirm(request: Request): Promise<void> {
   const order = getOrder(request.orderId);
   if (!order) return;
 
@@ -528,7 +536,7 @@ async function handlePaymentConfirm(request: ProcessedRequest): Promise<void> {
  * remitted 상태에서는 전이 불가 (분쟁 판정 경로로만 종결).
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
-async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
+async function handleCancelRequest(request: Request): Promise<void> {
   const order = getOrder(request.orderId);
   if (!order) return;
 
@@ -562,7 +570,7 @@ async function handleCancelRequest(request: ProcessedRequest): Promise<void> {
  * Customer가 Sponsor에게 NIP-44 암호화 계좌 정보를 전달한 것으로,
  * Admin은 분쟁 시 commitment 태그로 검증할 수 있다.
  */
-function handleAccountInfo(request: ProcessedRequest): void {
+function handleAccountInfo(request: Request): void {
   console.log('[Admin] account-info received for', request.orderId, 'from', request.pubkey);
 }
 
@@ -571,7 +579,7 @@ function handleAccountInfo(request: ProcessedRequest): void {
  * 디테일 페이지 미진입 상태에서도 분쟁 메시지를 영구 보존하기 위함.
  * 리액티브 스토어는 갱신하지 않음 (on-demand 구독이 담당).
  */
-async function handleDisputeMessage(request: ProcessedRequest): Promise<void> {
+async function handleDisputeMessage(request: Request): Promise<void> {
   const signer = getSigner();
   if (!signer) return;
 
@@ -618,7 +626,7 @@ async function handleDisputeMessage(request: ProcessedRequest): Promise<void> {
  * - sponsorPubkey를 기록하여 이후 유동성 검증 등에 사용
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
-async function handleClaim(request: ProcessedRequest): Promise<void> {
+async function handleClaim(request: ClaimRequest): Promise<void> {
   const order = getOrder(request.orderId);
   if (!order) {
     console.warn('[Admin] Claim for unknown order:', request.orderId);
@@ -673,7 +681,7 @@ async function handleClaim(request: ProcessedRequest): Promise<void> {
  * Sponsor가 원화 송금 완료를 통보한 것으로, sponsorPubkey 검증 후 전이한다.
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
-async function handleRemitRequest(request: ProcessedRequest): Promise<void> {
+async function handleRemitRequest(request: Request): Promise<void> {
   const order = getOrder(request.orderId);
   if (!order) return;
 
@@ -714,7 +722,7 @@ async function syncOrderToIdb(order: Order): Promise<void> {
   }
 }
 
-async function syncRequestToIdb(request: ProcessedRequest): Promise<void> {
+async function syncRequestToIdb(request: Request): Promise<void> {
   try {
     const existing = await idbGetOrder(request.orderId);
     if (existing) await idbUpsertRequest(request);

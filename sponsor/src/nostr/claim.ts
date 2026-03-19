@@ -19,8 +19,12 @@ import {
   type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
 import { storage } from './storage';
-import { idbMigrateClaim, idbGetRequestsByOrderId } from '../idb-store';
-import type { SponsorRequest } from '../types';
+import {
+  idbMigrateOrderWithRequests,
+  idbGetRequestsByOrderId,
+  type ClaimRequest,
+  type AccountInfoRequest,
+} from '@sajwo-tracker/shared';
 
 /**
  * 특정 오더에 대해 클레임 이벤트를 발행한다.
@@ -78,16 +82,17 @@ export async function publishClaim(order: Order, bolt11: string): Promise<boolea
 
     // 클레임 성공 시 IDB에 오더 + 클레임 request 원자적 이관
     if (ok) {
-      const claimRequest: SponsorRequest = {
+      const claimRequest: ClaimRequest = {
         eventId: signed.id,
         orderId: order.orderId,
         action: 'claim',
         pubkey: signed.pubkey,
         createdAt: signed.created_at,
         expiration: order.expiration,
+        invoice: null,
         raw: signed,
       };
-      void idbMigrateClaim(order, claimRequest).catch(err => {
+      void idbMigrateOrderWithRequests(order, [claimRequest]).catch(err => {
         console.warn('[Nostr] IDB claim migration failed for', order.orderId, err);
       });
     }
@@ -206,7 +211,7 @@ export async function publishDisputeMessage(
  */
 export async function publishAccountReveal(order: Order): Promise<boolean> {
   const requests = await idbGetRequestsByOrderId(order.orderId);
-  const accountInfoReq = requests.find(r => r.action === 'account-info');
+  const accountInfoReq = requests.find((r): r is AccountInfoRequest => r.action === 'account-info');
   if (!accountInfoReq?.accountInfo) {
     console.warn('[Nostr] No account info found for order', order.orderId);
     return false;

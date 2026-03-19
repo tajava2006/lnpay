@@ -15,7 +15,12 @@ import {
   APP_PUBKEY,
   SAJWO_REQUEST_KIND,
   REQUEST_ACTIONS,
+  idbHasOrder,
+  idbUpsertOrder,
+  idbUpsertRequest,
+  idbUpsertMessage,
   type AccountInfo,
+  type AccountInfoRequest,
   type ChatMessage,
   type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
@@ -24,10 +29,9 @@ import { storage } from './storage';
 import { subscribeSajwoRequests, subscribeRequests } from './subscribe';
 import { parseEvent, parseAccountInfoEvent } from '../types';
 import { upsertOrder, markSynced } from '../order-store';
-import { idbHasOrder, idbUpsertOrder, idbUpsertRequest, idbUpsertMessage } from '../idb-store';
 import { setAccountInfo } from '../account-store';
 import { setClaimError } from '../claim-error-store';
-import type { AccountInfoEvent, SponsorRequest } from '../types';
+import type { AccountInfoEvent } from '../types';
 
 let cleanupOrders: (() => void) | null = null;
 let cleanupReqs: (() => void) | null = null;
@@ -114,7 +118,7 @@ async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
   setAccountInfo(event.orderId, info);
 
   // IDB에 request로 저장 (영구 보존)
-  const request: SponsorRequest = {
+  const request: AccountInfoRequest = {
     eventId: event.eventId,
     orderId: event.orderId,
     action: 'account-info',

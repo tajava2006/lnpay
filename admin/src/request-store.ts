@@ -6,9 +6,9 @@
  *
  * PK: eventId (Nostr event ID, 릴레이 중복 수신 방어)
  */
-import type { ProcessedRequest } from './types';
+import type { Request } from '@sajwo-tracker/shared';
 
-type RequestMap = Record<string, ProcessedRequest>;
+type RequestMap = Record<string, Request>;
 type Listener = () => void;
 
 const REQUESTS_KEY = 'admin:requests';
@@ -63,7 +63,7 @@ export function getSyncedSnapshot(): boolean {
 /**
  * 요청을 추가한다. 같은 eventId가 이미 있으면 무시 (릴레이 중복 방어).
  */
-export function upsertRequest(request: ProcessedRequest): boolean {
+export function upsertRequest(request: Request): boolean {
   const existing = requests[request.eventId];
   if (existing) return false;
 
@@ -78,7 +78,7 @@ export function upsertRequest(request: ProcessedRequest): boolean {
  */
 export function updateLiquidityVerified(eventId: string, verified: boolean): boolean {
   const req = requests[eventId];
-  if (!req?.invoice) return false;
+  if (!req || req.action !== 'claim' || !req.invoice) return false;
 
   requests = {
     ...requests,

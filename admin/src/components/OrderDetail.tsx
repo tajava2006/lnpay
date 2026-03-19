@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { idbGetOrder, idbGetRequestsByOrderId } from '../idb-store';
 import {
   subscribeChatStore, getChatSnapshot,
   addMessage, loadFromIdb, clearMessages,
-} from '../chat-store';
+  idbGetOrder, idbGetRequestsByOrderId,
+  APP_PUBKEY,
+} from '@sajwo-tracker/shared';
+import type { Order, Request, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage } from '../nostr/publish';
 import { resolveDisputeSponsorWins, resolveDisputeCustomerWins } from '../nostr/service';
 import { ChatWindow } from './ChatWindow';
 import { SatsAmount } from './SatsAmount';
-import { APP_PUBKEY } from '@sajwo-tracker/shared';
-import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
-import type { ProcessedRequest } from '../types';
 
 interface Props {
   orderId: string;
@@ -70,7 +69,7 @@ function formatDate(unixSeconds: number): string {
 
 export function OrderDetail({ orderId, onBack, tracker }: Props) {
   const [order, setOrder] = useState<Order | null>(null);
-  const [requests, setRequests] = useState<ProcessedRequest[]>([]);
+  const [requests, setRequests] = useState<Request[]>([]);
   const [resolving, setResolving] = useState(false);
   const [accountCommitment, setAccountCommitment] = useState<string | undefined>();
 
@@ -250,7 +249,7 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
                     {requestSenderLabel[req.action] ?? '알 수 없음'} · {formatDate(req.createdAt)}
                   </span>
                 </div>
-                {req.invoice?.decoded && (
+                {req.action === 'claim' && req.invoice?.decoded && (
                   <div style={styles.requestInvoice}>
                     <span>노드: {shortPubkey(req.invoice.decoded.destination)}</span>
                     <span>금액: {req.invoice.decoded.amountSat.toLocaleString()} sats</span>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { idbGetOrdersPage } from '../idb-store';
+import { idbGetOrdersPage } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 
 interface Props {

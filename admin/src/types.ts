@@ -3,35 +3,12 @@ import { decode } from 'bolt11';
 import {
   SAJWO_REQUEST_KIND,
   APP_PUBKEY,
-  type RequestAction,
   type Order,
-  type AdminRequest,
+  type Invoice,
+  type DecodedBolt11,
+  type RouteHintHop,
+  type Request,
 } from '@sajwo-tracker/shared';
-
-// ── 디코딩된 bolt11 인보이스 ───────────────────────
-
-/** 라우트 힌트 홉 (bolt11 r-tag에서 추출) */
-export interface RouteHintHop {
-  pubkey: string;
-  shortChannelId: string;
-  feeBaseMsat: number;
-  feeProportionalMillionths: number;
-  cltvExpiryDelta: number;
-}
-
-export interface DecodedBolt11 {
-  destination: string;
-  amountSat: number;
-  paymentHash: string;
-  expiresAt: number;
-  routeHints: RouteHintHop[][];
-}
-
-export interface Invoice {
-  bolt11: string;
-  decoded: DecodedBolt11 | null;
-  liquidityVerified: boolean;
-}
 
 // ── bolt11 디코딩 ─────────────────────────────────
 
@@ -69,52 +46,58 @@ export function decodeBolt11(bolt11: string): DecodedBolt11 | null {
 
 // ── kind 1111 요청 이벤트 파싱 ────────────────────
 
-/** Admin 처리용 확장 요청 (base AdminRequest + action별 추가 필드) */
-export interface ProcessedRequest extends AdminRequest {
-  /** claim action일 때만 존재하는 인보이스 정보 */
-  invoice: Invoice | null;
-  /** order-request action일 때만 존재하는 금액 (KRW) */
-  price: number;
-}
-
 /**
- * kind 1111 이벤트를 ProcessedRequest로 파싱한다.
+ * kind 1111 이벤트를 Request 디스크리미네이티드 유니온으로 파싱한다.
  * a-tag에서 orderId를 추출하고, action 태그로 요청 종류를 분류한다.
  */
-export function parseRequestEvent(event: Event): ProcessedRequest | null {
+export function parseRequestEvent(event: Event): Request | null {
   const aTag = event.tags.find(t => t[0] === 'a')?.[1];
   if (!aTag) return null;
 
   const parts = aTag.split(':');
   if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return null;
-  // 새 아키텍처: a-tag은 30402:<admin-pubkey>:<orderId>
-  // 호환성: 이전 30402:<customer-pubkey>:<orderId>도 수용
   const orderId = parts[2];
 
-  const action = (event.tags.find(t => t[0] === 'action')?.[1] ?? 'claim') as RequestAction;
+  const action = event.tags.find(t => t[0] === 'action')?.[1] ?? 'claim';
 
   const expirationTag = event.tags.find(t => t[0] === 'expiration')?.[1];
   const expiration = expirationTag ? Number(expirationTag) : 0;
 
-  const priceTag = event.tags.find(t => t[0] === 'price');
-  const price = priceTag?.[1] ? Number(priceTag[1]) : 0;
-
-  const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1] ?? null;
-  const invoice: Invoice | null = bolt11
-    ? { bolt11, decoded: decodeBolt11(bolt11), liquidityVerified: false }
-    : null;
-
-  return {
+  const base = {
     eventId: event.id,
     orderId,
-    action,
     pubkey: event.pubkey,
     createdAt: event.created_at,
     expiration,
-    raw: event,
-    invoice,
-    price,
+    raw: event as object,
   };
+
+  switch (action) {
+    case 'order-request':
+    case 'parsed-order': {
+      const priceTag = event.tags.find(t => t[0] === 'price');
+      const price = priceTag?.[1] ? Number(priceTag[1]) : 0;
+      return { ...base, action, price };
+    }
+    case 'claim': {
+      const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1] ?? null;
+      const invoice: Invoice | null = bolt11
+        ? { bolt11, decoded: decodeBolt11(bolt11), liquidityVerified: false }
+        : null;
+      return { ...base, action, invoice };
+    }
+    case 'account-info':
+      return { ...base, action };
+    case 'payment-confirm':
+    case 'cancel-request':
+    case 'remit-request':
+    case 'dispute-message':
+    case 'claim-price-error':
+      return { ...base, action };
+    default:
+      console.warn('[parseRequestEvent] Unknown action:', action);
+      return null;
+  }
 }
 
 // ── kind 30402 오더 이벤트 파싱 ───────────────────

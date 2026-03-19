@@ -5,8 +5,8 @@
  * 디테일 페이지 진입 시 IDB 로드 → 릴레이 라이브 수신 → UI 자동 반영.
  * 디테일 페이지 이탈 시 인메모리 데이터 해제.
  */
-import type { ChatMessage } from '@sajwo-tracker/shared';
-import { idbUpsertMessage, idbGetMessagesByOrderId } from './idb-store';
+import type { ChatMessage } from './types';
+import { idbUpsertMessage, idbGetMessagesByOrderId } from './idb';
 
 type ChatMap = Record<string, ChatMessage[]>;
 type Listener = () => void;

@@ -1,44 +1,53 @@
 /**
- * Admin IndexedDB 저장소 (히스토리 장기 보존)
+ * 공통 IndexedDB 저장소
  *
- * 오더 생성 시점(requested)에 즉시 이관하여 히스토리 + 채팅을 활성화하고,
- * 이후 릴레이 수신 시 동기화한다.
+ * 3개 앱(customer, sponsor, admin)이 동일한 스키마를 사용한다.
+ * DB 이름만 앱별로 다르며, initIdb()로 초기화한다.
  *
  * 오브젝트 스토어:
  * - orders: PK orderId, 인덱스 createdAt, [state, createdAt]
  * - requests: PK eventId, 인덱스 orderId
- * - messages: PK eventId, 인덱스 orderId, createdAt, [orderId, createdAt] (v2)
+ * - messages: PK eventId, 인덱스 orderId, createdAt, [orderId, createdAt]
  */
-import type { Order, ChatMessage } from '@sajwo-tracker/shared';
-import type { ProcessedRequest } from './types';
+import type { Order, Request, ChatMessage } from './types';
 
-const DB_NAME = 'admin-history';
+/**
+ * DB 버전 2: 기존 앱별 DB를 통합 스키마로 마이그레이션한다.
+ * - customer v1 (messages만) → orders, requests 스토어 추가
+ * - sponsor/admin v2 (전체 스토어) → 변경 없음 (이미 동일 스키마)
+ * - 신규 설치 → 전체 스토어 생성
+ */
 const DB_VERSION = 2;
 
 // ── DB 싱글턴 ────────────────────────────────────────
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
-function openDb(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
+/**
+ * 앱 진입점(main.tsx)에서 최초 1회 호출한다.
+ * 기존 앱별 DB 이름을 그대로 사용하여 데이터를 보존한다.
+ */
+export function initIdb(dbName: string): void {
+  if (dbPromise) return;
 
   dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(dbName, DB_VERSION);
 
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = () => {
       const db = request.result;
-      const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
 
-      if (oldVersion < 1) {
+      if (!db.objectStoreNames.contains('orders')) {
         const orderStore = db.createObjectStore('orders', { keyPath: 'orderId' });
         orderStore.createIndex('createdAt', 'createdAt');
         orderStore.createIndex('state_createdAt', ['state', 'createdAt']);
+      }
 
+      if (!db.objectStoreNames.contains('requests')) {
         const requestStore = db.createObjectStore('requests', { keyPath: 'eventId' });
         requestStore.createIndex('orderId', 'orderId');
       }
 
-      if (oldVersion < 2) {
+      if (!db.objectStoreNames.contains('messages')) {
         const msgStore = db.createObjectStore('messages', { keyPath: 'eventId' });
         msgStore.createIndex('orderId', 'orderId');
         msgStore.createIndex('createdAt', 'createdAt');
@@ -52,13 +61,16 @@ function openDb(): Promise<IDBDatabase> {
       reject(request.error);
     };
   });
+}
 
+function openDb(): Promise<IDBDatabase> {
+  if (!dbPromise) throw new Error('initIdb()를 먼저 호출해야 합니다.');
   return dbPromise;
 }
 
 // ── 오더 API ─────────────────────────────────────────
 
-/** orderId로 오더를 조회한다. 없으면 null. */
+/** orderId로 오더를 단건 조회한다. */
 export async function idbGetOrder(orderId: string): Promise<Order | null> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -69,9 +81,18 @@ export async function idbGetOrder(orderId: string): Promise<Order | null> {
   });
 }
 
-/**
- * 오더를 upsert한다. 기존 레코드의 updatedAt보다 새 값이 클 때만 갱신.
- */
+/** orderId가 IDB에 존재하는지 확인한다. */
+export async function idbHasOrder(orderId: string): Promise<boolean> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('orders', 'readonly');
+    const req = tx.objectStore('orders').get(orderId);
+    req.onsuccess = () => resolve(req.result != null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** 오더를 upsert한다. 기존 레코드의 updatedAt보다 새 값이 클 때만 갱신. */
 export async function idbUpsertOrder(order: Order): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -96,7 +117,7 @@ export async function idbUpsertOrder(order: Order): Promise<void> {
 // ── 리퀘스트 API ─────────────────────────────────────
 
 /** request를 upsert한다 (eventId PK 기준, 릴레이 중복 수신 대비). */
-export async function idbUpsertRequest(request: ProcessedRequest): Promise<void> {
+export async function idbUpsertRequest(request: Request): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('requests', 'readwrite');
@@ -107,13 +128,13 @@ export async function idbUpsertRequest(request: ProcessedRequest): Promise<void>
 }
 
 /** orderId로 연관 request를 모두 조회한다 (orderId 인덱스 활용). */
-export async function idbGetRequestsByOrderId(orderId: string): Promise<ProcessedRequest[]> {
+export async function idbGetRequestsByOrderId(orderId: string): Promise<Request[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('requests', 'readonly');
     const index = tx.objectStore('requests').index('orderId');
     const req = index.getAll(orderId);
-    req.onsuccess = () => resolve(req.result as ProcessedRequest[]);
+    req.onsuccess = () => resolve(req.result as Request[]);
     req.onerror = () => reject(req.error);
   });
 }
@@ -178,11 +199,11 @@ export async function idbGetOrdersPage(
 
 /**
  * 오더 1건 + 연관 request N건을 단일 트랜잭션으로 원자적 저장한다.
- * 오더 생성(requested) 시 최초 호출, escrowed 진입 시 안전망으로 재호출 (멱등).
+ * Sponsor: 클레임 시점(1건), Admin: 오더 생성/escrowed 시점(N건).
  */
-export async function idbMigrateOrder(
+export async function idbMigrateOrderWithRequests(
   order: Order,
-  requests: ProcessedRequest[],
+  requests: Request[],
 ): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {

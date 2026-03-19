@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { idbGetOrder } from '../idb-store';
 import {
   subscribeChatStore, getChatSnapshot,
   addMessage, loadFromIdb, clearMessages,
-} from '../chat-store';
+  idbGetOrder, idbGetRequestsByOrderId,
+  getUserPubkey,
+} from '@sajwo-tracker/shared';
+import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage, publishAccountReveal } from '../nostr/claim';
 import { ChatWindow } from './ChatWindow';
-import { getUserPubkey } from '@sajwo-tracker/shared';
-import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
-import { idbGetRequestsByOrderId } from '../idb-store';
 import { storage } from '../nostr/storage';
 
 interface Props {

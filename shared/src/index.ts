@@ -1,5 +1,6 @@
 // Types
-export type { StorageAdapter, NostrKeypair, CachedRelayList, Order, AdminRequest, AccountInfo, DisputeMessagePayload, ChatMessage } from './types';
+export type { StorageAdapter, NostrKeypair, CachedRelayList, Order, AccountInfo, DisputeMessagePayload, ChatMessage } from './types';
+export type { RequestBase, RouteHintHop, DecodedBolt11, Invoice, OrderRequest, ClaimRequest, AccountInfoRequest, SimpleRequest, Request } from './types';
 
 // Constants
 export {
@@ -31,3 +32,16 @@ export { nip44Encrypt, nip44Decrypt, sha256Hex } from './crypto';
 // Price
 export { createPriceTracker } from './price';
 export type { PriceTracker, PriceSnapshot, ExchangeState } from './price';
+
+// IDB (공통 IndexedDB)
+export {
+  initIdb,
+  idbGetOrder, idbHasOrder, idbUpsertOrder,
+  idbUpsertRequest, idbGetRequestsByOrderId,
+  idbUpsertMessage, idbGetMessagesByOrderId,
+  idbGetOrdersPage,
+  idbMigrateOrderWithRequests,
+} from './idb';
+
+// Chat Store (리액티브 인메모리 채팅)
+export { subscribeChatStore, getChatSnapshot, addMessage, loadFromIdb, clearMessages } from './chat-store';

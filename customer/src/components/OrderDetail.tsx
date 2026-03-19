@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   subscribeChatStore, getChatSnapshot,
   addMessage, loadFromIdb, clearMessages,
-} from '../chat-store';
+} from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage } from '../nostr/publish';
 import { ChatWindow } from './ChatWindow';

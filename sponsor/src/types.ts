@@ -1,20 +1,5 @@
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, SAJWO_REQUEST_KIND, type Order, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
-
-// ── IDB 저장용 request 타입 ──────────────────────────
-
-/** Sponsor IDB에 저장되는 request (claim, account-info 등) */
-export interface SponsorRequest {
-  eventId: string;
-  orderId: string;
-  action: string;
-  pubkey: string;
-  createdAt: number;
-  expiration: number;
-  /** 복호화된 계좌정보 (account-info 액션인 경우) */
-  accountInfo?: AccountInfo;
-  raw: object;
-}
+import { APP_PUBKEY, SAJWO_REQUEST_KIND, type Order, type OrderState } from '@sajwo-tracker/shared';
 
 // ── account-info 이벤트 파싱 ─────────────────────────
 

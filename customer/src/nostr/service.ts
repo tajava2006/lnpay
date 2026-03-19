@@ -13,6 +13,7 @@ import {
   APP_PUBKEY,
   SAJWO_REQUEST_KIND,
   REQUEST_ACTIONS,
+  idbUpsertMessage,
   type ChatMessage,
   type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
@@ -23,7 +24,6 @@ import { publishAccountInfo } from './publish';
 import { parseAdminEvent, parseParsedOrderEvent } from '../types';
 import { applyAdminUpdate, getSnapshot, setAccountInfo, markSynced } from '../order-store';
 import { addParsedOrder } from '../parsed-store';
-import { idbUpsertMessage } from '../idb-store';
 
 let cleanupAdmin: (() => void) | null = null;
 let cleanupUserscript: (() => void) | null = null;

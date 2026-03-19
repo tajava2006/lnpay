@@ -19,7 +19,7 @@ import { getSnapshot as getRequestSnapshot } from './request-store';
 import { getEscrowEntry } from './escrow-store';
 import { canTransition } from './state-machine';
 import { publishOrder } from './nostr/publish';
-import { idbMigrateOrder } from './idb-store';
+import { idbMigrateOrderWithRequests } from '@sajwo-tracker/shared';
 
 const POLL_INTERVAL = 15_000; // 15초
 const SETTLE_SAFETY_MARGIN = 10 * 60; // 10분
@@ -155,7 +155,7 @@ async function transitionOrder(
   if (to === 'escrowed') {
     const allRequests = Object.values(getRequestSnapshot());
     const related = allRequests.filter(r => r.orderId === order.orderId);
-    idbMigrateOrder(updatedOrder, related).catch(err =>
+    idbMigrateOrderWithRequests(updatedOrder, related).catch(err =>
       console.warn('[InvoiceWatcher] IndexedDB migration failed for', order.orderId, err),
     );
   }

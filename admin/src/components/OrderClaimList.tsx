@@ -7,9 +7,8 @@ import {
   subscribe as orderSubscribe,
   getSnapshot as orderSnapshot,
 } from '../order-store';
-import type { PriceTracker } from '@sajwo-tracker/shared';
+import type { PriceTracker, Request } from '@sajwo-tracker/shared';
 import type { LightningAdapter } from '../lightning';
-import type { ProcessedRequest } from '../types';
 import { disburseSponsor } from '../nostr/service';
 import { ClaimCard } from './ClaimCard';
 import { SatsAmount } from './SatsAmount';
@@ -57,7 +56,7 @@ export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
 
   // 해당 주문의 요청만 필터 + 정렬 (최신순)
   const requestList = Object.values(requests)
-    .filter((r): r is ProcessedRequest => r.orderId === orderId)
+    .filter((r): r is Request => r.orderId === orderId)
     .sort((a, b) => b.createdAt - a.createdAt);
 
   return (

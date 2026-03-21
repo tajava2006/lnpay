@@ -134,7 +134,7 @@ cancelled: requested, claimed, verified에서만 전이 가능
 | `verified` | Admin이 유동성 검증 완료 | `active` |
 | `escrowed` | Customer가 hold invoice 결제, BTC 에스크로 중 | `active` |
 | `remitted` | Sponsor가 KRW 송금했다고 주장 | `active` |
-| `paid` | 거래 완료 — Customer가 입금 확인 (최종) | `sold` |
+| `paid` | 거래 완료 — Customer가 입금 컨펌 (최종) | `sold` |
 | `cancelled` | 취소 — 거래 불발 (최종) | `sold` |
 | `sponsor_wins` | 분쟁: 후원자 승리 — Admin이 송금 증거 확인, hold invoice settle (최종) | `sold` |
 | `customer_wins` | 분쟁: 고객 승리 — 송금 증거 불충분, hold invoice 환불 (최종) | `sold` |
@@ -150,8 +150,8 @@ cancelled: requested, claimed, verified에서만 전이 가능
 | verified | escrowed | Customer hold invoice 결제 |
 | verified | cancelled | Customer 이탈 |
 | escrowed | remitted | Sponsor가 KRW 송금 완료 주장 |
-| escrowed | paid | Customer가 직접 입금 확인 (Sponsor 시그널 없이) |
-| remitted | paid | Customer가 입금 확인 |
+| escrowed | paid | Customer가 직접 입금 컨펌 (Sponsor 시그널 없이) |
+| remitted | paid | Customer가 입금 컨펌 |
 | remitted | sponsor_wins | 분쟁: Admin이 송금 증거 확인 → hold invoice settle → Sponsor에게 BTC 전달 |
 | remitted | customer_wins | 분쟁: 증거 불충분 → hold invoice 환불 → Customer BTC 반환 |
 
@@ -600,7 +600,7 @@ Customer                         Admin                          Sponsor
    │                               │  ④ Sponsor가 KRW 무통장입금    │
    │                               │       (쿠팡 계좌로)            │
    │                               │                               │
-   │                               │  ⑤ KRW 입금 확인               │
+   │                               │  ⑤ KRW 입금 컨펌               │
    │                               │                               │
    │                               │  ⑥ Admin이 hold invoice settle │
    │                               │     → BTC 수령                 │
@@ -624,7 +624,7 @@ Customer                         Admin                          Sponsor
 
 | 상황 | Admin 행동 | 결과 |
 |------|-----------|------|
-| KRW 입금 확인됨 | settle | Admin이 BTC 수령 → Sponsor에게 전송 |
+| KRW 입금 컨펌됨 | settle | Admin이 BTC 수령 → Sponsor에게 전송 |
 | 거래 취소/분쟁 | settle 안 함 | CLTV timeout 후 Customer에게 환불 |
 
 #### Probing vs 에스크로: Hold Invoice 적합성 비교

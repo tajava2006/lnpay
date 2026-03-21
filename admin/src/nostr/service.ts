@@ -7,7 +7,7 @@
  * action별 자동 처리:
  * - order-request: 오더 생성 + kind 30402 발행
  * - claim: 오더 상태 전이 (requested → claimed) + kind 30402 갱신
- * - payment-confirm: Customer 입금 확인 → paid 전이 + kind 30402 갱신
+ * - payment-confirm: Customer 입금 컨펌 → paid 전이 + kind 30402 갱신
  * - cancel-request: Customer 취소 요청 → cancelled 전이 + kind 30402 갱신
  *
  * Admin UI 트리거:

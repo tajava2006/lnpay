@@ -196,12 +196,12 @@ shared/src/
    └─> Sponsor가 Customer의 쿠팡 주문에 무통장입금 (KRW)
 
 10. BTC 릴리스 (Admin → Sponsor)
-    └─> KRW 입금 확인 시 Admin이 hold invoice settle → BTC 수령
+    └─> KRW 입금 컨펌 시 Admin이 hold invoice settle → BTC 수령
     └─> Admin이 Sponsor에게 BTC 전송 (Lightning)
     └─> 문제 발생 시: settle 안 함 → CLTV timeout 후 Customer에게 자동 환불
 
 11. 완료 (Customer)
-    └─> 쿠팡에서 입금 확인, Nostr에 sold 이벤트 재발행
+    └─> 쿠팡에서 입금 컨펌, Nostr에 sold 이벤트 재발행
 ```
 
 ### 릴레이 모델 (NIP-65 Outbox)
@@ -511,7 +511,7 @@ settle 후에도 Admin은 여전히 판정할 수 있다:
 
 #### 분쟁 중재 (Dispute Mediation)
 
-`remitted` 상태에서 Customer가 입금 확인을 하지 않으면, Admin이 양쪽과 각각 1:1 채팅으로 대화하고 증거를 검토한 뒤 `sponsor_wins` 또는 `customer_wins`를 판정한다.
+`remitted` 상태에서 Customer가 입금 컨펌을 하지 않으면, Admin이 양쪽과 각각 1:1 채팅으로 대화하고 증거를 검토한 뒤 `sponsor_wins` 또는 `customer_wins`를 판정한다.
 
 **채팅 전송**: kind 1111 `dispute-message` + NIP-44 암호화.
 기존 요청 이벤트 인프라를 재사용하여 NIP-17(gift wrap) 없이 구현한다.

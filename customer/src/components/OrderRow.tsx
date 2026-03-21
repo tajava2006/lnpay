@@ -69,16 +69,16 @@ export function OrderRow({ order, tracker, now }: Props) {
   async function handleConfirmPaid() {
     if (!confirm(
       '실제로 원화 입금이 확인되었습니까?\n\n'
-      + '입금되지 않은 상태에서 확인을 누르면 btc가 상대방에게 송금되고, 이후 돌려받을 수 없습니다.',
+      + '입금되지 않은 상태에서 컨펌하면 BTC가 상대방에게 전송되고, 이후 돌려받을 수 없습니다.',
     )) return;
     setConfirming(true);
     try {
       const result = await publishNotification(order, 'payment-confirm');
       if (!result.success) {
-        alert('입금 확인 통보에 실패했습니다.');
+        alert('입금 컨펌 통보에 실패했습니다.');
       }
     } catch {
-      alert('입금 확인 통보 중 오류가 발생했습니다.');
+      alert('입금 컨펌 통보 중 오류가 발생했습니다.');
     } finally {
       setConfirming(false);
     }
@@ -225,7 +225,7 @@ export function OrderRow({ order, tracker, now }: Props) {
                 disabled={confirming}
                 className="btn btn-publish"
               >
-                {confirming ? '통보 중...' : '입금 확인'}
+                {confirming ? '통보 중...' : '입금 컨펌'}
               </button>
             )}
             {order.adminState && (

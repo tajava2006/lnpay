@@ -7,6 +7,8 @@ import { startLnConfigSubscription, stopLnConfigSubscription, decryptLnConfig } 
 import { startCleanup, stopCleanup } from './cleanup';
 import { startInvoiceWatcher, stopInvoiceWatcher } from './invoice-watcher';
 import { cacheLnConfig, loadCachedLnConfig, clearCachedLnConfig, publishLnConfig, type LnConfig } from './nostr/ln-config';
+import { initEscrowCache, mergeRestoredEntries } from './escrow-store';
+import { fetchEscrowBackup } from './nostr/escrow-backup';
 import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
 import { OrderQueue } from './components/OrderQueue';
@@ -145,6 +147,31 @@ export function App() {
     restoreSigner(session);
     setAuthState('logged-in');
   }, []);
+
+  // ─── 로그인 시 escrow 캐시 초기화 + 릴레이 복원 ───
+
+  useEffect(() => {
+    if (authState !== 'logged-in') return;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await initEscrowCache();
+        if (cancelled) return;
+
+        // 릴레이 백업에서 로컬에 없는 엔트리 복원
+        const restored = await fetchEscrowBackup();
+        if (!cancelled && Object.keys(restored).length > 0) {
+          await mergeRestoredEntries(restored);
+        }
+      } catch (e) {
+        console.warn('[App] Escrow cache init failed:', e);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [authState]);
 
   // ─── 로그인 + 암호화 config 둘 다 준비되면 복호화 ───
 

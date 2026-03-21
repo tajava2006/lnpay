@@ -29,12 +29,12 @@
 |------|------|
 | **분류** | 보안 — 자금 보호 |
 | **심각도** | Critical |
-| **현재 상태** | `admin/src/escrow-store.ts`에서 localStorage 평문 저장 |
+| **현재 상태** | ✅ 해결안 B 구현 완료 |
 | **문제 1 — XSS 탈취** | Preimage = hold invoice settle 권한 = BTC 수령 권한. XSS 공격 하나로 활성 에스크로의 모든 preimage 탈취 가능. |
 | **문제 2 — 데이터 소실** | 브라우저 데이터 삭제 시 preimage 영구 손실 → settle 불가, BTC 제어권 상실. CLTV timeout까지 자금이 잠기고 Admin이 할 수 있는 것이 없다. |
 | **해결안 A (최소)** | Web Crypto API `subtle.encrypt(AES-GCM)`으로 세션키 기반 암호화 후 저장. 세션키는 NIP-46 인증 시 파생. |
-| **해결안 B (권장)** | Preimage를 NIP-78 + NIP-44로 암호화하여 릴레이에 백업 (LN config과 동일 패턴). 브라우저 초기화 시에도 복원 가능. |
-| **해결안 C (이상적)** | Preimage를 브라우저에 저장하지 않고, settle 시점에만 LN 노드에서 조회하는 구조로 전환. LND `AddHoldInvoice`의 preimage 서버 보관 기능 활용. |
+| **해결안 B (채택 ✅)** | Preimage를 NIP-44 암호화하여 localStorage 캐시 + NIP-78 릴레이 백업. 로그인 시 자동 복원. `escrow-store.ts` 전면 재작성 + `escrow-backup.ts` 신규 모듈. |
+| **해결안 C (불가)** | Hold invoice는 설계상 preimage를 노드에 전달하지 않음 (hash만 전달). 노드 저장 불가. |
 
 ---
 

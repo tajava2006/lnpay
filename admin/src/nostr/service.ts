@@ -135,7 +135,7 @@ export function stopAdminSubscription(): void {
 
 /**
  * 클레임을 승인하여 claimed → verified로 전이하고 kind 30402를 발행한다.
- * hold invoice를 생성하여 오더에 첨부한다. 프리이미지는 escrow-store에 자동 저장된다.
+ * hold invoice를 생성하여 오더에 첨부한다. 프리이미지는 NIP-44 암호화 저장 + 릴레이 백업된다.
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
 export async function approveOrder(
@@ -163,7 +163,7 @@ export async function approveOrder(
   const DISPUTE_MARGIN_SECONDS = 48 * 60 * 60;
   const cltvExpiry = Math.ceil((expiry + DISPUTE_MARGIN_SECONDS) / 600);
 
-  // hold invoice 생성 (프리이미지는 LN 어댑터 내부에서 escrow-store에 자동 저장)
+  // hold invoice 생성 (프리이미지는 LN 어댑터 내부에서 NIP-44 암호화 저장 + 릴레이 백업)
   let bolt11: string;
   try {
     const result = await lnAdapter.createHoldInvoice(orderId, amountSat, expiry, cltvExpiry);

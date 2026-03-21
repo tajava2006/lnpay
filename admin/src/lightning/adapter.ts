@@ -34,7 +34,7 @@ export interface LightningAdapter {
    * Hold invoice를 생성한다.
    *
    * 내부에서 32바이트 랜덤 프리이미지를 생성하고 SHA-256 해시를 LN 노드에 전달한다.
-   * 프리이미지는 escrow-store에 orderId 키로 자동 저장된다 (settle 시 필요).
+   * 프리이미지는 NIP-44 암호화하여 localStorage에 캐시하고, 릴레이에도 백업한다.
    *
    * @param orderId - 오더 식별자 (escrow-store 키)
    * @param amountSat - 인보이스 금액 (sats)

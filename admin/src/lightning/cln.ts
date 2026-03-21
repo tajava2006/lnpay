@@ -1,7 +1,8 @@
 import type { LightningAdapter } from './adapter';
 import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, LnConnectionConfig, PaymentResult } from './types';
 import type { RouteHintHop } from '@sajwo-tracker/shared';
-import { savePreimage } from '../escrow-store';
+import { savePreimage, getAllEntries } from '../escrow-store';
+import { publishEscrowBackup } from '../nostr/escrow-backup';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
 
@@ -254,8 +255,11 @@ export class ClnAdapter implements LightningAdapter {
       ...(cltvExpiry != null ? { cltv_expiry: cltvExpiry } : {}),
     });
 
-    // 4. 프리이미지를 escrow-store에 저장 (settle 시 필요)
-    savePreimage(orderId, bytesToHex(preimage), paymentHashHex);
+    // 4. 프리이미지를 NIP-44 암호화하여 localStorage에 저장 + 릴레이 백업
+    await savePreimage(orderId, bytesToHex(preimage), paymentHashHex);
+    void publishEscrowBackup(getAllEntries()).catch(e =>
+      console.warn('[CLN] Escrow relay backup failed for', orderId, e),
+    );
 
     return { bolt11: data.bolt11, paymentHash: paymentHashHex };
   }

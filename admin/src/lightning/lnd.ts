@@ -1,7 +1,8 @@
 import type { LightningAdapter } from './adapter';
 import type { NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, LnConnectionConfig, PaymentResult } from './types';
 import type { RouteHintHop } from '@sajwo-tracker/shared';
-import { savePreimage } from '../escrow-store';
+import { savePreimage, getAllEntries } from '../escrow-store';
+import { publishEscrowBackup } from '../nostr/escrow-backup';
 
 // ─── 응답 타입 ───────────────────────────────────────────────
 
@@ -262,8 +263,11 @@ export class LndAdapter implements LightningAdapter {
     const data: { payment_request: string } = await res.json();
     const paymentHashHex = bytesToHex(paymentHash);
 
-    // 4. 프리이미지를 escrow-store에 저장 (settle 시 필요)
-    savePreimage(orderId, bytesToHex(preimage), paymentHashHex);
+    // 4. 프리이미지를 NIP-44 암호화하여 localStorage에 저장 + 릴레이 백업
+    await savePreimage(orderId, bytesToHex(preimage), paymentHashHex);
+    void publishEscrowBackup(getAllEntries()).catch(e =>
+      console.warn('[LND] Escrow relay backup failed for', orderId, e),
+    );
 
     return { bolt11: data.payment_request, paymentHash: paymentHashHex };
   }

@@ -23,7 +23,7 @@ import { getSnapshot } from './order-store';
 import { getSnapshot as getRequestSnapshot } from './request-store';
 import { getEscrowEntry } from './escrow-store';
 import { canTransition } from './state-machine';
-import { publishOrder } from './nostr/publish';
+import { publishOrder, publishDepositStatus } from './nostr/publish';
 import { createOrder } from './nostr/service';
 import { idbMigrateOrderWithRequests } from '@sajwo-tracker/shared';
 import { getAllPendingDeposits, deletePendingDeposit } from './pending-deposit-store';
@@ -85,10 +85,12 @@ async function poll(): Promise<void> {
             continue; // 다음 폴링에서 재시도
           }
           deletePendingDeposit(deposit.orderId);
+          void publishDepositStatus(deposit.orderId, deposit.customerPubkey, 'accepted');
           console.log('[InvoiceWatcher] Deposit confirmed, order created:', deposit.orderId);
         } else if (status === 'cancelled') {
           // 보증금 만료/취소 → pending deposit 삭제 (오더 미생성)
           deletePendingDeposit(deposit.orderId);
+          void publishDepositStatus(deposit.orderId, deposit.customerPubkey, 'cancelled');
           console.log('[InvoiceWatcher] Deposit cancelled, discarding:', deposit.orderId);
         }
         // open → 스킵 (미결제)

@@ -20,7 +20,7 @@ import type { Event } from 'nostr-tools/core';
 import { subscribeAdminOrders, subscribeUserscriptEvents } from './subscribe';
 import { publishAccountInfo } from './publish';
 import { parseAdminEvent, parseParsedOrderEvent } from '../types';
-import { applyAdminUpdate, applyDepositRequired, getSnapshot, setAccountInfo, markSynced } from '../order-store';
+import { applyAdminUpdate, applyDepositRequired, applyDepositStatus, getSnapshot, setAccountInfo, markSynced } from '../order-store';
 import { addParsedOrder } from '../parsed-store';
 
 let cleanupAdmin: (() => void) | null = null;
@@ -87,6 +87,23 @@ async function startUserscriptSubscription(): Promise<void> {
           applyDepositRequired(orderId, bolt11);
           console.log('[Customer] Deposit required for', orderId);
         }
+        return;
+      }
+
+      // deposit-accepted/cancelled/settled: Admin이 보증금 상태 변경 알림
+      if (action === REQUEST_ACTIONS.DEPOSIT_ACCEPTED && event.pubkey === APP_PUBKEY) {
+        const orderId = extractOrderId(event.tags);
+        if (orderId) applyDepositStatus(orderId, 'accepted');
+        return;
+      }
+      if (action === REQUEST_ACTIONS.DEPOSIT_CANCELLED && event.pubkey === APP_PUBKEY) {
+        const orderId = extractOrderId(event.tags);
+        if (orderId) applyDepositStatus(orderId, 'cancelled');
+        return;
+      }
+      if (action === REQUEST_ACTIONS.DEPOSIT_SETTLED && event.pubkey === APP_PUBKEY) {
+        const orderId = extractOrderId(event.tags);
+        if (orderId) applyDepositStatus(orderId, 'settled');
         return;
       }
 

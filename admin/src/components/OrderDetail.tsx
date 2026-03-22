@@ -10,7 +10,7 @@ import type { Order, Request, PriceTracker, DisputeMessagePayload } from '@sajwo
 import type { LightningAdapter } from '../lightning';
 import type { HoldInvoiceStatus } from '../lightning/types';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
-import { publishDisputeMessage } from '../nostr/publish';
+import { publishDisputeMessage, publishDepositStatus } from '../nostr/publish';
 import { resolveDisputeSponsorWins, resolveDisputeCustomerWins } from '../nostr/service';
 import { getEscrowEntry, getPreimage } from '../escrow-store';
 import { CommitmentBadge } from './CommitmentBadge';
@@ -216,6 +216,7 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
     try {
       await lnAdapter!.settleInvoice(preimage);
       setDepositStatus('settled');
+      if (customerPubkey) void publishDepositStatus(orderId, customerPubkey, 'settled');
     } catch (e) {
       alert(`보증금 settle 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -230,6 +231,7 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
     try {
       await lnAdapter!.cancelInvoice(depositPaymentHash);
       setDepositStatus('cancelled');
+      if (customerPubkey) void publishDepositStatus(orderId, customerPubkey, 'cancelled');
     } catch (e) {
       alert(`보증금 cancel 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -328,6 +330,20 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
                     {depositActing ? '처리 중...' : '캔슬 (환불)'}
                   </button>
                 </div>
+              )}
+              {customerPubkey && (
+                <button
+                  style={styles.depositNotifyBtn}
+                  onClick={() => {
+                    const statusMap: Record<HoldInvoiceStatus, 'accepted' | 'cancelled' | 'settled'> = {
+                      open: 'accepted', accepted: 'accepted', cancelled: 'cancelled', settled: 'settled',
+                    };
+                    void publishDepositStatus(orderId, customerPubkey, statusMap[depositStatus!]);
+                    alert('고객에게 보증금 상태 알림을 전송했습니다.');
+                  }}
+                >
+                  고객에게 상태 알림
+                </button>
               )}
             </div>
           )}
@@ -557,6 +573,17 @@ const styles = {
     color: '#fff',
     background: '#059669',
     border: 'none',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
+    fontFamily: 'inherit',
+  },
+  depositNotifyBtn: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 500 as const,
+    color: '#4F46E5',
+    background: '#EEF2FF',
+    border: '1px solid #C7D2FE',
     borderRadius: 6,
     cursor: 'pointer' as const,
     fontFamily: 'inherit',

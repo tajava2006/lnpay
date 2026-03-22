@@ -122,6 +122,16 @@ export function applyDepositRequired(orderId: string, depositBolt11: string): vo
   notify();
 }
 
+/** 보증금 인보이스 상태를 갱신한다 (deposit-accepted/cancelled/settled 알림 수신 시). */
+export function applyDepositStatus(orderId: string, depositStatus: 'accepted' | 'cancelled' | 'settled'): void {
+  const existing = orders[orderId];
+  if (!existing) return;
+  if (existing.depositStatus === depositStatus) return;
+  orders = { ...orders, [orderId]: { ...existing, depositStatus } };
+  saveToStorage();
+  notify();
+}
+
 /** 계좌정보 전달 완료 시 로컬 저장 */
 export function setAccountInfo(orderId: string, accountInfo: AccountInfo): void {
   const existing = orders[orderId];

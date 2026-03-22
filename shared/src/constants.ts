@@ -39,6 +39,9 @@ export const REQUEST_ACTIONS = {
   DISPUTE_MESSAGE: 'dispute-message',
   CLAIM_PRICE_ERROR: 'claim-price-error',
   DEPOSIT_REQUIRED: 'deposit-required',
+  DEPOSIT_ACCEPTED: 'deposit-accepted',
+  DEPOSIT_CANCELLED: 'deposit-cancelled',
+  DEPOSIT_SETTLED: 'deposit-settled',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 

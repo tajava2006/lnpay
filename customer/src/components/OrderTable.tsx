@@ -48,6 +48,7 @@ export function OrderTable({ tracker }: Props) {
             <th>메모</th>
             <th>금액</th>
             <th>상태</th>
+            <th>보증금</th>
             <th>등록일</th>
             <th>관리</th>
           </tr>
@@ -55,7 +56,7 @@ export function OrderTable({ tracker }: Props) {
         <tbody>
           {sorted.length === 0 ? (
             <tr>
-              <td colSpan={6} className="empty-state">추적 중인 주문이 없습니다</td>
+              <td colSpan={7} className="empty-state">추적 중인 주문이 없습니다</td>
             </tr>
           ) : (
             sorted.map(order => (

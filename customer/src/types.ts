@@ -42,6 +42,8 @@ export interface CustomerOrder {
   bolt11?: string;
   /** 보증금 hold invoice (deposit-required 알림에서 수신) */
   depositBolt11?: string;
+  /** 보증금 인보이스 상태 (Admin 알림으로 수신, UI 전용) */
+  depositStatus?: 'accepted' | 'cancelled' | 'settled';
   /** Admin 오더에서 수신한 Sponsor pubkey (claimed 이후) */
   sponsorPubkey?: string;
   /** 전달 완료된 계좌정보 (로컬 전용, 재전송 방지) */

@@ -39,8 +39,8 @@ export function OrderRow({ order, tracker, now }: Props) {
   const showPublish = !order.raw && !order.adminState;
   const isExpired = order.expiration > 0 && order.expiration <= now;
   const showPayment = order.adminState === 'verified' && order.bolt11 && !isExpired;
-  // 보증금 결제 대기: Admin 미등록 + depositBolt11 존재
-  const showDeposit = !order.adminState && order.depositBolt11 && !isExpired;
+  // 보증금 결제 대기: Admin 미등록 + depositBolt11 존재 + 아직 상태 알림 없음
+  const showDeposit = !order.adminState && order.depositBolt11 && !isExpired && !order.depositStatus;
   // 수동 주문: escrowed에서 계좌 입력 모달 버튼 표시
   const showAccountBtn = !isParsed && order.adminState === 'escrowed' && order.sponsorPubkey && !order.accountInfo;
   // 계좌 전달 완료 표시 (수동/파싱 공통: escrowed에서 전달)
@@ -154,6 +154,38 @@ export function OrderRow({ order, tracker, now }: Props) {
           >
             {meta.label}
           </span>
+        </td>
+        <td>
+          {order.depositBolt11 ? (() => {
+            const ds = order.depositStatus;
+            const label = ds === 'accepted' ? '전달 완료'
+              : ds === 'cancelled' ? '환불됨'
+              : ds === 'settled' ? '몰수됨'
+              : '결제 대기';
+            const bg = ds === 'accepted' ? '#D1FAE5'
+              : ds === 'cancelled' ? '#F3F4F6'
+              : ds === 'settled' ? '#FEE2E2'
+              : '#FEF3C7';
+            const color = ds === 'accepted' ? '#065F46'
+              : ds === 'cancelled' ? '#6B7280'
+              : ds === 'settled' ? '#DC2626'
+              : '#D97706';
+            return (
+              <span style={{
+                display: 'inline-block',
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 500,
+                background: bg,
+                color,
+              }}>
+                {label}
+              </span>
+            );
+          })() : (
+            <span style={{ fontSize: 12, color: '#ccc' }}>—</span>
+          )}
         </td>
         <td>
           <div>{dateStr}</div>

@@ -177,6 +177,51 @@ export async function publishDepositRequired(
 }
 
 /**
+ * 보증금 상태 변경 알림을 kind 1111로 발행한다 (fire-and-forget).
+ * accepted: 보증금 결제 확인, cancelled: 환불, settled: 몰수.
+ */
+export async function publishDepositStatus(
+  orderId: string,
+  customerPubkey: string,
+  status: 'accepted' | 'cancelled' | 'settled',
+): Promise<void> {
+  const signer = getSigner();
+  if (!signer) return;
+
+  const actionMap = {
+    accepted: REQUEST_ACTIONS.DEPOSIT_ACCEPTED,
+    cancelled: REQUEST_ACTIONS.DEPOSIT_CANCELLED,
+    settled: REQUEST_ACTIONS.DEPOSIT_SETTLED,
+  } as const;
+
+  const now = Math.floor(Date.now() / 1000);
+
+  const template: EventTemplate = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: now,
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ['action', actionMap[status]],
+      ['t', CLIENT_TAG],
+      ['p', customerPubkey],
+      ['expiration', String(now + 86400)],
+    ],
+    content: '',
+  };
+
+  const signed = await signer.signEvent(template);
+
+  const relays = await getReadRelays(storage);
+  const pool = new SimplePool();
+  try {
+    await Promise.allSettled(pool.publish(relays, signed));
+    console.log(`[Admin] Published deposit-${status} for`, orderId, 'to', customerPubkey.slice(0, 12));
+  } finally {
+    pool.destroy();
+  }
+}
+
+/**
  * 클레임 가격 오류 알림을 kind 1111로 발행한다.
  * 인보이스 금액이 현재 시세 범위를 벗어날 때 Sponsor에게 재발행을 요청한다.
  * 오더 상태에 영향 없음 (사용성 개선 목적 알림).

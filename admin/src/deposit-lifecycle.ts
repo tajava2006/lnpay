@@ -12,6 +12,7 @@
 import type { Order, OrderState } from '@sajwo-tracker/shared';
 import type { LightningAdapter } from './lightning';
 import { getEscrowEntry, getPreimage } from './escrow-store';
+import { publishDepositStatus } from './nostr/publish';
 
 /**
  * 오더 상태 전이 시 보증금 hold invoice를 처리한다.
@@ -38,6 +39,7 @@ export async function handleDepositOnTransition(
     if (newState === 'escrowed') {
       // 실결제 완료 → 보증금 환불
       await lnAdapter.cancelInvoice(entry.paymentHash);
+      void publishDepositStatus(order.orderId, order.customerPubkey, 'cancelled');
       console.log('[Deposit] Cancelled (refund) on escrowed:', order.orderId);
     } else if (newState === 'cancelled') {
       if (order.sponsorPubkey) {
@@ -45,11 +47,13 @@ export async function handleDepositOnTransition(
         const preimage = getPreimage(depositKey);
         if (preimage) {
           await lnAdapter.settleInvoice(preimage);
+          void publishDepositStatus(order.orderId, order.customerPubkey, 'settled');
           console.log('[Deposit] Settled (forfeit) on cancelled:', order.orderId);
         }
       } else {
         // Sponsor 관여 전 취소 → 보증금 환불
         await lnAdapter.cancelInvoice(entry.paymentHash);
+        void publishDepositStatus(order.orderId, order.customerPubkey, 'cancelled');
         console.log('[Deposit] Cancelled (refund) on cancelled:', order.orderId);
       }
     }

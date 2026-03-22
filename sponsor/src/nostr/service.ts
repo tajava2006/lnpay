@@ -29,6 +29,7 @@ import { parseEvent, parseAccountInfoEvent } from '../types';
 import { upsertOrder, markSynced } from '../order-store';
 import { setAccountInfo } from '../account-store';
 import { setClaimError } from '../claim-error-store';
+import { setDepositBolt11, setDepositStatus } from '../deposit-store';
 import type { AccountInfoEvent } from '../types';
 
 let cleanupOrders: (() => void) | null = null;
@@ -65,6 +66,32 @@ export async function startOrderSubscription(): Promise<void> {
         return;
       }
       const action = event.tags.find(t => t[0] === 'action')?.[1];
+      // deposit-required: Admin이 보증금 인보이스 전달
+      if (action === REQUEST_ACTIONS.DEPOSIT_REQUIRED && event.pubkey === APP_PUBKEY) {
+        const orderId = extractOrderId(event.tags);
+        const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
+        if (orderId && bolt11) {
+          setDepositBolt11(orderId, bolt11);
+          console.log('[Sponsor] Deposit required for', orderId);
+        }
+        return;
+      }
+      // deposit-accepted/cancelled/settled: 보증금 상태 알림
+      if (action === REQUEST_ACTIONS.DEPOSIT_ACCEPTED && event.pubkey === APP_PUBKEY) {
+        const orderId = extractOrderId(event.tags);
+        if (orderId) setDepositStatus(orderId, 'accepted');
+        return;
+      }
+      if (action === REQUEST_ACTIONS.DEPOSIT_CANCELLED && event.pubkey === APP_PUBKEY) {
+        const orderId = extractOrderId(event.tags);
+        if (orderId) setDepositStatus(orderId, 'cancelled');
+        return;
+      }
+      if (action === REQUEST_ACTIONS.DEPOSIT_SETTLED && event.pubkey === APP_PUBKEY) {
+        const orderId = extractOrderId(event.tags);
+        if (orderId) setDepositStatus(orderId, 'settled');
+        return;
+      }
       // claim-price-error: 가격 에러 알림
       if (action === REQUEST_ACTIONS.CLAIM_PRICE_ERROR) {
         handleClaimPriceError(event as Event);

@@ -44,13 +44,17 @@ async function encryptEntry(entry: EscrowEntry): Promise<string> {
   return signer.nip44Encrypt(APP_PUBKEY, JSON.stringify(entry));
 }
 
-async function decryptEntry(ciphertext: string): Promise<EscrowEntry | null> {
+async function decryptEntry(ciphertext: string, key?: string): Promise<EscrowEntry | null> {
   const signer = getSigner();
-  if (!signer) return null;
+  if (!signer) {
+    console.warn('[Escrow] decryptEntry: signer 없음', key);
+    return null;
+  }
   try {
     const plaintext = await signer.nip44Decrypt(APP_PUBKEY, ciphertext);
     return JSON.parse(plaintext) as EscrowEntry;
-  } catch {
+  } catch (e) {
+    console.error('[Escrow] decryptEntry failed for', key, e);
     return null;
   }
 }
@@ -83,7 +87,7 @@ export async function initEscrowCache(): Promise<void> {
   const result: Record<string, EscrowEntry> = {};
 
   for (const [orderId, ciphertext] of Object.entries(rawMap)) {
-    const entry = await decryptEntry(ciphertext);
+    const entry = await decryptEntry(ciphertext, orderId);
     if (entry) {
       result[orderId] = entry;
     }

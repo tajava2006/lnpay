@@ -67,31 +67,61 @@ async function poll(): Promise<void> {
       try {
         const status = await adapter!.lookupHoldInvoice(deposit.depositPaymentHash);
 
-        if (status === 'accepted') {
-          // 보증금 결제 확인 → 오더 발행
-          const fakeRequest: OrderRequest = {
-            eventId: '',
-            orderId: deposit.orderId,
-            pubkey: deposit.customerPubkey,
-            action: 'order-request',
-            price: deposit.price,
-            expiration: deposit.expiration,
-            createdAt: deposit.createdAt,
-            raw: {},
-          };
-          const success = await createOrder(fakeRequest, deposit.depositPaymentHash);
-          if (!success) {
-            console.warn('[InvoiceWatcher] Order publish failed, retaining pending deposit for retry:', deposit.orderId);
-            continue; // 다음 폴링에서 재시도
+        if (deposit.type === 'sponsor') {
+          // ── Sponsor 보증금: accepted → order에 sponsorDepositPaymentHash 기록 ──
+          if (status === 'accepted') {
+            const order = getSnapshot()[deposit.orderId];
+            if (order && !order.sponsorDepositPaymentHash) {
+              const updatedOrder: Order = {
+                ...order,
+                sponsorDepositPaymentHash: deposit.depositPaymentHash,
+                updatedAt: Math.max(
+                  Math.floor(Date.now() / 1000),
+                  order.updatedAt + 1,
+                ),
+              };
+              try {
+                await publishOrder(updatedOrder);
+                deletePendingDeposit(deposit.orderId);
+                void publishDepositStatus(deposit.orderId, deposit.sponsorPubkey!, 'accepted');
+                console.log('[InvoiceWatcher] Sponsor deposit confirmed:', deposit.orderId);
+              } catch {
+                console.warn('[InvoiceWatcher] Sponsor deposit order update failed, retrying:', deposit.orderId);
+              }
+            }
+          } else if (status === 'cancelled') {
+            deletePendingDeposit(deposit.orderId);
+            if (deposit.sponsorPubkey) {
+              void publishDepositStatus(deposit.orderId, deposit.sponsorPubkey, 'cancelled');
+            }
+            console.log('[InvoiceWatcher] Sponsor deposit cancelled:', deposit.orderId);
           }
-          deletePendingDeposit(deposit.orderId);
-          void publishDepositStatus(deposit.orderId, deposit.customerPubkey, 'accepted');
-          console.log('[InvoiceWatcher] Deposit confirmed, order created:', deposit.orderId);
-        } else if (status === 'cancelled') {
-          // 보증금 만료/취소 → pending deposit 삭제 (오더 미생성)
-          deletePendingDeposit(deposit.orderId);
-          void publishDepositStatus(deposit.orderId, deposit.customerPubkey, 'cancelled');
-          console.log('[InvoiceWatcher] Deposit cancelled, discarding:', deposit.orderId);
+        } else {
+          // ── Customer 보증금: accepted → 오더 발행 ──
+          if (status === 'accepted') {
+            const fakeRequest: OrderRequest = {
+              eventId: '',
+              orderId: deposit.orderId,
+              pubkey: deposit.customerPubkey,
+              action: 'order-request',
+              price: deposit.price,
+              expiration: deposit.expiration,
+              createdAt: deposit.createdAt,
+              raw: {},
+            };
+            const success = await createOrder(fakeRequest, deposit.depositPaymentHash);
+            if (!success) {
+              console.warn('[InvoiceWatcher] Order publish failed, retaining pending deposit for retry:', deposit.orderId);
+              continue;
+            }
+            deletePendingDeposit(deposit.orderId);
+            void publishDepositStatus(deposit.orderId, deposit.customerPubkey, 'accepted');
+            console.log('[InvoiceWatcher] Customer deposit confirmed, order created:', deposit.orderId);
+          } else if (status === 'cancelled') {
+            deletePendingDeposit(deposit.orderId);
+            void publishDepositStatus(deposit.orderId, deposit.customerPubkey, 'cancelled');
+            console.log('[InvoiceWatcher] Customer deposit cancelled, discarding:', deposit.orderId);
+          }
         }
         // open → 스킵 (미결제)
       } catch (err) {
@@ -198,8 +228,11 @@ async function transitionOrder(
     return;
   }
 
-  // 보증금 처리: escrowed 진입 시 cancel, cancelled 시 cancel/settle
-  if (to === 'escrowed' || to === 'cancelled') {
+  // 보증금 처리: 상태 전이 시 자동 cancel/settle
+  // 고객: escrowed(환불), cancelled(몰수)
+  // 스폰서: paid/sponsor_wins(환불), customer_wins(몰수)
+  const depositStates = new Set(['escrowed', 'cancelled', 'paid', 'sponsor_wins', 'customer_wins']);
+  if (depositStates.has(to)) {
     void handleDepositOnTransition(order, to, adapter).catch(err =>
       console.warn('[InvoiceWatcher] Deposit lifecycle failed for', order.orderId, err),
     );

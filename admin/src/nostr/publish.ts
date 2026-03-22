@@ -51,7 +51,10 @@ export async function publishOrder(order: Order): Promise<object> {
     tags.push(['disbursed', 'true']);
   }
   if (order.depositPaymentHash) {
-    tags.push(['deposit-payment-hash', order.depositPaymentHash]);
+    tags.push(['customer-deposit-payment-hash', order.depositPaymentHash]);
+  }
+  if (order.sponsorDepositPaymentHash) {
+    tags.push(['sponsor-deposit-payment-hash', order.sponsorDepositPaymentHash]);
   }
 
   const template: EventTemplate = {
@@ -136,12 +139,11 @@ export async function publishDisputeMessage(
 
 /**
  * 보증금 결제 요청 알림을 kind 1111로 발행한다.
- * order-request 수신 시 depositPercent > 0이면 호출.
- * Customer가 보증금을 결제해야 오더가 생성된다.
+ * Customer 또는 Sponsor에게 보증금 hold invoice를 전달한다.
  */
 export async function publishDepositRequired(
   orderId: string,
-  customerPubkey: string,
+  recipientPubkey: string,
   bolt11: string,
   expiration: number,
 ): Promise<void> {
@@ -157,7 +159,8 @@ export async function publishDepositRequired(
       ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', REQUEST_ACTIONS.DEPOSIT_REQUIRED],
       ['t', CLIENT_TAG],
-      ['p', customerPubkey],
+      ['p', recipientPubkey],
+      ['p', APP_PUBKEY],
       ['bolt11', bolt11],
       ['expiration', String(expiration)],
     ],
@@ -170,7 +173,7 @@ export async function publishDepositRequired(
   const pool = new SimplePool();
   try {
     await Promise.allSettled(pool.publish(relays, signed));
-    console.log('[Admin] Published deposit-required for', orderId, 'to', customerPubkey.slice(0, 12));
+    console.log('[Admin] Published deposit-required for', orderId, 'to', recipientPubkey.slice(0, 12));
   } finally {
     pool.destroy();
   }
@@ -182,7 +185,7 @@ export async function publishDepositRequired(
  */
 export async function publishDepositStatus(
   orderId: string,
-  customerPubkey: string,
+  recipientPubkey: string,
   status: 'accepted' | 'cancelled' | 'settled',
 ): Promise<void> {
   const signer = getSigner();
@@ -203,7 +206,8 @@ export async function publishDepositStatus(
       ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', actionMap[status]],
       ['t', CLIENT_TAG],
-      ['p', customerPubkey],
+      ['p', recipientPubkey],
+      ['p', APP_PUBKEY],
       ['expiration', String(now + 86400)],
     ],
     content: '',
@@ -215,7 +219,7 @@ export async function publishDepositStatus(
   const pool = new SimplePool();
   try {
     await Promise.allSettled(pool.publish(relays, signed));
-    console.log(`[Admin] Published deposit-${status} for`, orderId, 'to', customerPubkey.slice(0, 12));
+    console.log(`[Admin] Published deposit-${status} for`, orderId, 'to', recipientPubkey.slice(0, 12));
   } finally {
     pool.destroy();
   }
@@ -244,6 +248,7 @@ export async function publishClaimPriceError(
       ['action', REQUEST_ACTIONS.CLAIM_PRICE_ERROR],
       ['t', CLIENT_TAG],
       ['p', sponsorPubkey],
+      ['p', APP_PUBKEY],
       ['expected-sats', String(expectedSats)],
       ['expiration', String(now + 3600)],
     ],

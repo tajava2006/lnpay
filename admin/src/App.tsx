@@ -16,7 +16,7 @@ import { OrderClaimList } from './components/OrderClaimList';
 import { HistoryPage } from './components/HistoryPage';
 import { OrderDetail } from './components/OrderDetail';
 import { NodeStatus } from './components/NodeStatus';
-import { getDepositPercent, setDepositPercent } from './deposit-config';
+import { getCustomerDepositPercent, setCustomerDepositPercent, getSponsorDepositPercent, setSponsorDepositPercent } from './deposit-config';
 import { BtcPrice, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { createLightningAdapter, createNodeTracker } from './lightning';
@@ -36,7 +36,8 @@ function getPageFromUrl(): string | null {
 
 export function App() {
   const [authState, setAuthState] = useState<AuthState>('checking');
-  const [depositPct, setDepositPct] = useState(getDepositPercent);
+  const [customerDepositPct, setCustomerDepositPct] = useState(getCustomerDepositPercent);
+  const [sponsorDepositPct, setSponsorDepositPct] = useState(getSponsorDepositPercent);
 
   // ─── 싱글턴 인스턴스 (렌더 시 1회 생성) ───────────
 
@@ -324,13 +325,30 @@ export function App() {
         <BtcPrice tracker={tracker} />
         {nodeTracker && <NodeStatus tracker={nodeTracker} />}
         <label style={styles.depositLabel}>
-          보증금
+          고객 보증금
           <select
-            value={depositPct}
+            value={customerDepositPct}
             onChange={(e) => {
               const v = Number(e.target.value);
-              setDepositPercent(v);
-              setDepositPct(v);
+              setCustomerDepositPercent(v);
+              setCustomerDepositPct(v);
+            }}
+            style={styles.depositSelect}
+          >
+            <option value={0}>OFF</option>
+            <option value={1}>1%</option>
+            <option value={3}>3%</option>
+            <option value={5}>5%</option>
+          </select>
+        </label>
+        <label style={styles.depositLabel}>
+          후원자 보증금
+          <select
+            value={sponsorDepositPct}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setSponsorDepositPercent(v);
+              setSponsorDepositPct(v);
             }}
             style={styles.depositSelect}
           >

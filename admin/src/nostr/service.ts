@@ -39,7 +39,7 @@ import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
 import { getPreimage, getEscrowEntry } from '../escrow-store';
-import { getDepositPercent } from '../deposit-config';
+import { getCustomerDepositPercent, getSponsorDepositPercent } from '../deposit-config';
 import { savePendingDeposit, getPendingDeposit } from '../pending-deposit-store';
 import { handleDepositOnTransition } from '../deposit-lifecycle';
 
@@ -372,6 +372,11 @@ export async function resolveDisputeSponsorWins(
     }
   });
 
+  // 스폰서 보증금 환불 (sponsor_wins = 스폰서 정당, fire-and-forget)
+  void handleDepositOnTransition(updatedOrder, 'sponsor_wins', lnAdapterRef).catch(err =>
+    console.warn('[Admin] Sponsor deposit lifecycle failed on sponsor_wins:', orderId, err),
+  );
+
   return { success: true };
 }
 
@@ -438,6 +443,11 @@ export async function resolveDisputeCustomerWins(
     return { success: false, error: 'PUBLISH_FAILED' };
   }
 
+  // 스폰서 보증금 몰수 (customer_wins = 스폰서 트롤링 판정, fire-and-forget)
+  void handleDepositOnTransition(updatedOrder, 'customer_wins', lnAdapterRef).catch(err =>
+    console.warn('[Admin] Sponsor deposit lifecycle failed on customer_wins:', orderId, err),
+  );
+
   return { success: true, warning };
 }
 
@@ -457,7 +467,7 @@ async function handleOrderRequest(request: OrderRequest): Promise<void> {
   // 이미 보증금 대기 중인 요청이면 중복 처리 방지
   if (getPendingDeposit(request.orderId)) return;
 
-  const depositPercent = getDepositPercent();
+  const depositPercent = getCustomerDepositPercent();
 
   // ── 보증금 분기: depositPercent > 0이고 LN 어댑터 + 시세 데이터가 있으면 보증금 요구 ──
   if (depositPercent > 0 && lnAdapterRef && priceTrackerRef) {
@@ -482,6 +492,7 @@ async function handleOrderRequest(request: OrderRequest): Promise<void> {
           savePendingDeposit({
             orderId: request.orderId,
             customerPubkey: request.pubkey,
+            type: 'customer',
             price: request.price,
             expiration: request.expiration,
             depositPaymentHash: result.paymentHash,
@@ -575,6 +586,11 @@ async function handlePaymentConfirm(request: Request): Promise<void> {
     console.error('[Admin] Failed to publish paid order for', request.orderId, e);
     return;
   }
+
+  // 스폰서 보증금 환불 (paid = 정상 완료, fire-and-forget)
+  void handleDepositOnTransition(updatedOrder, 'paid', lnAdapterRef).catch(err =>
+    console.warn('[Admin] Deposit lifecycle failed on paid for', request.orderId, err),
+  );
 
   // Hold invoice settle (프리이미지 제출 → BTC 정산)
   const preimage = getPreimage(request.orderId);
@@ -716,6 +732,44 @@ async function handleClaim(request: ClaimRequest): Promise<void> {
     console.log('[Admin] Order', request.orderId, 'claimed by', request.pubkey);
   } catch (e) {
     console.error('[Admin] Failed to publish claimed order for', request.orderId, e);
+    return;
+  }
+
+  // ── 후원자 보증금 (pre-verification gate) ──
+  const sponsorDepositPercent = getSponsorDepositPercent();
+  if (sponsorDepositPercent > 0 && lnAdapterRef) {
+    try {
+      const depositSats = Math.max(1, Math.round(decoded.amountSat * sponsorDepositPercent / 100));
+      const now = Math.floor(Date.now() / 1000);
+      const expiry = Math.max(300, order.expiration - now);
+      const DEPOSIT_CLTV_MARGIN = 24 * 60 * 60; // 24시간
+      const cltvExpiry = Math.ceil((expiry + DEPOSIT_CLTV_MARGIN) / 600);
+
+      const result = await lnAdapterRef.createHoldInvoice(
+        `deposit:sponsor:${request.orderId}`, depositSats, expiry, cltvExpiry,
+      );
+
+      savePendingDeposit({
+        orderId: request.orderId,
+        customerPubkey: order.customerPubkey,
+        type: 'sponsor',
+        sponsorPubkey: request.pubkey,
+        price: order.price,
+        expiration: order.expiration,
+        depositPaymentHash: result.paymentHash,
+        depositBolt11: result.bolt11,
+        createdAt: now,
+      });
+
+      // Sponsor에게 deposit-required 알림 발행
+      await publishDepositRequired(
+        request.orderId, request.pubkey, result.bolt11, order.expiration,
+      );
+
+      console.log('[Admin] Sponsor deposit required for', request.orderId, depositSats, 'sats');
+    } catch (e) {
+      console.error('[Admin] Sponsor deposit creation failed for', request.orderId, e);
+    }
   }
 }
 

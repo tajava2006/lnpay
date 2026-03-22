@@ -10,7 +10,8 @@ import type { Order, Request, PriceTracker, DisputeMessagePayload } from '@sajwo
 import type { LightningAdapter } from '../lightning';
 import type { HoldInvoiceStatus } from '../lightning/types';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
-import { publishDisputeMessage, publishDepositStatus } from '../nostr/publish';
+import { publishDisputeMessage, publishDepositStatus, publishDepositRequired } from '../nostr/publish';
+import { getPendingDeposit } from '../pending-deposit-store';
 import { resolveDisputeSponsorWins, resolveDisputeCustomerWins } from '../nostr/service';
 import { getEscrowEntry, getPreimage } from '../escrow-store';
 import { CommitmentBadge } from './CommitmentBadge';
@@ -48,6 +49,11 @@ const requestActionLabel: Record<string, string> = {
   'cancel-request': '취소 요청',
   'remit-request': '송금 완료',
   'account-info': '계좌 정보',
+  'deposit-required': '보증금 요청',
+  'deposit-accepted': '보증금 확인',
+  'deposit-cancelled': '보증금 환불',
+  'deposit-settled': '보증금 몰수',
+  'claim-price-error': '가격 오류 알림',
 };
 
 const requestSenderLabel: Record<string, string> = {
@@ -57,16 +63,21 @@ const requestSenderLabel: Record<string, string> = {
   'cancel-request': '고객',
   'remit-request': '후원자',
   'account-info': '고객',
+  'deposit-required': '어드민',
+  'deposit-accepted': '어드민',
+  'deposit-cancelled': '어드민',
+  'deposit-settled': '어드민',
+  'claim-price-error': '어드민',
 };
 
-const depositStatusLabel: Record<HoldInvoiceStatus, string> = {
+const cDepositStatusLabel: Record<HoldInvoiceStatus, string> = {
   open: '미결제 (open)',
   accepted: '결제됨 — 홀드 중 (accepted)',
   settled: '세틀 완료 (settled)',
   cancelled: '캔슬 완료 (cancelled)',
 };
 
-const depositStatusStyle: Record<HoldInvoiceStatus, { bg: string; color: string }> = {
+const cDepositStatusStyle: Record<HoldInvoiceStatus, { bg: string; color: string }> = {
   open: { bg: '#FEF9C3', color: '#A16207' },
   accepted: { bg: '#EDE9FE', color: '#7C3AED' },
   settled: { bg: '#D1FAE5', color: '#065F46' },
@@ -92,10 +103,15 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
   const [resolving, setResolving] = useState(false);
   const [accountCommitment, setAccountCommitment] = useState<string | undefined>();
 
-  // ── 보증금 인보이스 상태 ───────────────────────────
-  const [depositStatus, setDepositStatus] = useState<HoldInvoiceStatus | null>(null);
-  const [depositQuerying, setDepositQuerying] = useState(false);
-  const [depositActing, setDepositActing] = useState(false);
+  // ── 고객 보증금 인보이스 상태 ──────────────────────
+  const [cDepositStatus, setCDepositStatus] = useState<HoldInvoiceStatus | null>(null);
+  const [cDepositQuerying, setCDepositQuerying] = useState(false);
+  const [cDepositActing, setCDepositActing] = useState(false);
+
+  // ── 후원자 보증금 인보이스 상태 ──────────────────────
+  const [sDepositStatus, setSDepositStatus] = useState<HoldInvoiceStatus | null>(null);
+  const [sDepositQuerying, setSDepositQuerying] = useState(false);
+  const [sDepositActing, setSDepositActing] = useState(false);
 
   // Load order + requests from IDB
   useEffect(() => {
@@ -191,20 +207,20 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
   // ── 보증금 인보이스 상태 조회 ─────────────────────
   const depositPaymentHash = order?.depositPaymentHash;
 
-  const handleDepositLookup = useCallback(async () => {
+  const handleCDepositLookup = useCallback(async () => {
     if (!depositPaymentHash || !lnAdapter) return;
-    setDepositQuerying(true);
+    setCDepositQuerying(true);
     try {
       const status = await lnAdapter.lookupHoldInvoice(depositPaymentHash);
-      setDepositStatus(status);
+      setCDepositStatus(status);
     } catch (e) {
       alert(`보증금 상태 조회 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setDepositQuerying(false);
+      setCDepositQuerying(false);
     }
   }, [depositPaymentHash, lnAdapter]);
 
-  const handleDepositSettle = useCallback(async () => {
+  const handleCDepositSettle = useCallback(async () => {
     if (!confirm('보증금을 몰수(settle)하시겠습니까?\n고객에게 보증금이 환불되지 않습니다.')) return;
     const depositKey = `deposit:${orderId}`;
     const preimage = getPreimage(depositKey);
@@ -212,32 +228,80 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
       alert('보증금 프리이미지를 찾을 수 없습니다.');
       return;
     }
-    setDepositActing(true);
+    setCDepositActing(true);
     try {
       await lnAdapter!.settleInvoice(preimage);
-      setDepositStatus('settled');
+      setCDepositStatus('settled');
       if (customerPubkey) void publishDepositStatus(orderId, customerPubkey, 'settled');
     } catch (e) {
       alert(`보증금 settle 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setDepositActing(false);
+      setCDepositActing(false);
     }
   }, [orderId, lnAdapter]);
 
-  const handleDepositCancel = useCallback(async () => {
+  const handleCDepositCancel = useCallback(async () => {
     if (!confirm('보증금을 환불(cancel)하시겠습니까?\n고객에게 보증금이 즉시 환불됩니다.')) return;
     if (!depositPaymentHash) return;
-    setDepositActing(true);
+    setCDepositActing(true);
     try {
       await lnAdapter!.cancelInvoice(depositPaymentHash);
-      setDepositStatus('cancelled');
+      setCDepositStatus('cancelled');
       if (customerPubkey) void publishDepositStatus(orderId, customerPubkey, 'cancelled');
     } catch (e) {
       alert(`보증금 cancel 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setDepositActing(false);
+      setCDepositActing(false);
     }
   }, [depositPaymentHash, lnAdapter]);
+
+  // ── 후원자 보증금 인보이스 상태 조회 ─────────────────
+  const sponsorDepositPaymentHash = order?.sponsorDepositPaymentHash;
+
+  const handleSDepositLookup = useCallback(async () => {
+    if (!sponsorDepositPaymentHash || !lnAdapter) return;
+    setSDepositQuerying(true);
+    try {
+      const status = await lnAdapter.lookupHoldInvoice(sponsorDepositPaymentHash);
+      setSDepositStatus(status);
+    } catch (e) {
+      alert(`후원자 보증금 상태 조회 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSDepositQuerying(false);
+    }
+  }, [sponsorDepositPaymentHash, lnAdapter]);
+
+  const handleSDepositSettle = useCallback(async () => {
+    if (!confirm('후원자 보증금을 몰수(settle)하시겠습니까?')) return;
+    const depositKey = `deposit:sponsor:${orderId}`;
+    const preimage = getPreimage(depositKey);
+    if (!preimage) { alert('후원자 보증금 프리이미지를 찾을 수 없습니다.'); return; }
+    setSDepositActing(true);
+    try {
+      await lnAdapter!.settleInvoice(preimage);
+      setSDepositStatus('settled');
+      if (sponsorPubkey) void publishDepositStatus(orderId, sponsorPubkey, 'settled');
+    } catch (e) {
+      alert(`후원자 보증금 settle 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSDepositActing(false);
+    }
+  }, [orderId, lnAdapter, sponsorPubkey]);
+
+  const handleSDepositCancel = useCallback(async () => {
+    if (!confirm('후원자 보증금을 환불(cancel)하시겠습니까?')) return;
+    if (!sponsorDepositPaymentHash) return;
+    setSDepositActing(true);
+    try {
+      await lnAdapter!.cancelInvoice(sponsorDepositPaymentHash);
+      setSDepositStatus('cancelled');
+      if (sponsorPubkey) void publishDepositStatus(orderId, sponsorPubkey, 'cancelled');
+    } catch (e) {
+      alert(`후원자 보증금 cancel 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSDepositActing(false);
+    }
+  }, [sponsorDepositPaymentHash, lnAdapter, orderId, sponsorPubkey]);
 
   if (!order) {
     return <div style={styles.loading}>오더 불러오는 중...</div>;
@@ -286,48 +350,65 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
         {order.disbursed && <div style={styles.disbursed}>BTC 송금 완료</div>}
       </div>
 
-      {/* Deposit Invoice */}
+      {/* Customer Deposit Invoice */}
       {depositPaymentHash && lnAdapter && (
         <div style={styles.depositSection}>
           <div style={styles.depositHeader}>
-            <span style={styles.depositTitle}>보증금 인보이스</span>
+            <span style={styles.depositTitle}>고객 보증금</span>
             <button
               style={styles.depositQueryBtn}
-              onClick={() => void handleDepositLookup()}
-              disabled={depositQuerying}
+              onClick={() => void handleCDepositLookup()}
+              disabled={cDepositQuerying}
             >
-              {depositQuerying ? '조회 중...' : '상태 조회'}
+              {cDepositQuerying ? '조회 중...' : '상태 조회'}
             </button>
           </div>
           <div style={styles.depositMeta}>
             <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#666' }}>
               hash: {depositPaymentHash.slice(0, 16)}…{depositPaymentHash.slice(-8)}
             </span>
+            {(() => {
+              const pending = getPendingDeposit(orderId);
+              if (!pending) return null;
+              const recipient = pending.type === 'sponsor' ? pending.sponsorPubkey : pending.customerPubkey;
+              if (!recipient) return null;
+              return (
+                <button
+                  style={styles.depositNotifyBtn}
+                  onClick={() => {
+                    void publishDepositRequired(orderId, recipient, pending.depositBolt11, pending.expiration);
+                    alert('보증금 인보이스를 재전송했습니다.');
+                  }}
+                >
+                  인보이스 재전송
+                </button>
+              );
+            })()}
           </div>
-          {depositStatus && (
-            <div style={styles.depositStatusRow}>
+          {cDepositStatus && (
+            <div style={styles.cDepositStatusRow}>
               <span style={{
-                ...styles.depositStatusBadge,
-                background: depositStatusStyle[depositStatus]?.bg ?? '#F3F4F6',
-                color: depositStatusStyle[depositStatus]?.color ?? '#666',
+                ...styles.cDepositStatusBadge,
+                background: cDepositStatusStyle[cDepositStatus]?.bg ?? '#F3F4F6',
+                color: cDepositStatusStyle[cDepositStatus]?.color ?? '#666',
               }}>
-                {depositStatusLabel[depositStatus]}
+                {cDepositStatusLabel[cDepositStatus]}
               </span>
-              {depositStatus === 'accepted' && (
+              {cDepositStatus === 'accepted' && (
                 <div style={styles.depositActions}>
                   <button
                     style={styles.depositSettleBtn}
-                    onClick={() => void handleDepositSettle()}
-                    disabled={depositActing}
+                    onClick={() => void handleCDepositSettle()}
+                    disabled={cDepositActing}
                   >
-                    {depositActing ? '처리 중...' : '세틀 (몰수)'}
+                    {cDepositActing ? '처리 중...' : '세틀 (몰수)'}
                   </button>
                   <button
                     style={styles.depositCancelBtn}
-                    onClick={() => void handleDepositCancel()}
-                    disabled={depositActing}
+                    onClick={() => void handleCDepositCancel()}
+                    disabled={cDepositActing}
                   >
-                    {depositActing ? '처리 중...' : '캔슬 (환불)'}
+                    {cDepositActing ? '처리 중...' : '캔슬 (환불)'}
                   </button>
                 </div>
               )}
@@ -338,11 +419,90 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
                     const statusMap: Record<HoldInvoiceStatus, 'accepted' | 'cancelled' | 'settled'> = {
                       open: 'accepted', accepted: 'accepted', cancelled: 'cancelled', settled: 'settled',
                     };
-                    void publishDepositStatus(orderId, customerPubkey, statusMap[depositStatus!]);
+                    void publishDepositStatus(orderId, customerPubkey, statusMap[cDepositStatus!]);
                     alert('고객에게 보증금 상태 알림을 전송했습니다.');
                   }}
                 >
                   고객에게 상태 알림
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sponsor Deposit Invoice */}
+      {sponsorDepositPaymentHash && lnAdapter && (
+        <div style={styles.depositSection}>
+          <div style={styles.depositHeader}>
+            <span style={styles.depositTitle}>후원자 보증금</span>
+            <button
+              style={styles.depositQueryBtn}
+              onClick={() => void handleSDepositLookup()}
+              disabled={sDepositQuerying}
+            >
+              {sDepositQuerying ? '조회 중...' : '상태 조회'}
+            </button>
+          </div>
+          <div style={styles.depositMeta}>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#666' }}>
+              hash: {sponsorDepositPaymentHash.slice(0, 16)}…{sponsorDepositPaymentHash.slice(-8)}
+            </span>
+            {(() => {
+              const pending = getPendingDeposit(orderId);
+              if (!pending || pending.type !== 'sponsor' || !pending.sponsorPubkey) return null;
+              return (
+                <button
+                  style={styles.depositNotifyBtn}
+                  onClick={() => {
+                    void publishDepositRequired(orderId, pending.sponsorPubkey!, pending.depositBolt11, pending.expiration);
+                    alert('후원자에게 보증금 인보이스를 재전송했습니다.');
+                  }}
+                >
+                  인보이스 재전송
+                </button>
+              );
+            })()}
+          </div>
+          {sDepositStatus && (
+            <div style={styles.cDepositStatusRow}>
+              <span style={{
+                ...styles.cDepositStatusBadge,
+                background: cDepositStatusStyle[sDepositStatus]?.bg ?? '#F3F4F6',
+                color: cDepositStatusStyle[sDepositStatus]?.color ?? '#666',
+              }}>
+                {cDepositStatusLabel[sDepositStatus]}
+              </span>
+              {sDepositStatus === 'accepted' && (
+                <div style={styles.depositActions}>
+                  <button
+                    style={styles.depositSettleBtn}
+                    onClick={() => void handleSDepositSettle()}
+                    disabled={sDepositActing}
+                  >
+                    {sDepositActing ? '처리 중...' : '세틀 (몰수)'}
+                  </button>
+                  <button
+                    style={styles.depositCancelBtn}
+                    onClick={() => void handleSDepositCancel()}
+                    disabled={sDepositActing}
+                  >
+                    {sDepositActing ? '처리 중...' : '캔슬 (환불)'}
+                  </button>
+                </div>
+              )}
+              {sponsorPubkey && (
+                <button
+                  style={styles.depositNotifyBtn}
+                  onClick={() => {
+                    const statusMap: Record<HoldInvoiceStatus, 'accepted' | 'cancelled' | 'settled'> = {
+                      open: 'accepted', accepted: 'accepted', cancelled: 'cancelled', settled: 'settled',
+                    };
+                    void publishDepositStatus(orderId, sponsorPubkey, statusMap[sDepositStatus!]);
+                    alert('후원자에게 보증금 상태 알림을 전송했습니다.');
+                  }}
+                >
+                  후원자에게 상태 알림
                 </button>
               )}
             </div>
@@ -538,13 +698,13 @@ const styles = {
   depositMeta: {
     marginBottom: 8,
   },
-  depositStatusRow: {
+  cDepositStatusRow: {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
     flexWrap: 'wrap' as const,
   },
-  depositStatusBadge: {
+  cDepositStatusBadge: {
     display: 'inline-block',
     borderRadius: 6,
     padding: '4px 10px',

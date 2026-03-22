@@ -29,8 +29,10 @@ export interface Order {
   bolt11?: string;
   /** Sponsor에게 BTC 송금 완료 여부 */
   disbursed?: boolean;
-  /** 보증금 hold invoice payment hash (cancel/settle용) */
+  /** 고객 보증금 hold invoice payment hash (cancel/settle용) */
   depositPaymentHash?: string;
+  /** 후원자 보증금 hold invoice payment hash (cancel/settle용) */
+  sponsorDepositPaymentHash?: string;
   raw: object;
 }
 
@@ -90,7 +92,8 @@ export interface AccountInfoRequest extends RequestBase {
 
 /** 추가 데이터 없는 요청 */
 export interface SimpleRequest extends RequestBase {
-  action: 'payment-confirm' | 'cancel-request' | 'remit-request' | 'dispute-message' | 'claim-price-error';
+  action: 'payment-confirm' | 'cancel-request' | 'remit-request' | 'dispute-message' | 'claim-price-error'
+    | 'deposit-required' | 'deposit-accepted' | 'deposit-cancelled' | 'deposit-settled';
 }
 
 export type Request = OrderRequest | ClaimRequest | AccountInfoRequest | SimpleRequest;

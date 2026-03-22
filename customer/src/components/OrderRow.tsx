@@ -298,10 +298,10 @@ export function OrderRow({ order, tracker, now }: Props) {
           </div>
         </td>
       </tr>
-      {showInvoice && (order.bolt11 || order.depositBolt11) && (
+      {showInvoice && ((showDeposit && order.depositBolt11) || (!showDeposit && order.bolt11)) && (
         <InvoiceModal
           orderId={order.orderId}
-          bolt11={(showDeposit ? order.depositBolt11 : order.bolt11)!}
+          bolt11={(showDeposit ? order.depositBolt11! : order.bolt11!)}
           price={order.price}
           tracker={tracker}
           onClose={() => setShowInvoice(false)}

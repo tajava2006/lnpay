@@ -93,6 +93,10 @@ export function parseRequestEvent(event: Event): Request | null {
     case 'remit-request':
     case 'dispute-message':
     case 'claim-price-error':
+    case 'deposit-required':
+    case 'deposit-accepted':
+    case 'deposit-cancelled':
+    case 'deposit-settled':
       return { ...base, action };
     default:
       console.warn('[parseRequestEvent] Unknown action:', action);
@@ -118,7 +122,8 @@ export function parseOrderEvent(event: Event): Order | null {
   const sponsorPubkey = event.tags.find(t => t[0] === 'sponsor')?.[1];
   const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
   const disbursed = event.tags.find(t => t[0] === 'disbursed')?.[1] === 'true' || undefined;
-  const depositPaymentHash = event.tags.find(t => t[0] === 'deposit-payment-hash')?.[1];
+  const depositPaymentHash = event.tags.find(t => t[0] === 'customer-deposit-payment-hash')?.[1];
+  const sponsorDepositPaymentHash = event.tags.find(t => t[0] === 'sponsor-deposit-payment-hash')?.[1];
 
   const priceTag = event.tags.find(t => t[0] === 'price');
   const price = priceTag?.[1] ? Number(priceTag[1]) : 0;
@@ -135,6 +140,7 @@ export function parseOrderEvent(event: Event): Order | null {
     ...(bolt11 ? { bolt11 } : {}),
     ...(disbursed ? { disbursed } : {}),
     ...(depositPaymentHash ? { depositPaymentHash } : {}),
+    ...(sponsorDepositPaymentHash ? { sponsorDepositPaymentHash } : {}),
     price,
     createdAt: event.created_at,
     updatedAt: event.created_at,

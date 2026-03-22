@@ -4,6 +4,9 @@
  * 오더 발행 전 보증금 hold invoice 결제를 추적한다.
  * 보증금 결제 완료 시 오더를 발행하고 엔트리를 삭제한다.
  * 만료 시에도 엔트리를 삭제하고 hold invoice를 cancel한다.
+ *
+ * type: 'customer' — 주문 생성 전 고객 보증금 (pre-order gate)
+ * type: 'sponsor' — 클레임 후 후원자 보증금 (pre-verification gate)
  */
 
 const STORAGE_KEY = 'admin:pending-deposits';
@@ -11,6 +14,10 @@ const STORAGE_KEY = 'admin:pending-deposits';
 export interface PendingDeposit {
   orderId: string;
   customerPubkey: string;
+  /** 보증금 납부 대상: customer(주문 전), sponsor(검증 전) */
+  type: 'customer' | 'sponsor';
+  /** sponsor deposit인 경우 후원자 pubkey */
+  sponsorPubkey?: string;
   price: number;
   expiration: number;
   depositPaymentHash: string;

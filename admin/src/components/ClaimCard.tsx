@@ -3,6 +3,7 @@ import type { Request, Order } from '@sajwo-tracker/shared';
 import type { LightningAdapter, ProbeResult } from '../lightning';
 import { updateLiquidityVerified } from '../request-store';
 import { approveOrder, revertClaim } from '../nostr/service';
+import { getSponsorDepositPercent } from '../deposit-config';
 
 interface Props {
   request: Request;
@@ -68,7 +69,11 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
   const decoded = invoice?.decoded ?? null;
 
   // 승인 가능 조건: 클레임 액션 + LN 어댑터 연결 + 유동성 검증 완료 (상태 판단은 FSM에 위임)
-  const canApprove = isClaim && !!lnAdapter && (invoice?.liquidityVerified ?? false);
+  // 후원자 보증금 설정 시 sponsorDepositPaymentHash가 있어야 승인 가능
+  const sponsorDepositRequired = getSponsorDepositPercent() > 0;
+  const sponsorDepositPaid = !!order?.sponsorDepositPaymentHash;
+  const canApprove = isClaim && !!lnAdapter && (invoice?.liquidityVerified ?? false)
+    && (!sponsorDepositRequired || sponsorDepositPaid);
 
   const [copied, setCopied] = useState(false);
   const [probing, setProbing] = useState(false);
@@ -215,6 +220,9 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
           </button>
           {!invoice?.liquidityVerified && (
             <span style={styles.unverifiedHint}>유동성 미검증</span>
+          )}
+          {sponsorDepositRequired && !sponsorDepositPaid && (
+            <span style={styles.unverifiedHint}>후원자 보증금 미납</span>
           )}
           {approveError && (
             <span style={styles.errorHint}>{approveError}</span>

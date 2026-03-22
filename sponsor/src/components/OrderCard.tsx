@@ -6,6 +6,7 @@ import { decodeBolt11 } from '../utils/bolt11';
 import type { Bolt11Result } from '../utils/bolt11';
 import { subscribeAccountInfo, getAccountInfoSnapshot } from '../account-store';
 import { subscribeClaimErrors, getClaimErrorSnapshot, clearClaimError } from '../claim-error-store';
+import { subscribe as subscribeDeposits, getSnapshot as getDepositSnapshot } from '../deposit-store';
 import { QrScanner } from './QrScanner';
 
 interface Props {
@@ -76,6 +77,9 @@ export function OrderCard({ order, now, tracker }: Props) {
 
   const claimErrors = useSyncExternalStore(subscribeClaimErrors, getClaimErrorSnapshot);
   const claimError = claimErrors[order.orderId];
+
+  const depositMap = useSyncExternalStore(subscribeDeposits, getDepositSnapshot);
+  const deposit = depositMap[order.orderId];
 
   const timeLeft = formatTimeLeft(order.expiration, now);
   const isUrgent = order.expiration > 0 && order.expiration - now < 3600;
@@ -269,6 +273,42 @@ export function OrderCard({ order, now, tracker }: Props) {
             }}>
               {stateMeta.label}
             </span>
+
+            {/* 보증금 섹션: claimed 상태에서 deposit 있을 때 */}
+            {order.state === 'claimed' && deposit && !deposit.status && (
+              <div style={styles.depositSection}>
+                <p style={styles.depositDesc}>
+                  보증금 결제가 필요합니다. 아래 QR 코드를 Lightning 지갑으로 스캔하세요.
+                </p>
+                <p style={styles.depositNotice}>
+                  스팸 방지를 위한 보증금이며 거래 완료 후 전액 환불됩니다.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=lightning:${deposit.bolt11}`}
+                    alt="deposit QR"
+                    width={200}
+                    height={200}
+                    style={{ borderRadius: 8 }}
+                  />
+                </div>
+                <code style={styles.depositBolt11}>
+                  {deposit.bolt11.slice(0, 20)}...{deposit.bolt11.slice(-10)}
+                </code>
+              </div>
+            )}
+            {order.state === 'claimed' && deposit?.status && (
+              <span style={{
+                ...styles.depositStatusBadge,
+                background: deposit.status === 'accepted' ? '#D1FAE5'
+                  : deposit.status === 'cancelled' ? '#F3F4F6' : '#FEE2E2',
+                color: deposit.status === 'accepted' ? '#065F46'
+                  : deposit.status === 'cancelled' ? '#6B7280' : '#DC2626',
+              }}>
+                보증금: {deposit.status === 'accepted' ? '전달 완료'
+                  : deposit.status === 'cancelled' ? '환불됨' : '몰수됨'}
+              </span>
+            )}
 
             {showWaitingAccount && (
               <span style={styles.waitingBadge}>
@@ -479,5 +519,41 @@ const styles = {
     fontSize: 14,
     fontWeight: 600 as const,
     cursor: 'pointer',
+  },
+  depositSection: {
+    background: '#FFF7ED',
+    border: '1px solid #FED7AA',
+    borderRadius: 8,
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: 4,
+  },
+  depositDesc: {
+    fontSize: 13,
+    color: '#C2410C',
+    fontWeight: 500 as const,
+    margin: 0,
+    textAlign: 'center' as const,
+  },
+  depositNotice: {
+    fontSize: 11,
+    color: '#6B7280',
+    margin: 0,
+    textAlign: 'center' as const,
+  },
+  depositBolt11: {
+    fontSize: 10,
+    color: '#999',
+    wordBreak: 'break-all' as const,
+    textAlign: 'center' as const,
+  },
+  depositStatusBadge: {
+    display: 'inline-block',
+    padding: '4px 10px',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 500 as const,
   },
 };

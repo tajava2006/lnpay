@@ -83,6 +83,6 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 | [ARCHITECTURE.md](ARCHITECTURE.md) | ~540 | 앱별 모듈 구조, 데이터 흐름, 저장소 이중화, 설계 결정 이해 필요 시 |
 | [PROTOCOL.md](PROTOCOL.md) | ~620 | Nostr 이벤트 kind/tag, 상태 머신(FSM) 전이 규칙, 구독 필터 확인 시 |
 | [THREAT-MODEL.md](THREAT-MODEL.md) | ~180 | FSM 전이 변경, 권한 변경, 새 action 추가 시 어뷰징/레이스컨디션 방어 + Safety Invariants 확인 |
-| [DESIGN-DEPOSIT.md](DESIGN-DEPOSIT.md) | ~200 | S-001 보증금(Fidelity Bond) 구현 시 설계 참조 |
+| [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) | ~200 | S-001 보증금(Fidelity Bond) 구현 시 설계 참조 |
 | [SECURITY-ROADMAP.md](SECURITY-ROADMAP.md) | ~250 | 보안/아키텍처 개선 항목 추적, 우선순위별 해결 계획 |
 | [TODO.md](TODO.md) | ~80 | 미구현 기능 목록 확인 시 |

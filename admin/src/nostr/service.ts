@@ -31,7 +31,7 @@ import {
   storage,
 } from '@sajwo-tracker/shared';
 import { subscribeAdmin } from './subscribe';
-import { publishOrder, publishClaimPriceError } from './publish';
+import { publishOrder, publishClaimPriceError, publishDepositRequired } from './publish';
 import { getSigner } from './nip46';
 import { parseRequestEvent, parseOrderEvent } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
@@ -39,6 +39,9 @@ import { upsertOrder, getOrder } from '../order-store';
 import { canTransition } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
 import { getPreimage, getEscrowEntry } from '../escrow-store';
+import { getDepositPercent } from '../deposit-config';
+import { savePendingDeposit, getPendingDeposit } from '../pending-deposit-store';
+import { handleDepositOnTransition } from '../deposit-lifecycle';
 
 let cleanup: (() => void) | null = null;
 let lnAdapterRef: LightningAdapter | null = null;
@@ -447,6 +450,61 @@ async function handleOrderRequest(request: OrderRequest): Promise<void> {
   const existing = getOrder(request.orderId);
   if (existing) return;
 
+  // 이미 보증금 대기 중인 요청이면 중복 처리 방지
+  if (getPendingDeposit(request.orderId)) return;
+
+  const depositPercent = getDepositPercent();
+
+  // ── 보증금 분기: depositPercent > 0이고 LN 어댑터 + 시세 데이터가 있으면 보증금 요구 ──
+  if (depositPercent > 0 && lnAdapterRef && priceTrackerRef) {
+    const btcPrice = priceTrackerRef.getSnapshot().price;
+    if (btcPrice && btcPrice > 0) {
+      const depositSats = Math.round((request.price / btcPrice) * 1e8 * depositPercent / 100);
+      if (depositSats > 0) {
+        try {
+          const now = Math.floor(Date.now() / 1000);
+          const expiry = request.expiration - now;
+          if (expiry <= 0) return; // 이미 만료
+
+          const DEPOSIT_CLTV_MARGIN = 24 * 60 * 60; // 24시간
+          const cltvExpiry = Math.ceil((expiry + DEPOSIT_CLTV_MARGIN) / 600);
+
+          // deposit:orderId 키로 hold invoice 생성 → escrow-store에 자동 저장
+          const result = await lnAdapterRef.createHoldInvoice(
+            `deposit:${request.orderId}`, depositSats, expiry, cltvExpiry,
+          );
+
+          // pending-deposit-store에 저장
+          savePendingDeposit({
+            orderId: request.orderId,
+            customerPubkey: request.pubkey,
+            price: request.price,
+            expiration: request.expiration,
+            depositPaymentHash: result.paymentHash,
+            depositBolt11: result.bolt11,
+            createdAt: now,
+          });
+
+          // Customer에게 deposit-required 알림 발행
+          await publishDepositRequired(
+            request.orderId, request.pubkey, result.bolt11, request.expiration,
+          );
+          console.log('[Admin] Deposit required for', request.orderId, `(${depositSats} sats, ${depositPercent}%)`);
+          return; // 오더는 보증금 결제 후 생성
+        } catch (e) {
+          console.warn('[Admin] Deposit creation failed, falling back to direct order:', request.orderId, e);
+          // 보증금 생성 실패 → 기존 플로우로 폴백
+        }
+      }
+    }
+  }
+
+  // ── 기존 플로우: 오더 즉시 발행 ──
+  await createOrder(request);
+}
+
+/** order-request로부터 오더를 생성하고 kind 30402를 발행한다. */
+export async function createOrder(request: OrderRequest, depositPaymentHash?: string): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
   const newOrder: Order = {
     orderId: request.orderId,
@@ -457,6 +515,7 @@ async function handleOrderRequest(request: OrderRequest): Promise<void> {
     createdAt: now,
     updatedAt: now,
     expiration: request.expiration,
+    ...(depositPaymentHash ? { depositPaymentHash } : {}),
     raw: {},
   };
 
@@ -560,7 +619,13 @@ async function handleCancelRequest(request: Request): Promise<void> {
     console.log('[Admin] Order', request.orderId, 'cancelled (cancel-request from customer)');
   } catch (e) {
     console.error('[Admin] Failed to publish cancelled order for', request.orderId, e);
+    return;
   }
+
+  // 보증금 cancel/settle
+  void handleDepositOnTransition(order, 'cancelled', lnAdapterRef).catch(e =>
+    console.warn('[Admin] Deposit lifecycle failed on cancel for', request.orderId, e),
+  );
 }
 
 /**

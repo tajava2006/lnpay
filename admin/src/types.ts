@@ -118,6 +118,7 @@ export function parseOrderEvent(event: Event): Order | null {
   const sponsorPubkey = event.tags.find(t => t[0] === 'sponsor')?.[1];
   const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
   const disbursed = event.tags.find(t => t[0] === 'disbursed')?.[1] === 'true' || undefined;
+  const depositPaymentHash = event.tags.find(t => t[0] === 'deposit-payment-hash')?.[1];
 
   const priceTag = event.tags.find(t => t[0] === 'price');
   const price = priceTag?.[1] ? Number(priceTag[1]) : 0;
@@ -133,6 +134,7 @@ export function parseOrderEvent(event: Event): Order | null {
     ...(sponsorPubkey ? { sponsorPubkey } : {}),
     ...(bolt11 ? { bolt11 } : {}),
     ...(disbursed ? { disbursed } : {}),
+    ...(depositPaymentHash ? { depositPaymentHash } : {}),
     price,
     createdAt: event.created_at,
     updatedAt: event.created_at,

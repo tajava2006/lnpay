@@ -94,14 +94,25 @@ const PENDING_META: DisplayMeta = {
   isFinal: false,
 };
 
+/** 보증금 결제 대기 */
+const DEPOSIT_META: DisplayMeta = {
+  label: '보증금 결제 대기',
+  bgColor: '#FFF7ED',
+  textColor: '#C2410C',
+  isFinal: false,
+};
+
 /**
  * 주문의 표시 메타데이터를 반환한다.
  *
- * 우선순위: adminState > raw 존재 여부
+ * 우선순위: adminState > depositBolt11 > raw 존재 여부
  */
 export function getDisplayMeta(order: CustomerOrder): DisplayMeta {
   if (order.adminState) {
     return ADMIN_STATE_META[order.adminState];
+  }
+  if (order.depositBolt11) {
+    return DEPOSIT_META;
   }
   return order.raw ? PENDING_META : CREATED_META;
 }

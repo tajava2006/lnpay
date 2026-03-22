@@ -16,6 +16,7 @@ import { OrderClaimList } from './components/OrderClaimList';
 import { HistoryPage } from './components/HistoryPage';
 import { OrderDetail } from './components/OrderDetail';
 import { NodeStatus } from './components/NodeStatus';
+import { getDepositPercent, setDepositPercent } from './deposit-config';
 import { BtcPrice, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { createLightningAdapter, createNodeTracker } from './lightning';
@@ -35,6 +36,7 @@ function getPageFromUrl(): string | null {
 
 export function App() {
   const [authState, setAuthState] = useState<AuthState>('checking');
+  const [depositPct, setDepositPct] = useState(getDepositPercent);
 
   // ─── 싱글턴 인스턴스 (렌더 시 1회 생성) ───────────
 
@@ -321,6 +323,23 @@ export function App() {
         </p>
         <BtcPrice tracker={tracker} />
         {nodeTracker && <NodeStatus tracker={nodeTracker} />}
+        <label style={styles.depositLabel}>
+          보증금
+          <select
+            value={depositPct}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setDepositPercent(v);
+              setDepositPct(v);
+            }}
+            style={styles.depositSelect}
+          >
+            <option value={0}>OFF</option>
+            <option value={1}>1%</option>
+            <option value={3}>3%</option>
+            <option value={5}>5%</option>
+          </select>
+        </label>
       </header>
       <main>
         {currentPage === 'detail' && selectedOrderId ? (
@@ -421,6 +440,19 @@ const styles = {
     border: '1px solid #FECACA',
     borderRadius: 6,
     cursor: 'pointer' as const,
+  },
+  depositLabel: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 12,
+    color: '#666',
+  },
+  depositSelect: {
+    fontSize: 12,
+    padding: '2px 4px',
+    borderRadius: 4,
+    border: '1px solid #D1D5DB',
   },
   version: {
     marginTop: 64,

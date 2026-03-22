@@ -1,6 +1,11 @@
 /**
  * Hold invoice 결제 감시 백그라운드 프로세스
  *
+ * 0. pending deposit: 보증금 hold invoice 상태를 조회하여 오더 생성
+ *    - open: 스킵 (아직 미결제)
+ *    - accepted: 오더 발행 (state: requested) + pending deposit 삭제
+ *    - cancelled: pending deposit 삭제 (오더 미생성)
+ *
  * 1. verified 오더: hold invoice 상태를 조회하여 자동 전이
  *    - open: 스킵 (아직 미결제)
  *    - accepted: verified → escrowed (HTLC 잠김, BTC 에스크로)
@@ -13,13 +18,16 @@
  *    - settled: 스킵 (이미 settle됨, Admin 판정 대기)
  */
 import type { LightningAdapter } from './lightning';
-import type { Order, OrderState } from '@sajwo-tracker/shared';
+import type { Order, OrderState, OrderRequest } from '@sajwo-tracker/shared';
 import { getSnapshot } from './order-store';
 import { getSnapshot as getRequestSnapshot } from './request-store';
 import { getEscrowEntry } from './escrow-store';
 import { canTransition } from './state-machine';
 import { publishOrder } from './nostr/publish';
+import { createOrder } from './nostr/service';
 import { idbMigrateOrderWithRequests } from '@sajwo-tracker/shared';
+import { getAllPendingDeposits, deletePendingDeposit } from './pending-deposit-store';
+import { handleDepositOnTransition } from './deposit-lifecycle';
 
 const POLL_INTERVAL = 15_000; // 15초
 const SETTLE_SAFETY_MARGIN = 10 * 60; // 10분
@@ -52,6 +60,39 @@ async function poll(): Promise<void> {
   polling = true;
 
   try {
+    // Phase 0: pending deposit — 보증금 invoice 상태 감시
+    const pendingDeposits = getAllPendingDeposits();
+
+    for (const deposit of pendingDeposits) {
+      try {
+        const status = await adapter!.lookupHoldInvoice(deposit.depositPaymentHash);
+
+        if (status === 'accepted') {
+          // 보증금 결제 확인 → 오더 발행
+          const fakeRequest: OrderRequest = {
+            eventId: '',
+            orderId: deposit.orderId,
+            pubkey: deposit.customerPubkey,
+            action: 'order-request',
+            price: deposit.price,
+            expiration: deposit.expiration,
+            createdAt: deposit.createdAt,
+            raw: {},
+          };
+          await createOrder(fakeRequest, deposit.depositPaymentHash);
+          deletePendingDeposit(deposit.orderId);
+          console.log('[InvoiceWatcher] Deposit confirmed, order created:', deposit.orderId);
+        } else if (status === 'cancelled') {
+          // 보증금 만료/취소 → pending deposit 삭제 (오더 미생성)
+          deletePendingDeposit(deposit.orderId);
+          console.log('[InvoiceWatcher] Deposit cancelled, discarding:', deposit.orderId);
+        }
+        // open → 스킵 (미결제)
+      } catch (err) {
+        console.warn('[InvoiceWatcher] Deposit lookup failed for', deposit.orderId, err);
+      }
+    }
+
     const orders = Object.values(getSnapshot());
 
     // Phase 1: verified 오더 — hold invoice 결제 감지
@@ -149,6 +190,13 @@ async function transitionOrder(
   } catch (err) {
     console.error('[InvoiceWatcher] Failed to publish', to, 'for', order.orderId, err);
     return;
+  }
+
+  // 보증금 처리: escrowed 진입 시 cancel, cancelled 시 cancel/settle
+  if (to === 'escrowed' || to === 'cancelled') {
+    void handleDepositOnTransition(order, to, adapter).catch(err =>
+      console.warn('[InvoiceWatcher] Deposit lifecycle failed for', order.orderId, err),
+    );
   }
 
   // escrowed 진입 시 안전망: requested에서 이미 IDB 이관되었으나 멱등 재호출 (fire-and-forget)

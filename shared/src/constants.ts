@@ -38,6 +38,7 @@ export const REQUEST_ACTIONS = {
   PARSED_ORDER: 'parsed-order',
   DISPUTE_MESSAGE: 'dispute-message',
   CLAIM_PRICE_ERROR: 'claim-price-error',
+  DEPOSIT_REQUIRED: 'deposit-required',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 

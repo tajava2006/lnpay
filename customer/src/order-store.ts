@@ -112,6 +112,16 @@ export function applyAdminUpdate(
   notify();
 }
 
+/** 보증금 인보이스를 주문에 저장한다 (deposit-required 알림 수신 시). */
+export function applyDepositRequired(orderId: string, depositBolt11: string): void {
+  const existing = orders[orderId];
+  if (!existing) return;
+  if (existing.depositBolt11 === depositBolt11) return;
+  orders = { ...orders, [orderId]: { ...existing, depositBolt11 } };
+  saveToStorage();
+  notify();
+}
+
 /** 계좌정보 전달 완료 시 로컬 저장 */
 export function setAccountInfo(orderId: string, accountInfo: AccountInfo): void {
   const existing = orders[orderId];

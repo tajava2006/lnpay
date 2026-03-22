@@ -9,6 +9,8 @@ interface Props {
   price: number;
   tracker: PriceTracker;
   onClose: () => void;
+  /** 모달 제목 (기본: "Lightning 결제") */
+  title?: string;
 }
 
 const FAIR_RATIO_LIMIT = 1.05;
@@ -17,7 +19,7 @@ function formatSats(sats: number): string {
   return sats.toLocaleString() + ' sats';
 }
 
-export function InvoiceModal({ orderId, bolt11, price, tracker, onClose }: Props) {
+export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title }: Props) {
   const [copied, setCopied] = useState(false);
 
   const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
@@ -68,7 +70,7 @@ export function InvoiceModal({ orderId, bolt11, price, tracker, onClose }: Props
       <div style={styles.backdrop} onClick={onClose} />
       <div style={styles.modal}>
         <div style={styles.header}>
-          <h3 style={styles.headerTitle}>Lightning 결제</h3>
+          <h3 style={styles.headerTitle}>{title ?? 'Lightning 결제'}</h3>
           <button onClick={onClose} style={styles.closeBtn}>&times;</button>
         </div>
         <div style={styles.body}>

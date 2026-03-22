@@ -20,7 +20,7 @@ import type { Event } from 'nostr-tools/core';
 import { subscribeAdminOrders, subscribeUserscriptEvents } from './subscribe';
 import { publishAccountInfo } from './publish';
 import { parseAdminEvent, parseParsedOrderEvent } from '../types';
-import { applyAdminUpdate, getSnapshot, setAccountInfo, markSynced } from '../order-store';
+import { applyAdminUpdate, applyDepositRequired, getSnapshot, setAccountInfo, markSynced } from '../order-store';
 import { addParsedOrder } from '../parsed-store';
 
 let cleanupAdmin: (() => void) | null = null;
@@ -71,10 +71,22 @@ async function startUserscriptSubscription(): Promise<void> {
 
   cleanupUserscript = subscribeUserscriptEvents(relays, myPubkey, {
     onEvent: (event) => {
-      // dispute-message 백그라운드 IDB 자동 저장
       const action = event.tags.find(t => t[0] === 'action')?.[1];
+
+      // dispute-message 백그라운드 IDB 자동 저장
       if (action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
         void handleDisputeMessage(event as Event, sk);
+        return;
+      }
+
+      // deposit-required: Admin이 보증금 인보이스를 전달
+      if (action === REQUEST_ACTIONS.DEPOSIT_REQUIRED && event.pubkey === APP_PUBKEY) {
+        const orderId = extractOrderId(event.tags);
+        const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
+        if (orderId && bolt11) {
+          applyDepositRequired(orderId, bolt11);
+          console.log('[Customer] Deposit required for', orderId);
+        }
         return;
       }
 

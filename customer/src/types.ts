@@ -40,6 +40,8 @@ export interface CustomerOrder {
   adminState?: OrderState;
   /** Admin verified 전이 시 hold invoice. */
   bolt11?: string;
+  /** 보증금 hold invoice (deposit-required 알림에서 수신) */
+  depositBolt11?: string;
   /** Admin 오더에서 수신한 Sponsor pubkey (claimed 이후) */
   sponsorPubkey?: string;
   /** 전달 완료된 계좌정보 (로컬 전용, 재전송 방지) */

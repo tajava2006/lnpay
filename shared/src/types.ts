@@ -29,6 +29,8 @@ export interface Order {
   bolt11?: string;
   /** Sponsor에게 BTC 송금 완료 여부 */
   disbursed?: boolean;
+  /** 보증금 hold invoice payment hash (cancel/settle용) */
+  depositPaymentHash?: string;
   raw: object;
 }
 

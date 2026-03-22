@@ -39,6 +39,8 @@ export function OrderRow({ order, tracker, now }: Props) {
   const showPublish = !order.raw && !order.adminState;
   const isExpired = order.expiration > 0 && order.expiration <= now;
   const showPayment = order.adminState === 'verified' && order.bolt11 && !isExpired;
+  // 보증금 결제 대기: Admin 미등록 + depositBolt11 존재
+  const showDeposit = !order.adminState && order.depositBolt11 && !isExpired;
   // 수동 주문: escrowed에서 계좌 입력 모달 버튼 표시
   const showAccountBtn = !isParsed && order.adminState === 'escrowed' && order.sponsorPubkey && !order.accountInfo;
   // 계좌 전달 완료 표시 (수동/파싱 공통: escrowed에서 전달)
@@ -177,6 +179,14 @@ export function OrderRow({ order, tracker, now }: Props) {
                 {publishing ? '요청 중...' : '사줘'}
               </button>
             )}
+            {showDeposit && (
+              <button
+                onClick={() => setShowInvoice(true)}
+                className="btn btn-pay"
+              >
+                보증금 결제
+              </button>
+            )}
             {showPayment && (
               <button
                 onClick={() => setShowInvoice(true)}
@@ -256,13 +266,14 @@ export function OrderRow({ order, tracker, now }: Props) {
           </div>
         </td>
       </tr>
-      {showInvoice && order.bolt11 && (
+      {showInvoice && (order.bolt11 || order.depositBolt11) && (
         <InvoiceModal
           orderId={order.orderId}
-          bolt11={order.bolt11}
+          bolt11={(showDeposit ? order.depositBolt11 : order.bolt11)!}
           price={order.price}
           tracker={tracker}
           onClose={() => setShowInvoice(false)}
+          title={showDeposit ? '보증금 결제' : undefined}
         />
       )}
       {showAccountInfo && (

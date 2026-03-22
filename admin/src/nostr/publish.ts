@@ -50,6 +50,9 @@ export async function publishOrder(order: Order): Promise<object> {
   if (order.disbursed) {
     tags.push(['disbursed', 'true']);
   }
+  if (order.depositPaymentHash) {
+    tags.push(['deposit-payment-hash', order.depositPaymentHash]);
+  }
 
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_KIND,
@@ -129,6 +132,48 @@ export async function publishDisputeMessage(
   }
 
   return signed;
+}
+
+/**
+ * 보증금 결제 요청 알림을 kind 1111로 발행한다.
+ * order-request 수신 시 depositPercent > 0이면 호출.
+ * Customer가 보증금을 결제해야 오더가 생성된다.
+ */
+export async function publishDepositRequired(
+  orderId: string,
+  customerPubkey: string,
+  bolt11: string,
+  expiration: number,
+): Promise<void> {
+  const signer = getSigner();
+  if (!signer) throw new Error('로그인되지 않음: signer 없음');
+
+  const now = Math.floor(Date.now() / 1000);
+
+  const template: EventTemplate = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: now,
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ['action', REQUEST_ACTIONS.DEPOSIT_REQUIRED],
+      ['t', CLIENT_TAG],
+      ['p', customerPubkey],
+      ['bolt11', bolt11],
+      ['expiration', String(expiration)],
+    ],
+    content: '',
+  };
+
+  const signed = await signer.signEvent(template);
+
+  const relays = await getReadRelays(storage);
+  const pool = new SimplePool();
+  try {
+    await Promise.allSettled(pool.publish(relays, signed));
+    console.log('[Admin] Published deposit-required for', orderId, 'to', customerPubkey.slice(0, 12));
+  } finally {
+    pool.destroy();
+  }
 }
 
 /**

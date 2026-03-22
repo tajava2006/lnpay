@@ -274,6 +274,7 @@ export function OrderRow({ order, tracker, now }: Props) {
           tracker={tracker}
           onClose={() => setShowInvoice(false)}
           title={showDeposit ? '보증금 결제' : undefined}
+          isDeposit={!!showDeposit}
         />
       )}
       {showAccountInfo && (

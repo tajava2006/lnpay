@@ -11,6 +11,8 @@ interface Props {
   onClose: () => void;
   /** 모달 제목 (기본: "Lightning 결제") */
   title?: string;
+  /** 보증금 모드 — fairness 대신 보증금 안내 표시 */
+  isDeposit?: boolean;
 }
 
 const FAIR_RATIO_LIMIT = 1.05;
@@ -19,7 +21,7 @@ function formatSats(sats: number): string {
   return sats.toLocaleString() + ' sats';
 }
 
-export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title }: Props) {
+export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title, isDeposit }: Props) {
   const [copied, setCopied] = useState(false);
 
   const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
@@ -79,25 +81,38 @@ export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title }
           {decoded && (
             <div style={styles.amountSection}>
               <span style={styles.amountValue}>{formatSats(decoded.amountSat)}</span>
-              {fairness && (() => {
-                const diffPct = Math.round((fairness.ratio - 1) * 100);
-                const isFair = fairness.ratio <= FAIR_RATIO_LIMIT;
-                return (
-                  <span style={{
-                    ...styles.fairnessLabel,
-                    color: isFair ? '#059669' : '#D97706',
-                  }}>
-                    {isFair
-                      ? `현재 시세 대비 적정 (${diffPct >= 0 ? '+' : ''}${diffPct}%) 합니다.`
-                      : `시세 대비 ${diffPct}% 높음`
-                    }
+              {isDeposit ? (
+                <>
+                  <span style={{ ...styles.fairnessLabel, color: '#059669' }}>
+                    주문 금액의 약 {price > 0 && btcKrw ? Math.round((decoded.amountSat / ((price / btcKrw) * 1e8)) * 100) : '?'}%
                   </span>
-                );
-              })()}
-              {fairness && (
-                <span style={styles.fairnessDetail}>
-                  현재 시세 기준 약 {formatSats(fairness.expectedSats)}
-                </span>
+                  <span style={styles.depositNotice}>
+                    스팸 방지를 위한 보증금입니다. 거래 완료 후 전액 환불되며 수수료도 소모되지 않습니다.
+                  </span>
+                </>
+              ) : (
+                <>
+                  {fairness && (() => {
+                    const diffPct = Math.round((fairness.ratio - 1) * 100);
+                    const isFair = fairness.ratio <= FAIR_RATIO_LIMIT;
+                    return (
+                      <span style={{
+                        ...styles.fairnessLabel,
+                        color: isFair ? '#059669' : '#D97706',
+                      }}>
+                        {isFair
+                          ? `현재 시세 대비 적정 (${diffPct >= 0 ? '+' : ''}${diffPct}%) 합니다.`
+                          : `시세 대비 ${diffPct}% 높음`
+                        }
+                      </span>
+                    );
+                  })()}
+                  {fairness && (
+                    <span style={styles.fairnessDetail}>
+                      현재 시세 기준 약 {formatSats(fairness.expectedSats)}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -192,6 +207,12 @@ const styles = {
   fairnessDetail: {
     fontSize: 12,
     color: '#999',
+  },
+  depositNotice: {
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 1.5,
+    marginTop: 4,
   },
   qrContainer: {
     display: 'flex',

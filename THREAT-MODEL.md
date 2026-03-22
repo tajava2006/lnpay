@@ -89,6 +89,73 @@
 
 ---
 
+## 시스템 불변조건 (Safety Invariants)
+
+어떠한 코드 변경에서도 절대 깨지면 안 되는 조건.
+위협 모델이 "어떻게 깨질 수 있나"를 다룬다면, 불변조건은 "절대 깨지면 안 되는 것"을 정의한다.
+테스트 코드가 도입되면 각 항목에 대응하는 테스트 케이스를 작성해야 한다.
+
+### I-001. Hold invoice preimage는 settle 전까지 Admin만 접근 가능해야 한다
+
+| 항목 | 내용 |
+|------|------|
+| **보호 대상** | BTC (에스크로 자금) |
+| **불변조건** | Preimage가 유출되면 누구든 hold invoice를 settle하여 BTC를 탈취할 수 있다. Preimage는 NIP-44 암호화 상태로만 저장되어야 하며, 평문은 인메모리 캐시에서만 존재해야 한다. |
+| **현재 구현** | escrow-store: NIP-44 암호화 localStorage + NIP-78 릴레이 백업 (S-002) |
+
+---
+
+### I-002. 보증금 hold invoice는 Sponsor 클레임 전 취소/만료 시 반드시 cancel(환불)되어야 한다
+
+| 항목 | 내용 |
+|------|------|
+| **보호 대상** | Customer BTC (보증금) |
+| **불변조건** | Customer가 주문을 취소하거나 오더가 만료되었는데 아직 Sponsor가 관여하지 않은 경우, 보증금은 전액 환불되어야 한다. 오더 발행 전(pending deposit 단계) 만료/취소 시에도 동일. 이유 없이 Customer의 자금을 묶어두거나 몰수하는 것은 신뢰 훼손. |
+| **판단 기준** | `order.sponsorPubkey`가 없으면 → cancel (환불). 오더 미발행 상태면 무조건 cancel. |
+| **관련 설계** | [DESIGN-DEPOSIT.md](DESIGN-DEPOSIT.md) 보증금 생명주기 |
+
+---
+
+### I-003. 실결제 hold invoice는 정당한 사유 없이 settle되어서는 안 된다
+
+| 항목 | 내용 |
+|------|------|
+| **보호 대상** | Customer BTC (에스크로) |
+| **불변조건** | Settle = BTC가 Admin에게 확정적으로 이전됨. `paid` (Customer 컨펌), `sponsor_wins` (Admin 분쟁 판정), 또는 safety-net (만료 임박 비대칭 손실 방어) 경우에만 settle 허용. |
+| **현재 구현** | handlePaymentConfirm, resolveDisputeSponsorWins, invoice-watcher safety-net |
+
+---
+
+### I-004. customer_wins 판정 시 hold invoice는 반드시 cancel(환불)되어야 한다
+
+| 항목 | 내용 |
+|------|------|
+| **보호 대상** | Customer BTC (에스크로) |
+| **불변조건** | Customer 승리 = BTC 반환. 이미 settled인 경우 별도 LN 결제로 수동 환불 필요 (경고 발생). |
+| **현재 구현** | resolveDisputeCustomerWins에서 cancel 호출, settled면 warning 반환 |
+
+---
+
+### I-005. 보증금은 실결제(escrowed) 시점에 반드시 cancel(환불)되어야 한다
+
+| 항목 | 내용 |
+|------|------|
+| **보호 대상** | Customer BTC (보증금) |
+| **불변조건** | 실결제 hold invoice가 담보 역할을 인수하는 시점에서 보증금의 역할은 끝난다. 이중으로 Customer 자금을 묶어두지 않는다. |
+| **관련 설계** | [DESIGN-DEPOSIT.md](DESIGN-DEPOSIT.md) 보증금 생명주기 |
+
+---
+
+### I-006. 만료된 오더의 모든 hold invoice는 정리되어야 한다
+
+| 항목 | 내용 |
+|------|------|
+| **보호 대상** | Customer BTC (보증금 + 에스크로) |
+| **불변조건** | cleanup이 만료 오더를 삭제할 때, 해당 오더에 연관된 hold invoice(보증금, 실결제)가 아직 active면 적절히 cancel/settle 처리. 방치된 hold invoice는 CLTV timeout까지 Customer 자금을 불필요하게 잠근다. |
+| **현재 구현** | cleanup.ts에서 escrow purge만 수행. hold invoice cancel 미구현 (향후 개선) |
+
+---
+
 ## 변경 시 체크리스트
 
 코드 수정 시 아래 항목을 확인한다:
@@ -98,7 +165,9 @@
 - [ ] 상태 전이 자동화 시: 레이스 컨디션이 발생할 수 있는 구간은 없는가?
 - [ ] hold invoice 관련 변경 시: CLTV timeout 안전장치가 여전히 유효한가?
 - [ ] Customer/Sponsor 권한 변경 시: 한쪽에게 일방적으로 유리한 조건이 생기지 않는가?
+- [ ] hold invoice cancel/settle 추가 시: 위 Safety Invariants가 여전히 충족되는가?
+- [ ] 보증금 관련 변경 시: I-002, I-005, I-006이 유지되는가?
 
 ---
 
-**Last Updated**: 2026-03-14
+**Last Updated**: 2026-03-22

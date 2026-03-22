@@ -503,8 +503,11 @@ async function handleOrderRequest(request: OrderRequest): Promise<void> {
   await createOrder(request);
 }
 
-/** order-request로부터 오더를 생성하고 kind 30402를 발행한다. */
-export async function createOrder(request: OrderRequest, depositPaymentHash?: string): Promise<void> {
+/**
+ * order-request로부터 오더를 생성하고 kind 30402를 발행한다.
+ * @returns 발행 성공 여부 (호출측에서 후속 처리 분기에 사용)
+ */
+export async function createOrder(request: OrderRequest, depositPaymentHash?: string): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
   const newOrder: Order = {
     orderId: request.orderId,
@@ -524,13 +527,15 @@ export async function createOrder(request: OrderRequest, depositPaymentHash?: st
     console.log('[Admin] Auto-created order', request.orderId, 'from order-request');
   } catch (e) {
     console.error('[Admin] Failed to publish order for', request.orderId, e);
-    return;
+    return false;
   }
 
   // 오더 생성 시점부터 IDB에 이관하여 히스토리 + 채팅을 즉시 활성화 (fire-and-forget)
   idbMigrateOrderWithRequests(newOrder, [request]).catch((err: unknown) =>
     console.warn('[Admin] IndexedDB migration failed for', request.orderId, err),
   );
+
+  return true;
 }
 
 /**

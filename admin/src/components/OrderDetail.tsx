@@ -7,9 +7,12 @@ import {
   ChatWindow,
 } from '@sajwo-tracker/shared';
 import type { Order, Request, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
+import type { LightningAdapter } from '../lightning';
+import type { HoldInvoiceStatus } from '../lightning/types';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage } from '../nostr/publish';
 import { resolveDisputeSponsorWins, resolveDisputeCustomerWins } from '../nostr/service';
+import { getEscrowEntry, getPreimage } from '../escrow-store';
 import { CommitmentBadge } from './CommitmentBadge';
 import { SatsAmount } from './SatsAmount';
 
@@ -17,6 +20,7 @@ interface Props {
   orderId: string;
   onBack: () => void;
   tracker: PriceTracker;
+  lnAdapter: LightningAdapter | null;
 }
 
 const stateLabel: Record<string, string> = {
@@ -55,6 +59,20 @@ const requestSenderLabel: Record<string, string> = {
   'account-info': '고객',
 };
 
+const depositStatusLabel: Record<HoldInvoiceStatus, string> = {
+  open: '미결제 (open)',
+  accepted: '결제됨 — 홀드 중 (accepted)',
+  settled: '세틀 완료 (settled)',
+  cancelled: '캔슬 완료 (cancelled)',
+};
+
+const depositStatusStyle: Record<HoldInvoiceStatus, { bg: string; color: string }> = {
+  open: { bg: '#FEF9C3', color: '#A16207' },
+  accepted: { bg: '#EDE9FE', color: '#7C3AED' },
+  settled: { bg: '#D1FAE5', color: '#065F46' },
+  cancelled: { bg: '#F3F4F6', color: '#6B7280' },
+};
+
 function shortPubkey(pk: string): string {
   return pk.length > 16 ? `${pk.slice(0, 8)}…${pk.slice(-8)}` : pk;
 }
@@ -68,11 +86,16 @@ function formatDate(unixSeconds: number): string {
   });
 }
 
-export function OrderDetail({ orderId, onBack, tracker }: Props) {
+export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
   const [order, setOrder] = useState<Order | null>(null);
   const [requests, setRequests] = useState<Request[]>([]);
   const [resolving, setResolving] = useState(false);
   const [accountCommitment, setAccountCommitment] = useState<string | undefined>();
+
+  // ── 보증금 인보이스 상태 ───────────────────────────
+  const [depositStatus, setDepositStatus] = useState<HoldInvoiceStatus | null>(null);
+  const [depositQuerying, setDepositQuerying] = useState(false);
+  const [depositActing, setDepositActing] = useState(false);
 
   // Load order + requests from IDB
   useEffect(() => {
@@ -165,6 +188,55 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
     }
   }, [orderId]);
 
+  // ── 보증금 인보이스 상태 조회 ─────────────────────
+  const depositPaymentHash = order?.depositPaymentHash;
+
+  const handleDepositLookup = useCallback(async () => {
+    if (!depositPaymentHash || !lnAdapter) return;
+    setDepositQuerying(true);
+    try {
+      const status = await lnAdapter.lookupHoldInvoice(depositPaymentHash);
+      setDepositStatus(status);
+    } catch (e) {
+      alert(`보증금 상태 조회 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDepositQuerying(false);
+    }
+  }, [depositPaymentHash, lnAdapter]);
+
+  const handleDepositSettle = useCallback(async () => {
+    if (!confirm('보증금을 몰수(settle)하시겠습니까?\n고객에게 보증금이 환불되지 않습니다.')) return;
+    const depositKey = `deposit:${orderId}`;
+    const preimage = getPreimage(depositKey);
+    if (!preimage) {
+      alert('보증금 프리이미지를 찾을 수 없습니다.');
+      return;
+    }
+    setDepositActing(true);
+    try {
+      await lnAdapter!.settleInvoice(preimage);
+      setDepositStatus('settled');
+    } catch (e) {
+      alert(`보증금 settle 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDepositActing(false);
+    }
+  }, [orderId, lnAdapter]);
+
+  const handleDepositCancel = useCallback(async () => {
+    if (!confirm('보증금을 환불(cancel)하시겠습니까?\n고객에게 보증금이 즉시 환불됩니다.')) return;
+    if (!depositPaymentHash) return;
+    setDepositActing(true);
+    try {
+      await lnAdapter!.cancelInvoice(depositPaymentHash);
+      setDepositStatus('cancelled');
+    } catch (e) {
+      alert(`보증금 cancel 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDepositActing(false);
+    }
+  }, [depositPaymentHash, lnAdapter]);
+
   if (!order) {
     return <div style={styles.loading}>오더 불러오는 중...</div>;
   }
@@ -211,6 +283,56 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
         </div>
         {order.disbursed && <div style={styles.disbursed}>BTC 송금 완료</div>}
       </div>
+
+      {/* Deposit Invoice */}
+      {depositPaymentHash && lnAdapter && (
+        <div style={styles.depositSection}>
+          <div style={styles.depositHeader}>
+            <span style={styles.depositTitle}>보증금 인보이스</span>
+            <button
+              style={styles.depositQueryBtn}
+              onClick={() => void handleDepositLookup()}
+              disabled={depositQuerying}
+            >
+              {depositQuerying ? '조회 중...' : '상태 조회'}
+            </button>
+          </div>
+          <div style={styles.depositMeta}>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#666' }}>
+              hash: {depositPaymentHash.slice(0, 16)}…{depositPaymentHash.slice(-8)}
+            </span>
+          </div>
+          {depositStatus && (
+            <div style={styles.depositStatusRow}>
+              <span style={{
+                ...styles.depositStatusBadge,
+                background: depositStatusStyle[depositStatus]?.bg ?? '#F3F4F6',
+                color: depositStatusStyle[depositStatus]?.color ?? '#666',
+              }}>
+                {depositStatusLabel[depositStatus]}
+              </span>
+              {depositStatus === 'accepted' && (
+                <div style={styles.depositActions}>
+                  <button
+                    style={styles.depositSettleBtn}
+                    onClick={() => void handleDepositSettle()}
+                    disabled={depositActing}
+                  >
+                    {depositActing ? '처리 중...' : '세틀 (몰수)'}
+                  </button>
+                  <button
+                    style={styles.depositCancelBtn}
+                    onClick={() => void handleDepositCancel()}
+                    disabled={depositActing}
+                  >
+                    {depositActing ? '처리 중...' : '캔슬 (환불)'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Dispute Resolution */}
       {order.state === 'remitted' && (
@@ -367,6 +489,77 @@ const styles = {
     fontSize: 12,
     fontWeight: 500 as const,
     color: '#059669',
+  },
+  depositSection: {
+    background: '#FFF7ED',
+    border: '1px solid #FED7AA',
+    borderRadius: 8,
+    padding: '16px 20px',
+    marginBottom: 16,
+  },
+  depositHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  depositTitle: {
+    fontSize: 14,
+    fontWeight: 600 as const,
+    color: '#C2410C',
+  },
+  depositQueryBtn: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 500 as const,
+    color: '#C2410C',
+    background: '#fff',
+    border: '1px solid #FED7AA',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
+    fontFamily: 'inherit',
+  },
+  depositMeta: {
+    marginBottom: 8,
+  },
+  depositStatusRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap' as const,
+  },
+  depositStatusBadge: {
+    display: 'inline-block',
+    borderRadius: 6,
+    padding: '4px 10px',
+    fontSize: 12,
+    fontWeight: 600 as const,
+  },
+  depositActions: {
+    display: 'flex',
+    gap: 8,
+  },
+  depositSettleBtn: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 500 as const,
+    color: '#fff',
+    background: '#DC2626',
+    border: 'none',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
+    fontFamily: 'inherit',
+  },
+  depositCancelBtn: {
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 500 as const,
+    color: '#fff',
+    background: '#059669',
+    border: 'none',
+    borderRadius: 6,
+    cursor: 'pointer' as const,
+    fontFamily: 'inherit',
   },
   disputeSection: {
     background: '#FEF2F2',

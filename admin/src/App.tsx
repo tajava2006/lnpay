@@ -347,6 +347,7 @@ export function App() {
             orderId={selectedOrderId}
             onBack={goHistory}
             tracker={tracker}
+            lnAdapter={lnAdapter}
           />
         ) : selectedOrderId ? (
           <OrderClaimList

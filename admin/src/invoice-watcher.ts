@@ -79,7 +79,11 @@ async function poll(): Promise<void> {
             createdAt: deposit.createdAt,
             raw: {},
           };
-          await createOrder(fakeRequest, deposit.depositPaymentHash);
+          const success = await createOrder(fakeRequest, deposit.depositPaymentHash);
+          if (!success) {
+            console.warn('[InvoiceWatcher] Order publish failed, retaining pending deposit for retry:', deposit.orderId);
+            continue; // 다음 폴링에서 재시도
+          }
           deletePendingDeposit(deposit.orderId);
           console.log('[InvoiceWatcher] Deposit confirmed, order created:', deposit.orderId);
         } else if (status === 'cancelled') {

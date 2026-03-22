@@ -284,10 +284,14 @@ export async function disburseSponsor(
   }
 
   // 성공 → disbursed 플래그 기록
+  // 릴레이 에코 수신 시 upsertOrder의 updatedAt >= 비교에서 드롭되지 않도록
+  // 현재 로컬 상태보다 반드시 큰 타임스탬프를 사용한다.
+  const freshOrder = getOrder(orderId);
+  const baseOrder = freshOrder ?? order;
   const updatedOrder: Order = {
-    ...order,
+    ...baseOrder,
     disbursed: true,
-    updatedAt: Math.floor(Date.now() / 1000),
+    updatedAt: Math.max(Math.floor(Date.now() / 1000), baseOrder.updatedAt + 1),
   };
 
   try {

@@ -1,4 +1,5 @@
 import { useState, useCallback, useSyncExternalStore } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim, publishRemitRequest } from '../nostr/claim';
 import { getStateMeta } from '../order-states';
@@ -284,11 +285,10 @@ export function OrderCard({ order, now, tracker }: Props) {
                   스팸 방지를 위한 보증금이며 거래 완료 후 전액 환불됩니다.
                 </p>
                 <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=lightning:${deposit.bolt11}`}
-                    alt="deposit QR"
-                    width={200}
-                    height={200}
+                  <QRCodeSVG
+                    value={`lightning:${deposit.bolt11}`}
+                    size={200}
+                    level="M"
                     style={{ borderRadius: 8 }}
                   />
                 </div>

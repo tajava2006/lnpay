@@ -83,9 +83,10 @@
 |------|------|
 | **분류** | 보안 — XSS |
 | **심각도** | High |
-| **위치** | `customer/userscript/src/main.ts:140-164` |
+| **현재 상태** | ✅ 수정 완료 |
+| **위치** | `customer/userscript/src/main.ts` — `showNotification()` |
 | **문제** | `showNotification()`에서 쿠팡 상품명을 `innerHTML`로 직접 삽입. 상품명에 HTML payload가 있으면 쿠팡 도메인 컨텍스트에서 JS 실행 → 쿠팡 세션 탈취 가능. |
-| **수정** | `innerHTML` → DOM API(`createElement` + `textContent`)로 변경. 또는 최소한 HTML 이스케이핑 적용. |
+| **수정** | `innerHTML` → DOM API(`createElement` + `textContent`)로 변경 완료. |
 
 ---
 

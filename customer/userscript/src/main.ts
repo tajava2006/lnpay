@@ -138,29 +138,35 @@ async function main() {
 
 /** 페이지 상단에 알림 표시 */
 function showNotification(title: string, message: string) {
-  const el = document.createElement('div');
-  el.innerHTML = `
-    <div style="
-      position: fixed; top: 16px; right: 16px; z-index: 999999;
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: white; padding: 16px 20px; border-radius: 10px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      animation: sajwoSlideIn 0.4s ease-out;
-      max-width: 320px;
-    ">
-      <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">[사줘] ${title}</div>
-      <div style="font-size: 13px; opacity: 0.9;">${message}</div>
-    </div>
-    <style>
-      @keyframes sajwoSlideIn {
-        from { transform: translateX(120%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-    </style>
-  `;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 5000);
+  const wrapper = document.createElement('div');
+
+  const card = document.createElement('div');
+  Object.assign(card.style, {
+    position: 'fixed', top: '16px', right: '16px', zIndex: '999999',
+    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+    color: 'white', padding: '16px 20px', borderRadius: '10px',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    animation: 'sajwoSlideIn 0.4s ease-out',
+    maxWidth: '320px',
+  });
+
+  const titleEl = document.createElement('div');
+  Object.assign(titleEl.style, { fontWeight: '700', fontSize: '14px', marginBottom: '4px' });
+  titleEl.textContent = `[사줘] ${title}`;
+
+  const msgEl = document.createElement('div');
+  Object.assign(msgEl.style, { fontSize: '13px', opacity: '0.9' });
+  msgEl.textContent = message;
+
+  card.append(titleEl, msgEl);
+
+  const style = document.createElement('style');
+  style.textContent = `@keyframes sajwoSlideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`;
+
+  wrapper.append(card, style);
+  document.body.appendChild(wrapper);
+  setTimeout(() => wrapper.remove(), 5000);
 }
 
 // ── 실행 ─────────────────────────────────────────────

@@ -688,9 +688,41 @@ Fidelity bond 시점과 실제 거래 시점의 BTC/KRW 환율이 다를 수 있
 > Customer가 이탈할 수 있다. 하지만 이 시점에서 Sponsor는 아직 KRW를 보내지 않았으므로
 > Sponsor 손해는 없고, Customer만 거래 기회를 잃는다.
 
-### Sponsor 스팸 차단: Lightning 노드 블랙리스트
+### Sponsor 스팸 차단: Fidelity Bond (보증금)
 
 Sponsor가 클레임만 하고 KRW를 입금하지 않는 트롤링을 차단한다.
+
+**방법**: Sponsor의 claim 수신 시 주문 금액의 일부를 **hold invoice로 보증금** 수령한다.
+보증금을 결제해야 Admin이 verified 상태로 승인할 수 있으므로, BTC 없는 스패머는 원천 차단된다.
+
+```
+Sponsor                          Admin
+   │                               │
+   │  ① claim 발행                 │
+   │  (kind 1111 + bolt11)         │
+   │ ─────────────────────────────→│
+   │                               │
+   │  ② deposit hold invoice       │
+   │ ←─────────────────────────────│  (deposit-required)
+   │                               │
+   │  ③ hold invoice 결제          │
+   │ ─────────────────────────────→│  (deposit-accepted → 승인 가능)
+   │                               │
+   │     ... 거래 정상 완료 (paid) ...
+   │                               │
+   │  ④ deposit cancel (환불)      │
+   │ ←─── BTC 즉시 반환 ───────────│
+```
+
+**보증금 생명주기**:
+- `paid` / `sponsor_wins` → cancel (전액 환불): 정상 거래 또는 Sponsor 승리
+- `customer_wins` → settle (몰수): Sponsor 트롤링 인정
+- 기타 → Admin 수동 판단
+
+#### Lightning 노드 블랙리스트 (보류, 추가 방어)
+
+보증금으로 1차 스팸 게이트가 확보되었으므로 블랙리스트는 보류.
+규모 확장 시 추가 방어 레이어로 도입을 검토한다.
 
 **핵심 인사이트**: Nostr pubkey는 무료로 무한 생성 가능하지만,
 Lightning 노드는 채널에 실제 BTC를 lock해야 운영 가능하다.
@@ -700,27 +732,6 @@ Lightning 노드는 채널에 실제 BTC를 lock해야 운영 가능하다.
 Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
                                       → 이것이 Sponsor의 실제 식별자
 ```
-
-**블랙리스트 운영**:
-- 트롤링 발생 시 (클레임 후 KRW 미입금 등) 해당 Lightning 노드 pubkey를 블랙리스트에 등록
-- 이후 동일 노드에서 발행된 invoice가 포함된 클레임은 자동 거절
-- Admin 웹앱에서 블랙리스트 관리 UI 제공
-
-**Sybil 비용**: Lightning 노드 신규 구축에는 채널 펀딩(실제 BTC)이 필요하므로,
-블랙리스트 우회를 위한 노드 재생성 비용이 높다.
-
-#### 커스토디얼 월렛 문제 (향후 대응)
-
-커스토디얼 월렛(예: Wallet of Satoshi) 유저는 공유 노드를 사용한다.
-트롤이 의도적으로 커스토디얼 노드를 차단되게 만들면 해당 서비스의 모든 유저가 피해를 본다.
-
-이 문제가 실제로 발생하면 RoboSats 방식의 **Sponsor fidelity bond**로 전환을 검토한다:
-- Sponsor에게도 주문 금액의 일부(~3%)를 hold invoice로 보증금 수령
-- 거래 정상 완료 시 수수료 없이 전액 반환
-- 트롤링 시 보증금 몰수
-
-초기에는 소규모 신뢰 기반으로 운영하므로 블랙리스트만으로 충분하며,
-규모 확장 시 fidelity bond 도입을 검토한다.
 
 ## 유저 키 관리
 

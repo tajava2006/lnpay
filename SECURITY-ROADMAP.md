@@ -9,17 +9,17 @@
 
 ---
 
-### S-001. Customer Fidelity Bond 구현
+### S-001. Fidelity Bond 구현 (Customer + Sponsor)
 
 | 항목 | 내용 |
 |------|------|
 | **분류** | 보안 — 스팸/DoS 차단 |
 | **심각도** | Critical |
-| **현재 상태** | 미구현 (TODO.md에만 기재) |
-| **문제** | 누구든 무료로 Nostr 키를 생성하여 가짜 order-request를 무한 발행 가능. 오더북이 오염되면 Sponsor가 실제 주문을 식별할 수 없어 서비스 불능. |
-| **설계** | [PROTOCOL.md](PROTOCOL.md) §스팸/DoS 차단, [ARCHITECTURE.md](ARCHITECTURE.md) §Fidelity Bond에 이미 설계됨 |
-| **구현 범위** | 1. Admin: order-request 수신 시 소액 hold invoice 생성 + Customer에게 전달 <br> 2. Customer: hold invoice 결제 UI (기존 InvoiceModal 재사용 가능) <br> 3. Admin: 결제 확인 후 오더 생성 (invoice-watcher 확장) <br> 4. Admin: 클레이머 확정 시 fidelity bond cancel → 본 hold invoice 재발행 |
-| **참고** | RoboSats는 maker/taker 모두에게 fidelity bond를 요구한다 |
+| **현재 상태** | ✅ 구현 완료 (Customer 보증금 + Sponsor 보증금) |
+| **문제** | 누구든 무료로 Nostr 키를 생성하여 가짜 order-request를 무한 발행 가능. 오더북이 오염되면 Sponsor가 실제 주문을 식별할 수 없어 서비스 불능. Sponsor도 claim만 하고 KRW 미송금 반복 가능. |
+| **설계** | [PROTOCOL.md](PROTOCOL.md) §스팸/DoS 차단, [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) |
+| **구현 내용** | **Customer 보증금**: order-request 수신 → 소액 hold invoice → 결제 확인 후 오더 생성 → escrowed 시 자동 환불 <br> **Sponsor 보증금**: claim 수신 → 소액 hold invoice → 결제 확인 후 verified 승인 가능 → paid/sponsor_wins 시 자동 환불, customer_wins 시 몰수 |
+| **참고** | RoboSats는 maker/taker 모두에게 fidelity bond를 요구한다. 본 구현도 양측 모두에게 보증금을 요구. |
 
 ---
 
@@ -38,15 +38,16 @@
 
 ---
 
-### S-003. Lightning 노드 블랙리스트 구현
+### ~~S-003. Lightning 노드 블랙리스트 구현~~ (보류)
 
 | 항목 | 내용 |
 |------|------|
 | **분류** | 보안 — 스팸/트롤링 차단 |
-| **심각도** | Critical |
-| **현재 상태** | 미구현 (TODO.md에만 기재) |
+| **심각도** | ~~Critical~~ → Low (보증금으로 대체) |
+| **현재 상태** | 보류 — S-001 Sponsor 보증금 구현으로 출시 차단 해제 |
 | **문제** | Sponsor가 claim만 하고 KRW 미송금 반복 가능. Nostr pubkey 무료 생성으로 무한 반복. Customer의 BTC가 hold invoice에 불필요하게 묶임. |
-| **설계** | [PROTOCOL.md](PROTOCOL.md) §Sponsor 스팸 차단에 이미 설계됨 |
+| **기존 설계** | [PROTOCOL.md](PROTOCOL.md) §Sponsor 스팸 차단에 설계됨 |
+| **보류 사유** | S-001에서 Sponsor 보증금(Fidelity Bond)이 구현되어 트롤링 시 보증금 몰수가 가능해짐. 보증금이 스팸 게이트 역할을 하므로 블랙리스트의 출시 차단 긴급성이 해소됨. 규모 확장 시 추가 방어로 도입 검토. |
 | **구현 범위** | 1. claim 수신 시 bolt11 디코딩 → destination node pubkey 추출 <br> 2. 블랙리스트(NIP-78 암호화 저장) 대조 → 차단 시 자동 거절 <br> 3. Admin UI: 블랙리스트 관리 (추가/제거/조회) <br> 4. 분쟁 판정 시 자동 블랙리스트 등록 옵션 |
 
 ---
@@ -224,4 +225,4 @@
 
 ---
 
-**Last Updated**: 2026-03-20
+**Last Updated**: 2026-03-23

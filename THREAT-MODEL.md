@@ -60,8 +60,8 @@
 | **공격자** | Sponsor |
 | **시나리오** | Nostr pubkey는 무료 생성 가능. 트롤링/스팸 후 새 키로 전환하면 블랙리스트 우회 가능. |
 | **영향** | 반복적인 거짓 claim으로 Customer 거래 방해. |
-| **방어** | (미구현) Lightning 노드 pubkey 기반 식별 — 채널 펀딩에 실제 BTC 필요하므로 Sybil 비용 높음. bolt11의 destination pubkey로 Sponsor를 식별하고 블랙리스트 관리. |
-| **관련** | TODO.md — Lightning 노드 블랙리스트 |
+| **방어** | ✅ Sponsor 보증금(Fidelity Bond) — claim 시 소액 hold invoice 결제 필수. 트롤링 시 보증금 몰수(customer_wins). BTC 없는 Sybil은 원천 차단. 추가 방어로 Lightning 노드 블랙리스트 도입 가능(보류). |
+| **관련** | SECURITY-ROADMAP.md — S-001, [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) |
 
 ---
 
@@ -150,9 +150,31 @@
 
 | 항목 | 내용 |
 |------|------|
-| **보호 대상** | Customer BTC (보증금 + 에스크로) |
-| **불변조건** | cleanup이 만료 오더를 삭제할 때, 해당 오더에 연관된 hold invoice(보증금, 실결제)가 아직 active면 적절히 cancel/settle 처리. 방치된 hold invoice는 CLTV timeout까지 Customer 자금을 불필요하게 잠근다. |
+| **보호 대상** | Customer BTC (보증금 + 에스크로), Sponsor BTC (보증금) |
+| **불변조건** | cleanup이 만료 오더를 삭제할 때, 해당 오더에 연관된 hold invoice(고객 보증금, 후원자 보증금, 실결제)가 아직 active면 적절히 cancel/settle 처리. 방치된 hold invoice는 CLTV timeout까지 자금을 불필요하게 잠근다. |
 | **현재 구현** | cleanup.ts에서 escrow purge만 수행. hold invoice cancel 미구현 (향후 개선) |
+
+---
+
+### I-007. Sponsor 보증금은 정상 완료(paid) 또는 Sponsor 승리 시 반드시 cancel(환불)되어야 한다
+
+| 항목 | 내용 |
+|------|------|
+| **보호 대상** | Sponsor BTC (보증금) |
+| **불변조건** | Sponsor가 KRW를 정상 송금하여 거래가 완료(paid)되었거나, 분쟁에서 Sponsor가 승리(sponsor_wins)한 경우 보증금은 전액 환불되어야 한다. 정상 행동을 한 Sponsor의 자금을 묶어두거나 몰수하는 것은 신뢰 훼손. |
+| **현재 구현** | deposit-lifecycle.ts handleSponsorDeposit: paid/sponsor_wins → cancel (환불) |
+| **관련 설계** | [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) 보증금 생명주기 |
+
+---
+
+### I-008. Sponsor 보증금은 Customer 승리 시 settle(몰수)되어야 한다
+
+| 항목 | 내용 |
+|------|------|
+| **보호 대상** | Customer (보상), 시스템 (트롤링 억제) |
+| **불변조건** | 분쟁에서 Customer가 승리(customer_wins) = Sponsor의 트롤링/의무 불이행이 인정됨. 이 경우 보증금을 몰수하여 트롤링 비용을 부과한다. |
+| **현재 구현** | deposit-lifecycle.ts handleSponsorDeposit: customer_wins → settle (몰수) |
+| **관련 설계** | [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) 보증금 생명주기 |
 
 ---
 
@@ -166,8 +188,9 @@
 - [ ] hold invoice 관련 변경 시: CLTV timeout 안전장치가 여전히 유효한가?
 - [ ] Customer/Sponsor 권한 변경 시: 한쪽에게 일방적으로 유리한 조건이 생기지 않는가?
 - [ ] hold invoice cancel/settle 추가 시: 위 Safety Invariants가 여전히 충족되는가?
-- [ ] 보증금 관련 변경 시: I-002, I-005, I-006이 유지되는가?
+- [ ] 고객 보증금 관련 변경 시: I-002, I-005, I-006이 유지되는가?
+- [ ] 후원자 보증금 관련 변경 시: I-006, I-007, I-008이 유지되는가?
 
 ---
 
-**Last Updated**: 2026-03-22
+**Last Updated**: 2026-03-23

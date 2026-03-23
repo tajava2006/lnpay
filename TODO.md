@@ -38,7 +38,7 @@
 
 ### Customer 스팸 차단
 
-- [ ] **Fidelity bond**: order-request 발행 시 주문 금액의 일부를 hold invoice로 선납
+- [x] **Fidelity bond**: order-request 발행 시 주문 금액의 일부를 hold invoice로 선납 ✅
   - BTC가 없는 스패머 원천 차단 (어차피 Customer가 지불할 금액이므로 추가 비용 아님)
   - 정확한 금액이 아닌 보증 목적의 소액 (BTC 가격 변동 대응)
   - 클레이머 확정 + 유동성 검증 통과 시 fidelity bond cancel (즉시 환불)
@@ -46,12 +46,11 @@
 
 ### Sponsor 스팸 차단
 
-- [ ] **Lightning 노드 블랙리스트**: invoice의 destination node pubkey로 Sponsor 식별
-  - Nostr pubkey는 무료 생성 가능 → 식별 수단 부적합
-  - Lightning 노드는 채널 펀딩(실제 BTC)이 필요 → Sybil 비용 높음
+- [ ] **Lightning 노드 블랙리스트 (보류)**: Sponsor 보증금으로 스팸 게이트 확보됨. 규모 확장 시 추가 방어로 도입 검토
+  - invoice의 destination node pubkey로 Sponsor 식별
   - 트롤링 발생 시 해당 노드 블랙리스트 등록, Admin 웹앱에서 관리 UI
-- [ ] **Sponsor fidelity bond (향후 필요 시)**: 커스토디얼 월렛 악용 대응
-  - RoboSats 방식: 주문 금액의 ~3%를 hold invoice로 보증금 수령
+- [x] **Sponsor fidelity bond**: claim 시 주문 금액의 일부를 hold invoice로 보증금 수령 ✅
+  - paid/sponsor_wins 시 자동 환불, customer_wins 시 몰수
 
 ## BTC 가격 활용
 
@@ -66,4 +65,4 @@
 
 ---
 
-**Last Updated**: 2026-03-13
+**Last Updated**: 2026-03-23

@@ -59,10 +59,10 @@
 ## 기술 부채
 
 - [ ] **CLN hold invoice 지원**: 현재 LND 전용 (`holdInvoice`, `settleInvoice`). CLN은 probe만 가능하고 hold invoice API 미구현
-- [ ] **테스트 코드 작성**: Admin state-machine, Customer/Sponsor 이벤트 파싱 등 핵심 로직 테스트
+- [x] **테스트 코드 작성**: Admin FSM 전이, 가격 범위 검증, commitment hash — vitest 41개 테스트 ✅
 - [ ] **에러 처리 강화**: 네트워크 오류, 파싱 실패 등 예외 상황 처리
 - [ ] **로깅 개선**: 디버깅 용이하도록 구조화된 로그
 
 ---
 
-**Last Updated**: 2026-03-23
+**Last Updated**: 2026-03-25

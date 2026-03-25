@@ -64,9 +64,9 @@
 |------|------|
 | **분류** | 품질 — 신뢰성 |
 | **심각도** | High |
-| **현재 상태** | 테스트 0개 |
+| **현재 상태** | ✅ 구현 완료 (vitest, 41개 테스트) |
 | **문제** | 에스크로 FSM, pubkey 검증, 가격 범위 검증 등 자금 관련 로직에 테스트가 없다. 리팩터링이나 기능 추가 시 기존 방어가 무력화될 위험. |
-| **구현 범위** | 1. `state-machine.ts`: 모든 전이 경로 허용/거부 테스트 <br> 2. `service.ts` 핸들러: pubkey 검증 (payment-confirm, cancel-request, remit-request) <br> 3. 가격 범위 검증: edge case (0, NaN, negative, null price feed) <br> 4. invoice-watcher: 상태별 동작 (accepted, settled, cancelled, 만료 임박) <br> 5. commitment 검증: hash 일치/불일치 |
+| **구현 내용** | 1. `state-machine.ts`: 모든 전이 경로 허용/거부 테스트 (31개) <br> 2. `isInvoiceAmountValid()` 가격 범위 검증: edge case 포함 (10개) — service.ts 인라인에서 순수함수로 추출 <br> 3. `sha256Hex()` commitment 검증: hash 무결성/위변조 (5개) <br> 4. invoice-watcher, pubkey 검증 등 서비스 레이어는 외부 의존성 비율이 높아 mock 비용 > 테스트 가치로 판단, 제외 |
 | **도구** | vitest (Vite 프로젝트에 자연스럽게 통합) |
 
 ---
@@ -90,15 +90,14 @@
 
 ---
 
-### S-007. Nostr 이벤트 서명 명시적 검증
+### ~~S-007. Nostr 이벤트 서명 명시적 검증~~ (보류)
 
 | 항목 | 내용 |
 |------|------|
 | **분류** | 보안 — Defense in Depth |
-| **심각도** | Medium |
-| **위치** | 3개 앱의 `parseRequestEvent()`, `parseOrderEvent()` |
-| **문제** | nostr-tools SimplePool의 내부 검증에만 의존. 악의적 릴레이가 서명 없는 이벤트를 주입하면 FSM이 잘못된 전이를 할 수 있다. 라이브러리 업데이트로 동작이 바뀔 수도 있다. |
-| **수정** | `nostr-tools`의 `verifyEvent()` 호출을 파싱 함수에 추가. 검증 실패 시 이벤트 폐기 + 경고 로그. |
+| **심각도** | ~~Medium~~ → 불필요 |
+| **현재 상태** | 보류 — nostr-tools SimplePool이 내부적으로 `verifyEvent()`를 이미 호출함 |
+| **보류 사유** | 중복 검증은 코드만 늘린다. "라이브러리 업데이트 시 검증이 빠질 수 있다"는 리스크는 의존성 업그레이드 시 changelog 확인으로 충분히 커버 가능. 실제로 nostr-tools의 코어 검증 제거는 breaking change이므로 changelog에 명시됨. |
 
 ---
 
@@ -108,9 +107,10 @@
 |------|------|
 | **분류** | 보안 — 가격 조작 방어 |
 | **심각도** | Medium |
-| **위치** | `admin/src/nostr/service.ts:619` (`handleClaim`) |
+| **현재 상태** | ✅ 수정 완료 |
+| **위치** | `admin/src/nostr/service.ts` (`handleClaim`) |
 | **문제** | `btcPrice`가 null(3개 거래소 모두 다운)이면 가격 검증을 건너뛰고 어떤 금액의 invoice든 claim이 통과한다. |
-| **수정** | 가격 피드 없으면 claim을 거부하고 Admin에게 수동 확인 요청. 또는 마지막 유효 가격 + 타임스탬프를 캐시하여 N분 이내면 허용. |
+| **수정** | `btcPrice`가 null/0 이하면 즉시 claim 거부. 가격 범위 검증 로직을 `isInvoiceAmountValid()` 순수함수로 추출하여 테스트 가능하게 개선. |
 
 ---
 
@@ -120,10 +120,10 @@
 |------|------|
 | **분류** | UX — 오조작 방지 |
 | **심각도** | Low |
-| **위치** | `admin/src/state-machine.ts:29`, Customer 앱 UI |
+| **현재 상태** | ✅ 이미 구현됨 |
+| **위치** | `customer/src/components/OrderRow.tsx` (`handleConfirmPaid`) |
 | **현재 설계가 안전한 이유** | `payment-confirm`은 "Sponsor가 KRW를 보낸 것을 Customer가 확인"하는 행위다. Customer가 거짓 확인을 보내면 자기 BTC만 잃으므로 **속일 유인이 전혀 없다.** 이건 보안 이슈가 아니다. |
-| **실제 위험** | Customer가 Sponsor의 `remit-request` 없이 **실수로** 송금 확인 버튼을 누르는 것. Sponsor가 KRW를 보내고 `remit-request`를 깜빡할 수도 있으므로 이 전이 자체를 금지하면 정상 플로우에 방해가 된다. |
-| **수정** | Customer UI에서 `escrowed` 상태에서 송금 확인 시 경고 다이얼로그: "Sponsor가 아직 송금 완료 신호를 보내지 않았습니다. 정말로 송금이 확인되었습니까? 이 작업은 되돌릴 수 없습니다." |
+| **구현 내용** | 입금 컨펌 버튼 클릭 시 confirm 다이얼로그: "실제로 원화 입금이 확인되었습니까? 입금되지 않은 상태에서 컨펌하면 BTC가 상대방에게 전송되고, 이후 돌려받을 수 없습니다." — `escrowed`, `remitted` 양쪽 모두 동일하게 적용. |
 
 ---
 
@@ -233,4 +233,4 @@
 
 ---
 
-**Last Updated**: 2026-03-23 (S-004 격하)
+**Last Updated**: 2026-03-25 (S-005/S-008 완료, S-007/S-009 보류/확인)

@@ -36,7 +36,7 @@ import { getSigner } from './nip46';
 import { parseRequestEvent, parseOrderEvent } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
-import { canTransition } from '../state-machine';
+import { canTransition, isInvoiceAmountValid } from '../state-machine';
 import type { LightningAdapter } from '../lightning';
 import { getPreimage, getEscrowEntry } from '../escrow-store';
 import { getCustomerDepositPercent, getSponsorDepositPercent } from '../deposit-config';
@@ -710,12 +710,11 @@ async function handleClaim(request: ClaimRequest): Promise<void> {
     console.warn('[Admin] No price feed available, rejecting claim:', request.orderId);
     return;
   }
-  const expectedSat = Math.round((order.price / btcPrice) * 1e8);
-  const ratio = decoded.amountSat / expectedSat;
-  if (ratio < 0.95 || ratio > 1.05) {
+  if (!isInvoiceAmountValid(order.price, btcPrice, decoded.amountSat)) {
+    const expectedSat = Math.round((order.price / btcPrice) * 1e8);
     console.warn(
-      '[Admin] Claim price out of range (ratio: %s), ignoring: %s',
-      ratio.toFixed(3), request.orderId,
+      '[Admin] Claim price out of range, ignoring: %s (expected ~%d sat, got %d sat)',
+      request.orderId, expectedSat, decoded.amountSat,
     );
     // 가격 오류 알림 (best-effort, 실패해도 무시)
     void publishClaimPriceError(request.orderId, request.pubkey, expectedSat).catch(() => {});

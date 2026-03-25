@@ -38,6 +38,27 @@ export function canTransition(from: OrderState, to: OrderState): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
+/**
+ * Sponsor 청구 인보이스 금액이 허용 범위 내인지 검증한다.
+ *
+ * @param orderPriceKrw - 오더의 KRW 금액
+ * @param btcPriceKrw   - 현재 BTC/KRW 가격
+ * @param amountSat     - Sponsor 인보이스 금액 (satoshi)
+ * @returns 허용 범위(±5%) 내이면 true
+ */
+export function isInvoiceAmountValid(
+  orderPriceKrw: number,
+  btcPriceKrw: number,
+  amountSat: number,
+): boolean {
+  if (!Number.isFinite(orderPriceKrw) || orderPriceKrw <= 0) return false;
+  if (!Number.isFinite(btcPriceKrw) || btcPriceKrw <= 0) return false;
+  if (!Number.isFinite(amountSat) || amountSat <= 0) return false;
+  const expectedSat = Math.round((orderPriceKrw / btcPriceKrw) * 1e8);
+  const ratio = amountSat / expectedSat;
+  return ratio >= 0.95 && ratio <= 1.05;
+}
+
 export interface TransitionResult {
   success: boolean;
   error?: TransitionError;

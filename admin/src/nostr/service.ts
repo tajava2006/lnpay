@@ -704,20 +704,22 @@ async function handleClaim(request: ClaimRequest): Promise<void> {
     return;
   }
 
-  // ── 가격 범위 검증 (PriceTracker 데이터 있을 때만) ──
+  // ── 가격 범위 검증 ──
   const btcPrice = priceTrackerRef?.getSnapshot().price;
-  if (btcPrice && btcPrice > 0) {
-    const expectedSat = Math.round((order.price / btcPrice) * 1e8);
-    const ratio = decoded.amountSat / expectedSat;
-    if (ratio < 0.95 || ratio > 1.05) {
-      console.warn(
-        '[Admin] Claim price out of range (ratio: %s), ignoring: %s',
-        ratio.toFixed(3), request.orderId,
-      );
-      // 가격 오류 알림 (best-effort, 실패해도 무시)
-      void publishClaimPriceError(request.orderId, request.pubkey, expectedSat).catch(() => {});
-      return;
-    }
+  if (!btcPrice || btcPrice <= 0) {
+    console.warn('[Admin] No price feed available, rejecting claim:', request.orderId);
+    return;
+  }
+  const expectedSat = Math.round((order.price / btcPrice) * 1e8);
+  const ratio = decoded.amountSat / expectedSat;
+  if (ratio < 0.95 || ratio > 1.05) {
+    console.warn(
+      '[Admin] Claim price out of range (ratio: %s), ignoring: %s',
+      ratio.toFixed(3), request.orderId,
+    );
+    // 가격 오류 알림 (best-effort, 실패해도 무시)
+    void publishClaimPriceError(request.orderId, request.pubkey, expectedSat).catch(() => {});
+    return;
   }
 
   const updatedOrder: Order = {

@@ -28,6 +28,7 @@ pnpm-debug.log*
 # Reference code (not part of the project)
 nostr-tools/
 nips
+blossom
 
 # AI & MCP
 .serena/

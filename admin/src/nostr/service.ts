@@ -558,7 +558,8 @@ export async function createOrder(request: OrderRequest, depositPaymentHash?: st
  * escrowed 또는 remitted 상태에서 전이 가능 (Customer의 자동 파싱으로 입금 감지).
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
-async function handlePaymentConfirm(request: Request): Promise<void> {
+/** @testing-only */
+export async function handlePaymentConfirm(request: Request): Promise<void> {
   const order = getOrder(request.orderId);
   if (!order) return;
 
@@ -618,7 +619,8 @@ async function handlePaymentConfirm(request: Request): Promise<void> {
  * remitted 상태에서는 전이 불가 (분쟁 판정 경로로만 종결).
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
-async function handleCancelRequest(request: Request): Promise<void> {
+/** @testing-only */
+export async function handleCancelRequest(request: Request): Promise<void> {
   const order = getOrder(request.orderId);
   if (!order) return;
 
@@ -685,7 +687,8 @@ async function handleDisputeMessage(request: Request): Promise<void> {
  * - sponsorPubkey를 기록하여 이후 유동성 검증 등에 사용
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.
  */
-async function handleClaim(request: ClaimRequest): Promise<void> {
+/** @testing-only */
+export async function handleClaim(request: ClaimRequest): Promise<void> {
   const order = getOrder(request.orderId);
   if (!order) {
     console.warn('[Admin] Claim for unknown order:', request.orderId);

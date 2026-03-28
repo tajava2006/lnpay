@@ -98,6 +98,12 @@ export function getOrder(orderId: string): Order | undefined {
  * 만료된 오더를 삭제하고, 삭제된 orderId 목록을 반환한다.
  * request-store 연쇄 삭제에 사용.
  */
+/** @testing-only 모듈 내부 상태 및 localStorage를 초기화한다. */
+export function _resetForTesting(): void {
+  orders = {};
+  localStorage.removeItem(ORDERS_KEY);
+}
+
 export function purgeExpired(): string[] {
   const now = Math.floor(Date.now() / 1000);
   const expiredIds: string[] = [];

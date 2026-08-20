@@ -49,7 +49,9 @@ export function UserscriptGuide() {
           <div style={styles.steps}>
             <p style={styles.step}><strong>1.</strong> Tampermonkey 확장 프로그램을 설치합니다.</p>
             <p style={styles.step}><strong>2.</strong> Tampermonkey에서 새 스크립트를 만들고 아래 코드를 붙여넣습니다.</p>
-            <p style={styles.step}><strong>3.</strong> 쿠팡 주문 상세 페이지를 방문하면 자동으로 주문이 감지됩니다.</p>
+            <p style={styles.step}><strong>3.</strong> 크롬 주소창에 <strong>chrome://extensions</strong>를 입력한 뒤, Tampermonkey의 <strong>세부정보</strong>에서 <strong>사용자 스크립트 허용</strong>을 켭니다.</p>
+            <p style={styles.stepNote}>이 설정을 켜지 않으면 스크립트를 활성화해도 실행되지 않습니다. 항목이 보이지 않는 구버전 크롬은 확장 프로그램 페이지 우측 상단의 <strong>개발자 모드</strong>를 대신 켜세요.</p>
+            <p style={styles.step}><strong>4.</strong> 쿠팡 주문 상세 페이지를 방문하면 자동으로 주문이 감지됩니다.</p>
           </div>
 
           {scriptContent && (
@@ -107,6 +109,12 @@ const styles = {
     fontSize: 13,
     color: '#555',
     margin: '6px 0',
+    lineHeight: 1.5,
+  },
+  stepNote: {
+    fontSize: 12,
+    color: '#888',
+    margin: '2px 0 6px 14px',
     lineHeight: 1.5,
   },
   codeSection: {

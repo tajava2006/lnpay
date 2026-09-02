@@ -20,7 +20,7 @@ Sponsor ──[kind 1111 요청]──→ Relay ──→ Admin              Cus
 ## 앱 Pubkey
 
 ```
-658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5
+f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848
 ```
 
 이 pubkey는 사줘 트래커 시스템 전체를 식별하는 용도이며, 개인키는 Admin(에스크로)만 보유한다.
@@ -178,7 +178,7 @@ Lightning invoice 등 비트코인 결제 정보는 태그로 전달한다.
 ```json
 {
   "kind": 30402,
-  "pubkey": "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5",
+  "pubkey": "f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848",
   "created_at": 1770372000,
   "tags": [
     ["d", "123456789"],
@@ -280,11 +280,11 @@ Customer가 Sponsor에게 무통장입금 계좌정보를 암호화 전달한다
   "pubkey": "<customer-pubkey>",
   "created_at": 1770372000,
   "tags": [
-    ["a", "30402:658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5:123456789"],
+    ["a", "30402:f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848:123456789"],
     ["action", "order-request"],
     ["price", "22950", "KRW"],
     ["t", "sajwo-tracker"],
-    ["p", "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+    ["p", "f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848"],
     ["expiration", "1770458336"]
   ],
   "content": "",
@@ -301,11 +301,11 @@ Customer가 Sponsor에게 무통장입금 계좌정보를 암호화 전달한다
   "pubkey": "<sponsor-pubkey>",
   "created_at": 1770372100,
   "tags": [
-    ["a", "30402:658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5:123456789"],
+    ["a", "30402:f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848:123456789"],
     ["action", "claim"],
     ["bolt11", "lnbc229500n1p..."],
     ["t", "sajwo-tracker"],
-    ["p", "658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+    ["p", "f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848"],
     ["expiration", "1770458336"]
   ],
   "content": "",
@@ -389,7 +389,7 @@ Sponsor가 `account-reveal` 메시지를 보내면 Admin이 자동 검증한다:
   "pubkey": "<sender-pubkey>",
   "created_at": 1770372200,
   "tags": [
-    ["a", "30402:658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5:123456789"],
+    ["a", "30402:f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848:123456789"],
     ["action", "dispute-message"],
     ["t", "sajwo-tracker"],
     ["p", "<recipient-pubkey>"],
@@ -408,7 +408,7 @@ Sponsor가 `account-reveal` 메시지를 보내면 Admin이 자동 검증한다:
 ```json
 {
   "kinds": [30402],
-  "authors": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+  "authors": ["f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848"],
   "#t": ["sajwo-tracker"]
 }
 ```
@@ -437,7 +437,7 @@ Admin/Sponsor는 이 이벤트를 수신하지 않는다 (p 태그가 APP_PUBKEY
 ```json
 {
   "kinds": [30402],
-  "authors": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+  "authors": ["f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848"],
   "#t": ["sajwo-tracker"]
 }
 ```
@@ -449,7 +449,7 @@ Admin이 발행한 모든 오더를 수신한다. `state` 태그로 활성/종�
 ```json
 {
   "kinds": [1111],
-  "#p": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+  "#p": ["f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848"],
   "#t": ["sajwo-tracker"]
 }
 ```
@@ -462,7 +462,7 @@ Admin이 발행한 모든 오더를 수신한다. `state` 태그로 활성/종�
 ```json
 {
   "kinds": [30402],
-  "authors": ["658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5"],
+  "authors": ["f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848"],
   "#t": ["sajwo-tracker"]
 }
 ```

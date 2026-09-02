@@ -1,5 +1,5 @@
 /** 사줘 트래커 앱 pubkey - NIP-65 릴레이 디스커버리에 사용 */
-export const APP_PUBKEY = '658988350649280e43ebcdf83c20dd21273aeb4eeaa8eda7864b0fa9b57cb7a5';
+export const APP_PUBKEY = 'f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848';
 
 /** 사줘 요청 이벤트 kind (NIP-99 Classified Listing, addressable) */
 export const SAJWO_REQUEST_KIND = 30402;

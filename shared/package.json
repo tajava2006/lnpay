@@ -7,14 +7,15 @@
     "./constants": "./src/constants.ts"
   },
   "dependencies": {
-    "nostr-tools": "^2.23.0"
+    "nostr-tools": "^2.25.2"
   },
   "peerDependencies": {
     "react": "^19.0.0"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "typescript": "^5.7.3",
-    "vite": "^6.0.7"
+    "@types/react": "^19.2.18",
+    "react": "^19.2.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
   }
 }

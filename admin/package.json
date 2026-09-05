@@ -11,19 +11,19 @@
   "dependencies": {
     "@sajwo-tracker/shared": "workspace:*",
     "bolt11": "^1.4.1",
-    "nostr-tools": "^2.23.0",
+    "nostr-tools": "^2.25.2",
     "qrcode.react": "^4.2.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.0",
-    "happy-dom": "^20.8.8",
-    "typescript": "^5.7.3",
-    "vite": "^6.0.7",
-    "vite-plugin-node-polyfills": "^0.25.0",
-    "vitest": "^4.1.1"
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "happy-dom": "^20.14.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vite-plugin-node-polyfills": "^0.28.0",
+    "vitest": "^5.0.0"
   }
 }

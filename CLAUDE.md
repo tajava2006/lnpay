@@ -20,7 +20,11 @@ pnpm build:userscript:dev             # 유저스크립트 빌드 (dev, CLIENT_T
 pnpm dev:customer                     # Customer 개발 서버
 pnpm dev:sponsor                      # Sponsor 개발 서버 (port 5174)
 pnpm dev:admin                        # Admin 개발 서버
+./update-deps.sh                      # 의존성 전부 latest로 최신화 + 테스트/빌드 검증
 ```
+
+의존성은 핀하지 않고 항상 latest를 따라간다 — 최말단 앱이라 아무도 이 코드를 라이브러리로
+가져다 쓰지 않으므로, 깨지면 그때 고치는 쪽이 몇 달치 breaking을 한꺼번에 맞는 것보다 싸다.
 
 ## 헌법 (반드시 준수)
 

@@ -53,5 +53,9 @@ export { KeyInit } from './components/KeyInit';
 export { ChatWindow } from './components/ChatWindow';
 export { InvoicePayBlock } from './components/InvoicePayBlock';
 
+// 구독 생명주기 가드
+export { createSubscriptionGuard } from './subscription-guard';
+export type { SubscriptionGuard } from './subscription-guard';
+
 // Chat Store (리액티브 인메모리 채팅)
 export { subscribeChatStore, getChatSnapshot, addMessage, loadFromIdb, clearMessages } from './chat-store';

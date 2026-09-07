@@ -23,6 +23,7 @@ import {
   idbGetRequestsByOrderId,
   idbMigrateOrderWithRequests,
   processDisputeEvent,
+  createSubscriptionGuard,
   type Order,
   type Request,
   type OrderRequest,
@@ -43,7 +44,7 @@ import { getCustomerDepositPercent, getSponsorDepositPercent } from '../deposit-
 import { savePendingDeposit, getPendingDeposit } from '../pending-deposit-store';
 import { handleDepositOnTransition } from '../deposit-lifecycle';
 
-let cleanup: (() => void) | null = null;
+const guard = createSubscriptionGuard('Admin');
 let lnAdapterRef: LightningAdapter | null = null;
 let priceTrackerRef: PriceTracker | null = null;
 
@@ -57,56 +58,56 @@ export function setPriceTracker(tracker: PriceTracker | null): void {
   priceTrackerRef = tracker;
 }
 
-export async function startAdminSubscription(): Promise<void> {
-  if (cleanup) return;
+export function startAdminSubscription(): Promise<void> {
+  return guard.start(async () => {
+    const relays = await getReadRelays(storage);
 
-  const relays = await getReadRelays(storage);
+    // EOSE까지 리퀘스트를 버퍼링하여 catch-up 중 stale 상태 기반 처리를 방지한다.
+    // 오더 에코가 먼저 로컬에 반영된 후 버퍼의 리퀘스트를 처리하면
+    // canTransition이 과거 리퀘스트를 정확히 거부한다.
+    let pendingRequests: Request[] | null = [];
 
-  // EOSE까지 리퀘스트를 버퍼링하여 catch-up 중 stale 상태 기반 처리를 방지한다.
-  // 오더 에코가 먼저 로컬에 반영된 후 버퍼의 리퀘스트를 처리하면
-  // canTransition이 과거 리퀘스트를 정확히 거부한다.
-  let pendingRequests: Request[] | null = [];
+    return subscribeAdmin(relays, {
+      onRequest: (event) => {
+        const request = parseRequestEvent(event);
+        if (!request) return;
 
-  cleanup = subscribeAdmin(relays, {
-    onRequest: (event) => {
-      const request = parseRequestEvent(event);
-      if (!request) return;
-
-      // dispute-message는 messages IDB에만 저장 (requests 스토어 skip)
-      if (request.action === 'dispute-message') {
-        void handleDisputeMessage(request);
-        return;
-      }
-
-      upsertRequest(request);
-      void syncRequestToIdb(request);
-
-      // catch-up 중이면 버퍼에 쌓고, EOSE 이후에 처리
-      if (pendingRequests) {
-        pendingRequests.push(request);
-        return;
-      }
-
-      dispatchRequest(request);
-    },
-    onOrder: (event) => {
-      const order = parseOrderEvent(event);
-      if (order) {
-        upsertOrder(order);
-        void syncOrderToIdb(order);
-      }
-    },
-    onEose: () => {
-      markSynced();
-      // 오더 상태가 최신으로 반영된 후 버퍼의 리퀘스트를 순차 처리
-      const buffered = pendingRequests;
-      pendingRequests = null;
-      if (buffered) {
-        for (const req of buffered) {
-          dispatchRequest(req);
+        // dispute-message는 messages IDB에만 저장 (requests 스토어 skip)
+        if (request.action === 'dispute-message') {
+          void handleDisputeMessage(request);
+          return;
         }
-      }
-    },
+
+        upsertRequest(request);
+        void syncRequestToIdb(request);
+
+        // catch-up 중이면 버퍼에 쌓고, EOSE 이후에 처리
+        if (pendingRequests) {
+          pendingRequests.push(request);
+          return;
+        }
+
+        dispatchRequest(request);
+      },
+      onOrder: (event) => {
+        const order = parseOrderEvent(event);
+        if (order) {
+          upsertOrder(order);
+          void syncOrderToIdb(order);
+        }
+      },
+      onEose: () => {
+        markSynced();
+        // 오더 상태가 최신으로 반영된 후 버퍼의 리퀘스트를 순차 처리
+        const buffered = pendingRequests;
+        pendingRequests = null;
+        if (buffered) {
+          for (const req of buffered) {
+            dispatchRequest(req);
+          }
+        }
+      },
+    });
   });
 }
 
@@ -128,8 +129,7 @@ function dispatchRequest(request: Request): void {
 }
 
 export function stopAdminSubscription(): void {
-  cleanup?.();
-  cleanup = null;
+  guard.stop();
 }
 
 // ============================================================

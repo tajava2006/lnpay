@@ -14,6 +14,7 @@ import {
   REQUEST_ACTIONS,
   extractOrderId,
   processDisputeEvent,
+  createSubscriptionGuard,
   storage,
 } from '@sajwo-tracker/shared';
 import type { Event } from 'nostr-tools/core';
@@ -23,98 +24,98 @@ import { parseAdminEvent, parseParsedOrderEvent } from '../types';
 import { applyAdminUpdate, applyDepositRequired, applyDepositStatus, getSnapshot, setAccountInfo, markSynced } from '../order-store';
 import { addParsedOrder } from '../parsed-store';
 
-let cleanupAdmin: (() => void) | null = null;
-let cleanupUserscript: (() => void) | null = null;
+const adminGuard = createSubscriptionGuard('Customer/admin');
+const userscriptGuard = createSubscriptionGuard('Customer/userscript');
 
 // ── Admin kind 30402 구독 ──────────────────────────
 
-async function startAdminSubscription(): Promise<void> {
-  if (cleanupAdmin) return;
+function startAdminSubscription(): Promise<void> {
+  return adminGuard.start(async () => {
+    const [relays, myPubkey] = await Promise.all([
+      getReadRelays(storage),
+      getUserPubkey(storage),
+    ]);
 
-  const [relays, myPubkey] = await Promise.all([
-    getReadRelays(storage),
-    getUserPubkey(storage),
-  ]);
+    return subscribeAdminOrders(relays, {
+      onOrder: (event) => {
+        const update = parseAdminEvent(event, myPubkey);
+        if (!update) return;
 
-  cleanupAdmin = subscribeAdminOrders(relays, {
-    onOrder: (event) => {
-      const update = parseAdminEvent(event, myPubkey);
-      if (!update) return;
+        applyAdminUpdate(update.orderId, update.adminState, update.bolt11, update.sponsorPubkey);
 
-      applyAdminUpdate(update.orderId, update.adminState, update.bolt11, update.sponsorPubkey);
-
-      // 파싱 주문 escrowed 도달 시 계좌정보 자동 전송
-      if (update.adminState === 'escrowed' && update.sponsorPubkey) {
-        const order = getSnapshot()[update.orderId];
-        if (order?.source === 'parsed' && order.fixedAccountInfo && !order.accountInfo) {
-          void autoSendAccountInfo(order.orderId);
+        // 파싱 주문 escrowed 도달 시 계좌정보 자동 전송
+        if (update.adminState === 'escrowed' && update.sponsorPubkey) {
+          const order = getSnapshot()[update.orderId];
+          if (order?.source === 'parsed' && order.fixedAccountInfo && !order.accountInfo) {
+            void autoSendAccountInfo(order.orderId);
+          }
         }
-      }
-    },
-    onEose: () => {
-      markSynced();
-      console.log('[Customer] Admin orders EOSE');
-    },
+      },
+      onEose: () => {
+        markSynced();
+        console.log('[Customer] Admin orders EOSE');
+      },
+    });
   });
 }
 
 // ── 유저스크립트 kind 1111 구독 ────────────────────
 
-async function startUserscriptSubscription(): Promise<void> {
-  if (cleanupUserscript) return;
+function startUserscriptSubscription(): Promise<void> {
+  return userscriptGuard.start(async () => {
+    const [relays, myPubkey, sk] = await Promise.all([
+      getReadRelays(storage),
+      getUserPubkey(storage),
+      getSecretKey(storage),
+    ]);
 
-  const [relays, myPubkey, sk] = await Promise.all([
-    getReadRelays(storage),
-    getUserPubkey(storage),
-    getSecretKey(storage),
-  ]);
+    return subscribeUserscriptEvents(relays, myPubkey, {
+      onEvent: (event) => {
+        const action = event.tags.find(t => t[0] === 'action')?.[1];
 
-  cleanupUserscript = subscribeUserscriptEvents(relays, myPubkey, {
-    onEvent: (event) => {
-      const action = event.tags.find(t => t[0] === 'action')?.[1];
-
-      // dispute-message 백그라운드 IDB 자동 저장
-      if (action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
-        void handleDisputeMessage(event as Event, sk);
-        return;
-      }
-
-      // deposit-required: Admin이 보증금 인보이스를 전달
-      if (action === REQUEST_ACTIONS.DEPOSIT_REQUIRED && event.pubkey === APP_PUBKEY) {
-        const orderId = extractOrderId(event.tags);
-        const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
-        if (orderId && bolt11) {
-          applyDepositRequired(orderId, bolt11);
-          console.log('[Customer] Deposit required for', orderId);
+        // dispute-message 백그라운드 IDB 자동 저장
+        if (action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
+          void handleDisputeMessage(event as Event, sk);
+          return;
         }
-        return;
-      }
 
-      // deposit-accepted/cancelled/settled: Admin이 보증금 상태 변경 알림
-      if (action === REQUEST_ACTIONS.DEPOSIT_ACCEPTED && event.pubkey === APP_PUBKEY) {
-        const orderId = extractOrderId(event.tags);
-        if (orderId) applyDepositStatus(orderId, 'accepted');
-        return;
-      }
-      if (action === REQUEST_ACTIONS.DEPOSIT_CANCELLED && event.pubkey === APP_PUBKEY) {
-        const orderId = extractOrderId(event.tags);
-        if (orderId) applyDepositStatus(orderId, 'cancelled');
-        return;
-      }
-      if (action === REQUEST_ACTIONS.DEPOSIT_SETTLED && event.pubkey === APP_PUBKEY) {
-        const orderId = extractOrderId(event.tags);
-        if (orderId) applyDepositStatus(orderId, 'settled');
-        return;
-      }
+        // deposit-required: Admin이 보증금 인보이스를 전달
+        if (action === REQUEST_ACTIONS.DEPOSIT_REQUIRED && event.pubkey === APP_PUBKEY) {
+          const orderId = extractOrderId(event.tags);
+          const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
+          if (orderId && bolt11) {
+            applyDepositRequired(orderId, bolt11);
+            console.log('[Customer] Deposit required for', orderId);
+          }
+          return;
+        }
 
-      const payload = parseParsedOrderEvent(event, sk);
-      if (payload) {
-        addParsedOrder(event.id, payload);
-      }
-    },
-    onEose: () => {
-      console.log('[Customer] Userscript events EOSE');
-    },
+        // deposit-accepted/cancelled/settled: Admin이 보증금 상태 변경 알림
+        if (action === REQUEST_ACTIONS.DEPOSIT_ACCEPTED && event.pubkey === APP_PUBKEY) {
+          const orderId = extractOrderId(event.tags);
+          if (orderId) applyDepositStatus(orderId, 'accepted');
+          return;
+        }
+        if (action === REQUEST_ACTIONS.DEPOSIT_CANCELLED && event.pubkey === APP_PUBKEY) {
+          const orderId = extractOrderId(event.tags);
+          if (orderId) applyDepositStatus(orderId, 'cancelled');
+          return;
+        }
+        if (action === REQUEST_ACTIONS.DEPOSIT_SETTLED && event.pubkey === APP_PUBKEY) {
+          const orderId = extractOrderId(event.tags);
+          if (orderId) applyDepositStatus(orderId, 'settled');
+          return;
+        }
+
+        const payload = parseParsedOrderEvent(event, sk);
+        if (payload) {
+          addParsedOrder(event.id, payload);
+        }
+      },
+      onEose: () => {
+        console.log('[Customer] Userscript events EOSE');
+      },
+    });
   });
 }
 
@@ -157,8 +158,6 @@ export async function startSubscriptions(): Promise<void> {
 }
 
 export function stopSubscriptions(): void {
-  cleanupAdmin?.();
-  cleanupAdmin = null;
-  cleanupUserscript?.();
-  cleanupUserscript = null;
+  adminGuard.stop();
+  userscriptGuard.stop();
 }

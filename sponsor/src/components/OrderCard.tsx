@@ -1,5 +1,5 @@
 import { useState, useCallback, useSyncExternalStore } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { InvoicePayBlock } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim, publishRemitRequest } from '../nostr/claim';
 import { getStateMeta } from '../order-states';
@@ -279,22 +279,12 @@ export function OrderCard({ order, now, tracker }: Props) {
             {order.state === 'claimed' && deposit && !deposit.status && (
               <div style={styles.depositSection}>
                 <p style={styles.depositDesc}>
-                  보증금 결제가 필요합니다. 아래 QR 코드를 Lightning 지갑으로 스캔하세요.
+                  보증금 결제가 필요합니다.
                 </p>
                 <p style={styles.depositNotice}>
                   스팸 방지를 위한 보증금이며 거래 완료 후 전액 환불됩니다.
                 </p>
-                <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
-                  <QRCodeSVG
-                    value={`lightning:${deposit.bolt11}`}
-                    size={200}
-                    level="M"
-                    style={{ borderRadius: 8 }}
-                  />
-                </div>
-                <code style={styles.depositBolt11}>
-                  {deposit.bolt11.slice(0, 20)}...{deposit.bolt11.slice(-10)}
-                </code>
+                <InvoicePayBlock bolt11={deposit.bolt11} maxQrSize={200} />
               </div>
             )}
             {order.state === 'claimed' && deposit?.status && (
@@ -541,12 +531,6 @@ const styles = {
     fontSize: 11,
     color: '#6B7280',
     margin: 0,
-    textAlign: 'center' as const,
-  },
-  depositBolt11: {
-    fontSize: 10,
-    color: '#999',
-    wordBreak: 'break-all' as const,
     textAlign: 'center' as const,
   },
   depositStatusBadge: {

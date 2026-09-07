@@ -63,9 +63,11 @@
         background: white;
         border-radius: 12px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        overflow: hidden;
+        /* 좁은 화면에서 테이블이 잘리지 않도록 이 박스 안에서 가로 스크롤 */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
-      table { width: 100%; border-collapse: collapse; }
+      table { width: 100%; border-collapse: collapse; min-width: 720px; }
       th, td { padding: 16px; text-align: left; border-bottom: 1px solid #eee; }
       th { background: #f8f9fa; font-weight: 600; color: #666; font-size: 13px; }
       td { font-size: 14px; color: #333; }
@@ -100,6 +102,15 @@
       @keyframes toastIn {
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
+      }
+      @media (max-width: 640px) {
+        .container { padding: 20px 12px; }
+        h1 { font-size: 22px; }
+        .stats { gap: 8px; }
+        .stat-card { padding: 14px; }
+        .stat-value { font-size: 24px; }
+        .stat-value.btc { font-size: 16px; }
+        th, td { padding: 12px 10px; }
       }
     </style>
   </head>

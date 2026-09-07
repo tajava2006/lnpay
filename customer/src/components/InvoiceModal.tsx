@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { InvoicePayBlock } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { decodeBolt11 } from '../utils/bolt11';
 
@@ -22,8 +22,6 @@ function formatSats(sats: number): string {
 }
 
 export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title, isDeposit }: Props) {
-  const [copied, setCopied] = useState(false);
-
   const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
   const btcKrw = priceSnap.price;
 
@@ -44,28 +42,6 @@ export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title, 
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [onClose]);
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(bolt11);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback
-      const ta = document.createElement('textarea');
-      ta.value = bolt11;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-    }
-  }
-
-  const truncated = bolt11.length > 40
-    ? `${bolt11.slice(0, 20)}...${bolt11.slice(-10)}`
-    : bolt11;
 
   return (
     <>
@@ -117,21 +93,7 @@ export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title, 
             </div>
           )}
 
-          <div style={styles.qrContainer}>
-            <QRCodeSVG
-              value={`lightning:${bolt11}`}
-              size={280}
-              bgColor="#ffffff"
-              fgColor="#1a1a2e"
-            />
-          </div>
-          <p style={styles.hint}>QR 코드를 Lightning 지갑으로 스캔하세요</p>
-          <div style={styles.bolt11Row}>
-            <code style={styles.bolt11Text}>{truncated}</code>
-            <button onClick={handleCopy} style={styles.copyBtn}>
-              {copied ? '복사됨!' : '복사'}
-            </button>
-          </div>
+          <InvoicePayBlock bolt11={bolt11} />
         </div>
       </div>
     </>
@@ -152,9 +114,11 @@ const styles = {
     transform: 'translate(-50%, -50%)',
     background: 'white',
     borderRadius: 16,
-    padding: 32,
+    padding: 20,
     maxWidth: 400,
-    width: '90%',
+    width: 'calc(100% - 24px)',
+    maxHeight: 'calc(100dvh - 24px)',
+    overflowY: 'auto' as const,
     zIndex: 1000,
     boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
   },
@@ -213,41 +177,5 @@ const styles = {
     color: '#6B7280',
     lineHeight: 1.5,
     marginTop: 4,
-  },
-  qrContainer: {
-    display: 'flex',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  hint: {
-    fontSize: 13,
-    color: '#999',
-    margin: '0 0 16px',
-  },
-  bolt11Row: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    background: '#f8f9fa',
-    borderRadius: 8,
-    padding: '10px 12px',
-  },
-  bolt11Text: {
-    flex: 1,
-    fontSize: 12,
-    color: '#666',
-    wordBreak: 'break-all' as const,
-    textAlign: 'left' as const,
-    fontFamily: 'monospace',
-  },
-  copyBtn: {
-    background: '#4F46E5',
-    color: 'white',
-    border: 'none',
-    borderRadius: 6,
-    padding: '6px 12px',
-    fontSize: 12,
-    cursor: 'pointer',
-    flexShrink: 0,
   },
 };

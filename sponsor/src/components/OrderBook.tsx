@@ -2,17 +2,26 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
 import type { Order } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
+import { getUserPubkey, storage } from '@sajwo-tracker/shared';
 import { OrderCard } from './OrderCard';
 
 interface Props {
   tracker: PriceTracker;
+  onSelectOrder: (orderId: string) => void;
 }
 
 const TERMINAL_STATES = new Set(['paid', 'cancelled', 'sponsor_wins', 'customer_wins']);
 
-export function OrderBook({ tracker }: Props) {
+export function OrderBook({ tracker, onSelectOrder }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
   const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
+
+  // 내 pubkey — 남의 거래인지 판정하는 데 쓴다. 로딩 전엔 null로 두어
+  // '다른 후원자가 진행 중'이 깜빡였다 바뀌는 일이 없게 한다.
+  const [myPubkey, setMyPubkey] = useState<string | null>(null);
+  useEffect(() => {
+    void getUserPubkey(storage).then(setMyPubkey);
+  }, []);
 
   // 매초 갱신하여 남은 시간 자동 업데이트
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
@@ -50,7 +59,14 @@ export function OrderBook({ tracker }: Props) {
       {!synced && <div style={styles.syncBadge}>동기화 중...</div>}
       <div style={styles.list}>
         {activeOrders.map((order: Order) => (
-          <OrderCard key={order.orderId} order={order} now={now} tracker={tracker} />
+          <OrderCard
+            key={order.orderId}
+            order={order}
+            now={now}
+            tracker={tracker}
+            myPubkey={myPubkey}
+            onSelectOrder={onSelectOrder}
+          />
         ))}
       </div>
     </div>

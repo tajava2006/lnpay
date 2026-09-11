@@ -1,5 +1,5 @@
 import { useState, useCallback, useSyncExternalStore } from 'react';
-import { InvoicePayBlock } from '@sajwo-tracker/shared';
+import { InvoicePayBlock, sponsorRelation } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim, publishRemitRequest } from '../nostr/claim';
 import { getStateMeta } from '../order-states';
@@ -14,6 +14,9 @@ interface Props {
   order: Order;
   now: number;
   tracker: PriceTracker;
+  /** 내 pubkey. 아직 로딩 중이면 null — 남의 거래로 단정하지 않는다 */
+  myPubkey: string | null;
+  onSelectOrder: (orderId: string) => void;
 }
 
 function formatTimeLeft(expiration: number, now: number): string {
@@ -53,7 +56,7 @@ function krwToSats(krw: number, btcKrw: number): number {
   return Math.round((krw / btcKrw) * 1e8);
 }
 
-export function OrderCard({ order, now, tracker }: Props) {
+export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Props) {
   const [claiming, setClaiming] = useState(false);
   const [showInvoiceInput, setShowInvoiceInput] = useState(false);
   const [frozenBtcPrice, setFrozenBtcPrice] = useState<number | null>(null);
@@ -85,14 +88,20 @@ export function OrderCard({ order, now, tracker }: Props) {
   const timeLeft = formatTimeLeft(order.expiration, now);
   const isUrgent = order.expiration > 0 && order.expiration - now < 3600;
 
+  const relation = sponsorRelation(order, myPubkey);
+  const isTaken = relation === 'taken';
+
   // 클레임 가능: requested 상태일 때만
-  const canClaim = order.state === 'requested';
+  const canClaim = relation === 'open';
   const stateMeta = getStateMeta(order.state);
 
-  // 계좌정보 + 송금 관련
-  const showAccountInfo = order.state === 'escrowed' && accountInfo;
-  const showWaitingAccount = order.state === 'escrowed' && !accountInfo;
-  const canRemit = order.state === 'escrowed' && accountInfo;
+  // 계좌정보 + 송금 관련. 반드시 내 거래일 때만 —
+  // 안 그러면 남의 escrowed 주문에도 "계좌 정보 대기 중"이 떠서
+  // 자기가 관여한 거래로 착각하게 된다.
+  const isMine = relation === 'mine';
+  const showAccountInfo = isMine && order.state === 'escrowed' && accountInfo;
+  const showWaitingAccount = isMine && order.state === 'escrowed' && !accountInfo;
+  const canRemit = isMine && order.state === 'escrowed' && accountInfo;
 
   function handleInvoiceChange(value: string) {
     setInvoiceText(value);
@@ -154,7 +163,7 @@ export function OrderCard({ order, now, tracker }: Props) {
   const isInvoiceValid = invoiceResult?.valid === true && amountMatch;
 
   return (
-    <div style={styles.card}>
+    <div style={isTaken ? { ...styles.card, ...styles.cardTaken } : styles.card}>
       <div style={styles.top}>
         <span style={styles.price}>
           {order.price.toLocaleString()}원
@@ -267,16 +276,27 @@ export function OrderCard({ order, now, tracker }: Props) {
           )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <span style={{
-              ...styles.statusBadge,
-              background: stateMeta.bgColor,
-              color: stateMeta.textColor,
-            }}>
-              {stateMeta.label}
-            </span>
+            <div style={styles.statusRow}>
+              <span style={{
+                ...styles.statusBadge,
+                background: stateMeta.bgColor,
+                color: stateMeta.textColor,
+              }}>
+                {stateMeta.label}
+              </span>
+              {isTaken && <span style={styles.lockBadge}>다른 후원자가 진행 중</span>}
+              {isMine && <span style={styles.mineBadge}>내 거래</span>}
+            </div>
 
-            {/* 보증금 섹션: claimed 상태에서 deposit 있을 때 */}
-            {order.state === 'claimed' && deposit && !deposit.status && (
+            {isTaken && (
+              <p style={styles.takenNotice}>
+                이미 다른 후원자가 가져간 주문이라 참여할 수 없습니다.
+                거래가 취소되면 다시 '요청됨'으로 돌아오고, 그때는 누구나 참여할 수 있습니다.
+              </p>
+            )}
+
+            {/* 보증금 섹션: 내 거래의 claimed 상태에서 deposit 있을 때 */}
+            {isMine && order.state === 'claimed' && deposit && !deposit.status && (
               <div style={styles.depositSection}>
                 <p style={styles.depositDesc}>
                   보증금 결제가 필요합니다.
@@ -287,7 +307,7 @@ export function OrderCard({ order, now, tracker }: Props) {
                 <InvoicePayBlock bolt11={deposit.bolt11} maxQrSize={200} />
               </div>
             )}
-            {order.state === 'claimed' && deposit?.status && (
+            {isMine && order.state === 'claimed' && deposit?.status && (
               <span style={{
                 ...styles.depositStatusBadge,
                 background: deposit.status === 'accepted' ? '#D1FAE5'
@@ -330,6 +350,15 @@ export function OrderCard({ order, now, tracker }: Props) {
                 )}
               </div>
             )}
+
+            {isMine && (
+              <button
+                style={styles.detailBtn}
+                onClick={() => onSelectOrder(order.orderId)}
+              >
+                진행 상황 보기
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -343,6 +372,55 @@ export function OrderCard({ order, now, tracker }: Props) {
 }
 
 const styles = {
+  cardTaken: {
+    // 손댈 수 없는 주문임을 한눈에. 정보는 계속 읽히게 과하지 않은 수준으로.
+    background: '#FAFAFA',
+    opacity: 0.72,
+    boxShadow: 'none',
+    border: '1px dashed #D1D5DB',
+  },
+  statusRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
+    gap: 6,
+  },
+  lockBadge: {
+    display: 'inline-block',
+    padding: '4px 10px',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600 as const,
+    background: '#F3F4F6',
+    color: '#4B5563',
+    border: '1px solid #E5E7EB',
+  },
+  mineBadge: {
+    display: 'inline-block',
+    padding: '4px 10px',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 700 as const,
+    background: '#EEF2FF',
+    color: '#4338CA',
+  },
+  takenNotice: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#6B7280',
+  },
+  detailBtn: {
+    alignSelf: 'flex-start' as const,
+    background: '#EEF2FF',
+    color: '#4338CA',
+    border: 'none',
+    borderRadius: 6,
+    padding: '8px 14px',
+    fontSize: 13,
+    fontWeight: 600 as const,
+    cursor: 'pointer',
+  },
   card: {
     background: '#fff',
     borderRadius: 10,

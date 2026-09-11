@@ -17,6 +17,12 @@ function getOrderIdFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('order');
 }
 
+/** 상세로 들어온 경로. 뒤로가기 목적지가 갈린다. URL에 실어 새로고침에도 살아남게 한다. */
+type DetailOrigin = 'book' | 'history';
+function getOriginFromUrl(): DetailOrigin {
+  return new URLSearchParams(window.location.search).get('from') === 'book' ? 'book' : 'history';
+}
+
 function AppContent() {
   const trackerRef = useRef<PriceTracker | null>(null);
   if (!trackerRef.current) {
@@ -26,11 +32,13 @@ function AppContent() {
 
   const [currentPage, setCurrentPage] = useState<string | null>(getPageFromUrl);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(getOrderIdFromUrl);
+  const [detailOrigin, setDetailOrigin] = useState<DetailOrigin>(getOriginFromUrl);
 
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPage(getPageFromUrl());
       setSelectedOrderId(getOrderIdFromUrl());
+      setDetailOrigin(getOriginFromUrl());
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -48,11 +56,16 @@ function AppContent() {
     setSelectedOrderId(null);
   }, []);
 
-  const selectOrderDetail = useCallback((orderId: string) => {
-    history.pushState(null, '', `?page=detail&order=${orderId}`);
+  const selectOrderDetail = useCallback((orderId: string, from: DetailOrigin = 'history') => {
+    history.pushState(null, '', `?page=detail&order=${orderId}&from=${from}`);
     setCurrentPage('detail');
     setSelectedOrderId(orderId);
+    setDetailOrigin(from);
   }, []);
+
+  const selectFromBook = useCallback((orderId: string) => {
+    selectOrderDetail(orderId, 'book');
+  }, [selectOrderDetail]);
 
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);
@@ -108,7 +121,7 @@ function AppContent() {
         {currentPage === 'detail' && selectedOrderId ? (
           <OrderDetail
             orderId={selectedOrderId}
-            onBack={goHistory}
+            onBack={detailOrigin === 'book' ? goHome : goHistory}
             tracker={tracker}
           />
         ) : currentPage === 'history' ? (
@@ -117,7 +130,7 @@ function AppContent() {
             tracker={tracker}
           />
         ) : (
-          <OrderBook tracker={tracker} />
+          <OrderBook tracker={tracker} onSelectOrder={selectFromBook} />
         )}
       </main>
       <p style={styles.version}>{__COMMIT_HASH__}</p>

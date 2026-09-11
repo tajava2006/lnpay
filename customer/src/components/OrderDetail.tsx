@@ -5,6 +5,7 @@ import {
   getUserPubkey,
   storage,
   ChatWindow,
+  OrderProgress,
 } from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { publishDisputeMessage } from '../nostr/publish';
@@ -99,6 +100,17 @@ export function OrderDetail({ order, onClose }: Props) {
           </div>
         </div>
 
+        {/* 거래 진행도 — Admin 오더가 생긴 뒤에만 의미가 있다 */}
+        {order.adminState && (
+          <div style={styles.progressWrap}>
+            <OrderProgress
+              role="customer"
+              state={order.adminState}
+              accountInfoSent={!!order.accountInfo}
+            />
+          </div>
+        )}
+
         {/* Chat Window (Customer ↔ Admin) */}
         {myPubkey && (
           <ChatWindow
@@ -114,6 +126,9 @@ export function OrderDetail({ order, onClose }: Props) {
 }
 
 const styles = {
+  progressWrap: {
+    marginBottom: 16,
+  },
   backdrop: {
     position: 'fixed' as const,
     top: 0,

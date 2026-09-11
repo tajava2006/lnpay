@@ -52,6 +52,18 @@ export { BtcPrice } from './components/BtcPrice';
 export { KeyInit } from './components/KeyInit';
 export { ChatWindow } from './components/ChatWindow';
 export { InvoicePayBlock } from './components/InvoicePayBlock';
+export { OrderProgress } from './components/OrderProgress';
+
+// 거래 진행도 (고객·후원자 공용 단계 모델)
+export { PROGRESS_STEPS, resolveProgress, stepActor } from './order-progress';
+export type {
+  ProgressRole, StepStatus, StepActor, StepAction,
+  ProgressStep, ProgressContext, ResolvedStep, Progress, TerminalInfo,
+} from './order-progress';
+
+// 후원자-오더 관계 판정
+export { sponsorRelation } from './sponsor-relation';
+export type { SponsorRelation } from './sponsor-relation';
 
 // 구독 생명주기 가드
 export { createSubscriptionGuard } from './subscription-guard';

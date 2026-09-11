@@ -6,6 +6,7 @@ import {
   getUserPubkey,
   storage,
   ChatWindow,
+  OrderProgress,
 } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
@@ -141,6 +142,14 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
         {order.disbursed && <div style={styles.disbursed}>BTC 수령 완료</div>}
       </div>
 
+      <div style={styles.progressWrap}>
+        <OrderProgress
+          role="sponsor"
+          state={order.state}
+          accountInfoSent={hasAccountInfo}
+        />
+      </div>
+
       {/* 계좌정보 공개 (분쟁 상태에서만 표시) */}
       {hasAccountInfo && (order.state === 'remitted' || order.state === 'sponsor_wins' || order.state === 'customer_wins') && (
         <div style={styles.revealSection}>
@@ -171,6 +180,9 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
 }
 
 const styles = {
+  progressWrap: {
+    marginBottom: 16,
+  },
   loading: {
     textAlign: 'center' as const,
     padding: 48,

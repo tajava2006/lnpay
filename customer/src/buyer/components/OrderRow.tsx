@@ -130,7 +130,16 @@ export function OrderRow({ order, tracker, now }: Props) {
   return (
     <>
       <tr>
-        <td>{order.orderId}</td>
+        <td>
+          {order.orderId}
+          {/* 쿠팡 번호는 로컬에만 있는 값이라 대조용으로 띄워도 새어나가지 않는다.
+              orderId가 랜덤이 되면서 이게 없으면 어떤 쿠팡 주문인지 알 수 없다. */}
+          {order.coupangOrderId && (
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+              쿠팡 #{order.coupangOrderId}
+            </div>
+          )}
+        </td>
         <td>
           {order.memo}
           {isParsed && order.fixedAccountInfo && (

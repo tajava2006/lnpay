@@ -26,6 +26,15 @@ export interface CustomerOrder {
 
   /** 주문 출처. 'parsed'면 계좌정보 잠금 + verified시 자동 전송. */
   source?: 'manual' | 'parsed';
+  /**
+   * 원본 쿠팡 주문번호 (parsed 전용). **절대 발행되지 않는 로컬 전용 필드.**
+   *
+   * 예전에는 이 값을 orderId로 그대로 써서 공개 a-태그에 실렸다(감사 A-3).
+   * 실세계 식별자라 상관관계 추적이 가능했고, 남의 번호를 미리 등록해
+   * 그 주문을 막는 선점 DoS도 가능했다(A-5). 지금은 orderId가 랜덤이고
+   * 이 필드는 중복 감지에만 쓴다.
+   */
+  coupangOrderId?: string;
   /** 파싱 시 확정된 계좌정보 (parsed 전용, 발송 전 보관) */
   fixedAccountInfo?: AccountInfo;
 
@@ -109,4 +118,33 @@ export function parseAdminEvent(event: Event, myPubkey: string): AdminOrderUpdat
   const sponsorPubkey = event.tags.find(t => t[0] === 'sponsor')?.[1];
 
   return { orderId, adminState, bolt11, sponsorPubkey };
+}
+
+/** 유저스크립트가 보낸 쿠팡 상태 변화 (자기암호화 페이로드) */
+export interface CoupangStatusPayload {
+  coupangOrderId: string;
+  status: 'paid' | 'cancelled';
+}
+
+/**
+ * coupang-status 이벤트를 복호화해 파싱한다.
+ *
+ * 유저스크립트가 자기 자신에게 보낸 것이므로 발신자 = 수신자 = 나다.
+ */
+export function parseCoupangStatusEvent(
+  event: Event,
+  sk: Uint8Array,
+): CoupangStatusPayload | null {
+  const action = event.tags.find(t => t[0] === 'action')?.[1];
+  if (action !== REQUEST_ACTIONS.COUPANG_STATUS) return null;
+
+  try {
+    const plaintext = nip44Decrypt(event.content, sk, event.pubkey);
+    const parsed = JSON.parse(plaintext) as CoupangStatusPayload;
+    if (!parsed.coupangOrderId) return null;
+    if (parsed.status !== 'paid' && parsed.status !== 'cancelled') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }

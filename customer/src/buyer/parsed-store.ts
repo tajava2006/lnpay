@@ -61,9 +61,13 @@ export function addParsedOrder(eventId: string, payload: ParsedOrderPayload): vo
   // 이벤트 ID 중복
   if (parsedOrders[eventId]) return;
 
-  // 이미 order-store에 동일 coupangOrderId가 있으면 무시 (이미 요청한 건)
+  // 이미 order-store에 동일 쿠팡 주문이 있으면 무시 (이미 요청한 건).
+  // orderId가 랜덤이 된 뒤로는 키 조회가 아니라 필드 비교로 찾아야 한다(감사 A-3).
   const orders = getOrderSnapshot();
-  if (orders[payload.coupangOrderId]) return;
+  const alreadyRequested = Object.values(orders).some(
+    o => o.coupangOrderId === payload.coupangOrderId,
+  );
+  if (alreadyRequested) return;
 
   // 동일 coupangOrderId가 다른 이벤트로 이미 파싱되었으면 무시
   const existing = Object.values(parsedOrders).find(

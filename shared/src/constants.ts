@@ -52,6 +52,8 @@ export const REQUEST_ACTIONS = {
   DEPOSIT_ACCEPTED: 'deposit-accepted',
   DEPOSIT_CANCELLED: 'deposit-cancelled',
   DEPOSIT_SETTLED: 'deposit-settled',
+  /** 유저스크립트 → 자기 웹앱: 쿠팡 입금/취소 감지 알림 (자기암호화) */
+  COUPANG_STATUS: 'coupang-status',
   /** Admin → 후원자: 분쟁 중재를 위해 받은 계좌정보를 공개해 달라는 요청 */
   REVEAL_REQUEST: 'reveal-request',
 } as const;

@@ -20,8 +20,7 @@ import {
   discoverRelays,
   publishToRelays,
   buildParsedOrderEvent,
-  buildPaymentConfirmEvent,
-  buildCancelRequestEvent,
+  buildCoupangStatusEvent,
 } from './nostr';
 
 /** 빌드 시각으로 스탬프된 버전 (esbuild define 주입) */
@@ -115,11 +114,11 @@ async function main() {
     // 취소 감지
     if (isCancelled(orderData, orderId) && status !== 'cancelled') {
       console.log('[사줘] Cancellation detected for', orderId);
-      const signed = buildCancelRequestEvent(sk, orderId, expiration);
+      const signed = buildCoupangStatusEvent(sk, orderId, 'cancelled', expiration);
       const result = await publishToRelays(signed, relays);
       if (result.success) {
         markProcessed(orderId, 'cancelled', expiration);
-        console.log('[사줘] cancel-request published');
+        console.log('[사줘] 취소 감지 알림 발행 (웹앱이 어드민에 전달)');
       }
       return;
     }
@@ -127,12 +126,12 @@ async function main() {
     // 입금 완료 감지
     if (isPaid(orderData, orderId) && status !== 'paid') {
       console.log('[사줘] Payment detected for', orderId);
-      const signed = buildPaymentConfirmEvent(sk, orderId, expiration);
+      const signed = buildCoupangStatusEvent(sk, orderId, 'paid', expiration);
       const result = await publishToRelays(signed, relays);
       if (result.success) {
         markProcessed(orderId, 'paid', expiration);
-        console.log('[사줘] payment-confirm published');
-        showNotification('입금 완료 감지', '쿠팡 입금이 확인되었습니다.');
+        console.log('[사줘] 입금 감지 알림 발행 (웹앱이 어드민에 전달)');
+        showNotification('입금 완료 감지', '웹앱을 열면 에스크로에 전달됩니다.');
       }
       return;
     }

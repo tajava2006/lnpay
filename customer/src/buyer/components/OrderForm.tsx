@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { addOrder } from '../order-store';
+import { newOrderId } from '../order-id';
 import type { CustomerOrder } from '../types';
 
 const DEFAULT_EXPIRY_HOURS = 24;
@@ -21,7 +22,7 @@ export function OrderForm() {
     const hours = Number(expiryHours) || DEFAULT_EXPIRY_HOURS;
     const expiration = now + hours * 3600;
 
-    const orderId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const orderId = newOrderId();
 
     const order: CustomerOrder = {
       orderId,

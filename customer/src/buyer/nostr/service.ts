@@ -18,8 +18,8 @@ import {
   idbUpsertOrder,
 } from '@sajwo-tracker/shared';
 import type { Event } from 'nostr-tools/core';
-import { publishAccountInfo } from './publish';
-import { parseAdminEvent, parseParsedOrderEvent } from '../types';
+import { publishAccountInfo, publishNotification } from './publish';
+import { parseAdminEvent, parseParsedOrderEvent, parseCoupangStatusEvent } from '../types';
 import { parseEvent as parseOrderEvent } from '../../sponsor/types';
 import { applyAdminUpdate, applyDepositRequired, applyDepositStatus, getSnapshot, setAccountInfo, markSynced } from '../order-store';
 import { addParsedOrder } from '../parsed-store';
@@ -90,6 +90,14 @@ export function handleInboxEvent(event: Event, sk: Uint8Array): boolean {
     if (action === REQUEST_ACTIONS.DEPOSIT_SETTLED) { applyDepositStatus(orderId, 'settled'); return true; }
   }
 
+  // 유저스크립트가 감지한 쿠팡 입금/취소. 유저스크립트는 sajwo orderId를 모르므로
+  // 쿠팡 번호만 보내고, 여기서 로컬 주문을 찾아 진짜 요청을 어드민에 발행한다.
+  const coupangStatus = parseCoupangStatusEvent(event, sk);
+  if (coupangStatus) {
+    void relayCoupangStatus(coupangStatus.coupangOrderId, coupangStatus.status);
+    return true;
+  }
+
   // 유저스크립트가 보낸 파싱 주문 (자기 자신에게 NIP-44 자기암호화)
   const payload = parseParsedOrderEvent(event, sk);
   if (payload) {
@@ -156,4 +164,32 @@ async function archiveOrder(event: Event): Promise<void> {
   } catch (err) {
     console.warn('[고객] IDB 아카이브 실패:', order.orderId, err);
   }
+}
+
+// ── 쿠팡 상태 → 어드민 요청 중계 ─────────────────────
+
+/**
+ * 유저스크립트가 알려준 쿠팡 상태 변화를 어드민 요청으로 옮긴다.
+ *
+ * 유저스크립트는 쿠팡 페이지에서 돌기 때문에 웹앱이 만든 랜덤 orderId를 알 수 없다.
+ * 그래서 쿠팡 번호만 보내고, 매핑은 로컬 주문(coupangOrderId 필드)이 쥐고 있다.
+ */
+async function relayCoupangStatus(
+  coupangOrderId: string,
+  status: 'paid' | 'cancelled',
+): Promise<void> {
+  const order = Object.values(getSnapshot()).find(o => o.coupangOrderId === coupangOrderId);
+  if (!order) {
+    console.warn('[고객] 쿠팡 상태 알림을 받았지만 해당 주문이 없음:', coupangOrderId);
+    return;
+  }
+  // 아직 어드민에 등록되지 않은 주문은 보낼 곳이 없다.
+  if (!order.adminState) return;
+
+  const action = status === 'paid' ? REQUEST_ACTIONS.PAYMENT_CONFIRM : REQUEST_ACTIONS.CANCEL_REQUEST;
+  const result = await publishNotification(order, action);
+  console.log(
+    result.success ? '[고객] 쿠팡 상태 중계 완료:' : '[고객] 쿠팡 상태 중계 실패:',
+    action, order.orderId,
+  );
 }

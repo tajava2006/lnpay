@@ -9,7 +9,6 @@ import * as nip19 from 'nostr-tools/nip19';
 import { v2 as nip44 } from 'nostr-tools/nip44';
 import {
   APP_PUBKEY,
-  SAJWO_REQUEST_KIND,
   SAJWO_REQUEST_EVENT_KIND,
   CLIENT_TAG,
   DISCOVERY_RELAYS,
@@ -227,40 +226,41 @@ export function buildParsedOrderEvent(
   }, sk);
 }
 
-/** payment-confirm 이벤트를 빌드하고 서명한다 (#p=APP_PUBKEY) */
-export function buildPaymentConfirmEvent(sk: Uint8Array, orderId: string, expiration: number) {
-  const tags = [
-    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
-    ['action', 'payment-confirm'],
-    ['t', CLIENT_TAG],
-    ['p', APP_PUBKEY],
-  ];
-  if (expiration > 0) {
-    tags.push(['expiration', String(expiration)]);
-  }
-  return finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
-    tags,
-    content: '',
-  }, sk);
-}
+/**
+ * 쿠팡 상태 변화를 **자기 자신에게** 알린다 (입금 완료 / 취소).
+ *
+ * 예전에는 여기서 곧바로 payment-confirm / cancel-request를 Admin에게 발행했다.
+ * 그러려면 a-태그에 sajwo orderId가, p-태그에 APP_PUBKEY가 필요했는데 둘 다 문제였다:
+ *
+ * - orderId 자리에 쿠팡 주문번호를 썼고, 그게 공개 태그로 나갔다(감사 A-3).
+ * - APP_PUBKEY가 빌드에 박히는데, 2026-09-03 키 교체 후 설치본이 옛 키를 계속 쓰는 바람에
+ *   어드민 #p 필터에 안 걸려 자동 입금감지가 6주간 조용히 죽어 있었다.
+ *
+ * 지금은 parsed-order와 같은 채널을 쓴다 — 수신자가 자기 자신이라 APP_PUBKEY를
+ * 참조하지 않고, 쿠팡 주문번호는 암호문 안에만 남는다. 웹앱이 이걸 받아
+ * 로컬 매핑으로 진짜 payment-confirm / cancel-request를 발행한다.
+ */
+export function buildCoupangStatusEvent(
+  sk: Uint8Array,
+  coupangOrderId: string,
+  status: 'paid' | 'cancelled',
+  expiration: number,
+) {
+  const pubkey = getPublicKey(sk);
+  const conversationKey = nip44.utils.getConversationKey(sk, pubkey);
+  const encrypted = nip44.encrypt(JSON.stringify({ coupangOrderId, status }), conversationKey);
 
-/** cancel-request 이벤트를 빌드하고 서명한다 (#p=APP_PUBKEY) */
-export function buildCancelRequestEvent(sk: Uint8Array, orderId: string, expiration: number) {
-  const tags = [
-    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
-    ['action', 'cancel-request'],
+  const tags: string[][] = [
+    ['p', pubkey],
+    ['action', 'coupang-status'],
     ['t', CLIENT_TAG],
-    ['p', APP_PUBKEY],
   ];
-  if (expiration > 0) {
-    tags.push(['expiration', String(expiration)]);
-  }
+  if (expiration > 0) tags.push(['expiration', String(expiration)]);
+
   return finalizeEvent({
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags,
-    content: '',
+    content: encrypted,
   }, sk);
 }

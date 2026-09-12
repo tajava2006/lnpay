@@ -225,14 +225,50 @@ Admin이 요청을 검토하고 타당하면 kind 30402를 갱신한다.
 | `claim` | Sponsor | 클레임 신청 | `['bolt11', invoice]` |
 | `payment-confirm` | Customer | 입금 완료 신고 | — |
 | `cancel-request` | Customer | 주문 취소 신고 | — |
-| `account-info` | Customer | Sponsor에게 계좌정보 전달 | `['p', sponsorPubkey]`, `['commitment', sha256(plaintext)]` |
+| `account-info` | Customer | Sponsor에게 계좌정보 전달 | `['p', sponsorPubkey]`, `['commitment', sha256(salt+plaintext)]` |
 | `remit-request` | Sponsor | 원화 송금 완료 통보 | — |
 | `dispute-message` | Customer / Sponsor / Admin | 분쟁 채팅 메시지 (NIP-44 암호화) | `['p', recipientPubkey]`, content=NIP-44 JSON |
-| `parsed-order` | Customer (유저스크립트) | 쿠팡 주문 자동 감지 알림 | `['p', ownPubkey]`, content=JSON |
+| `parsed-order` | 유저스크립트 | 쿠팡 주문 자동 감지 알림 | `['p', ownPubkey]`, content=NIP-44 자기암호화 |
+| `coupang-status` | 유저스크립트 | 쿠팡 입금/취소 감지 알림 | `['p', ownPubkey]`, content=NIP-44 자기암호화. **a-tag 없음** |
+| `claim-price-error` | Admin | 클레임 금액이 시세 범위 밖 | `['expected-sats', n]` |
+| `deposit-required` | Admin | 보증금 hold invoice 전달 | `['p', recipientPubkey]`, `['bolt11', invoice]` |
+| `deposit-accepted` / `-cancelled` / `-settled` | Admin | 보증금 상태 변경 알림 | `['p', recipientPubkey]` |
+| `reveal-request` | Admin | 분쟁 중재용 계좌정보 공개 요청 | `['p', sponsorPubkey]` |
+
+#### `account-info`의 커밋먼트는 솔티드다
+
+`commitment = sha256(salt ‖ JSON.stringify(accountInfo))`이고, 32바이트 랜덤 salt는
+**암호문 안에** 들어가 후원자만 안다. 분쟁 시 후원자가 계좌정보와 salt를 함께 공개하면
+Admin이 대조한다.
+
+솔트가 없으면 원상 공간이 너무 작아(은행 ~20개, 계좌번호는 은행별 고정 포맷, 예금주 2~3자)
+공개 커밋먼트만으로 계좌번호가 브루트포스된다 — 같은 이벤트의 NIP-44 암호화가 무의미해진다.
+솔트 도입 이전 기록은 무솔트로 검증한다(커밋먼트는 발행 시점에 고정된 값이라 안전하다).
+
+#### `coupang-status`는 a-tag이 없다
+
+유저스크립트는 쿠팡 페이지에서 돌기 때문에 웹앱이 만든 **랜덤 orderId를 알 수 없다.**
+그래서 쿠팡 주문번호만 자기암호화해 자기 자신에게 보내고, 웹앱이 로컬 매핑
+(`CustomerOrder.coupangOrderId`, 발행되지 않는 필드)으로 찾아 진짜
+`payment-confirm` / `cancel-request`를 발행한다.
+
+이 설계에는 부수 효과가 하나 있다 — **유저스크립트가 APP_PUBKEY를 전혀 참조하지 않게 된다.**
+2026-09-03 키 교체 후 설치본이 옛 키를 계속 써서 어드민 `#p` 필터에 안 걸리는 바람에
+자동 입금감지가 6주간 조용히 죽어 있었는데, 그 고장이 구조적으로 불가능해진다.
+대신 자동 컨펌이 "쿠팡 페이지에서 즉시"가 아니라 "웹앱을 다음에 열 때" 나간다.
+
+#### `reveal-request`가 없으면 공개 버튼이 열리지 않는다
+
+계좌정보 공개는 분쟁 대응 수단인데, 예전에는 `remitted` 상태면 후원자 화면에 버튼이
+그냥 보였다. `remitted`는 "원화 송금했어요" 직후의 **정상 상태**라, 흐름의 일부인 줄 알고
+계좌를 Admin에게 그냥 보내는 일이 실제로 생겼다. FSM에 '분쟁 중' 상태가 없으므로
+Admin의 명시적 요청을 신호로 쓴다.
 
 ### a-tag 참조 규칙
 
 모든 kind 1111 요청은 대상 오더의 a-tag(`30402:<admin-pubkey>:<orderId>`)를 포함한다.
+**예외: `parsed-order`와 `coupang-status`는 a-tag이 없다** — 유저스크립트가 발행하는데
+sajwo orderId를 모르기 때문이다(위 참조).
 최초 `order-request` 시점에는 아직 해당 kind 30402 이벤트가 릴레이에 존재하지 않지만,
 addressable event의 주소(`30402:<admin-pubkey>:<orderId>`)는 구성 요소가 모두 알려져 있으므로 a-tag을 넣을 수 있다.
 Nostr 릴레이는 a-tag 대상 이벤트의 존재 여부를 검증하지 않는다.
@@ -403,7 +439,11 @@ Sponsor가 `account-reveal` 메시지를 보내면 Admin이 자동 검증한다:
 
 ## 구독 필터
 
-### Customer — 자기 오더 상태 추적
+> **2026-09-12 통합 이후**: 고객앱과 후원자앱이 한 앱이 되면서 구독도 한 벌로 합쳐졌다.
+> 두 앱이 쓰던 필터가 원래 문자 그대로 같았기 때문에 합치는 데 변경이 필요 없었다.
+> 아래 두 필터가 통합 앱이 여는 전부다.
+
+### 통합 앱 — 오더 (양쪽 역할 공용)
 
 ```json
 {
@@ -413,36 +453,29 @@ Sponsor가 `account-reveal` 메시지를 보내면 Admin이 자동 검증한다:
 }
 ```
 
-Admin이 발행한 모든 오더를 수신한 뒤, `customer` 태그가 자기 pubkey인 오더만 클라이언트 사이드에서 필터링한다.
+Admin이 발행한 **모든** 오더를 받는다. 서버에서 역할별로 좁힐 수 없다 —
+오더북은 남의 주문까지 필요하고, `customer`/`sponsor`는 다중 문자 태그라
+릴레이 인덱싱이 보장되지 않는다. 그래서 클라이언트에서 가른다:
 
-> `#customer`는 다중 문자 태그이므로 릴레이 인덱싱이 보장되지 않는다.
-> `authors` + `#t`까지만 서버에서 필터링하고, `customer` 매칭은 클라이언트에서 수행한다.
+- 고객 역할: `customer` 태그가 내 pubkey인 것만
+- 후원자 역할: 전부 (오더북), `state`로 활성/종료 구분
 
-### Customer — 유저스크립트 알림 수신
+### 통합 앱 — 수신함 (양쪽 역할 공용)
 
 ```json
 {
   "kinds": [1111],
-  "#p": ["<customer-own-pubkey>"],
+  "#p": ["<my-own-pubkey>"],
   "#t": ["sajwo-tracker"]
 }
 ```
 
-유저스크립트가 자기 pubkey를 `p` 태그에 넣어 발행한 `parsed-order` 이벤트를 수신한다.
-Admin/Sponsor는 이 이벤트를 수신하지 않는다 (p 태그가 APP_PUBKEY가 아니므로).
-수신된 파싱 데이터는 "감지된 주문" 목록으로 표시되며, 사용자가 사줘 요청 여부를 결정한다.
+나에게 오는 kind 1111 전부. `action` 태그로 분기한다. 고객 역할 핸들러가 먼저 보고,
+소화하지 못하면 후원자 역할 핸들러로 넘긴다.
 
-### Sponsor — 오더북
-
-```json
-{
-  "kinds": [30402],
-  "authors": ["f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848"],
-  "#t": ["sajwo-tracker"]
-}
-```
-
-Admin이 발행한 모든 오더를 수신한다. `state` 태그로 활성/종료 상태를 클라이언트 사이드에서 필터링한다.
+받는 것: `parsed-order`·`coupang-status`(유저스크립트 → 자기 자신),
+`account-info`(고객 → 후원자), `deposit-*`·`claim-price-error`·`reveal-request`(Admin → 나),
+`dispute-message`.
 
 ### Admin — 요청 수신
 

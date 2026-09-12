@@ -4,6 +4,7 @@ import { addOrder } from '../order-store';
 import { publishOrderRequest } from '../nostr/publish';
 import { markPublished } from '../order-store';
 import type { CustomerOrder } from '../types';
+import { newOrderId } from '../order-id';
 import type { ParsedOrderPayload } from '../types';
 
 export function ParsedOrdersSection() {
@@ -36,7 +37,9 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
     try {
       const now = Math.floor(Date.now() / 1000);
       const order: CustomerOrder = {
-        orderId: payload.coupangOrderId,
+        // 수동 주문과 같은 랜덤 id. 쿠팡 번호를 쓰면 공개 태그로 새어나간다(감사 A-3).
+        orderId: newOrderId(),
+        coupangOrderId: payload.coupangOrderId,
         price: payload.price,
         memo: payload.productName,
         createdAt: now,

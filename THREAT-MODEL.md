@@ -3,6 +3,32 @@
 어뷰징 시나리오, 레이스 컨디션, 엣지 케이스 정리.
 코드 수정 시 이 문서를 참조하여 기존 방어가 무력화되지 않는지 확인한다.
 
+## 2026-09-12 통합으로 생긴 축 — 한 사람이 양쪽 역할
+
+고객앱과 후원자앱이 한 앱·한 키가 되면서 **같은 pubkey가 양쪽 역할을 겸한다.**
+이전에는 오리진이 달라 키가 갈렸기 때문에 도달 불가능하던 경로들이 열렸다.
+
+| 벡터 | 대응 | 위치 |
+|---|---|---|
+| 자기 주문을 자기가 클레임 | Admin FSM이 `request.pubkey === order.customerPubkey`면 거부 | `handleClaim` |
+| 내 주문이 내 오더북에 클레임 가능하게 노출 | `sponsorRelation`이 `own`으로 판정 (customerPubkey 검사가 requested 검사보다 **먼저**) | `shared/sponsor-relation` |
+| 남의 거래 정보를 내 것으로 오인 | 계좌·보증금 섹션을 `isMine` 게이트로 묶음 | `sponsor/components/OrderCard` |
+
+자기 클레임 차단은 단순 어뷰징 방지를 넘어 **내역 화면의 전제**다 — 막지 않으면
+`customerPubkey === sponsorPubkey`인 오더가 생겨 "어느 역할로 참여했는가"를 유도할 수 없다.
+
+## 2026-09-13 감사에서 닫은 것
+
+| 항목 | 요지 |
+|---|---|
+| 무솔트 커밋먼트 | 공개 커밋먼트만으로 계좌번호 브루트포스 가능 → 32바이트 솔트 도입 |
+| 이중 지급 재진입 | `disbursed` 검사와 기록 사이에 LN 결제 await → 키 단위 재진입 가드 |
+| 쿠팡 주문번호 공개 | orderId로 쓰여 a-태그에 노출 → 랜덤 orderId + 유저스크립트 자기주소 채널 |
+| orderId 선점 DoS | 남의 쿠팡 번호를 미리 등록해 차단 가능 → 랜덤 id로 함께 해소 |
+| 계좌 공개 버튼 상시 노출 | `remitted`(정상 상태)에서 열려 있어 분쟁도 아닌데 계좌가 Admin에게 흘러감 → `reveal-request` 게이트 |
+
+상세와 미처리 항목은 [docs/AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md).
+
 ## 위협 목록
 
 ### T-001. Customer cancel-request 사칭

@@ -4,9 +4,15 @@ import { getSecretKey, storage } from '@sajwo-tracker/shared';
 
 const NSEC_PLACEHOLDER = '%%NSEC_PLACEHOLDER%%';
 
+/** 배너에서 @version을 뽑는다. 어느 빌드를 복사하는지 눈으로 확인할 수 있게. */
+function extractVersion(raw: string): string | null {
+  return /^\/\/\s*@version\s+(\S+)/m.exec(raw)?.[1] ?? null;
+}
+
 export function UserscriptGuide() {
   const [expanded, setExpanded] = useState(false);
   const [scriptContent, setScriptContent] = useState<string | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function handleExpand() {
@@ -14,12 +20,17 @@ export function UserscriptGuide() {
     if (!scriptContent) {
       try {
         const [res, sk] = await Promise.all([
-          fetch('/sajwo-coupang-parser.user.js'),
+          // no-store 필수. 이 응답엔 Cache-Control이 없어 브라우저가 휴리스틱
+          // 캐싱(= Last-Modified 기준 경과시간의 10%)을 적용하는데, 그러면
+          // 새로 배포해도 몇 시간 동안 옛 스크립트를 복사하게 된다.
+          // 가이드의 존재 이유가 "지금 빌드를 건네주는 것"이라 캐시를 타면 안 된다.
+          fetch('/sajwo-coupang-parser.user.js', { cache: 'no-store' }),
           getSecretKey(storage),
         ]);
         if (res.ok) {
           const raw = await res.text();
           const nsec = nsecEncode(sk);
+          setVersion(extractVersion(raw));
           setScriptContent(raw.split(NSEC_PLACEHOLDER).join(nsec));
         } else {
           setScriptContent('// 유저스크립트 파일을 찾을 수 없습니다. pnpm build:userscript를 실행하세요.');
@@ -57,7 +68,10 @@ export function UserscriptGuide() {
           {scriptContent && (
             <div style={styles.codeSection}>
               <div style={styles.codeHeader}>
-                <span style={styles.codeTitle}>유저스크립트 (키 포함)</span>
+                <span style={styles.codeTitle}>
+                  유저스크립트 (키 포함)
+                  {version && <span style={styles.versionBadge}>v{version}</span>}
+                </span>
                 <button onClick={handleCopy} style={styles.copyBtn}>
                   {copied ? '복사됨' : '코드 복사'}
                 </button>
@@ -130,6 +144,16 @@ const styles = {
     fontSize: 13,
     fontWeight: 600 as const,
     color: '#333',
+  },
+  versionBadge: {
+    marginLeft: 8,
+    fontSize: 11,
+    fontWeight: 500 as const,
+    color: '#4338CA',
+    background: '#EEF2FF',
+    borderRadius: 4,
+    padding: '2px 6px',
+    fontFamily: 'monospace',
   },
   copyBtn: {
     padding: '4px 12px',

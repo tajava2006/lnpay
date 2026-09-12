@@ -1,6 +1,7 @@
 {
   "name": "sajwo-tracker",
   "private": true,
+  "packageManager": "pnpm@11.20.0",
   "description": "페어바이(PairBuy) - 원화와 비트코인을 짝지어 맞바꾸는 P2P 에스크로",
   "scripts": {
     "dev:customer": "pnpm --filter @sajwo-tracker/customer dev",

@@ -1,5 +1,11 @@
 # Phase 2: 유저스크립트 쿠팡 자동파싱 연동
 
+> 상태: **아카이브 — 구현 완료**
+>
+> 당시 계획 기록이다. 이후 바뀐 것: `@version` 빌드시각 스탬프 + `@updateURL` 자동 업데이트
+> 도입(2026-09-12), 부팅 로그에 APP_PUBKEY 표시. 쿠팡 주문번호를 orderId로 쓰는 설계는
+> 재검토 대상이다 → [AUDIT-2026-09-13.md](AUDIT-2026-09-13.md) **A-3**.
+
 ## Context
 
 CUSTOMER-MIGRATION.md Phase 2 구현. Tampermonkey 유저스크립트가 쿠팡 주문 페이지에서 무통장입금 주문을 자동 감지하고, Nostr 릴레이를 통해 Customer 웹앱에 알린다. 사용자가 웹앱에서 "사줘 요청" 여부를 결정하면 기존 흐름(order-request → Admin)으로 진행한다.

@@ -4,7 +4,7 @@
 
 ## 프로젝트 요약
 
-비트코인 P2P 거래 에스크로 플랫폼 "사줘 트래커".
+비트코인 P2P 거래 에스크로 플랫폼 "페어바이".
 고객(BTC로 물건 구매)과 후원자(KRW→BTC 환전)를 Nostr로 연결한다.
 Admin이 에스크로(Lightning 유동성 검증, 분쟁 중재)를 제공한다.
 
@@ -100,3 +100,4 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 | [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) | ~200 | S-001 보증금(Fidelity Bond) 구현 시 설계 참조 |
 | [SECURITY-ROADMAP.md](SECURITY-ROADMAP.md) | ~250 | 보안/아키텍처 개선 항목 추적, 우선순위별 해결 계획 |
 | [TODO.md](TODO.md) | ~80 | 미구현 기능 목록 확인 시 |
+| [AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md) | ~230 | **미처리 보안·문서·공학 개선 항목의 작업 목록.** 개선 작업을 집을 때 여기부터 |

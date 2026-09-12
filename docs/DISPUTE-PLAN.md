@@ -1,5 +1,10 @@
 # 분쟁 중재 (Dispute Mediation) + 히스토리 UI 구현 플랜
 
+> 상태: **아카이브 — 구현 완료** (분쟁 중재 + 히스토리 UI)
+>
+> 당시 계획 기록이다. 히스토리 UI는 **2026-09-12 통합**으로 '내 거래' 탭이 되었고,
+> 역할은 칼럼 없이 pubkey 비교로 유도한다. 현행은 [ARCHITECTURE.md](../ARCHITECTURE.md) 참조.
+
 ## Context
 
 `remitted` 상태의 오더에 대한 Admin 중재 기능이 필요하다. Sponsor가 KRW 송금을 주장(`escrowed → remitted`)한 후 Customer가 입금 확인을 하지 않는 상황에서, Admin이 양쪽과 각각 채팅으로 대화하고 증거를 검토한 뒤 `sponsor_wins` 또는 `customer_wins`를 판정하는 기능이다. 이와 함께 모든 앱에 히스토리 UI(IDB 기반 오더 목록 + 상세 페이지)를 추가한다.

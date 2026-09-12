@@ -1,4 +1,4 @@
-# 사줘 트래커 Nostr Protocol Specification
+# 페어바이 Nostr Protocol Specification
 
 Customer, Sponsor, Admin 세 앱이 공통으로 참조하는 Nostr 이벤트 프로토콜 명세.
 
@@ -23,7 +23,7 @@ Sponsor ──[kind 1111 요청]──→ Relay ──→ Admin              Cus
 f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848
 ```
 
-이 pubkey는 사줘 트래커 시스템 전체를 식별하는 용도이며, 개인키는 Admin(에스크로)만 보유한다.
+이 pubkey는 페어바이 시스템 전체를 식별하는 용도이며, 개인키는 Admin(에스크로)만 보유한다.
 유저(Customer, Sponsor)는 각자 랜덤 생성한 키페어를 사용한다.
 
 ## 릴레이 디스커버리 (NIP-65 Outbox Model)

@@ -1,6 +1,11 @@
-# TODO - 사줘 트래커
+# TODO - 페어바이
 
 미구현 기능 및 개선 사항 목록
+
+> 앱 구조가 **2026-09-12 통합**으로 바뀌었다. 아래의 "Customer App / Sponsor App" 구분은
+> 이제 통합 앱의 **의뢰하기 / 사주기 탭**을 가리킨다.
+>
+> 보안·문서·공학 개선 항목은 [AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md)에 따로 있다.
 
 ## Customer App
 
@@ -18,8 +23,9 @@
 
 ## Sponsor App
 
-- [ ] **오더북 페이지네이션**: 주문이 많아질 경우 대비
+- [ ] **오더북 페이지네이션**: 의뢰가 많아질 경우 대비
 - [ ] **스타일링 고도화**: 현재 인라인 스타일 → CSS 또는 스타일링 라이브러리
+  - → [AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md) C-5
 
 ## Admin App (에스크로 서비스)
 
@@ -59,10 +65,13 @@
 ## 기술 부채
 
 - [ ] **CLN hold invoice 지원**: 현재 LND 전용 (`holdInvoice`, `settleInvoice`). CLN은 probe만 가능하고 hold invoice API 미구현
-- [x] **테스트 코드 작성**: Admin FSM 전이, 가격 범위 검증, commitment hash — vitest 41개 테스트 ✅
+- [x] **테스트 코드 작성**: Admin FSM 전이, 가격 범위 검증, commitment hash, 구독 가드,
+  진행도 모델, 자기 클레임 차단 — vitest 82개 테스트 ✅
+  - ⚠️ 러너가 admin에만 있어 shared 모듈 테스트를 admin 호스트에 얹어 둔 상태
+    → [AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md) C-3
 - [ ] **에러 처리 강화**: 네트워크 오류, 파싱 실패 등 예외 상황 처리
 - [ ] **로깅 개선**: 디버깅 용이하도록 구조화된 로그
 
 ---
 
-**Last Updated**: 2026-03-25
+**Last Updated**: 2026-09-13 (앱 통합 반영, 감사 문서 분리)

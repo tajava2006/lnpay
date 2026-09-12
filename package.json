@@ -1,7 +1,7 @@
 {
   "name": "sajwo-tracker",
   "private": true,
-  "description": "사줘 트래커 - 쿠팡 무통장입금 주문 추적 및 대리결제 요청 시스템",
+  "description": "페어바이(PairBuy) - 원화와 비트코인을 짝지어 맞바꾸는 P2P 에스크로",
   "scripts": {
     "dev:customer": "pnpm --filter @sajwo-tracker/customer dev",
     "build:customer": "pnpm --filter @sajwo-tracker/customer build",

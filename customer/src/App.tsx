@@ -15,18 +15,30 @@ import { HistoryPage } from './history/HistoryPage';
  * 키는 하나지만 한 사람이 두 역할을 겸하므로, 지금 어느 입장인지는 화면이
  * 책임진다. 합치기 전 앱이 나뉘어 있던 이유가 이 혼동을 막기 위해서였고,
  * 그 역할을 탭이 이어받는다.
+ *
+ * 라벨을 동사형으로 둔 이유: "내 주문"처럼 명사로 두면 후원자가 자기 BTC
+ * 구매를 '주문'으로 여겨 엉뚱한 탭을 찾는다(실제 혼동 사례). 각 탭이
+ * "여기서 당신이 무엇을 하는가"를 말하면 그 오해가 구조적으로 사라진다.
  */
-type Tab = 'buy' | 'find' | 'history';
+type Tab = 'request' | 'fulfill' | 'history';
+
+/** 첫 화면. 신규 유입 대부분이 후원자 입장이라 오더북을 먼저 보여준다. */
+const DEFAULT_TAB: Tab = 'fulfill';
 
 const TABS: Array<{ key: Tab; label: string }> = [
-  { key: 'buy', label: '내 주문' },
-  { key: 'find', label: '주문 찾기' },
-  { key: 'history', label: '내역' },
+  { key: 'request', label: '의뢰하기' },
+  { key: 'fulfill', label: '사주기' },
+  { key: 'history', label: '내 거래' },
 ];
 
 function readTabFromUrl(): Tab {
   const p = new URLSearchParams(window.location.search).get('tab');
-  return p === 'find' || p === 'history' ? p : 'buy';
+  return p === 'request' || p === 'fulfill' || p === 'history' ? p : DEFAULT_TAB;
+}
+
+/** 기본 탭은 쿼리 없이 루트로 둔다. */
+function urlForTab(tab: Tab): string {
+  return tab === DEFAULT_TAB ? '/' : `?tab=${tab}`;
 }
 
 function readOrderFromUrl(): string | null {
@@ -53,7 +65,7 @@ function AppContent() {
   }, []);
 
   const goTab = useCallback((next: Tab) => {
-    history.pushState(null, '', next === 'buy' ? '/' : `?tab=${next}`);
+    history.pushState(null, '', urlForTab(next));
     setTab(next);
     setDetailOrderId(null);
   }, []);
@@ -66,11 +78,11 @@ function AppContent() {
   }, []);
 
   const closeDetail = useCallback(() => {
-    history.pushState(null, '', tab === 'buy' ? '/' : `?tab=${tab}`);
+    history.pushState(null, '', urlForTab(tab));
     setDetailOrderId(null);
   }, [tab]);
 
-  const openFromBook = useCallback((orderId: string) => openDetail(orderId, 'find'), [openDetail]);
+  const openFromBook = useCallback((orderId: string) => openDetail(orderId, 'fulfill'), [openDetail]);
   const openFromHistory = useCallback((orderId: string) => openDetail(orderId, 'history'), [openDetail]);
 
   useEffect(() => {
@@ -101,7 +113,7 @@ function AppContent() {
   return (
     <div className="container">
       <header className="header">
-        <h1>사줘 트래커</h1>
+        <h1>페어바이</h1>
         <BtcPrice tracker={tracker} />
       </header>
 
@@ -120,9 +132,9 @@ function AppContent() {
       <main>
         {detailOrderId ? (
           <OrderDetail orderId={detailOrderId} onBack={closeDetail} tracker={tracker} />
-        ) : tab === 'buy' ? (
+        ) : tab === 'request' ? (
           <Dashboard tracker={tracker} />
-        ) : tab === 'find' ? (
+        ) : tab === 'fulfill' ? (
           <OrderBook tracker={tracker} onSelectOrder={openFromBook} />
         ) : (
           <HistoryPage onSelectOrder={openFromHistory} tracker={tracker} />

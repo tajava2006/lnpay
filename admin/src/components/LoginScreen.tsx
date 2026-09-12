@@ -94,7 +94,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h1 style={styles.title}>사줘 트래커 어드민</h1>
+        <h1 style={styles.title}>페어바이 어드민</h1>
         <p style={styles.subtitle}>NIP-46 원격 서명으로 로그인</p>
 
         {state.phase === 'loading' && (

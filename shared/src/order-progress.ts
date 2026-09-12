@@ -50,10 +50,10 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     title: '후원자 찾는 중',
     actor: 'sponsor',
     customer: [
-      { text: '후원자가 주문을 가져갈 때까지 기다립니다.' },
+      { text: '후원자가 의뢰를 가져갈 때까지 기다립니다.' },
     ],
     sponsor: [
-      { text: '주문 금액과 같은 금액의 Lightning 인보이스를 본인 지갑에서 만듭니다.' },
+      { text: '의뢰 금액과 같은 금액의 Lightning 인보이스를 본인 지갑에서 만듭니다.' },
       { text: "인보이스를 붙여넣고 '사줄게'를 누릅니다. 유동성 검증용이라 이 시점에 실제 결제는 일어나지 않습니다." },
     ],
   },
@@ -90,7 +90,7 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
       { text: '후원자가 원화를 보낼 때까지 기다립니다.' },
     ],
     sponsor: [
-      { text: '고객이 보낸 계좌로 주문 금액을 원화 송금합니다.' },
+      { text: '고객이 보낸 계좌로 의뢰 금액을 원화 송금합니다.' },
       { text: "송금을 마쳤으면 '원화 송금했어요'를 누릅니다." },
     ],
   },

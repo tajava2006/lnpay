@@ -4,6 +4,9 @@ import { getSecretKey, storage } from '@sajwo-tracker/shared';
 
 const NSEC_PLACEHOLDER = '%%NSEC_PLACEHOLDER%%';
 
+/** 공식 Chrome 웹스토어 배포처 */
+const TAMPERMONKEY_URL = 'https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=ko';
+
 /** 배너에서 @version을 뽑는다. 어느 빌드를 복사하는지 눈으로 확인할 수 있게. */
 function extractVersion(raw: string): string | null {
   return /^\/\/\s*@version\s+(\S+)/m.exec(raw)?.[1] ?? null;
@@ -58,7 +61,21 @@ export function UserscriptGuide() {
       {expanded && (
         <div style={styles.body}>
           <div style={styles.steps}>
-            <p style={styles.step}><strong>1.</strong> Tampermonkey 확장 프로그램을 설치합니다.</p>
+            <p style={styles.step}>
+              <strong>1.</strong> Tampermonkey 확장 프로그램을 설치합니다.{' '}
+              <a
+                href={TAMPERMONKEY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.storeLink}
+              >
+                Chrome 웹스토어에서 설치 ↗
+              </a>
+            </p>
+            {/* 유사 이름 확장이 많아 공식 스토어 링크를 직접 준다 */}
+            <p style={styles.stepNote}>
+              이름이 비슷한 확장이 많습니다. 반드시 위 링크의 공식 Tampermonkey를 설치하세요.
+            </p>
             <p style={styles.step}><strong>2.</strong> Tampermonkey에서 새 스크립트를 만들고 아래 코드를 붙여넣습니다.</p>
             <p style={styles.step}><strong>3.</strong> 크롬 주소창에 <strong>chrome://extensions</strong>를 입력한 뒤, Tampermonkey의 <strong>세부정보</strong>에서 <strong>사용자 스크립트 허용</strong>을 켭니다.</p>
             <p style={styles.stepNote}>이 설정을 켜지 않으면 스크립트를 활성화해도 실행되지 않습니다. 항목이 보이지 않는 구버전 크롬은 확장 프로그램 페이지 우측 상단의 <strong>개발자 모드</strong>를 대신 켜세요.</p>
@@ -144,6 +161,12 @@ const styles = {
     fontSize: 13,
     fontWeight: 600 as const,
     color: '#333',
+  },
+  storeLink: {
+    color: '#4F46E5',
+    fontWeight: 600,
+    textDecoration: 'none',
+    whiteSpace: 'nowrap' as const,
   },
   versionBadge: {
     marginLeft: 8,

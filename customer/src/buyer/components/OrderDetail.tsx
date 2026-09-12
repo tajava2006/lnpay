@@ -70,7 +70,7 @@ export function OrderDetail({ order, onClose }: Props) {
       <div style={styles.backdrop} onClick={onClose} />
       <div style={styles.modal}>
         <div style={styles.header}>
-          <h3 style={styles.headerTitle}>주문 #{order.orderId} 상세</h3>
+          <h3 style={styles.headerTitle}>의뢰 #{order.orderId} 상세</h3>
           <button onClick={onClose} style={styles.closeBtn}>&times;</button>
         </div>
 

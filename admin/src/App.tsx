@@ -293,7 +293,7 @@ export function App() {
     <div style={styles.container}>
       <header style={styles.header}>
         <div style={styles.titleRow}>
-          <h1 style={styles.title}>사줘 트래커 어드민</h1>
+          <h1 style={styles.title}>페어바이 어드민</h1>
           <button
             style={currentPage !== 'history' && currentPage !== 'detail' ? styles.navBtnActive : styles.navBtn}
             onClick={goQueue}

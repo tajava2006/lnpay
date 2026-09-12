@@ -26,7 +26,7 @@ export function OrderForm() {
     const order: CustomerOrder = {
       orderId,
       price: priceNum,
-      memo: memo.trim() || '수동 주문',
+      memo: memo.trim() || '직접 입력',
       createdAt: now,
       expiration,
     };
@@ -39,7 +39,7 @@ export function OrderForm() {
 
   return (
     <div style={styles.card}>
-      <h2 style={styles.title}>주문 등록</h2>
+      <h2 style={styles.title}>의뢰 등록</h2>
       <form onSubmit={handleSubmit} style={styles.form}>
         <label style={styles.label}>
           <span style={styles.labelText}>금액 (원) *</span>
@@ -73,7 +73,7 @@ export function OrderForm() {
             style={styles.input}
           />
         </label>
-        <button type="submit" style={styles.submitBtn}>주문 등록</button>
+        <button type="submit" style={styles.submitBtn}>의뢰 등록</button>
       </form>
     </div>
   );

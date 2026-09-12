@@ -104,7 +104,7 @@ export function OrderRow({ order, tracker, now }: Props) {
   }
 
   async function handleCancel() {
-    if (!confirm('이 주문을 취소하시겠습니까?')) return;
+    if (!confirm('이 의뢰를 취소하시겠습니까?')) return;
     setCancelling(true);
     try {
       const result = await publishNotification(order, 'cancel-request');
@@ -119,7 +119,7 @@ export function OrderRow({ order, tracker, now }: Props) {
   }
 
   function handleDelete() {
-    if (confirm('이 주문을 삭제하시겠습니까?')) {
+    if (confirm('이 의뢰를 삭제하시겠습니까?')) {
       deleteOrder(order.orderId);
     }
   }

@@ -104,12 +104,12 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
   const myRole = order && myPubkey && order.customerPubkey === myPubkey ? 'customer' : 'sponsor';
 
   if (!order) {
-    return <div style={styles.loading}>오더 불러오는 중...</div>;
+    return <div style={styles.loading}>불러오는 중...</div>;
   }
 
   return (
     <div>
-      <button style={styles.backBtn} onClick={onBack}>← 목록 보기</button>
+      <button style={styles.backBtn} onClick={onBack}>← 목록으로</button>
 
       {/* Order Summary */}
       <div style={styles.summary}>

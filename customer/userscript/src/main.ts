@@ -1,5 +1,5 @@
 /**
- * 사줘 트래커 - 쿠팡 유저스크립트 엔트리포인트
+ * 페어바이 - 쿠팡 유저스크립트 엔트리포인트
  *
  * 쿠팡 주문 상세 페이지에서 무통장입금 주문을 자동 감지하고,
  * Nostr 릴레이를 통해 Customer 웹앱에 알린다.
@@ -42,7 +42,7 @@ async function main() {
   try {
     sk = decodeNsec(nsec);
   } catch (e) {
-    alert('[사줘 트래커] 유효하지 않은 nsec입니다. 설정에서 키를 다시 확인하세요.');
+    alert('[페어바이] 유효하지 않은 nsec입니다. 설정에서 키를 다시 확인하세요.');
     console.error('[사줘] nsec decode error:', e);
     return;
   }

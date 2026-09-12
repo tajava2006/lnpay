@@ -285,12 +285,12 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
                 {stateMeta.label}
               </span>
               {isTaken && <span style={styles.lockBadge}>다른 후원자가 진행 중</span>}
-              {isMine && <span style={styles.mineBadge}>내 거래</span>}
+              {isMine && <span style={styles.mineBadge}>내가 사주는 중</span>}
             </div>
 
             {isTaken && (
               <p style={styles.takenNotice}>
-                이미 다른 후원자가 가져간 주문이라 참여할 수 없습니다.
+                이미 다른 후원자가 가져간 의뢰라 참여할 수 없습니다.
                 거래가 취소되면 다시 '요청됨'으로 돌아오고, 그때는 누구나 참여할 수 있습니다.
               </p>
             )}

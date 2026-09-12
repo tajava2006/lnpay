@@ -52,7 +52,7 @@ export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title, 
           <button onClick={onClose} style={styles.closeBtn}>&times;</button>
         </div>
         <div style={styles.body}>
-          <p style={styles.orderLabel}>주문 #{orderId}</p>
+          <p style={styles.orderLabel}>의뢰 #{orderId}</p>
 
           {decoded && (
             <div style={styles.amountSection}>
@@ -60,7 +60,7 @@ export function InvoiceModal({ orderId, bolt11, price, tracker, onClose, title, 
               {isDeposit ? (
                 <>
                   <span style={{ ...styles.fairnessLabel, color: '#059669' }}>
-                    주문 금액의 약 {price > 0 && btcKrw ? Math.round((decoded.amountSat / ((price / btcKrw) * 1e8)) * 100) : '?'}%
+                    의뢰 금액의 약 {price > 0 && btcKrw ? Math.round((decoded.amountSat / ((price / btcKrw) * 1e8)) * 100) : '?'}%
                   </span>
                   <span style={styles.depositNotice}>
                     스팸 방지를 위한 보증금입니다. 거래 완료 후 전액 환불되며 수수료도 소모되지 않습니다.

@@ -16,9 +16,9 @@ export function Dashboard({ tracker }: Props) {
   useSyncExternalStore(subscribe, getSnapshot);
 
   function handleClearAll() {
-    if (!confirm('모든 주문을 삭제하시겠습니까?')) return;
+    if (!confirm('모든 의뢰를 삭제하시겠습니까?')) return;
     const ok = clearDeletableOrders(isDeletable);
-    if (!ok) alert('거래 진행 중인 주문이 있어 전체 삭제할 수 없습니다.');
+    if (!ok) alert('거래 진행 중인 의뢰가 있어 전체 삭제할 수 없습니다.');
   }
 
   return (
@@ -31,7 +31,7 @@ export function Dashboard({ tracker }: Props) {
       <ParsedOrdersSection />
       <OrderForm />
 
-      <h2 className="section-title">주문 목록</h2>
+      <h2 className="section-title">의뢰 목록</h2>
       <OrderTable tracker={tracker} />
 
       <UserscriptGuide />

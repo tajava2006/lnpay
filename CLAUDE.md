@@ -58,9 +58,9 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
 sajwo-tracker/                ← pnpm workspace 모노레포
   shared/                     ← @sajwo-tracker/shared (Nostr 공통: 키, 릴레이, 상수, 타입, 공용 컴포넌트)
   customer/                   ← @sajwo-tracker/customer — 통합 유저 앱 (고객 역할 + 후원자 역할)
-    src/buyer/                ←   고객 역할 (내 주문 탭)
-    src/sponsor/              ←   후원자 역할 (주문 찾기 탭)
-    src/history/              ←   내역 탭 (역할은 pubkey 비교로 유도, 칼럼 없음)
+    src/buyer/                ←   고객 역할 (의뢰하기 탭)
+    src/sponsor/              ←   후원자 역할 (사주기 탭 — 첫 화면)
+    src/history/              ←   내 거래 탭 (역할은 pubkey 비교로 유도, 칼럼 없음)
     src/nostr/                ←   통합 구독 (소켓 한 벌) → 역할별 핸들러 팬아웃
   customer/userscript/        ← 쿠팡 자동파싱 유저스크립트 (esbuild IIFE 번들)
   sponsor/                    ← 정적 리다이렉트 껍데기 (구 후원자 도메인 전환 안내)

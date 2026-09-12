@@ -47,11 +47,11 @@ export function OrderBook({ tracker, onSelectOrder }: Props) {
     });
 
   if (activeOrders.length === 0 && !synced) {
-    return <div style={styles.message}>릴레이에서 오더를 불러오는 중...</div>;
+    return <div style={styles.message}>의뢰를 불러오는 중...</div>;
   }
 
   if (activeOrders.length === 0) {
-    return <div style={styles.message}>현재 활성 오더가 없습니다</div>;
+    return <div style={styles.message}>지금 올라온 의뢰가 없습니다</div>;
   }
 
   return (

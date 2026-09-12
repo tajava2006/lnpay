@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         사줘 트래커 - 쿠팡 파서
 // @namespace    sajwo-tracker
-// @version      1.0.0
+// @version      %%VERSION%%
 // @description  쿠팡 무통장입금 주문 자동 감지 및 Nostr 릴레이 발행
 // @match        https://mc.coupang.com/ssr/desktop/order/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-idle
+// @updateURL    %%UPDATE_URL%%
+// @downloadURL  %%UPDATE_URL%%
 // ==/UserScript==
 console.log('[사줘] 유저스크립트 로딩 시작');

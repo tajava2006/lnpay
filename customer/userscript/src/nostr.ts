@@ -30,6 +30,18 @@ export function getPubkeyFromSecret(sk: Uint8Array): string {
   return getPublicKey(sk);
 }
 
+/**
+ * 이 빌드가 바라보는 Admin 신원을 hex + npub으로 돌려준다.
+ *
+ * 유저스크립트는 수동 설치라 상수가 바뀌어도 설치본은 옛날 값을 계속 쓴다.
+ * APP_PUBKEY가 어긋나면 payment-confirm / cancel-request가 어드민 구독
+ * 필터(#p=APP_PUBKEY)에 걸리지 않아 릴레이는 정상 수락하는데 아무 일도
+ * 일어나지 않는다. 부팅 로그에 찍어두면 그 상황이 콘솔만 봐도 드러난다.
+ */
+export function describeAppPubkey(): string {
+  return `${APP_PUBKEY} (${nip19.npubEncode(APP_PUBKEY)})`;
+}
+
 // ── 릴레이 디스커버리 ────────────────────────────────
 
 /** NIP-65 kind 10002 이벤트에서 읽기 릴레이 추출 (one-shot) */

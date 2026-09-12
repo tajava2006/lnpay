@@ -16,6 +16,7 @@ import {
 } from './coupang';
 import {
   decodeNsec,
+  describeAppPubkey,
   discoverRelays,
   publishToRelays,
   buildParsedOrderEvent,
@@ -23,8 +24,12 @@ import {
   buildCancelRequestEvent,
 } from './nostr';
 
+/** 빌드 시각으로 스탬프된 버전 (esbuild define 주입) */
+declare const __USERSCRIPT_VERSION__: string;
+
 async function main() {
-  console.log('[사줘] main() 진입');
+  console.log('[사줘] main() 진입 — v%s', __USERSCRIPT_VERSION__);
+  console.log('[사줘] APP_PUBKEY:', describeAppPubkey());
 
   // 1. 키 확인
   const nsec = ensureNsec();

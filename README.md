@@ -1,4 +1,4 @@
-# Sajwo Tracker — Bitcoin Escrow Marketplace
+# PairBuy — Bitcoin Escrow Marketplace
 
 A peer-to-peer escrow platform that connects people who want to **pay for goods with Bitcoin** and people who want to **acquire Bitcoin without using an exchange** — using the Lightning Network as the settlement layer and Nostr as the communication layer.
 
@@ -14,6 +14,10 @@ Two parties have complementary needs:
 |---|---|---|
 | **Customer** | Wants to buy goods (e.g., on Coupang) but only has Bitcoin | Pays in BTC, receives goods |
 | **Sponsor** | Wants to acquire Bitcoin without a centralized exchange | Makes the KRW bank transfer on behalf of the Customer, receives BTC in return |
+
+Both roles live in **one app under one key** — they are tabs, not separate installs. A user can
+request on one order and fulfil someone else's on the next. Self-dealing (claiming your own order)
+is rejected by the state machine.
 
 An **Admin** acts as an escrow agent, holding the Customer's BTC in a Lightning hold invoice while the Sponsor makes the bank transfer. Once payment is confirmed, Admin settles the invoice to release BTC to the Sponsor.
 
@@ -64,16 +68,21 @@ This eliminates the need for a trusted backend server to "hold" funds — the Li
 
 ### 2. Fidelity Bonds — Spam Prevention via Economics
 
+> **Status: implemented but disabled by default.** Both bond percentages default to `0`, which
+> turns the mechanism off, and the current deployment runs with it off — the operator chose lower
+> friction over spam resistance while the user base is small. The description below is what happens
+> when an operator sets a non-zero percentage. Don't read it as a property of the running system.
+
 A fully anonymous system (Nostr pubkeys are free to generate) needs a sybil-resistance mechanism that doesn't rely on identity.
 
-**For Customers** — before a request is published to the order book, the Customer must pay a small hold invoice as a **fidelity bond**. Anyone without actual BTC is immediately blocked. The bond is held until a Sponsor is matched, then automatically cancelled (BTC refunded) when the real escrow payment begins.
+**For Customers** — when enabled, a request is only published to the order book after the Customer pays a small hold invoice as a **fidelity bond**. Anyone without actual BTC is blocked. The bond is held until a Sponsor is matched, then automatically cancelled (BTC refunded) when the real escrow payment begins.
 
-**For Sponsors** — a Sponsor's claim is only approved after they pay a deposit hold invoice. If the Sponsor fails to make the KRW transfer and loses the dispute, the deposit is **settled (forfeited)**. This makes trolling economically costly.
+**For Sponsors** — when enabled, a Sponsor's claim is only approved after they pay a deposit hold invoice. If the Sponsor fails to make the KRW transfer and loses the dispute, the deposit is **settled (forfeited)**. This makes trolling economically costly.
 
 This mirrors the fidelity bond design used by [RoboSats](https://learn.robosats.com/docs/bonds/), adapted to this two-sided marketplace structure.
 
 ```
-Fidelity bond lifecycle:
+Fidelity bond lifecycle (when percentage > 0):
   Customer: requested → [bond held] → escrowed → [bond cancelled, real invoice starts]
   Sponsor:  claimed → [deposit held] → paid/sponsor_wins → [refunded] / customer_wins → [forfeited]
 ```
@@ -147,13 +156,21 @@ Customer     Sponsor      Admin
 **pnpm workspace monorepo:**
 
 ```
-sajwo-tracker/
-  shared/          ← @sajwo-tracker/shared (Nostr keys, relays, types, constants)
-  customer/        ← BTC buyer app (React 19 SPA)
+pairbuy/
+  shared/          ← Nostr keys, relays, types, constants, shared components
+  customer/        ← Unified user app (React 19 SPA) — both roles, one key
+    src/buyer/     ←   request side ("의뢰하기" tab)
+    src/sponsor/   ←   fulfil side ("사주기" tab, the landing tab)
+    src/history/   ←   past trades; role is derived from pubkeys, not a stored column
+    src/nostr/     ←   owns the sockets, fans events out to role handlers
   customer/userscript/  ← Tampermonkey script (auto-parses Coupang orders via __NEXT_DATA__)
-  sponsor/         ← BTC buyer-via-fiat app (React 19 SPA)
+  sponsor/         ← Static redirect shell for the retired sponsor domain
   admin/           ← Escrow service (React 19 SPA, no backend)
 ```
+
+> The package name `customer/` is historical. The two user-facing apps were merged into it,
+> and the internal `sajwo-tracker` client tag is kept because changing it would orphan
+> every event already on the relays.
 
 ### Store-Subscription Pattern
 
@@ -175,7 +192,7 @@ This ensures the active work queue stays lean while all financially relevant rec
 
 ### Pure Frontend Deployment
 
-All three apps are static SPAs with no backend. Admin-specific challenges solved:
+Both apps are static SPAs with no backend. Admin-specific challenges solved:
 
 - **Key management:** Admin uses NIP-46 (Nostr Connect) — private key never enters the browser, signing is delegated to a remote signer (nsecBunker)
 - **LN config storage:** Lightning node credentials encrypted with NIP-44, stored on a Nostr relay, decrypted into memory only at login

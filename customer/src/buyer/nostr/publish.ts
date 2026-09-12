@@ -19,9 +19,11 @@ import {
   getSecretKey,
   getReadRelays,
   nip44Encrypt,
-  sha256Hex,
+  generateCommitmentSalt,
+  computeAccountCommitment,
   type RequestAction,
   type AccountInfo,
+  type AccountInfoEnvelope,
   type DisputeMessagePayload,
   storage,
 } from '@sajwo-tracker/shared';
@@ -135,7 +137,10 @@ export async function publishNotification(
 
 /**
  * 계좌정보를 NIP-44 암호화하여 kind 1111로 발행한다.
- * Sponsor pubkey로 암호화하며, commitment 태그에 sha256 해시를 포함한다.
+ * Sponsor pubkey로 암호화하며, commitment 태그에 솔티드 해시를 포함한다.
+ *
+ * 솔트는 암호문 안에만 들어간다 — 후원자만 알고, 분쟁 시 계좌정보와 함께 공개된다.
+ * 커밋먼트 자체는 공개 태그라 솔트가 없으면 계좌번호가 브루트포스된다(감사 A-1).
  */
 export async function publishAccountInfo(
   order: CustomerOrder,
@@ -145,9 +150,10 @@ export async function publishAccountInfo(
   if (!sponsorPubkey) throw new Error('sponsorPubkey 없음');
 
   const sk = await getSecretKey(storage);
-  const plaintext = JSON.stringify(accountInfo);
-  const encrypted = nip44Encrypt(plaintext, sk, sponsorPubkey);
-  const commitment = await sha256Hex(plaintext);
+  const salt = generateCommitmentSalt();
+  const envelope: AccountInfoEnvelope = { accountInfo, salt };
+  const encrypted = nip44Encrypt(JSON.stringify(envelope), sk, sponsorPubkey);
+  const commitment = await computeAccountCommitment(accountInfo, salt);
 
   const tags: string[][] = [
     ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],

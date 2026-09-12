@@ -24,6 +24,7 @@ import {
   idbMigrateOrderWithRequests,
   processDisputeEvent,
   createSubscriptionGuard,
+  createSingleFlight,
   type Order,
   type Request,
   type OrderRequest,
@@ -253,6 +254,28 @@ export async function disburseSponsor(
     return { success: false, error: 'NO_LN_ADAPTER' };
   }
 
+  // `disbursed` 검사와 기록 사이에 LN 결제 await이 통째로 들어간다. 버튼 더블클릭이나
+  // invoice-watcher와 겹치면 두 호출이 모두 위 검사를 통과해 결제를 시도할 수 있다.
+  // 지금까지 이중 지급이 안 난 건 LND가 payment hash로 중복을 걸러줬기 때문이지
+  // 이 코드가 막아서가 아니었다(감사 2026-09-13 A-2). 우리 쪽에서 먼저 닫는다.
+  const adapter = lnAdapterRef;
+  return disbursing.run(
+    orderId,
+    () => runDisbursement(orderId, order, adapter),
+    () => ({ success: false, error: 'DISBURSEMENT_IN_FLIGHT' }),
+  );
+}
+
+/** 진행 중인 지급. 같은 오더로 두 번 들어오면 두 번째를 거절한다. */
+const disbursing = createSingleFlight();
+
+/** 어댑터는 인자로 받는다 — 모듈 참조를 다시 읽으면 위에서 한 null 체크가 무의미해진다. */
+async function runDisbursement(
+  orderId: string,
+  order: Order,
+  lnAdapter: LightningAdapter,
+): Promise<{ success: boolean; error?: string }> {
+
   // IDB에서 해당 Sponsor의 claim request 조회 → bolt11 추출
   let sponsorBolt11: string | undefined;
   try {
@@ -272,12 +295,13 @@ export async function disburseSponsor(
 
   // 결제 전송
   try {
-    const result = await lnAdapterRef.payInvoice(sponsorBolt11);
+    const result = await lnAdapter.payInvoice(sponsorBolt11);
     if (result.status !== 'succeeded') {
       console.warn('[Admin] Disbursement failed for', orderId, result.failureReason);
       return { success: false, error: result.failureReason ?? 'PAYMENT_FAILED' };
     }
-    console.log('[Admin] Disbursement succeeded for', orderId, '- preimage:', result.preimage);
+    // preimage는 찍지 않는다 — 수령 증명이라도 콘솔에 남길 이유가 없다(감사 A-4).
+    console.log('[Admin] Disbursement succeeded for', orderId);
   } catch (e) {
     console.error('[Admin] Disbursement error for', orderId, e);
     return { success: false, error: 'PAYMENT_ERROR' };

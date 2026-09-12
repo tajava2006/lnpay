@@ -15,9 +15,10 @@ import {
   idbUpsertOrder,
   idbUpsertRequest,
   extractOrderId,
+  parseAccountInfoEnvelope,
   getSecretKey,
   storage,
-  type AccountInfo,
+  type AccountInfoEnvelope,
   type AccountInfoRequest,
 } from '@sajwo-tracker/shared';
 import type { Event } from 'nostr-tools/core';
@@ -104,19 +105,25 @@ async function syncOrderToIdb(order: Parameters<typeof idbUpsertOrder>[0]): Prom
 
 async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
   const sk = await getSecretKey(storage);
-  let info: AccountInfo;
+  let envelope: AccountInfoEnvelope | null;
   try {
     const plaintext = nip44Decrypt(event.encryptedContent, sk, event.customerPubkey);
-    info = JSON.parse(plaintext) as AccountInfo;
+    envelope = parseAccountInfoEnvelope(plaintext);
   } catch (e) {
-    console.error('[Sponsor] account-info 복호화 실패:', event.orderId, e);
+    console.error('[후원자] account-info 복호화 실패:', event.orderId, e);
     return;
   }
+  if (!envelope) {
+    console.error('[후원자] account-info 형식 불명:', event.orderId);
+    return;
+  }
+  const info = envelope.accountInfo;
 
   // 반응형 스토어에 반영 (UI 즉시 갱신)
   setAccountInfo(event.orderId, info);
 
-  // IDB에 request로 저장 (영구 보존)
+  // IDB에 request로 저장 (영구 보존).
+  // 솔트도 함께 남긴다 — 분쟁 때 계좌정보와 같이 공개해야 Admin이 커밋먼트를 대조할 수 있다.
   const request: AccountInfoRequest = {
     eventId: event.eventId,
     orderId: event.orderId,
@@ -125,6 +132,7 @@ async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
     createdAt: event.createdAt,
     expiration: event.expiration,
     accountInfo: info,
+    commitmentSalt: envelope.salt || undefined,
     raw: {},
   };
 

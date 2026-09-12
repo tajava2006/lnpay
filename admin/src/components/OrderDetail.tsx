@@ -577,7 +577,7 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
             myPubkey={APP_PUBKEY}
             onSend={sendToSponsor}
             renderAccountExtra={accountCommitment
-              ? (info) => <CommitmentBadge accountInfo={info} commitment={accountCommitment} />
+              ? (info, salt) => <CommitmentBadge accountInfo={info} commitment={accountCommitment} salt={salt} />
               : undefined}
           />
         )}

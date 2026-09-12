@@ -215,9 +215,12 @@ export async function publishAccountReveal(order: Order): Promise<boolean> {
     return false;
   }
 
+  // 솔트도 같이 공개해야 Admin이 커밋먼트를 대조할 수 있다.
+  // 솔트 도입(감사 A-1) 이전 기록은 undefined — Admin이 레거시 무솔트로 검증한다.
   const payload: DisputeMessagePayload = {
     type: 'account-reveal',
     accountInfo: accountInfoReq.accountInfo,
+    commitmentSalt: accountInfoReq.commitmentSalt,
   };
 
   return publishDisputeMessage(order, payload);

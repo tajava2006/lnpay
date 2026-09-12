@@ -30,6 +30,15 @@ export { subscribeRelayLists, getReadRelays, getWriteRelays, refreshRelayLists }
 // Crypto (NIP-44)
 export { nip44Encrypt, nip44Decrypt, sha256Hex } from './crypto';
 
+// 계좌정보 커밋먼트 (솔티드)
+export {
+  generateCommitmentSalt,
+  computeAccountCommitment,
+  verifyAccountCommitment,
+  parseAccountInfoEnvelope,
+} from './account-commitment';
+export type { AccountInfoEnvelope } from './account-commitment';
+
 // Price
 export { createPriceTracker } from './price';
 export type { PriceTracker, PriceSnapshot, ExchangeState } from './price';
@@ -68,6 +77,10 @@ export type {
 // 후원자-오더 관계 판정
 export { sponsorRelation } from './sponsor-relation';
 export type { SponsorRelation } from './sponsor-relation';
+
+// 키 단위 재진입 가드
+export { createSingleFlight } from './single-flight';
+export type { SingleFlight } from './single-flight';
 
 // 구독 생명주기 가드
 export { createSubscriptionGuard } from './subscription-guard';

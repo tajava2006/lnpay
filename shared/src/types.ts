@@ -88,6 +88,11 @@ export interface ClaimRequest extends RequestBase {
 export interface AccountInfoRequest extends RequestBase {
   action: 'account-info';
   accountInfo?: AccountInfo;
+  /**
+   * 커밋먼트 솔트. 분쟁 시 계좌정보와 함께 공개해야 Admin이 대조할 수 있다.
+   * 솔트 도입(감사 A-1) 이전 기록에는 없다 — 그 경우 레거시 무솔트로 검증한다.
+   */
+  commitmentSalt?: string;
 }
 
 /** 추가 데이터 없는 요청 */
@@ -112,6 +117,11 @@ export interface DisputeMessagePayload {
   content?: string;
   /** 계좌정보 평문 제출 (type: 'account-reveal', 커밋먼트 대조 검증용) */
   accountInfo?: AccountInfo;
+  /**
+   * 커밋먼트 솔트. 계좌정보와 함께 공개해야 Admin이 대조할 수 있다.
+   * 솔트 도입(감사 A-1) 이전 기록에는 없다 — 그 경우 레거시 무솔트로 검증한다.
+   */
+  commitmentSalt?: string;
 }
 
 /** 복호화된 채팅 메시지 (IDB 저장용) */

@@ -7,7 +7,8 @@ interface Props {
   messages: ChatMessage[];
   myPubkey: string;
   onSend: (text: string) => Promise<void>;
-  renderAccountExtra?: (accountInfo: AccountInfo) => React.ReactNode;
+  /** 계좌 공개 말풍선에 덧붙일 요소. 커밋먼트 검증에 솔트가 필요해 같이 넘긴다. */
+  renderAccountExtra?: (accountInfo: AccountInfo, commitmentSalt?: string) => React.ReactNode;
 }
 
 export function ChatWindow({ label, messages, myPubkey, onSend, renderAccountExtra }: Props) {
@@ -66,7 +67,7 @@ export function ChatWindow({ label, messages, myPubkey, onSend, renderAccountExt
                     <div>{msg.payload.accountInfo.bankName}</div>
                     <div>{msg.payload.accountInfo.accountNumber}</div>
                     <div>{msg.payload.accountInfo.holderName}</div>
-                    {renderAccountExtra?.(msg.payload.accountInfo)}
+                    {renderAccountExtra?.(msg.payload.accountInfo, msg.payload.commitmentSalt)}
                   </div>
                 ) : (
                   <div style={styles.text}>{msg.payload.content}</div>

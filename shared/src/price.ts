@@ -156,6 +156,9 @@ export function createPriceTracker(): PriceTracker {
 
     const config = EXCHANGES[index];
     const state = states[index];
+    // 인덱스는 호출부에서 항상 유효하지만, 여기서 한 번 좁혀두면
+    // 아래 콜백들이 전부 non-null로 읽힌다.
+    if (!config || !state) return;
 
     // 기존 연결 정리
     cleanupSocket(index);
@@ -270,8 +273,11 @@ export function createPriceTracker(): PriceTracker {
           clearTimeout(reconnectTimers[i]!);
           reconnectTimers[i] = null;
         }
-        states[i].connected = false;
-        states[i].price = null;
+        const state = states[i];
+        if (state) {
+          state.connected = false;
+          state.price = null;
+        }
       }
       notify();
     },
@@ -293,8 +299,9 @@ function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 0) {
-    return (sorted[mid - 1] + sorted[mid]) / 2;
-  }
-  return sorted[mid];
+  const hi = sorted[mid];
+  if (hi === undefined) return null;
+  if (sorted.length % 2 !== 0) return hi;
+  const lo = sorted[mid - 1];
+  return lo === undefined ? hi : (lo + hi) / 2;
 }

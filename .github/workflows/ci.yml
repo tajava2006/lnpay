@@ -1,0 +1,33 @@
+name: CI
+
+# 빌드·테스트·타입체크가 전부 수동이었다(감사 C-3).
+# ship 스크립트에 verify를 넣었지만 그건 배포하는 사람만 돌린다 —
+# 푸시 시점에 한 번 더 잡아야 깨진 채로 올라가는 걸 막는다.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # 타입체크 + 테스트 (shared / customer / admin)
+      - run: pnpm verify
+
+      # 유저스크립트 포함 전 앱이 실제로 빌드되는지
+      - run: pnpm build:userscript
+      - run: pnpm build:customer
+      - run: pnpm build:sponsor
+      - run: pnpm build:admin

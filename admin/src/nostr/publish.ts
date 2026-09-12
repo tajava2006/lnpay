@@ -266,3 +266,46 @@ export async function publishClaimPriceError(
     pool.destroy();
   }
 }
+
+/**
+ * 후원자에게 계좌정보 공개를 요청한다 (분쟁 중재용).
+ *
+ * 공개는 커밋먼트 대조를 위한 분쟁 대응 수단이다. 후원자 화면에서 이 요청을
+ * 받기 전에는 공개 버튼이 열리지 않는다 — 정상 흐름에서 계좌가 Admin에게까지
+ * 흘러가는 일을 막기 위해서다.
+ */
+export async function publishRevealRequest(
+  orderId: string,
+  sponsorPubkey: string,
+  expiration: number,
+): Promise<void> {
+  const signer = getSigner();
+  if (!signer) throw new Error('로그인되지 않음: signer 없음');
+
+  const tags: string[][] = [
+    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+    ['action', REQUEST_ACTIONS.REVEAL_REQUEST],
+    ['t', CLIENT_TAG],
+    ['p', sponsorPubkey],
+    ['p', APP_PUBKEY],
+  ];
+  if (expiration > 0) tags.push(['expiration', String(expiration)]);
+
+  const template: EventTemplate = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: '',
+  };
+
+  const signed = await signer.signEvent(template);
+
+  const relays = await getReadRelays(storage);
+  const pool = new SimplePool();
+  try {
+    await Promise.allSettled(pool.publish(relays, signed));
+    console.log('[Admin] 계좌정보 공개 요청 발행:', orderId, '→', sponsorPubkey.slice(0, 12));
+  } finally {
+    pool.destroy();
+  }
+}

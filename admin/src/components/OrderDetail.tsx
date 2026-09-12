@@ -10,7 +10,7 @@ import type { Order, Request, PriceTracker, DisputeMessagePayload } from '@sajwo
 import type { LightningAdapter } from '../lightning';
 import type { HoldInvoiceStatus } from '../lightning/types';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
-import { publishDisputeMessage, publishDepositStatus, publishDepositRequired } from '../nostr/publish';
+import { publishDisputeMessage, publishDepositStatus, publishDepositRequired, publishRevealRequest } from '../nostr/publish';
 import { getPendingDeposit } from '../pending-deposit-store';
 import { resolveDisputeSponsorWins, resolveDisputeCustomerWins } from '../nostr/service';
 import { getEscrowEntry, getPreimage } from '../escrow-store';
@@ -54,6 +54,7 @@ const requestActionLabel: Record<string, string> = {
   'deposit-cancelled': '보증금 환불',
   'deposit-settled': '보증금 몰수',
   'claim-price-error': '가격 오류 알림',
+  'reveal-request': '계좌정보 공개 요청',
 };
 
 const requestSenderLabel: Record<string, string> = {
@@ -68,6 +69,7 @@ const requestSenderLabel: Record<string, string> = {
   'deposit-cancelled': '어드민',
   'deposit-settled': '어드민',
   'claim-price-error': '어드민',
+  'reveal-request': '어드민',
 };
 
 const cDepositStatusLabel: Record<HoldInvoiceStatus, string> = {
@@ -102,6 +104,7 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
   const [requests, setRequests] = useState<Request[]>([]);
   const [resolving, setResolving] = useState(false);
   const [accountCommitment, setAccountCommitment] = useState<string | undefined>();
+  const [requestingReveal, setRequestingReveal] = useState(false);
 
   // ── 고객 보증금 인보이스 상태 ──────────────────────
   const [cDepositStatus, setCDepositStatus] = useState<HoldInvoiceStatus | null>(null);
@@ -170,6 +173,23 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
     const payload: DisputeMessagePayload = { type: 'text', content: text };
     await publishDisputeMessage(orderId, sponsorPubkey, payload);
   }, [orderId, sponsorPubkey]);
+
+  // 계좌정보 공개 요청 (분쟁 중재용).
+  // 이 요청을 보내야 후원자 화면의 공개 버튼이 열린다 — remitted는 정상 상태라
+  // 버튼이 늘 보이면 분쟁이 아닌데도 계좌가 Admin에게 흘러온다.
+  const handleRevealRequest = useCallback(async () => {
+    if (!order?.sponsorPubkey) return;
+    setRequestingReveal(true);
+    try {
+      await publishRevealRequest(order.orderId, order.sponsorPubkey, order.expiration);
+      alert('후원자에게 계좌정보 공개를 요청했습니다.');
+    } catch (e) {
+      console.error('[Admin] 공개 요청 발행 실패:', e);
+      alert('공개 요청 발행에 실패했습니다.');
+    } finally {
+      setRequestingReveal(false);
+    }
+  }, [order]);
 
   // Dispute resolution
   const handleSponsorWins = useCallback(async () => {
@@ -514,6 +534,24 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
       {order.state === 'remitted' && (
         <div style={styles.disputeSection}>
           <div style={styles.disputeTitle}>분쟁 판정</div>
+
+          {/* 공개 요청을 보내야 후원자 화면의 공개 버튼이 열린다.
+              그 전에는 정상 흐름에서 계좌가 Admin에게 흘러오지 않는다. */}
+          {sponsorPubkey && (
+            <div style={styles.revealRequestRow}>
+              <button
+                style={styles.revealRequestBtn}
+                onClick={() => void handleRevealRequest()}
+                disabled={requestingReveal}
+              >
+                {requestingReveal ? '요청 중...' : '계좌정보 공개 요청'}
+              </button>
+              <span style={styles.revealRequestHint}>
+                후원자가 받은 계좌를 제출하면 커밋먼트와 대조 검증됩니다
+              </span>
+            </div>
+          )}
+
           <div style={styles.disputeButtons}>
             <button
               style={styles.sponsorWinsBtn}
@@ -760,6 +798,28 @@ const styles = {
     fontWeight: 600 as const,
     color: '#DC2626',
     marginBottom: 12,
+  },
+  revealRequestRow: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+    marginBottom: 12,
+  },
+  revealRequestBtn: {
+    alignSelf: 'flex-start' as const,
+    padding: '8px 14px',
+    background: '#FEF3C7',
+    color: '#92400E',
+    border: '1px solid #FDE68A',
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600 as const,
+    cursor: 'pointer' as const,
+    fontFamily: 'inherit',
+  },
+  revealRequestHint: {
+    fontSize: 11,
+    color: '#92400E',
   },
   disputeButtons: {
     display: 'flex',

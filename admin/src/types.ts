@@ -97,6 +97,7 @@ export function parseRequestEvent(event: Event): Request | null {
     case 'deposit-accepted':
     case 'deposit-cancelled':
     case 'deposit-settled':
+    case 'reveal-request':
       return { ...base, action };
     default:
       console.warn('[parseRequestEvent] Unknown action:', action);

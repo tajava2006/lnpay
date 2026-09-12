@@ -12,6 +12,7 @@ import {
 import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
 
 import { publishDisputeMessage, publishAccountReveal } from '../nostr/claim';
+import { subscribeRevealRequests, getRevealRequestSnapshot } from '../reveal-request-store';
 
 interface Props {
   orderId: string;
@@ -65,6 +66,12 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
       clearMessages(orderId);
     };
   }, [orderId]);
+
+  // Admin이 공개를 요청했는지. 요청 전에는 버튼 자체를 열지 않는다 —
+  // remitted는 '원화 송금했어요' 직후의 정상 상태라, 버튼이 보이면
+  // 흐름의 일부인 줄 알고 계좌를 Admin에게 그냥 보내는 일이 생긴다.
+  const revealRequests = useSyncExternalStore(subscribeRevealRequests, getRevealRequestSnapshot);
+  const revealRequested = revealRequests[orderId] !== undefined;
 
   const chatSnapshot = useSyncExternalStore(subscribeChatStore, getChatSnapshot);
   const messages = chatSnapshot[orderId] ?? [];
@@ -157,7 +164,7 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
       </div>
 
       {/* 계좌정보 공개 (분쟁 상태에서만 표시) */}
-      {hasAccountInfo && (order.state === 'remitted' || order.state === 'sponsor_wins' || order.state === 'customer_wins') && (
+      {hasAccountInfo && revealRequested && (
         <div style={styles.revealSection}>
           <button
             style={styles.revealBtn}
@@ -167,7 +174,8 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
             {revealing ? '전송 중...' : '계좌정보 공개'}
           </button>
           <span style={styles.revealHint}>
-            Admin에게 원래 전달받은 계좌정보를 공개하여 커밋먼트 검증을 받습니다
+            Admin이 분쟁 중재를 위해 계좌정보 공개를 요청했습니다.
+            전달받은 계좌를 그대로 제출하면 커밋먼트와 대조 검증됩니다.
           </span>
         </div>
       )}

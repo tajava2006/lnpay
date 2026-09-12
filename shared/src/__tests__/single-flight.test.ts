@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createSingleFlight } from '@sajwo-tracker/shared';
+import { createSingleFlight } from '../index';
 
 /** resolve를 밖에서 잡아 완료 시점을 조종한다. */
 function deferred<T>() {

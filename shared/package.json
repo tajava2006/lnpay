@@ -17,6 +17,11 @@
     "@types/react": "^19.2.18",
     "react": "^19.2.8",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   }
 }

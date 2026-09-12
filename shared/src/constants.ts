@@ -52,6 +52,8 @@ export const REQUEST_ACTIONS = {
   DEPOSIT_ACCEPTED: 'deposit-accepted',
   DEPOSIT_CANCELLED: 'deposit-cancelled',
   DEPOSIT_SETTLED: 'deposit-settled',
+  /** Admin → 후원자: 분쟁 중재를 위해 받은 계좌정보를 공개해 달라는 요청 */
+  REVEAL_REQUEST: 'reveal-request',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 

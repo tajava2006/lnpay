@@ -98,7 +98,8 @@ export interface AccountInfoRequest extends RequestBase {
 /** 추가 데이터 없는 요청 */
 export interface SimpleRequest extends RequestBase {
   action: 'payment-confirm' | 'cancel-request' | 'remit-request' | 'dispute-message' | 'claim-price-error'
-    | 'deposit-required' | 'deposit-accepted' | 'deposit-cancelled' | 'deposit-settled';
+    | 'deposit-required' | 'deposit-accepted' | 'deposit-cancelled' | 'deposit-settled'
+    | 'reveal-request';
 }
 
 export type Request = OrderRequest | ClaimRequest | AccountInfoRequest | SimpleRequest;

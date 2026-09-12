@@ -5,8 +5,8 @@ import {
   computeAccountCommitment,
   verifyAccountCommitment,
   parseAccountInfoEnvelope,
-} from '@sajwo-tracker/shared';
-import type { AccountInfo } from '@sajwo-tracker/shared';
+} from '../index';
+import type { AccountInfo } from '../index';
 
 const ACCOUNT: AccountInfo = { bankName: '국민', accountNumber: '123456-01-789012', holderName: '홍길동' };
 

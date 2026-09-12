@@ -1,4 +1,4 @@
-import { useState, useCallback, useSyncExternalStore } from 'react';
+import { useState, useCallback, useSyncExternalStore, lazy, Suspense } from 'react';
 import { InvoicePayBlock, sponsorRelation } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim, publishRemitRequest } from '../nostr/claim';
@@ -8,7 +8,9 @@ import type { Bolt11Result } from '../bolt11';
 import { subscribeAccountInfo, getAccountInfoSnapshot } from '../account-store';
 import { subscribeClaimErrors, getClaimErrorSnapshot, clearClaimError } from '../claim-error-store';
 import { subscribe as subscribeDeposits, getSnapshot as getDepositSnapshot } from '../deposit-store';
-import { QrScanner } from './QrScanner';
+// QR 스캐너는 jsqr(~30KB)을 끌고 오는데 클레임할 때만 쓴다.
+// 첫 화면이 오더북이라 대부분의 방문에서 쓰이지 않으므로 지연 로딩한다.
+const QrScanner = lazy(() => import('./QrScanner').then(m => ({ default: m.QrScanner })));
 
 interface Props {
   order: Order;
@@ -215,7 +217,9 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
                 </button>
               </div>
               {showQrScanner && (
-                <QrScanner onScan={handleQrScan} onClose={() => setShowQrScanner(false)} />
+                <Suspense fallback={null}>
+                  <QrScanner onScan={handleQrScan} onClose={() => setShowQrScanner(false)} />
+                </Suspense>
               )}
               {invoiceResult && !invoiceResult.valid && (
                 <p style={styles.invoiceError}>{invoiceResult.error}</p>

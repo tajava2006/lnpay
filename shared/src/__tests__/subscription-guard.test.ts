@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createSubscriptionGuard } from '@sajwo-tracker/shared';
+import { createSubscriptionGuard } from '../index';
 
 /** 시작이 await에 걸려 있는 구독 팩토리. resolve()로 완료 시점을 직접 조종한다. */
 function deferredFactory() {

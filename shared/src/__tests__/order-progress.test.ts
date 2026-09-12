@@ -4,8 +4,8 @@ import {
   resolveProgress,
   stepActor,
   sponsorRelation,
-} from '@sajwo-tracker/shared';
-import type { OrderState } from '@sajwo-tracker/shared';
+} from '../index';
+import type { OrderState } from '../index';
 
 const idx = (state: OrderState) => PROGRESS_STEPS.findIndex(s => s.state === state);
 

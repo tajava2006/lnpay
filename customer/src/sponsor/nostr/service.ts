@@ -27,6 +27,7 @@ import { upsertOrder, markSynced } from '../order-store';
 import { setAccountInfo } from '../account-store';
 import { setClaimError } from '../claim-error-store';
 import { setDepositBolt11, setDepositStatus } from '../deposit-store';
+import { setRevealRequested } from '../reveal-request-store';
 import type { AccountInfoEvent } from '../types';
 
 // ── Admin kind 30402 ───────────────────────────────
@@ -79,6 +80,17 @@ export function handleInboxEvent(event: Event): boolean {
   if (action === REQUEST_ACTIONS.DEPOSIT_SETTLED && event.pubkey === APP_PUBKEY) {
     const orderId = extractOrderId(event.tags);
     if (orderId) setDepositStatus(orderId, 'settled');
+    return true;
+  }
+
+  // Admin이 분쟁 중재를 위해 계좌정보 공개를 요청했다.
+  // 이 신호가 있어야 후원자 화면의 공개 버튼이 열린다.
+  if (action === REQUEST_ACTIONS.REVEAL_REQUEST && event.pubkey === APP_PUBKEY) {
+    const orderId = extractOrderId(event.tags);
+    if (orderId) {
+      setRevealRequested(orderId, event.created_at);
+      console.log('[후원자] Admin이 계좌정보 공개를 요청함:', orderId);
+    }
     return true;
   }
 

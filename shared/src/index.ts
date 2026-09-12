@@ -9,6 +9,7 @@ export {
   SAJWO_REQUEST_EVENT_KIND,
   CLIENT_TAG,
   STORAGE_KEYS,
+  ORDER_DB_NAME,
   DISCOVERY_RELAYS,
   FALLBACK_RELAYS,
   NOSTR_SINCE,
@@ -42,6 +43,9 @@ export {
   idbGetOrdersPage,
   idbMigrateOrderWithRequests,
 } from './idb';
+
+// 분쟁 채팅 on-demand 구독 (고객·후원자 공용)
+export { subscribeChatMessages } from './chat-subscribe';
 
 // Dispute Message (공통 처리)
 export { extractOrderId, processDisputeEvent } from './dispute-message';

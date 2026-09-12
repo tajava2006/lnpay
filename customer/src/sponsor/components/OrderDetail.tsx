@@ -6,10 +6,11 @@ import {
   getUserPubkey,
   storage,
   ChatWindow,
+  subscribeChatMessages,
   OrderProgress,
 } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
-import { subscribeChatMessages } from '../nostr/chat-subscribe';
+
 import { publishDisputeMessage, publishAccountReveal } from '../nostr/claim';
 
 interface Props {
@@ -97,6 +98,11 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
     ? Math.round((order.price / btcPrice) * 1e8)
     : null;
 
+  // 이 화면은 내역 탭에서도 열리므로 내가 고객이었던 주문이 들어올 수 있다.
+  // 진행도 안내를 역할에 맞춰야 해서 오더에서 유도한다 — 칼럼 없이 pubkey 비교로.
+  // 자기 클레임을 Admin이 막으므로 둘 다 참일 수는 없다.
+  const myRole = order && myPubkey && order.customerPubkey === myPubkey ? 'customer' : 'sponsor';
+
   if (!order) {
     return <div style={styles.loading}>오더 불러오는 중...</div>;
   }
@@ -144,7 +150,7 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
 
       <div style={styles.progressWrap}>
         <OrderProgress
-          role="sponsor"
+          role={myRole}
           state={order.state}
           accountInfoSent={hasAccountInfo}
         />

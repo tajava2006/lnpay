@@ -18,6 +18,16 @@ export const STORAGE_KEYS = {
 } as const;
 
 /**
+ * 통합 앱(고객+후원자)의 IndexedDB 이름.
+ *
+ * 이름은 역사적 잔재다. 두 앱을 합칠 때 고객앱 DB를 그대로 승계했는데,
+ * 거기 만료 없는 분쟁 채팅(증거)이 쌓여 있어 이름을 바꾸면 복사
+ * 마이그레이션을 쓰거나 버려야 했기 때문이다. 이름값 하나 때문에
+ * 마이그레이션을 도입할 이유가 없어 그대로 둔다.
+ */
+export const ORDER_DB_NAME = 'customer-history';
+
+/**
  * Nostr 구독 since 필터 (테스트 중 데이터 격리용, 임시).
  * .env의 VITE_NOSTR_SINCE에 Unix 타임스탬프를 설정하면
  * 해당 시각 이후 이벤트만 구독한다. 미설정 시 필터 없음.

@@ -5,20 +5,24 @@
 ## 프로젝트 요약
 
 비트코인 P2P 거래 에스크로 플랫폼 "사줘 트래커".
-Customer(BTC로 물건 구매)와 Sponsor(KRW→BTC 환전)를 Nostr로 연결한다.
+고객(BTC로 물건 구매)과 후원자(KRW→BTC 환전)를 Nostr로 연결한다.
 Admin이 에스크로(Lightning 유동성 검증, 분쟁 중재)를 제공한다.
+
+**두 역할은 한 앱·한 키다** (2026-09-12 통합). 탭으로 역할을 가르고, 참여 역할은
+오더의 customerPubkey/sponsorPubkey와 내 pubkey를 비교해 유도한다 — 별도 칼럼 없음.
+한 주문에서 둘 다 참일 수 있는 경로는 자기 클레임뿐인데 Admin FSM이 막는다.
 
 ## 빌드 & 실행
 
 ```bash
 pnpm install                          # 의존성 설치
-pnpm build:customer                   # Customer 웹앱 빌드
-pnpm build:sponsor                    # Sponsor React SPA 빌드
+pnpm build:customer                   # 통합 유저 앱 빌드 (고객+후원자)
+pnpm build:sponsor                    # 구 후원자 도메인 리다이렉트 페이지 빌드
 pnpm build:admin                      # Admin React SPA 빌드
 pnpm build:userscript                 # 유저스크립트 빌드 (prod)
 pnpm build:userscript:dev             # 유저스크립트 빌드 (dev, CLIENT_TAG=sajwo-tracker-dev)
-pnpm dev:customer                     # Customer 개발 서버
-pnpm dev:sponsor                      # Sponsor 개발 서버 (port 5174)
+pnpm dev:customer                     # 통합 유저 앱 개발 서버
+pnpm dev:sponsor                      # 리다이렉트 페이지 개발 서버 (port 5174)
 pnpm dev:admin                        # Admin 개발 서버
 ./update-deps.sh                      # 의존성 전부 latest로 최신화 + 테스트/빌드 검증
 ```
@@ -52,10 +56,14 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
 
 ```
 sajwo-tracker/                ← pnpm workspace 모노레포
-  shared/                     ← @sajwo-tracker/shared (Nostr 공통: 키, 릴레이, 상수, 타입)
-  customer/                   ← @sajwo-tracker/customer (React 19 SPA + Tampermonkey 유저스크립트)
+  shared/                     ← @sajwo-tracker/shared (Nostr 공통: 키, 릴레이, 상수, 타입, 공용 컴포넌트)
+  customer/                   ← @sajwo-tracker/customer — 통합 유저 앱 (고객 역할 + 후원자 역할)
+    src/buyer/                ←   고객 역할 (내 주문 탭)
+    src/sponsor/              ←   후원자 역할 (주문 찾기 탭)
+    src/history/              ←   내역 탭 (역할은 pubkey 비교로 유도, 칼럼 없음)
+    src/nostr/                ←   통합 구독 (소켓 한 벌) → 역할별 핸들러 팬아웃
   customer/userscript/        ← 쿠팡 자동파싱 유저스크립트 (esbuild IIFE 번들)
-  sponsor/                    ← @sajwo-tracker/sponsor (React 19 SPA)
+  sponsor/                    ← 정적 리다이렉트 껍데기 (구 후원자 도메인 전환 안내)
   admin/                      ← @sajwo-tracker/admin (React 19 SPA, 순수 프론트엔드 에스크로)
 ```
 
@@ -72,7 +80,9 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 ## 코딩 규칙
 
 - TypeScript strict 모드. `any` 금지.
-- Nostr 코드는 각 앱의 `nostr/` 디렉토리에 모듈화.
+- Nostr 코드는 각 앱의 `nostr/` 디렉토리에 모듈화. 통합 앱은 `src/nostr/`가 소켓을
+  단독 소유하고 역할별 핸들러(`src/buyer/nostr`, `src/sponsor/nostr`)로 팬아웃한다 —
+  역할 모듈은 구독을 직접 만들지 않는다.
 - 이벤트에는 반드시 `expiration` 태그 포함 (릴레이 찌꺼기 방지). **예외: `dispute-message` 이벤트는 분쟁 증거 보존 목적으로 만료 없음.**
 - 빌드 확인: 코드 수정 후 `pnpm build:customer && pnpm build:sponsor && pnpm build:admin` 통과 필수.
 - Dev/Prod 데이터 격리: `CLIENT_TAG`가 dev(`sajwo-tracker-dev`) / prod(`sajwo-tracker`)로 분리.

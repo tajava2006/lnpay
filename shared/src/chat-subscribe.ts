@@ -12,19 +12,17 @@ import {
   APP_PUBKEY,
   CLIENT_TAG,
   REQUEST_ACTIONS,
-  getSecretKey,
-  getUserPubkey,
-  getReadRelays,
-  nip44Decrypt,
-  type ChatMessage,
-  type DisputeMessagePayload,
-  storage,
-} from '@sajwo-tracker/shared';
+} from './constants';
+import { getSecretKey, getUserPubkey } from './keys';
+import { getReadRelays } from './relays';
+import { nip44Decrypt } from './crypto';
+import { storage } from './storage';
+import type { ChatMessage, DisputeMessagePayload } from './types';
 
 /**
  * 특정 오더의 dispute-message를 실시간 구독한다.
  *
- * Customer NIP-44 복호화:
+ * NIP-44 복호화 (고객·후원자 공용):
  * - 자기 참여 메시지만 처리 (발신 or 수신)
  * - ECDH 대칭성으로 항상 APP_PUBKEY를 remote pubkey로 사용
  */
@@ -59,7 +57,7 @@ export async function subscribeChatMessages(
 
         let plaintext: string;
         try {
-          // ECDH 대칭성: customer_sk * APP_PUBKEY === admin_sk * customer_pubkey
+          // ECDH 대칭성: my_sk * APP_PUBKEY === admin_sk * my_pubkey
           plaintext = nip44Decrypt(event.content, sk, APP_PUBKEY);
         } catch {
           return;

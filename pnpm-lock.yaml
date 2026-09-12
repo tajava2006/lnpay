@@ -59,6 +59,9 @@ importers:
       '@sajwo-tracker/shared':
         specifier: workspace:*
         version: link:../shared
+      jsqr:
+        specifier: ^1.4.0
+        version: 1.4.0
       light-bolt11-decoder:
         specifier: ^3.2.0
         version: 3.2.0
@@ -117,41 +120,7 @@ importers:
         version: 8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(tsx@4.21.0)
 
   sponsor:
-    dependencies:
-      '@sajwo-tracker/shared':
-        specifier: workspace:*
-        version: link:../shared
-      jsqr:
-        specifier: ^1.4.0
-        version: 1.4.0
-      light-bolt11-decoder:
-        specifier: ^3.2.0
-        version: 3.2.0
-      nostr-tools:
-        specifier: ^2.25.2
-        version: 2.25.2(typescript@7.0.2)
-      qrcode.react:
-        specifier: ^4.2.0
-        version: 4.2.0(react@19.2.8)
-      react:
-        specifier: ^19.2.8
-        version: 19.2.8
-      react-dom:
-        specifier: ^19.2.8
-        version: 19.2.8(react@19.2.8)
     devDependencies:
-      '@types/react':
-        specifier: ^19.2.18
-        version: 19.2.18
-      '@types/react-dom':
-        specifier: ^19.2.7
-        version: 19.2.7(@types/react@19.2.18)
-      '@vitejs/plugin-react':
-        specifier: ^6.1.1
-        version: 6.1.1(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(tsx@4.21.0))
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
       vite:
         specifier: ^8.2.2
         version: 8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(tsx@4.21.0)

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { InvoicePayBlock } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
-import { decodeBolt11 } from '../utils/bolt11';
+import { decodeBolt11 } from '../bolt11';
 
 interface Props {
   orderId: string;

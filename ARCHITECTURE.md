@@ -81,16 +81,26 @@ KRW 입금이 확인되면 settle하여 BTC를 수령하고 Sponsor에게 전송
 │                         Nostr Network                           │
 │                    (탈중앙화 릴레이 서버)                          │
 └─────────────────────────────────────────────────────────────────┘
-        ↑                    ↑                    ↑
-        │                    │                    │
-   ┌────┴────┐          ┌────┴────┐          ┌────┴────┐
-   │ Customer │          │ Sponsor │          │  Admin  │
-   │   App    │          │   App   │          │   App   │
-   └─────────┘          └─────────┘          └─────────┘
-   React SPA +            React SPA            React SPA
-   유저스크립트           (KRW→BTC 환전)     (에스크로 + LN 노드 제어)
-   (BTC로 물건 구매)
+        ↑                                         ↑
+        │                                         │
+   ┌────┴──────────────┐                    ┌─────┴───┐
+   │   통합 유저 앱     │                    │  Admin  │
+   │  내 주문 / 주문 찾기 │                    │   App   │
+   │      / 내역        │                    └─────────┘
+   └───────────────────┘                     React SPA
+   React SPA + 유저스크립트              (에스크로 + LN 노드 제어)
+   (양쪽 역할을 한 키로)
 ```
+
+> **2026-09-12 통합**: 고객앱과 후원자앱을 하나로 합쳤다. 두 앱은 구독 필터가
+> 문자 그대로 같았고(30402 authors=APP / 1111 #p=me), 오리진이 달라 키가 갈리는
+> 것이 유일한 실질적 차이였다. 합치면서 한 키가 두 역할을 겸하게 되어
+> **자기 주문 자기 클레임 금지**가 Admin FSM에 추가됐다 — 이 가드가 있어야
+> "내가 어느 역할로 참여했는가"를 pubkey 비교로 유도할 수 있다.
+>
+> 구 후원자 도메인(`sponsor.`)은 정적 리다이렉트 껍데기만 남는다. 키는 오리진별
+> localStorage에 묶여 있어 따라가지 않으므로, 구 후원자 사용자는 새 키를 받고
+> 이전 내역을 잃는다(전환 시점 미완결 주문 0건을 릴레이에서 확인한 뒤 진행).
 
 ### 레포지토리 구조
 
@@ -101,19 +111,28 @@ sajwo-tracker/              ← pnpm workspace 루트
   ARCHITECTURE.md
   PROTOCOL.md
   TODO.md
-  shared/                   ← 3개 앱 공통 Nostr 모듈
-  customer/                 ← Customer 웹앱 (React 19 SPA)
-    customer/userscript/    ← 쿠팡 자동파싱 유저스크립트
-  sponsor/                  ← Sponsor React SPA
+  shared/                   ← 공통 Nostr 모듈 + 공용 컴포넌트
+  customer/                 ← 통합 유저 앱 (React 19 SPA)
+    src/buyer/              ←   고객 역할 (내 주문)
+    src/sponsor/            ←   후원자 역할 (주문 찾기)
+    src/history/            ←   내역 (역할 유도 + 필터)
+    src/nostr/              ←   통합 구독 (소켓 한 벌) + 역할별 팬아웃
+    userscript/             ←   쿠팡 자동파싱 유저스크립트
+  sponsor/                  ← 정적 리다이렉트 껍데기 (구 도메인용)
   admin/                    ← Admin 에스크로 서비스 (순수 프론트엔드)
 ```
+
+> 패키지 이름 `customer/`와 IndexedDB 이름 `customer-history`는 역사적 잔재다.
+> 통합 시 고객앱 쪽을 살렸고(유저스크립트가 그 키에 묶여 있었다), DB에는 만료
+> 없는 분쟁 채팅이 쌓여 있어 이름을 바꾸려면 복사 마이그레이션이 필요했다.
+> 이름값 하나 때문에 마이그레이션을 도입하지 않았다.
 
 | 폴더 | 설명 | 형태 | 대상 사용자 |
 |------|------|------|------------|
 | `shared/` | Nostr 공통 모듈 (키, 릴레이, 상수, 타입) | TypeScript 라이브러리 | - |
-| `customer/` | 주문 수동/자동 입력 + 사줘 요청 발행 | React 19 SPA | 비트코인으로 물건을 사고 싶은 사람 |
-| `customer/userscript/` | 쿠팡 무통장입금 자동 감지 + Nostr 발행 | esbuild IIFE (Tampermonkey) | (Customer와 동일) |
-| `sponsor/` | 오더북에서 사줘 요청 확인 + 클레임 발행 | React SPA | 거래소 없이 BTC를 사고 싶은 사람 |
+| `customer/` | 통합 유저 앱 — 주문 등록·발행(고객) + 오더북·클레임(후원자) + 내역 | React 19 SPA | 일반 사용자 (한 키로 양쪽 역할) |
+| `customer/userscript/` | 쿠팡 무통장입금 자동 감지 + Nostr 발행 | esbuild IIFE (Tampermonkey) | (통합 앱과 동일 키) |
+| `sponsor/` | 구 후원자 도메인 → 통합 앱 안내/리다이렉트 | 정적 HTML | (전환 안내용) |
 | `admin/` | 에스크로 (유동성 검증, 중재) | React SPA (순수 프론트엔드) | 시스템 운영자 |
 
 ## Shared 패키지
@@ -253,7 +272,7 @@ shared/src/
 - 대시보드에서 수동 입력 또는 감지된 주문으로 사줘 요청 발행
 - 파싱 주문(source='parsed')은 계좌정보 편집 불가, escrowed 시 자동 전달
 - NIP-44 암호화 계좌정보를 Sponsor에게 직접 전달 (SHA-256 commitment 포함)
-- IndexedDB에 분쟁 채팅 메시지 영구 보존 (오더/리퀘스트는 기존 localStorage 유지)
+- IndexedDB에 분쟁 채팅 + **내가 고객으로 관여한 오더** 영구 보존 (표시용 사본은 localStorage, 만료 시 삭제)
 
 #### Customer 데이터 흐름
 

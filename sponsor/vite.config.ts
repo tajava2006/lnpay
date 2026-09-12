@@ -1,16 +1,6 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import { execSync } from 'child_process';
 
-const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
-
+// 후원자앱은 고객앱과 합쳐졌다. 정적 안내/리다이렉트 페이지만 빌드한다.
 export default defineConfig({
-  envDir: '..',
-  plugins: [react()],
-  define: {
-    __COMMIT_HASH__: JSON.stringify(commitHash),
-  },
-  server: {
-    port: 5174,
-  },
+  server: { port: 5174 },
 });

@@ -1,9 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { initIdb } from '@sajwo-tracker/shared';
+import { initIdb, ORDER_DB_NAME } from '@sajwo-tracker/shared';
 import { App } from './App';
 
-initIdb('customer-history');
+initIdb(ORDER_DB_NAME);
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');

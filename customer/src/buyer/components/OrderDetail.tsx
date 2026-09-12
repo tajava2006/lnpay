@@ -5,9 +5,10 @@ import {
   getUserPubkey,
   storage,
   ChatWindow,
+  subscribeChatMessages,
   OrderProgress,
 } from '@sajwo-tracker/shared';
-import { subscribeChatMessages } from '../nostr/chat-subscribe';
+
 import { publishDisputeMessage } from '../nostr/publish';
 import { getDisplayMeta } from '../order-states';
 import type { DisputeMessagePayload } from '@sajwo-tracker/shared';

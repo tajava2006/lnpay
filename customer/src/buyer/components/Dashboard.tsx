@@ -1,13 +1,12 @@
 import { useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, clearDeletableOrders } from '../order-store';
 import { isDeletable } from '../order-states';
-import { BtcPrice } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { OrderForm } from './OrderForm';
 import { OrderTable } from './OrderTable';
 import { ParsedOrdersSection } from './ParsedOrdersSection';
 import { UserscriptGuide } from './UserscriptGuide';
-import { ToastContainer } from './Toast';
+import { ToastContainer } from '../../components/Toast';
 
 interface Props {
   tracker: PriceTracker;
@@ -24,12 +23,10 @@ export function Dashboard({ tracker }: Props) {
 
   return (
     <>
-      <div className="header">
-        <h1>사줘 트래커</h1>
+      {/* 제목과 시세는 App 셸이 그린다 — 탭 전환과 무관하게 늘 떠 있어야 하므로 */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <button className="btn btn-secondary" onClick={handleClearAll}>전체 삭제</button>
       </div>
-
-      <BtcPrice tracker={tracker} />
 
       <ParsedOrdersSection />
       <OrderForm />

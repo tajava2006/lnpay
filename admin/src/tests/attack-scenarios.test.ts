@@ -251,6 +251,34 @@ describe('pubkey 위조 공격 — 타인 권한 사칭', () => {
   });
 });
 
+// ── 자기 거래 (앱 통합 이후 한 키가 양쪽 역할을 겸한다) ──────────────
+
+describe('자기 클레임 공격 — 자기 주문을 자기가 수주', () => {
+  it('Customer가 자기 주문 클레임 → 차단', async () => {
+    upsertOrder(makeOrder({ state: 'requested' }));
+    await handleClaim(makeClaimRequest({ pubkey: CUSTOMER_PUBKEY }));
+    expect(publishOrderSpy).not.toHaveBeenCalled();
+    expect(getOrder('order-1')?.state).toBe('requested');
+  });
+
+  // 막지 않으면 customerPubkey === sponsorPubkey인 오더가 생겨
+  // "내가 어느 역할로 참여했는가"를 유도할 수 없게 된다 — 내역 화면의 전제가 깨진다.
+  it('차단 후에는 어떤 오더도 양쪽 pubkey가 같아질 수 없다', async () => {
+    upsertOrder(makeOrder({ state: 'requested' }));
+    await handleClaim(makeClaimRequest({ pubkey: CUSTOMER_PUBKEY }));
+
+    const order = getOrder('order-1')!;
+    expect(order.sponsorPubkey).toBeUndefined();
+    expect(order.sponsorPubkey === order.customerPubkey).toBe(false);
+  });
+
+  it('남의 주문 클레임은 계속 정상 동작', async () => {
+    upsertOrder(makeOrder({ state: 'requested' }));
+    await handleClaim(makeClaimRequest({ pubkey: SPONSOR_PUBKEY }));
+    expect(publishOrderSpy).toHaveBeenCalled();
+  });
+});
+
 // ── 정상 플로우 (positive case) ──────────────────────────────────────
 
 describe('정상 플로우 — 올바른 Actor가 올바른 액션 수행', () => {

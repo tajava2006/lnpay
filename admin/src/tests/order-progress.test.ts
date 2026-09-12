@@ -98,36 +98,46 @@ describe('resolveProgress', () => {
 describe('sponsorRelation', () => {
   const ME = 'a'.repeat(64);
   const OTHER = 'b'.repeat(64);
+  const THIRD = 'c'.repeat(64);
 
-  it('requested는 내 키를 몰라도 항상 열려 있다', () => {
-    expect(sponsorRelation({ state: 'requested' }, null)).toBe('open');
-    expect(sponsorRelation({ state: 'requested', sponsorPubkey: OTHER }, ME)).toBe('open');
+  it('남이 올린 requested 주문은 열려 있다', () => {
+    expect(sponsorRelation({ state: 'requested', customerPubkey: OTHER }, ME)).toBe('open');
+  });
+
+  // 앱 통합으로 한 키가 양쪽 역할을 겸하게 되면서 생긴 경우.
+  // customerPubkey 검사가 requested 검사보다 먼저 와야 한다 —
+  // 안 그러면 내가 올린 주문이 내 오더북에 클레임 가능한 것으로 뜬다.
+  it('내가 올린 주문은 상태와 무관하게 own', () => {
+    for (const state of ['requested', 'claimed', 'escrowed', 'paid'] as const) {
+      expect(sponsorRelation({ state, customerPubkey: ME }, ME)).toBe('own');
+    }
   });
 
   // 핵심 회귀 방지: Admin이 클레임을 철회하면 오더는 requested로 돌아오고
   // sponsorPubkey도 지워지지만, 남이 보낸 kind 1111 클레임 이벤트는 릴레이에 남는다.
   // 이벤트 존재를 근거로 삼으면 다시 열린 주문을 영영 잠긴 것으로 오판한다.
   it('클레임 철회로 requested로 되돌아온 주문은 다시 열린다', () => {
-    const taken = { state: 'claimed' as const, sponsorPubkey: OTHER };
+    const taken = { state: 'claimed' as const, customerPubkey: OTHER, sponsorPubkey: THIRD };
     expect(sponsorRelation(taken, ME)).toBe('taken');
 
-    const reverted = { state: 'requested' as const, sponsorPubkey: undefined };
+    const reverted = { state: 'requested' as const, customerPubkey: OTHER, sponsorPubkey: undefined };
     expect(sponsorRelation(reverted, ME)).toBe('open');
   });
 
   it('내가 클레임한 거래는 mine', () => {
-    expect(sponsorRelation({ state: 'escrowed', sponsorPubkey: ME }, ME)).toBe('mine');
+    expect(sponsorRelation({ state: 'escrowed', customerPubkey: OTHER, sponsorPubkey: ME }, ME)).toBe('mine');
   });
 
   it('남이 클레임한 거래는 taken', () => {
-    expect(sponsorRelation({ state: 'escrowed', sponsorPubkey: OTHER }, ME)).toBe('taken');
+    expect(sponsorRelation({ state: 'escrowed', customerPubkey: OTHER, sponsorPubkey: THIRD }, ME)).toBe('taken');
   });
 
-  it('키 로딩 전에는 남의 거래로 단정하지 않는다', () => {
-    expect(sponsorRelation({ state: 'escrowed', sponsorPubkey: OTHER }, null)).toBe('unknown');
+  it('키 로딩 전에는 단정하지 않되 requested는 열어둔다', () => {
+    expect(sponsorRelation({ state: 'escrowed', customerPubkey: OTHER, sponsorPubkey: THIRD }, null)).toBe('unknown');
+    expect(sponsorRelation({ state: 'requested', customerPubkey: OTHER }, null)).toBe('open');
   });
 
   it('sponsorPubkey가 없는 비-requested 상태는 안전하게 taken', () => {
-    expect(sponsorRelation({ state: 'verified' }, ME)).toBe('taken');
+    expect(sponsorRelation({ state: 'verified', customerPubkey: OTHER }, ME)).toBe('taken');
   });
 });

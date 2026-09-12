@@ -1,26 +1,15 @@
 {
-  "name": "@sajwo-tracker/sponsor",
+  "name": "@sajwo-tracker/sponsor-redirect",
   "version": "0.0.1",
+  "private": true,
   "type": "module",
+  "description": "합쳐진 앱으로 보내는 정적 리다이렉트 껍데기 (구 후원자앱 도메인)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
-  "dependencies": {
-    "@sajwo-tracker/shared": "workspace:*",
-    "jsqr": "^1.4.0",
-    "light-bolt11-decoder": "^3.2.0",
-    "nostr-tools": "^2.25.2",
-    "qrcode.react": "^4.2.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
-  },
   "devDependencies": {
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "typescript": "^7.0.2",
     "vite": "^8.2.2"
   }
 }

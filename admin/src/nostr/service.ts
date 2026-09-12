@@ -700,6 +700,17 @@ export async function handleClaim(request: ClaimRequest): Promise<void> {
     return;
   }
 
+  // 자기 주문 자기가 클레임 금지.
+  // 고객앱과 후원자앱이 한 앱으로 합쳐지면서 한 키가 양쪽 역할을 모두 하게 됐다.
+  // 막지 않으면 자기 주문을 자기가 받아 에스크로 유동성과 라우팅 수수료만
+  // 태울 수 있고, 무엇보다 그 오더는 customerPubkey === sponsorPubkey가 되어
+  // "내가 어느 역할로 참여했는가"를 유도할 수 없게 된다(내역 화면의 전제).
+  // UI도 거르지만 진짜 방어는 여기다 — kind 1111은 누구나 서명해 쏠 수 있다.
+  if (request.pubkey === order.customerPubkey) {
+    console.warn('[Admin] Self-claim rejected for', request.orderId);
+    return;
+  }
+
   // ── 인보이스 검증 ──
   const decoded = request.invoice?.decoded;
   if (!decoded) {

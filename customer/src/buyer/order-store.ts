@@ -164,3 +164,49 @@ export function markSynced(): void {
   synced = true;
   notify();
 }
+
+// ── 만료 삭제 ─────────────────────────────────────
+
+const CLEANUP_INTERVAL = 60_000; // 60초
+
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * 만료된 주문을 localStorage에서 삭제한다.
+ *
+ * 이 정리는 IDB 아카이브가 생긴 뒤에야 안전해졌다. 그전에는 지우면 기록이
+ * 아무 데도 안 남았다 — 릴레이도 만료된 오더를 지우기 때문이다. 지금은
+ * 고객 역할 오더도 IDB에 보존되므로(buyer/nostr/service.ts) 여기서는
+ * 표시용 사본만 정리하면 된다.
+ *
+ * 후원자 오더북과 같은 규칙: 상태 무관, expiration 기준으로만 판단.
+ * 미발행 주문(expiration === 0)은 아직 만료 개념이 없으므로 남긴다.
+ */
+function purgeExpired(): void {
+  const now = Math.floor(Date.now() / 1000);
+  const before = Object.keys(orders).length;
+
+  orders = Object.fromEntries(
+    Object.entries(orders).filter(([, o]) =>
+      o.expiration === 0 || o.expiration > now,
+    ),
+  );
+
+  if (Object.keys(orders).length === before) return;
+
+  saveToStorage();
+  notify();
+}
+
+export function startCleanup(): void {
+  if (cleanupTimer) return;
+  purgeExpired(); // 즉시 1회 실행
+  cleanupTimer = setInterval(purgeExpired, CLEANUP_INTERVAL);
+}
+
+export function stopCleanup(): void {
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
+  }
+}

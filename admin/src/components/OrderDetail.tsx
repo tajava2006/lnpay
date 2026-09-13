@@ -5,12 +5,14 @@ import {
   idbGetOrder, idbGetRequestsByOrderId,
   APP_PUBKEY,
   ChatWindow,
+  sendChatMessage,
+  retryChatMessage,
 } from '@sajwo-tracker/shared';
-import type { Order, Request, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
+import type { Order, Request, PriceTracker, DisputeMessagePayload, ChatMessage } from '@sajwo-tracker/shared';
 import type { LightningAdapter } from '../lightning';
 import type { HoldInvoiceStatus } from '../lightning/types';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
-import { publishDisputeMessage, publishDepositStatus, publishDepositRequired, publishRevealRequest } from '../nostr/publish';
+import { prepareDisputeMessage, publishDepositStatus, publishDepositRequired, publishRevealRequest } from '../nostr/publish';
 import { getPendingDeposit } from '../pending-deposit-store';
 import { resolveDisputeSponsorWins, resolveDisputeCustomerWins } from '../nostr/service';
 import { getEscrowEntry, getPreimage } from '../escrow-store';
@@ -165,13 +167,23 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
   const sendToCustomer = useCallback(async (text: string) => {
     if (!customerPubkey) return;
     const payload: DisputeMessagePayload = { type: 'text', content: text };
-    await publishDisputeMessage(orderId, customerPubkey, payload);
+    await sendChatMessage(() => prepareDisputeMessage(orderId, customerPubkey, payload));
   }, [orderId, customerPubkey]);
 
   const sendToSponsor = useCallback(async (text: string) => {
     if (!sponsorPubkey) return;
     const payload: DisputeMessagePayload = { type: 'text', content: text };
-    await publishDisputeMessage(orderId, sponsorPubkey, payload);
+    await sendChatMessage(() => prepareDisputeMessage(orderId, sponsorPubkey, payload));
+  }, [orderId, sponsorPubkey]);
+
+  const retryToCustomer = useCallback(async (failed: ChatMessage) => {
+    if (!customerPubkey) return;
+    await retryChatMessage(failed, () => prepareDisputeMessage(orderId, customerPubkey, failed.payload));
+  }, [orderId, customerPubkey]);
+
+  const retryToSponsor = useCallback(async (failed: ChatMessage) => {
+    if (!sponsorPubkey) return;
+    await retryChatMessage(failed, () => prepareDisputeMessage(orderId, sponsorPubkey, failed.payload));
   }, [orderId, sponsorPubkey]);
 
   // 계좌정보 공개 요청 (분쟁 중재용).
@@ -606,6 +618,7 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
             messages={customerMessages}
             myPubkey={APP_PUBKEY}
             onSend={sendToCustomer}
+            onRetry={retryToCustomer}
           />
         )}
         {sponsorPubkey && (
@@ -614,6 +627,7 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
             messages={sponsorMessages}
             myPubkey={APP_PUBKEY}
             onSend={sendToSponsor}
+            onRetry={retryToSponsor}
             renderAccountExtra={accountCommitment
               ? (info, salt) => <CommitmentBadge accountInfo={info} commitment={accountCommitment} salt={salt} />
               : undefined}

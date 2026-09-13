@@ -153,6 +153,17 @@ export async function idbUpsertMessage(msg: ChatMessage): Promise<void> {
 }
 
 /** orderId로 연관 채팅 메시지를 모두 조회한다 (createdAt 오름차순). */
+/** 메시지 1건을 지운다. 실패한 전송을 재시도할 때 옛 항목 제거용. */
+export async function idbDeleteMessage(eventId: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('messages', 'readwrite');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore('messages').delete(eventId);
+  });
+}
+
 export async function idbGetMessagesByOrderId(orderId: string): Promise<ChatMessage[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {

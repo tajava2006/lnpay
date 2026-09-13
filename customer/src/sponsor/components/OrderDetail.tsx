@@ -7,11 +7,13 @@ import {
   storage,
   ChatWindow,
   subscribeChatMessages,
+  sendChatMessage,
+  retryChatMessage,
   OrderProgress,
 } from '@sajwo-tracker/shared';
-import type { Order, PriceTracker, DisputeMessagePayload } from '@sajwo-tracker/shared';
+import type { Order, PriceTracker, DisputeMessagePayload, ChatMessage } from '@sajwo-tracker/shared';
 
-import { publishDisputeMessage, publishAccountReveal } from '../nostr/claim';
+import { prepareDisputeMessage, publishAccountReveal } from '../nostr/claim';
 import { subscribeRevealRequests, getRevealRequestSnapshot } from '../reveal-request-store';
 
 interface Props {
@@ -80,7 +82,12 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
   const handleSend = useCallback(async (text: string) => {
     if (!order) return;
     const payload: DisputeMessagePayload = { type: 'text', content: text };
-    await publishDisputeMessage(order, payload);
+    await sendChatMessage(() => prepareDisputeMessage(order, payload));
+  }, [order]);
+
+  const handleRetry = useCallback(async (failed: ChatMessage) => {
+    if (!order) return;
+    await retryChatMessage(failed, () => prepareDisputeMessage(order, failed.payload));
   }, [order]);
 
   // 계좌정보 공개 (분쟁 시 Admin에게 증거 제출)
@@ -187,6 +194,7 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
           messages={messages}
           myPubkey={myPubkey}
           onSend={handleSend}
+          onRetry={handleRetry}
         />
       )}
     </div>

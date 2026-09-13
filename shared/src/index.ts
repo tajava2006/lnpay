@@ -48,7 +48,7 @@ export {
   initIdb,
   idbGetOrder, idbHasOrder, idbUpsertOrder,
   idbUpsertRequest, idbGetRequestsByOrderId,
-  idbUpsertMessage, idbGetMessagesByOrderId,
+  idbUpsertMessage, idbGetMessagesByOrderId, idbDeleteMessage,
   idbGetOrdersPage,
   idbMigrateOrderWithRequests,
   isAbandonedOrder,
@@ -90,4 +90,11 @@ export { createSubscriptionGuard } from './subscription-guard';
 export type { SubscriptionGuard } from './subscription-guard';
 
 // Chat Store (리액티브 인메모리 채팅)
-export { subscribeChatStore, getChatSnapshot, addMessage, loadFromIdb, clearMessages } from './chat-store';
+export {
+  subscribeChatStore, getChatSnapshot, addMessage, loadFromIdb, clearMessages,
+  setMessageStatus, removeMessage,
+} from './chat-store';
+
+// 채팅 전송 (낙관적 렌더링 + 상태)
+export { sendChatMessage, retryChatMessage } from './chat-send';
+export type { PreparedChatMessage } from './chat-send';

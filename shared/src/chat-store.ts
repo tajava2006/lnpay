@@ -6,7 +6,7 @@
  * 디테일 페이지 이탈 시 인메모리 데이터 해제.
  */
 import type { ChatMessage } from './types';
-import { idbUpsertMessage, idbGetMessagesByOrderId } from './idb';
+import { idbUpsertMessage, idbGetMessagesByOrderId, idbDeleteMessage } from './idb';
 
 type ChatMap = Record<string, ChatMessage[]>;
 type Listener = () => void;
@@ -52,6 +52,53 @@ export function addMessage(msg: ChatMessage): void {
 }
 
 /**
+ * 내가 보낸 메시지의 전송 상태를 갱신한다.
+ * 발행 결과가 나온 뒤 호출한다(성공: sent, 전부 실패: failed).
+ */
+export function setMessageStatus(
+  orderId: string,
+  eventId: string,
+  status: NonNullable<ChatMessage['status']>,
+): void {
+  const existing = chats[orderId];
+  if (!existing) return;
+
+  let changed = false;
+  const updated = existing.map(m => {
+    if (m.eventId !== eventId || m.status === status) return m;
+    changed = true;
+    return { ...m, status };
+  });
+  if (!changed) return;
+
+  chats = { ...chats, [orderId]: updated };
+  notify();
+
+  const msg = updated.find(m => m.eventId === eventId);
+  if (msg) {
+    void idbUpsertMessage(msg).catch(err => {
+      console.warn('[ChatStore] IDB 상태 갱신 실패:', eventId, err);
+    });
+  }
+}
+
+/** 메시지를 지운다. 실패한 전송을 재시도할 때 옛 항목 제거용. */
+export function removeMessage(orderId: string, eventId: string): void {
+  const existing = chats[orderId];
+  if (!existing) return;
+
+  const updated = existing.filter(m => m.eventId !== eventId);
+  if (updated.length === existing.length) return;
+
+  chats = { ...chats, [orderId]: updated };
+  notify();
+
+  void idbDeleteMessage(eventId).catch(err => {
+    console.warn('[ChatStore] IDB 메시지 삭제 실패:', eventId, err);
+  });
+}
+
+/**
  * IDB에서 기존 메시지를 로드한다.
  * 디테일 페이지 진입 시 호출.
  */
@@ -65,7 +112,13 @@ export async function loadFromIdb(orderId: string): Promise<void> {
     const newMessages = messages.filter(m => !existingIds.has(m.eventId));
     if (newMessages.length === 0) return;
 
-    const merged = [...existing, ...newMessages].sort((a, b) => a.createdAt - b.createdAt);
+    // 세션을 넘겨 살아남은 pending은 그 세션에서 발행이 끝나지 않았다는 뜻이다.
+    // 그대로 두면 영영 "보내는 중"으로 멈춰 보이므로 실패로 확정한다.
+    const recovered = newMessages.map(m =>
+      m.status === 'pending' ? { ...m, status: 'failed' as const } : m,
+    );
+
+    const merged = [...existing, ...recovered].sort((a, b) => a.createdAt - b.createdAt);
     chats = { ...chats, [orderId]: merged };
     notify();
   } catch (err) {

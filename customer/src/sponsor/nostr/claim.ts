@@ -22,6 +22,7 @@ import {
   idbGetRequestsByOrderId,
   type ClaimRequest,
   type AccountInfoRequest,
+  type PreparedChatMessage,
 } from '@sajwo-tracker/shared';
 
 /**
@@ -158,48 +159,61 @@ export async function publishRemitRequest(order: Order): Promise<boolean> {
 }
 
 /**
- * 분쟁 채팅 메시지를 NIP-44 암호화하여 kind 1111로 발행한다.
- * 수신자는 항상 APP_PUBKEY (Admin).
- * dispute-message는 증거 보존 목적으로 expiration 없음.
+ * 분쟁 채팅 메시지를 서명까지만 끝낸다. 발행은 호출부가 돌린다.
+ * 서명을 먼저 해야 발행 전에 eventId가 확정되어 낙관적 렌더링이 중복을 안 만든다
+ * (shared/chat-send 참조).
  */
-export async function publishDisputeMessage(
+export async function prepareDisputeMessage(
   order: Order,
   payload: DisputeMessagePayload,
-): Promise<boolean> {
+): Promise<PreparedChatMessage> {
   const sk = await getSecretKey(storage);
   const myPubkey = getPublicKey(sk);
-  const relays = await getReadRelays(storage);
-  const plaintext = JSON.stringify(payload);
-  const encrypted = nip44Encrypt(plaintext, sk, APP_PUBKEY);
+  const encrypted = nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY);
+  const createdAt = Math.floor(Date.now() / 1000);
 
-  const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`;
-  const now = Math.floor(Date.now() / 1000);
-
-  const template = {
+  const signed = finalizeEvent({
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: now,
+    created_at: createdAt,
     tags: [
-      ['a', aCoord],
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
       ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
       ['p', APP_PUBKEY],
       ['p', myPubkey],
       ['t', CLIENT_TAG],
     ],
     content: encrypted,
+  }, sk);
+
+  return {
+    message: {
+      eventId: signed.id,
+      orderId: order.orderId,
+      senderPubkey: myPubkey,
+      recipientPubkey: APP_PUBKEY,
+      payload,
+      createdAt,
+    },
+    publish: async () => {
+      const relays = await getReadRelays(storage);
+      const pool = new SimplePool();
+      try {
+        const results = await Promise.allSettled(pool.publish(relays, signed));
+        return results.some(r => r.status === 'fulfilled');
+      } finally {
+        pool.destroy();
+      }
+    },
   };
+}
 
-  const signed = finalizeEvent(template, sk);
-
-  console.log('[Nostr] Publishing dispute-message for order', order.orderId, 'event:', signed.id);
-
-  const pool = new SimplePool();
-  try {
-    const results = await Promise.allSettled(pool.publish(relays, signed));
-    const ok = results.some(r => r.status === 'fulfilled');
-    return ok;
-  } finally {
-    pool.destroy();
-  }
+/** 계좌 공개 등 발행 결과만 필요한 곳을 위한 래퍼. */
+export async function publishDisputeMessage(
+  order: Order,
+  payload: DisputeMessagePayload,
+): Promise<boolean> {
+  const prepared = await prepareDisputeMessage(order, payload);
+  return prepared.publish();
 }
 
 /**

@@ -6,12 +6,14 @@ import {
   storage,
   ChatWindow,
   subscribeChatMessages,
+  sendChatMessage,
+  retryChatMessage,
   OrderProgress,
 } from '@sajwo-tracker/shared';
 
-import { publishDisputeMessage } from '../nostr/publish';
+import { prepareDisputeMessage } from '../nostr/publish';
 import { getDisplayMeta } from '../order-states';
-import type { DisputeMessagePayload } from '@sajwo-tracker/shared';
+import type { DisputeMessagePayload, ChatMessage } from '@sajwo-tracker/shared';
 import type { CustomerOrder } from '../types';
 
 interface Props {
@@ -56,7 +58,11 @@ export function OrderDetail({ order, onClose }: Props) {
   // Send handler (Customer → Admin)
   const handleSend = useCallback(async (text: string) => {
     const payload: DisputeMessagePayload = { type: 'text', content: text };
-    await publishDisputeMessage(order, payload);
+    await sendChatMessage(() => prepareDisputeMessage(order, payload));
+  }, [order]);
+
+  const handleRetry = useCallback(async (failed: ChatMessage) => {
+    await retryChatMessage(failed, () => prepareDisputeMessage(order, failed.payload));
   }, [order]);
 
   const meta = getDisplayMeta(order);
@@ -119,6 +125,7 @@ export function OrderDetail({ order, onClose }: Props) {
             messages={messages}
             myPubkey={myPubkey}
             onSend={handleSend}
+            onRetry={handleRetry}
           />
         )}
       </div>

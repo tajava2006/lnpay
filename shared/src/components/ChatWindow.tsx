@@ -7,11 +7,13 @@ interface Props {
   messages: ChatMessage[];
   myPubkey: string;
   onSend: (text: string) => Promise<void>;
+  /** 실패한 메시지 재전송. 없으면 재전송 버튼을 숨긴다. */
+  onRetry?: (message: ChatMessage) => Promise<void>;
   /** 계좌 공개 말풍선에 덧붙일 요소. 커밋먼트 검증에 솔트가 필요해 같이 넘긴다. */
   renderAccountExtra?: (accountInfo: AccountInfo, commitmentSalt?: string) => React.ReactNode;
 }
 
-export function ChatWindow({ label, messages, myPubkey, onSend, renderAccountExtra }: Props) {
+export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderAccountExtra }: Props) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -26,12 +28,24 @@ export function ChatWindow({ label, messages, myPubkey, onSend, renderAccountExt
     if (!trimmed || sending) return;
     setSending(true);
     try {
+      // onSend는 서명 + 스토어 반영까지만 기다린다(발행은 백그라운드).
+      // 그래서 입력창이 곧바로 비워지면서도, 서명이 실패하면 내용이 남는다.
       await onSend(trimmed);
       setText('');
     } catch (err) {
-      console.warn('[ChatWindow] send failed:', err);
+      console.warn('[ChatWindow] 전송 준비 실패:', err);
+      alert('메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleRetry = async (msg: ChatMessage) => {
+    if (!onRetry) return;
+    try {
+      await onRetry(msg);
+    } catch (err) {
+      console.warn('[ChatWindow] 재전송 실패:', err);
     }
   };
 
@@ -76,6 +90,23 @@ export function ChatWindow({ label, messages, myPubkey, onSend, renderAccountExt
                   {new Date(msg.createdAt * 1000).toLocaleTimeString('ko-KR', {
                     hour: '2-digit', minute: '2-digit',
                   })}
+                  {/* 상태는 내가 보낸 것에만 있다. 릴레이에서 받은 건 이미 도달한 것이므로 없다. */}
+                  {msg.status === 'pending' && <span style={styles.statusPending}> · 보내는 중</span>}
+                  {msg.status === 'sent' && <span style={styles.statusSent}> · 전송됨</span>}
+                  {msg.status === 'failed' && (
+                    <>
+                      <span style={styles.statusFailed}> · 전송 실패</span>
+                      {onRetry && (
+                        <button
+                          type="button"
+                          style={styles.retryBtn}
+                          onClick={() => void handleRetry(msg)}
+                        >
+                          재전송
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -160,6 +191,28 @@ const styles = {
   },
   text: {
     whiteSpace: 'pre-wrap' as const,
+  },
+  statusPending: {
+    opacity: 0.7,
+  },
+  statusSent: {
+    opacity: 0.7,
+  },
+  statusFailed: {
+    color: '#FCA5A5',
+    fontWeight: 700 as const,
+  },
+  retryBtn: {
+    marginLeft: 6,
+    padding: '0 6px',
+    fontSize: 10,
+    fontWeight: 700 as const,
+    color: '#fff',
+    background: 'rgba(0,0,0,0.25)',
+    border: '1px solid rgba(255,255,255,0.4)',
+    borderRadius: 4,
+    cursor: 'pointer' as const,
+    fontFamily: 'inherit',
   },
   time: {
     fontSize: 10,

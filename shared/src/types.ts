@@ -133,6 +133,14 @@ export interface ChatMessage {
   recipientPubkey: string;
   payload: DisputeMessagePayload;
   createdAt: number;
+  /**
+   * 내가 보낸 메시지의 전송 상태. 릴레이에서 받은 메시지에는 없다(이미 도달한 것이므로).
+   *
+   * 낙관적 렌더링 때문에 필요하다 — 보내는 즉시 화면에 띄우되, 실제로 릴레이에
+   * 닿았는지를 화면이 솔직하게 말해야 한다. 이게 없으면 발행이 전부 실패해도
+   * 보낸 것처럼 보인다(예전 동작).
+   */
+  status?: 'pending' | 'sent' | 'failed';
 }
 
 /** 캐싱된 릴레이 목록 */

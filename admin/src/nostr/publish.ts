@@ -17,6 +17,7 @@ import {
   type Order,
   type OrderState,
   type DisputeMessagePayload,
+  type PreparedChatMessage,
   storage,
 } from '@sajwo-tracker/shared';
 import { getSigner } from './nip46';
@@ -92,25 +93,26 @@ function toListingStatus(state: OrderState): 'active' | 'sold' {
 }
 
 /**
- * 분쟁 채팅 메시지를 NIP-44 암호화하여 kind 1111로 발행한다.
- * Admin은 Customer/Sponsor 양쪽 모두에게 발행 가능.
- * dispute-message는 증거 보존 목적으로 expiration 없음.
+ * 분쟁 채팅 메시지를 서명까지만 끝낸다. 발행은 호출부가 돌린다.
+ *
+ * 서명을 먼저 해야 발행 전에 eventId가 확정되어 낙관적 렌더링이 중복을 안 만든다
+ * (shared/chat-send 참조). Admin은 NIP-46 원격 서명이라 이 단계에 번커 왕복이
+ * 한 번 들어가지만, 발행 + 에코를 기다리는 것보다는 훨씬 짧다.
  */
-export async function publishDisputeMessage(
+export async function prepareDisputeMessage(
   orderId: string,
   recipientPubkey: string,
   payload: DisputeMessagePayload,
-): Promise<object> {
+): Promise<PreparedChatMessage> {
   const signer = getSigner();
   if (!signer) throw new Error('로그인되지 않음: signer 없음');
 
-  const plaintext = JSON.stringify(payload);
-  const encrypted = await signer.nip44Encrypt(recipientPubkey, plaintext);
-  const now = Math.floor(Date.now() / 1000);
+  const encrypted = await signer.nip44Encrypt(recipientPubkey, JSON.stringify(payload));
+  const createdAt = Math.floor(Date.now() / 1000);
 
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: now,
+    created_at: createdAt,
     tags: [
       ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
@@ -123,18 +125,26 @@ export async function publishDisputeMessage(
 
   const signed = await signer.signEvent(template);
 
-  const relays = await getReadRelays(storage);
-  const pool = new SimplePool();
-  try {
-    const results = await Promise.allSettled(pool.publish(relays, signed));
-    const ok = results.some(r => r.status === 'fulfilled');
-    if (!ok) throw new Error('모든 릴레이에 발행 실패');
-    console.log('[Admin] Published dispute-message for', orderId, 'to', recipientPubkey.slice(0, 12));
-  } finally {
-    pool.destroy();
-  }
-
-  return signed;
+  return {
+    message: {
+      eventId: signed.id,
+      orderId,
+      senderPubkey: APP_PUBKEY,
+      recipientPubkey,
+      payload,
+      createdAt,
+    },
+    publish: async () => {
+      const relays = await getReadRelays(storage);
+      const pool = new SimplePool();
+      try {
+        const results = await Promise.allSettled(pool.publish(relays, signed));
+        return results.some(r => r.status === 'fulfilled');
+      } finally {
+        pool.destroy();
+      }
+    },
+  };
 }
 
 /**

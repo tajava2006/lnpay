@@ -162,6 +162,7 @@ shared/src/
   constants.ts      - APP_PUBKEY, SAJWO_REQUEST_KIND, CLIENT_TAG, STORAGE_KEYS 등
   storage.ts        - createWebStorage() (localStorage 기반 어댑터 팩토리)
   keys.ts           - ensureKeypair(storage), getSecretKey(storage), getUserPubkey(storage)
+  identity-publish.ts - 알림 수신용 kind 0 + kind 10002 최초 1회 발행
   relays.ts         - getReadRelays, getWriteRelays, refreshRelayLists (NIP-65 디스커버리)
 ```
 
@@ -319,6 +320,7 @@ customer/src/
     AccountInfoModal.tsx - 수동 주문 계좌정보 입력
     KeyExport.tsx       - nsec 내보내기 (유저스크립트 키 공유)
     UserscriptGuide.tsx - 유저스크립트 설치 가이드 + 코드블록 복사
+    NotifySetup.tsx     - 알림 설정 모달 (헤더 🔔, nsec QR + Amethyst 안내)
 
 customer/userscript/       - Tampermonkey 유저스크립트 (esbuild IIFE 번들)
   banner.txt              - 메타데이터 헤더
@@ -581,6 +583,9 @@ admin/
       service.ts          - 구독 서비스 + 자동 처리 핸들러 + IndexedDB 동기화
       publish.ts          - kind 30402 오더 + dispute-message 발행 (NIP-46 서명)
       chat-subscribe.ts   - 분쟁 채팅 on-demand 구독 (디테일 페이지용)
+      notify.ts           - NIP-17 알림 DM 발송 (번커로 seal, 로컬에서 wrap)
+      notify-messages.ts  - 알림 문구
+      notify-triggers.ts  - 알림 발송 표 (전이 후 상태 → 수신자)
     lightning/
       types.ts            - NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus
       adapter.ts          - LightningAdapter 인터페이스

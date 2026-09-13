@@ -8,6 +8,7 @@ import { OrderBook } from './sponsor/components/OrderBook';
 import { OrderDetail } from './sponsor/components/OrderDetail';
 import { startCleanup as startSponsorCleanup, stopCleanup as stopSponsorCleanup } from './sponsor/order-store';
 import { HistoryPage } from './history/HistoryPage';
+import { NotifySetup } from './components/NotifySetup';
 
 /**
  * 탭 = 역할 구분.
@@ -54,6 +55,7 @@ function AppContent() {
 
   const [tab, setTab] = useState<Tab>(readTabFromUrl);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(readOrderFromUrl);
+  const [notifyOpen, setNotifyOpen] = useState(false);
 
   useEffect(() => {
     const onPop = () => {
@@ -114,8 +116,20 @@ function AppContent() {
     <div className="container">
       <header className="header">
         <h1>페어바이</h1>
-        <BtcPrice tracker={tracker} />
+        <div style={styles.headerRight}>
+          <BtcPrice tracker={tracker} />
+          <button
+            onClick={() => setNotifyOpen(true)}
+            style={styles.bell}
+            title="거래 알림 받기"
+            aria-label="거래 알림 받기"
+          >
+            🔔
+          </button>
+        </div>
       </header>
+
+      {notifyOpen && <NotifySetup onClose={() => setNotifyOpen(false)} />}
 
       <nav style={styles.tabs}>
         {TABS.map(t => (
@@ -155,6 +169,19 @@ export function App() {
 }
 
 const styles = {
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bell: {
+    border: 'none',
+    background: 'none',
+    fontSize: 18,
+    cursor: 'pointer' as const,
+    padding: 4,
+    lineHeight: 1,
+  },
   tabs: {
     display: 'flex',
     gap: 4,

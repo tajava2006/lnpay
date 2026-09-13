@@ -63,15 +63,26 @@ Admin만 발행하고 Admin만 읽는 비공개 설정 데이터 (kind 30078 NIP
 | Admin | 설정 데이터 **발행** | 앱의 **쓰기** 릴레이 |
 | Admin | 설정 데이터 **구독** | 앱의 **쓰기** 릴레이 |
 
-#### ③ Admin → User 알림 → 쓰기 릴레이 (미구현)
+#### ③ Admin → User 거래 알림 (NIP-17) → 읽기 릴레이
 
-Admin이 발행하고 Customer/Sponsor가 읽어야 할 알림 이벤트.
-예: 클레임 유동성 검증 완료 통보, 에스크로 상태 알림 등.
+앱 밖에서 받는 알림이다. 유저가 자기 키를 nostr 클라이언트에 넣어두면,
+거래가 자기 차례로 넘어올 때 그 클라이언트가 알림을 띄운다.
+
+앱 내부 상태 전파와는 별개다 — 그건 kind 30402 오더 이벤트가 하고 있고,
+이건 "앱을 안 보고 있을 때 부르는" 용도다.
 
 | 역할 | 동작 | 대상 릴레이 |
 |------|------|------------|
-| Admin | 알림 이벤트 **발행** | 앱의 **쓰기** 릴레이 |
-| Customer/Sponsor | 알림 이벤트 **구독** | 앱의 **쓰기** 릴레이 |
+| Admin | kind 1059 gift wrap **발행** | 앱의 **읽기** 릴레이 |
+| Customer/Sponsor (유저 키) | kind 0 + kind 10002 **발행** | 앱의 **읽기** 릴레이 |
+| nostr 클라이언트 | kind 1059 (`#p`=내 pubkey) **구독** | 유저 10002의 **읽기** 릴레이 |
+
+유저 kind 10002를 발행하는 이유: nostr 클라이언트가 "나에게 온 것"을 찾는
+방식이 내 10002의 읽기 릴레이(인박스)를 구독하는 것이다. 이게 없으면
+클라이언트는 자기 기본 릴레이만 뒤지고, 거기에 우리 릴레이가 없으면 알림을
+영영 못 본다. kind 0은 클라이언트에서 이 키가 무엇인지 알아보게 하는 용도다.
+
+발송 시점과 봉투 구성은 [알림 (NIP-17)](#알림-nip-17) 참조.
 
 ### 디스커버리 절차
 
@@ -775,17 +786,69 @@ Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
 - Admin은 NIP-46 원격 서명을 사용하여 `.env` 의존성 없이 동작
 - 유저스크립트 키 공유: Customer 웹앱에서 nsec(bech32) 표시 → Tampermonkey에 1회 입력 → GM_storage 보관
 - 일반 유저 대상이므로 Nostr의 존재를 노출하지 않음
+  (예외: 알림 설정 화면 — 알림을 받으려면 키를 nostr 클라이언트에 넣어야 하므로
+  거기서만 드러난다. 순전히 선택이라 안 쓰면 끝까지 안 보인다)
+
+## 알림 (NIP-17)
+
+Admin이 유저에게 "당신 차례입니다"를 보낸다. 앱을 열고 있지 않아도
+nostr 클라이언트가 대신 받아 알림을 띄운다.
+
+### 발송 시점
+
+상태 전이 표는 `admin/src/nostr/notify-triggers.ts`가 진실이다.
+
+| 전이 후 상태 | 고객 | 후원자 |
+|---|---|---|
+| `verified` | 결제 요청 | — |
+| `escrowed` | 계좌 전달 요청 | — |
+| `remitted` | **입금 확인·컨펌 요청** | — |
+| `paid` | 완료 | 완료 |
+| `cancelled` | 취소됨 | 취소됨 |
+| `sponsor_wins` / `customer_wins` | 판정 결과 | 판정 결과 |
+| `requested` / `claimed` | — | — |
+
+상태 전이가 아닌 발송이 하나 있다: `account-info` 요청 수신 시 후원자에게
+"원화를 보낼 수 있다"를 알린다. `escrowed` 안에서 일어나는 변화라 상태로는
+안 잡히지만, 후원자에게 필요한 알림은 사실상 이것 하나뿐이다.
+
+`remitted`는 후원자가 이미 원화를 보내놓고 고객의 컨펌을 기다리는 상태라
+가장 시급하다. 만료 임박 알림은 넣지 않았다 — 주문별 발송 이력이 기기 간
+동기화돼야 중복 발송을 막을 수 있는데, 그 상태를 만들 만큼의 값은 아니다.
+
+### 봉투 구성
+
+| 겹 | kind | 서명자 | 비고 |
+|---|---|---|---|
+| rumor | 14 | 없음 | `pubkey`=APP_PUBKEY, `id`만 계산 |
+| seal | 13 | Admin | NIP-44로 rumor 암호화. **번커 필요** |
+| wrap | 1059 | 임시키 | `['p', recipient]`. 발신자 은닉 |
+
+Admin은 NIP-46 원격 서명이라 로컬에 개인키가 없다. nostr-tools의 `nip17.wrapEvent`는
+개인키를 요구해서 쓸 수 없지만, `nip59.createWrap(seal, recipientPubkey)`은 스스로
+임시키를 만들기 때문에 그대로 쓸 수 있다. 따라서 손으로 만드는 건 seal 한 겹뿐이고,
+그것도 번커의 `nip44Encrypt` + `signEvent` 두 호출로 끝난다.
+
+seal/wrap의 `created_at`은 NIP-59 요구대로 최대 이틀 전으로 흩뿌린다.
+
+### 내용 정책
+
+금액·계좌·상대 신원은 넣지 않는다. NIP-17이 내용을 가려주지만 수신자가 키를
+어디에 로그인해 뒀는지는 알 수 없다. "무슨 일이 생겼고 어디로 가면 되는지"만
+싣고 나머지는 앱에서 보게 한다.
 
 ## 참조 NIP
 
 | NIP | 용도 |
 |-----|------|
 | NIP-01 | 기본 프로토콜 (이벤트 구조, 서명, 릴레이 통신) |
+| NIP-17 | Private Direct Messages (kind 14, 거래 알림) |
 | NIP-22 | Comment (kind 1111, 모든 요청 이벤트에 사용) |
 | NIP-33 | Addressable event (kind 30000-40000, d-tag) |
 | NIP-40 | Expiration Timestamp (`['expiration', timestamp]`) |
 | NIP-44 | Versioned Encryption (Admin 전용 데이터 암호화, 계좌정보/분쟁 채팅 E2E 암호화) |
 | NIP-46 | Nostr Connect (Admin 원격 서명 + 암호화 위임) |
+| NIP-59 | Gift Wrap (kind 13 seal + kind 1059 wrap, 알림 봉투) |
 | NIP-65 | Relay List Metadata (kind 10002, outbox model) |
 | NIP-78 | Arbitrary Custom App Data (kind 30078, Admin 설정 저장) |
 | NIP-99 | Classified Listing (kind 30402, status/price 태그) |

@@ -15,6 +15,7 @@ import {
   getUserPubkey,
   getSecretKey,
   createSubscriptionGuard,
+  ensureIdentityPublished,
   storage,
 } from '@sajwo-tracker/shared';
 import { subscribeOrders, subscribeInbox } from './subscribe';
@@ -32,6 +33,11 @@ export function startSubscriptions(): Promise<void> {
       getUserPubkey(storage),
       getSecretKey(storage),
     ]);
+
+    // 알림 수신용 신원(kind 0 + 10002)을 최초 1회 발행한다.
+    // 릴레이가 확정된 뒤여야 인박스를 제대로 선언할 수 있어 여기서 부른다.
+    // 구독과는 무관하므로 기다리지 않는다.
+    void ensureIdentityPublished(storage, sk);
 
     let ordersEosed = false;
 

@@ -83,7 +83,10 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 - Nostr 코드는 각 앱의 `nostr/` 디렉토리에 모듈화. 통합 앱은 `src/nostr/`가 소켓을
   단독 소유하고 역할별 핸들러(`src/buyer/nostr`, `src/sponsor/nostr`)로 팬아웃한다 —
   역할 모듈은 구독을 직접 만들지 않는다.
-- 이벤트에는 반드시 `expiration` 태그 포함 (릴레이 찌꺼기 방지). **예외: `dispute-message` 이벤트는 분쟁 증거 보존 목적으로 만료 없음.**
+- 이벤트에는 반드시 `expiration` 태그 포함 (릴레이 찌꺼기 방지). **예외 3종:**
+  `dispute-message`(분쟁 증거 보존), 유저 신원 이벤트 kind 0·10002(replaceable이라
+  릴레이가 최신 1개만 보관 — 쌓이지 않는다), 알림 gift wrap kind 1059(수신자가
+  며칠 뒤 열어도 남아 있어야 하고, 봉투 태그는 `p` 하나로 최소화하는 게 NIP-59 의도).
 - 빌드 확인: 코드 수정 후 `pnpm build:customer && pnpm build:sponsor && pnpm build:admin` 통과 필수.
 - Dev/Prod 데이터 격리: `CLIENT_TAG`가 dev(`sajwo-tracker-dev`) / prod(`sajwo-tracker`)로 분리.
 - Dev 전용 코드는 `dev-only/` 디렉토리에 파일 단위로 격리하고, `import.meta.env.DEV` 가드 내에서만 import.

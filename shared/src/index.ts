@@ -23,6 +23,7 @@ export { createWebStorage, storage } from './storage';
 
 // Keys
 export { ensureKeypair, getSecretKey, getUserPubkey } from './keys';
+export { ensureIdentityPublished } from './identity-publish';
 
 // 구독용 릴레이 pool
 export { createSubscriptionPool } from './relay-pool';

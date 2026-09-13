@@ -33,6 +33,7 @@ import {
 } from '@sajwo-tracker/shared';
 import { subscribeAdmin } from './subscribe';
 import { publishOrder, publishClaimPriceError, publishDepositRequired } from './publish';
+import { notifyTransition, notifyAccountInfoArrived } from './notify-triggers';
 import { getSigner } from './nip46';
 import { parseRequestEvent, parseOrderEvent } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
@@ -187,6 +188,7 @@ export async function approveOrder(
   try {
     await publishOrder(updatedOrder);
     console.log('[Admin] Order', orderId, 'approved (claimed → verified)');
+    notifyTransition(updatedOrder);
   } catch (e) {
     console.error('[Admin] Failed to publish verified order for', orderId, e);
     return { success: false, error: 'PUBLISH_FAILED' };
@@ -383,6 +385,7 @@ export async function resolveDisputeSponsorWins(
   try {
     await publishOrder(updatedOrder);
     console.log('[Admin] Order', orderId, 'resolved: sponsor_wins');
+    notifyTransition(updatedOrder);
   } catch (e) {
     console.error('[Admin] Failed to publish sponsor_wins for', orderId, e);
     return { success: false, error: 'PUBLISH_FAILED' };
@@ -461,6 +464,7 @@ export async function resolveDisputeCustomerWins(
   try {
     await publishOrder(updatedOrder);
     console.log('[Admin] Order', orderId, 'resolved: customer_wins');
+    notifyTransition(updatedOrder);
   } catch (e) {
     console.error('[Admin] Failed to publish customer_wins for', orderId, e);
     return { success: false, error: 'PUBLISH_FAILED' };
@@ -606,6 +610,7 @@ export async function handlePaymentConfirm(request: Request): Promise<void> {
   try {
     await publishOrder(updatedOrder);
     console.log('[Admin] Order', request.orderId, 'paid (payment-confirm from customer)');
+    notifyTransition(updatedOrder);
   } catch (e) {
     console.error('[Admin] Failed to publish paid order for', request.orderId, e);
     return;
@@ -667,6 +672,7 @@ export async function handleCancelRequest(request: Request): Promise<void> {
   try {
     await publishOrder(updatedOrder);
     console.log('[Admin] Order', request.orderId, 'cancelled (cancel-request from customer)');
+    notifyTransition(updatedOrder);
   } catch (e) {
     console.error('[Admin] Failed to publish cancelled order for', request.orderId, e);
     return;
@@ -679,12 +685,26 @@ export async function handleCancelRequest(request: Request): Promise<void> {
 }
 
 /**
- * account-info 수신 시 로그만 남긴다 (상태 전이 없음).
+ * account-info 수신 시 후원자에게 알림만 보낸다 (상태 전이 없음).
  * Customer가 Sponsor에게 NIP-44 암호화 계좌 정보를 전달한 것으로,
  * Admin은 분쟁 시 commitment 태그로 검증할 수 있다.
+ *
+ * 후원자 입장에선 여기가 원화를 보낼 수 있게 되는 순간이라, 알림이 필요한
+ * 유일한 지점이다. 계좌 내용 자체는 Admin이 읽을 수 없고 읽을 필요도 없다.
  */
 function handleAccountInfo(request: Request): void {
   console.log('[Admin] account-info received for', request.orderId, 'from', request.pubkey);
+
+  const order = getOrder(request.orderId);
+  if (!order) return;
+
+  // 고객 본인이 보낸 것만 인정한다 — 남이 흘린 이벤트로 알림을 유발시킬 수 없게.
+  if (order.customerPubkey !== request.pubkey) {
+    console.warn('[Admin] account-info pubkey mismatch for', request.orderId);
+    return;
+  }
+
+  notifyAccountInfoArrived(order);
 }
 
 /**
@@ -839,6 +859,7 @@ async function handleRemitRequest(request: Request): Promise<void> {
   try {
     await publishOrder(updatedOrder);
     console.log('[Admin] Order', request.orderId, 'remitted (remit-request from sponsor)');
+    notifyTransition(updatedOrder);
   } catch (e) {
     console.error('[Admin] Failed to publish remitted order for', request.orderId, e);
   }

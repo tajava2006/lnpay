@@ -25,6 +25,7 @@ import { getEscrowEntry } from './escrow-store';
 import { canTransition } from './state-machine';
 import { publishOrder, publishDepositStatus } from './nostr/publish';
 import { createOrder } from './nostr/service';
+import { notifyTransition } from './nostr/notify-triggers';
 import { idbMigrateOrderWithRequests } from '@sajwo-tracker/shared';
 import { getAllPendingDeposits, deletePendingDeposit } from './pending-deposit-store';
 import { handleDepositOnTransition } from './deposit-lifecycle';
@@ -223,6 +224,7 @@ async function transitionOrder(
   try {
     await publishOrder(updatedOrder);
     console.log('[InvoiceWatcher] Order', order.orderId, `${order.state} → ${to}`);
+    notifyTransition(updatedOrder);
   } catch (err) {
     console.error('[InvoiceWatcher] Failed to publish', to, 'for', order.orderId, err);
     return;

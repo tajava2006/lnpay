@@ -16,7 +16,8 @@ import { OrderClaimList } from './components/OrderClaimList';
 import { HistoryPage } from './components/HistoryPage';
 import { OrderDetail } from './components/OrderDetail';
 import { NodeStatus } from './components/NodeStatus';
-import { getCustomerDepositPercent, setCustomerDepositPercent, getSponsorDepositPercent, setSponsorDepositPercent } from './deposit-config';
+import { getCustomerDepositPercent, setCustomerDepositPercent, getSponsorDepositPercent, setSponsorDepositPercent, restoreDepositSettings } from './deposit-config';
+import { restorePendingDeposits } from './pending-deposit-store';
 import { BtcPrice, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { createLightningAdapter, createNodeTracker } from './lightning';
@@ -167,6 +168,18 @@ export function App() {
         const restored = await fetchEscrowBackup();
         if (!cancelled && Object.keys(restored).length > 0) {
           await mergeRestoredEntries(restored);
+        }
+
+        // 다기기 운영을 위한 나머지 로컬 전용 상태 복원.
+        // 오더·요청은 릴레이 이벤트로 재구성되지만 이 둘은 그럴 수 없다.
+        if (cancelled) return;
+        await restorePendingDeposits();
+
+        if (cancelled) return;
+        // 전역 설정이라 원격이 우선이다. 복원되면 화면 값도 맞춰준다.
+        if (await restoreDepositSettings() && !cancelled) {
+          setCustomerDepositPct(getCustomerDepositPercent());
+          setSponsorDepositPct(getSponsorDepositPercent());
         }
       } catch (e) {
         console.warn('[App] Escrow cache init failed:', e);

@@ -7,7 +7,14 @@
  *
  * type: 'customer' — 주문 생성 전 고객 보증금 (pre-order gate)
  * type: 'sponsor' — 클레임 후 후원자 보증금 (pre-verification gate)
+ *
+ * 이 상태는 릴레이 이벤트로 재구성할 수 없다 — 오더가 아직 발행되기 전이라
+ * 30402가 없고, 보증금 인보이스는 어드민이 로컬에서 만든 것이다. 그래서
+ * 다기기 운영을 위해 NIP-78로 백업한다(app-state-backup). 백업 실패는
+ * 로컬 동작을 막지 않는다(fire-and-forget).
  */
+
+import { publishAppState, fetchAppState, BACKUP_TAGS } from './nostr/app-state-backup';
 
 const STORAGE_KEY = 'admin:pending-deposits';
 
@@ -38,6 +45,31 @@ function loadMap(): DepositMap {
 
 function saveMap(map: DepositMap): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  void publishAppState(BACKUP_TAGS.pendingDeposits, map).catch(err =>
+    console.warn('[PendingDeposit] 릴레이 백업 실패:', err),
+  );
+}
+
+/**
+ * 릴레이 백업에서 로컬에 없는 엔트리를 채운다. 부팅 시 1회 호출.
+ * 로컬 우선 — 이 기기에서 방금 만든 것을 오래된 백업이 덮지 않게 한다.
+ */
+export async function restorePendingDeposits(): Promise<number> {
+  const remote = await fetchAppState<DepositMap>(BACKUP_TAGS.pendingDeposits);
+  if (!remote) return 0;
+
+  const local = loadMap();
+  let added = 0;
+  for (const [orderId, deposit] of Object.entries(remote)) {
+    if (orderId in local) continue;
+    local[orderId] = deposit;
+    added++;
+  }
+  if (added > 0) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
+    console.log('[PendingDeposit] 릴레이에서', added, '건 복원');
+  }
+  return added;
 }
 
 export function savePendingDeposit(deposit: PendingDeposit): void {

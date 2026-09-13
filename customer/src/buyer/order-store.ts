@@ -72,7 +72,7 @@ export function addOrder(order: CustomerOrder): void {
   notify();
 }
 
-/** 사줘 요청 발행 성공 시 raw 필드를 저장한다. */
+/** 의뢰 발행 성공 시 raw 필드를 저장한다. */
 export function markPublished(orderId: string, raw: string): void {
   const existing = orders[orderId];
   if (!existing) return;

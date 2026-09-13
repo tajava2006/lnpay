@@ -59,10 +59,10 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
         markPublished(order.orderId, result.raw);
         removeParsedOrder(eventId);
       } else {
-        alert('사줘 요청 발행에 실패했습니다.');
+        alert('의뢰 등록에 실패했습니다.');
       }
     } catch {
-      alert('사줘 요청 발행 중 오류가 발생했습니다.');
+      alert('의뢰 등록 중 오류가 발생했습니다.');
     } finally {
       setRequesting(false);
     }
@@ -104,7 +104,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
           disabled={requesting}
           style={styles.requestBtn}
         >
-          {requesting ? '요청 중...' : '사줘 요청'}
+          {requesting ? '등록 중...' : '의뢰 등록'}
         </button>
         <button
           onClick={handleDismiss}

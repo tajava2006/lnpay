@@ -72,7 +72,7 @@ export function handleInboxEvent(event: Event, sk: Uint8Array): boolean {
 
   // 보증금 알림은 어드민이 고객에게도 후원자에게도 같은 모양으로 보낸다.
   // 이벤트만 봐서는 어느 역할인지 알 수 없으므로 로컬 주문 존재 여부로 가른다 —
-  // 고객 주문은 '사줘' 발행 전부터 order-store에 있으므로 판별이 가능하다.
+  // 고객 주문은 발행 전부터 order-store에 있으므로 판별이 가능하다.
   if (isDepositAction(action) && event.pubkey === APP_PUBKEY) {
     const orderId = extractOrderId(event.tags);
     if (!orderId || !getSnapshot()[orderId]) return false; // 내 고객 주문이 아님 → 후원자 역할로

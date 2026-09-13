@@ -2,7 +2,7 @@
  * kind 1111 이벤트 빌드 + 발행
  *
  * Customer가 Admin에게 보내는 요청 이벤트를 빌드, 서명, 발행한다.
- * - order-request: 사줘 요청
+ * - order-request: 의뢰 등록
  * - payment-confirm: 입금 완료 통보
  * - cancel-request: 주문 취소 요청
  * - account-info: 계좌정보 전달 (NIP-44 암호화)
@@ -120,7 +120,7 @@ async function signAndPublish(template: EventTemplate): Promise<PublishResult> {
   };
 }
 
-/** 사줘 요청을 릴레이에 발행한다. */
+/** 의뢰를 릴레이에 발행한다. */
 export async function publishOrderRequest(order: CustomerOrder): Promise<PublishResult> {
   const template = buildOrderRequestEvent(order);
   return signAndPublish(template);

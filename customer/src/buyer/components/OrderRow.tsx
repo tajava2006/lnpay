@@ -59,10 +59,10 @@ export function OrderRow({ order, tracker, now }: Props) {
       if (result.success && result.raw) {
         markPublished(order.orderId, result.raw);
       } else {
-        alert('사줘 요청 발행에 실패했습니다.');
+        alert('의뢰 발행에 실패했습니다.');
       }
     } catch {
-      alert('사줘 요청 발행 중 오류가 발생했습니다.');
+      alert('의뢰 발행 중 오류가 발생했습니다.');
     } finally {
       setPublishing(false);
     }
@@ -217,7 +217,7 @@ export function OrderRow({ order, tracker, now }: Props) {
                 disabled={publishing}
                 className="btn btn-publish"
               >
-                {publishing ? '요청 중...' : '사줘'}
+                {publishing ? '올리는 중...' : '오더북에 올리기'}
               </button>
             )}
             {showDeposit && (

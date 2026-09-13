@@ -62,10 +62,16 @@ export function addParsedOrder(eventId: string, payload: ParsedOrderPayload): vo
   if (parsedOrders[eventId]) return;
 
   // 이미 order-store에 동일 쿠팡 주문이 있으면 무시 (이미 요청한 건).
+  //
   // orderId가 랜덤이 된 뒤로는 키 조회가 아니라 필드 비교로 찾아야 한다(감사 A-3).
+  // 단 **랜덤 id 전환 이전에 만들어진 주문에는 coupangOrderId 필드가 없다** —
+  // 그때는 쿠팡 번호를 orderId로 그대로 썼다. 필드만 보면 그런 옛 주문을 놓쳐서
+  // 같은 쿠팡 주문이 "감지된 주문"에 다시 뜨고, 요청하면 주문이 두 개 올라간다.
+  // 그래서 옛 형태(orderId === 쿠팡번호)도 함께 본다.
   const orders = getOrderSnapshot();
   const alreadyRequested = Object.values(orders).some(
-    o => o.coupangOrderId === payload.coupangOrderId,
+    o => o.coupangOrderId === payload.coupangOrderId
+      || o.orderId === payload.coupangOrderId,
   );
   if (alreadyRequested) return;
 

@@ -17,6 +17,9 @@ export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderA
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // compositionend가 keydown보다 먼저 오는 엔진이 있어 이벤트 플래그만으론
+  // 놓치는 경우가 있다. 조합 구간을 직접 들고 있는다.
+  const isComposingRef = useRef(false);
 
   useEffect(() => {
     const el = listRef.current;
@@ -50,6 +53,16 @@ export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderA
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 한글 같은 조합 입력에서는 엔터가 두 가지 뜻을 갖는다 — 조합 확정과 전송.
+    // 조합 중인 엔터를 전송으로 처리하면, 아직 확정되지 않은 마지막 글자까지
+    // 함께 보내놓고 입력창을 비우는데, 그 직후 IME가 그 글자를 커밋하면서
+    // 빈 입력창에 다시 들어앉는다. 결과적으로 마지막 글자가 한 번 더 전송된다.
+    // (영어는 조합 단계가 없어 이 경로를 타지 않는다)
+    //
+    // isComposing이 정석이고, keyCode 229는 그 플래그를 제대로 안 주는
+    // 구형 엔진용 폴백이다. 둘 중 하나라도 걸리면 IME에 양보한다.
+    if (isComposingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
@@ -119,6 +132,8 @@ export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderA
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onCompositionStart={() => { isComposingRef.current = true; }}
+          onCompositionEnd={() => { isComposingRef.current = false; }}
           placeholder="메시지 입력..."
           rows={1}
         />

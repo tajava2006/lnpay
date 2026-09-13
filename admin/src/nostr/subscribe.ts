@@ -1,6 +1,5 @@
-import { SimplePool } from 'nostr-tools/pool';
 import type { Event } from 'nostr-tools/core';
-import { SAJWO_REQUEST_KIND, SAJWO_REQUEST_EVENT_KIND, CLIENT_TAG, APP_PUBKEY, NOSTR_SINCE } from '@sajwo-tracker/shared';
+import { createSubscriptionPool, SAJWO_REQUEST_KIND, SAJWO_REQUEST_EVENT_KIND, CLIENT_TAG, APP_PUBKEY, NOSTR_SINCE } from '@sajwo-tracker/shared';
 
 export interface AdminSubscriptionCallbacks {
   /** kind 1111 요청 이벤트 수신 (Admin 자기 에코 포함 — p=APP_PUBKEY 태그로 자동 수신) */
@@ -23,7 +22,7 @@ export function subscribeAdmin(
   relays: string[],
   callbacks: AdminSubscriptionCallbacks,
 ): () => void {
-  const pool = new SimplePool();
+  const pool = createSubscriptionPool();
 
   let requestEose = false;
   let orderEose = false;

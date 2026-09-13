@@ -24,6 +24,9 @@ export { createWebStorage, storage } from './storage';
 // Keys
 export { ensureKeypair, getSecretKey, getUserPubkey } from './keys';
 
+// 구독용 릴레이 pool
+export { createSubscriptionPool } from './relay-pool';
+
 // Relays
 export { subscribeRelayLists, getReadRelays, getWriteRelays, refreshRelayLists } from './relays';
 

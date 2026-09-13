@@ -10,9 +10,9 @@
  * 보장되지 않는다. 그래서 원래부터 전부 받아 클라이언트에서 갈랐다.
  * 합치면 소켓 구독이 두 벌에서 한 벌로 줄고, 갈라내는 위치만 한 군데가 된다.
  */
-import { SimplePool } from 'nostr-tools/pool';
 import type { Event } from 'nostr-tools/core';
 import {
+  createSubscriptionPool,
   SAJWO_REQUEST_KIND,
   SAJWO_REQUEST_EVENT_KIND,
   CLIENT_TAG,
@@ -37,7 +37,7 @@ export function subscribeOrders(
   relays: string[],
   callbacks: OrderSubscriptionCallbacks,
 ): () => void {
-  const pool = new SimplePool();
+  const pool = createSubscriptionPool();
 
   const sub = pool.subscribeMany(
     relays,
@@ -65,7 +65,7 @@ export function subscribeInbox(
   myPubkey: string,
   callbacks: InboxSubscriptionCallbacks,
 ): () => void {
-  const pool = new SimplePool();
+  const pool = createSubscriptionPool();
 
   const sub = pool.subscribeMany(
     relays,

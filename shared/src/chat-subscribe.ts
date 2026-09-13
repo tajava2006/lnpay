@@ -4,7 +4,7 @@
  * 오더 디테일 페이지 진입 시 생성, 이탈 시 해제.
  * kind 1111 + action='dispute-message' 필터로 해당 오더의 채팅만 수신.
  */
-import { SimplePool } from 'nostr-tools/pool';
+import { createSubscriptionPool } from './relay-pool';
 import type { Event } from 'nostr-tools/core';
 import {
   SAJWO_REQUEST_EVENT_KIND,
@@ -38,7 +38,7 @@ export async function subscribeChatMessages(
 
   const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`;
 
-  const pool = new SimplePool();
+  const pool = createSubscriptionPool();
   const sub = pool.subscribeMany(
     relays,
     {

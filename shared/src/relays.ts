@@ -1,4 +1,5 @@
 import { SimplePool } from 'nostr-tools/pool';
+import { createSubscriptionPool } from './relay-pool';
 import type { Event } from 'nostr-tools/core';
 import {
   APP_PUBKEY,
@@ -130,7 +131,7 @@ async function compareAndSave(
  * @returns cleanup 함수
  */
 export function subscribeRelayLists(storage: StorageAdapter): () => void {
-  const pool = new SimplePool();
+  const pool = createSubscriptionPool();
 
   const sub = pool.subscribeMany(
     DISCOVERY_RELAYS,

@@ -60,6 +60,40 @@ export function UserscriptGuide() {
 
       {expanded && (
         <div style={styles.body}>
+          {/* 설치를 권하기 전에 무엇을 왜 읽는지부터 밝힌다.
+              주문 정보에 접근하는 물건이라 거부감이 드는 게 자연스럽고,
+              안 써도 되는 선택지라는 점을 먼저 말하는 쪽이 정직하다. */}
+          <div style={styles.intro}>
+            <p style={styles.introLead}>이게 뭔가요?</p>
+            <p style={styles.introText}>
+              쿠팡 주문 상세 페이지를 볼 때 <strong>무통장입금 주문의 금액과 가상계좌를
+              자동으로 읽어</strong> 이 앱에 채워 넣는 보조 스크립트입니다.
+              직접 옮겨 적는 수고가 사라지고, 무엇보다 <strong>오타가 나지 않습니다.</strong>
+            </p>
+
+            <p style={styles.introLead}>꼭 설치해야 하나요?</p>
+            <p style={styles.introText}>
+              아닙니다. <strong>설치하지 않아도 모든 기능을 쓸 수 있습니다.</strong>
+              금액과 계좌를 직접 입력해서 의뢰를 올리면 됩니다.
+              내 주문 정보를 읽는 게 찜찜하다면 설치하지 마세요 — 그게 이상한 반응이 아닙니다.
+            </p>
+
+            <p style={styles.introLead}>무엇을 읽나요?</p>
+            <p style={styles.introText}>
+              쿠팡 주문 페이지에서 <strong>입금 금액·은행·계좌번호·예금주·입금 기한</strong>만
+              읽습니다. 읽은 값은 <strong>내 키로 암호화되어 나에게만</strong> 전달되고,
+              내가 "의뢰 등록"을 눌러야 비로소 오더북에 올라갑니다. 내가 확인하기 전에
+              저절로 공개되는 것은 없습니다.
+            </p>
+
+            <p style={styles.warnBox}>
+              <strong>직접 입력하실 때 주의</strong> — 금액이나 계좌번호에 오타가 있으면
+              후원자가 엉뚱한 곳에 송금하게 되고, 그때는 분쟁에서 불리하게 작용할 수 있습니다.
+              직접 입력하신다면 등록 전에 한 번 더 대조해 주세요.
+            </p>
+          </div>
+
+          <div style={styles.stepsTitle}>설치 방법</div>
           <div style={styles.steps}>
             <p style={styles.step}>
               <strong>1.</strong> Tampermonkey 확장 프로그램을 설치합니다.{' '}
@@ -132,6 +166,39 @@ const styles = {
   },
   body: {
     padding: '0 20px 20px',
+  },
+  intro: {
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottom: '1px solid #F3F4F6',
+  },
+  introLead: {
+    fontSize: 13,
+    fontWeight: 700 as const,
+    color: '#374151',
+    margin: '10px 0 4px',
+  },
+  introText: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 1.7,
+    margin: 0,
+  },
+  warnBox: {
+    fontSize: 12,
+    color: '#92400E',
+    background: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    borderRadius: 6,
+    padding: '10px 12px',
+    lineHeight: 1.7,
+    margin: '14px 0 0',
+  },
+  stepsTitle: {
+    fontSize: 13,
+    fontWeight: 700 as const,
+    color: '#374151',
+    marginBottom: 6,
   },
   steps: {
     marginBottom: 16,

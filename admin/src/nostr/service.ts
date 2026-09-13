@@ -17,7 +17,6 @@
 import {
   getReadRelays,
   APP_PUBKEY,
-  idbGetOrder,
   idbUpsertOrder,
   idbUpsertRequest,
   idbGetRequestsByOrderId,
@@ -849,19 +848,39 @@ async function handleRemitRequest(request: Request): Promise<void> {
 // IndexedDB Sync Helpers (fire-and-forget)
 // ============================================================
 
+/**
+ * Admin이 발행한 오더를 무조건 IDB에 반영한다.
+ *
+ * 예전에는 "이미 IDB에 있을 때만" 갱신했다. 그 게이트는 스팸 방어로 넣은
+ * 것이었지만 실제로는 아무것도 막지 못했다 — 받아들인 order-request는 전부
+ * createOrder에서 idbMigrateOrderWithRequests를 타고 이미 IDB에 들어온다.
+ * 게이트가 막고 있던 건 스팸이 아니라 **다른 기기로의 동기화**였다.
+ *
+ * 즉 주문을 생성한 기기에서만 IDB가 채워져서, 다른 기기의 Admin은 오더를
+ * 릴레이로 다 받고도 IDB가 비어 있었다. 그 결과 disburseSponsor가 후원자
+ * bolt11을 못 찾아 실패하고(NO_SPONSOR_BOLT11), 주문 상세 화면이 아예 안 열려
+ * 분쟁 판정도 불가능했다. PC에서 검증하고 모바일에서 중재하는 게 막혀 있던 이유다.
+ *
+ * Admin은 모든 오더의 발행자이자 소유자라 "내가 관여 안 한 오더"라는 게 없다.
+ * 게이트를 없애고, 진짜 쓰레기(아무도 안 건드린 만료 의뢰)는 GC로 치운다(cleanup.ts).
+ */
 async function syncOrderToIdb(order: Order): Promise<void> {
   try {
-    const existing = await idbGetOrder(order.orderId);
-    if (existing) await idbUpsertOrder(order);
+    await idbUpsertOrder(order);
   } catch (err) {
     console.warn('[Admin] IndexedDB order sync failed for', order.orderId, err);
   }
 }
 
+/**
+ * 요청도 무조건 IDB에 남긴다(위와 같은 이유).
+ *
+ * orders와 requests는 서로 외래키가 없는 독립 스토어라 순서를 맞출 필요가 없다.
+ * catch-up 중 요청이 오더보다 먼저 들어와도 orderId 인덱스로 나중에 정상 조회된다.
+ */
 async function syncRequestToIdb(request: Request): Promise<void> {
   try {
-    const existing = await idbGetOrder(request.orderId);
-    if (existing) await idbUpsertRequest(request);
+    await idbUpsertRequest(request);
   } catch (err) {
     console.warn('[Admin] IndexedDB request sync failed for', request.orderId, err);
   }

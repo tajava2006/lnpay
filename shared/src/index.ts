@@ -51,6 +51,9 @@ export {
   idbUpsertMessage, idbGetMessagesByOrderId,
   idbGetOrdersPage,
   idbMigrateOrderWithRequests,
+  isAbandonedOrder,
+  idbFindAbandonedOrders,
+  idbDeleteOrders,
 } from './idb';
 
 // 분쟁 채팅 on-demand 구독 (고객·후원자 공용)

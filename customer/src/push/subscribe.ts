@@ -1,0 +1,121 @@
+/**
+ * Web Push 구독
+ *
+ * ── 왜 이게 알림의 1순위인가
+ *
+ * 유저는 앱을 따로 설치하지 않으려 한다. 문자·카톡은 전화번호를 요구하는데
+ * 그건 이 앱의 전제(신원 없이 거래)를 깬다. Web Push는 브라우저에서 "허용" 한
+ * 번이면 끝이고, 계정도 번호도 설치도 없다.
+ *
+ * 전송은 구글·애플·모질라 서버를 지나지만 그들과 **관계가 없다** — 계정도
+ * 승인도 없고, 페이로드는 RFC 8291로 암호화돼 있어 내용도 못 본다.
+ *
+ * ── 구독 정보를 어드민에게 어떻게 넘기나
+ *
+ * 서버가 없으니 기존 통로를 그대로 쓴다: kind 1111 + NIP-44 암호화.
+ * 릴레이는 암호문만 보고, 어드민 기기가 여럿이어도 각자 받아 저장하므로
+ * 기기 간 동기화가 저절로 된다. `CLIENT_TAG` dev/prod 격리도 따라온다.
+ */
+import { VAPID_PUBLIC_KEY } from '@sajwo-tracker/shared';
+
+/** 어드민에게 넘기는 구독 정보. 브라우저가 준 값을 그대로 옮긴다. */
+export interface PushSubscriptionPayload {
+  endpoint: string;
+  /** 구독자 공개키 (P-256 uncompressed, base64url) */
+  p256dh: string;
+  /** 구독자 인증 시크릿 (16바이트, base64url) */
+  auth: string;
+}
+
+export type PushSupport =
+  | { supported: true }
+  | { supported: false; reason: string };
+
+/**
+ * 이 브라우저가 Web Push를 할 수 있는지 본다.
+ *
+ * iOS는 홈 화면에 추가한 PWA에서만 된다. Safari 탭에서는 `PushManager`가
+ * 아예 없어서 여기서 걸린다 — 유저에게는 "홈 화면에 추가하세요"로 안내해야
+ * 하므로 이유를 구분해서 돌려준다.
+ */
+export function checkPushSupport(): PushSupport {
+  if (!('serviceWorker' in navigator)) {
+    return { supported: false, reason: '이 브라우저는 서비스워커를 지원하지 않습니다.' };
+  }
+  if (!('PushManager' in window)) {
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    return {
+      supported: false,
+      reason: iOS
+        ? '아이폰은 홈 화면에 추가한 뒤에야 알림을 켤 수 있습니다. 공유 → "홈 화면에 추가"를 먼저 해주세요.'
+        : '이 브라우저는 웹 푸시를 지원하지 않습니다.',
+    };
+  }
+  if (!('Notification' in window)) {
+    return { supported: false, reason: '이 브라우저는 알림을 지원하지 않습니다.' };
+  }
+  if (!window.isSecureContext) {
+    // LAN IP로 붙은 개발 중에 여기 걸린다. 실수로 헤매지 않게 이유를 밝힌다.
+    return { supported: false, reason: 'HTTPS(또는 localhost)에서만 알림을 켤 수 있습니다.' };
+  }
+  return { supported: true };
+}
+
+/** 이미 이 브라우저에서 구독했는지 본다. */
+export async function getExistingSubscription(): Promise<PushSubscriptionPayload | null> {
+  if (checkPushSupport().supported !== true) return null;
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  return sub ? serialize(sub) : null;
+}
+
+/**
+ * 알림 권한을 받고 구독한다. **반드시 유저 클릭 안에서 불러야 한다** —
+ * 브라우저가 사용자 제스처 없는 권한 요청을 거부한다.
+ *
+ * 실패는 전부 Error로 던진다. 조용히 실패하면 유저는 켰다고 믿고 기다리는데
+ * 알림은 영영 안 오는 최악의 상태가 된다.
+ */
+export async function subscribeToPush(): Promise<PushSubscriptionPayload> {
+  const support = checkPushSupport();
+  if (!support.supported) throw new Error(support.reason);
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    throw new Error(
+      permission === 'denied'
+        ? '알림이 차단되어 있습니다. 브라우저 주소창의 자물쇠 아이콘에서 알림을 허용으로 바꿔주세요.'
+        : '알림 권한을 받지 못했습니다.',
+    );
+  }
+
+  const reg = await navigator.serviceWorker.ready;
+
+  // 이미 구독돼 있으면 그대로 쓴다. 재구독하면 엔드포인트가 바뀌어
+  // 어드민에 남은 옛 구독이 죽은 채로 남는다.
+  const existing = await reg.pushManager.getSubscription();
+  if (existing) return serialize(existing);
+
+  const sub = await reg.pushManager.subscribe({
+    // false로 두면 크롬이 거부한다. 조용한 푸시는 허용되지 않는다.
+    userVisibleOnly: true,
+    applicationServerKey: VAPID_PUBLIC_KEY,
+  });
+  return serialize(sub);
+}
+
+/** 이 브라우저의 구독을 해지한다. 어드민 쪽 정리는 발송 실패 시 자동으로 된다. */
+export async function unsubscribeFromPush(): Promise<void> {
+  if (checkPushSupport().supported !== true) return;
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (sub) await sub.unsubscribe();
+}
+
+function serialize(sub: PushSubscription): PushSubscriptionPayload {
+  const json = sub.toJSON();
+  const p256dh = json.keys?.p256dh;
+  const auth = json.keys?.auth;
+  if (!p256dh || !auth) throw new Error('구독 키를 읽지 못했습니다.');
+  return { endpoint: sub.endpoint, p256dh, auth };
+}

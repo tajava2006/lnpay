@@ -34,6 +34,8 @@ import {
 import { subscribeAdmin } from './subscribe';
 import { publishOrder, publishClaimPriceError, publishDepositRequired } from './publish';
 import { notifyTransition, notifyAccountInfoArrived } from './notify-triggers';
+import { saveSubscription } from '../web-push/store';
+import { isPushSubscriptionPayload } from '../web-push/types';
 import { getSigner } from './nip46';
 import { parseRequestEvent, parseOrderEvent } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
@@ -126,6 +128,37 @@ function dispatchRequest(request: Request): void {
     handleAccountInfo(request);
   } else if (request.action === 'remit-request') {
     void handleRemitRequest(request);
+  } else if (request.action === 'push-subscription') {
+    void handlePushSubscription(request);
+  }
+}
+
+/**
+ * Web Push 구독 등록을 받아 저장한다.
+ *
+ * 내용은 유저가 어드민에게만 열리게 NIP-44로 암호화했다 — 엔드포인트와 인증
+ * 시크릿이 공개되면 아무나 그 유저에게 푸시를 쏠 수 있다.
+ *
+ * 주문에 묶이지 않는 계정 단위 등록이라 오더 조회나 상태 검증이 없다.
+ * 이벤트 서명이 곧 "이 pubkey 본인이 등록했다"는 증명이므로 그걸로 충분하다.
+ */
+async function handlePushSubscription(request: Request): Promise<void> {
+  const signer = getSigner();
+  if (!signer) return;
+
+  const event = request.raw as { content?: string };
+  if (!event.content) return;
+
+  try {
+    const plaintext = await signer.nip44Decrypt(request.pubkey, event.content);
+    const parsed: unknown = JSON.parse(plaintext);
+    if (!isPushSubscriptionPayload(parsed)) {
+      console.warn('[Push] 구독 형식이 아님:', request.pubkey.slice(0, 8));
+      return;
+    }
+    saveSubscription(request.pubkey, parsed);
+  } catch (e) {
+    console.warn('[Push] 구독 등록 처리 실패:', request.pubkey.slice(0, 8), e);
   }
 }
 

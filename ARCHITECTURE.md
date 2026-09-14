@@ -307,6 +307,9 @@ customer/src/
     service.ts          - 구독 오케스트레이터 (Admin + 유저스크립트 + auto account-info + dispute-message IDB 저장)
     publish.ts          - 이벤트 발행 (order-request, notification, account-info, dispute-message)
     chat-subscribe.ts   - 분쟁 채팅 on-demand 구독 (디테일 페이지용)
+  push/
+    subscribe.ts        - Web Push 구독 (지원 여부 판정, 권한 요청, 구독 발급)
+    publish.ts          - 구독 정보를 kind 1111 + NIP-44로 어드민에 등록
   components/
     KeyInit.tsx         - 키페어 보장 래퍼
     Dashboard.tsx       - 메인 대시보드 (ParsedOrders + OrderForm + OrderTable + Guide)
@@ -320,7 +323,7 @@ customer/src/
     AccountInfoModal.tsx - 수동 주문 계좌정보 입력
     KeyExport.tsx       - nsec 내보내기 (유저스크립트 키 공유)
     UserscriptGuide.tsx - 유저스크립트 설치 가이드 + 코드블록 복사
-    NotifySetup.tsx     - 알림 설정 모달 (헤더 🔔, nsec QR + Amethyst 안내)
+    NotifySetup.tsx     - 알림 설정 모달 (헤더 🔔, Web Push 켜기 + nostr 받침)
 
 customer/userscript/       - Tampermonkey 유저스크립트 (esbuild IIFE 번들)
   banner.txt              - 메타데이터 헤더
@@ -586,6 +589,12 @@ admin/
       notify.ts           - NIP-17 알림 DM 발송 (번커로 seal, 로컬에서 wrap)
       notify-messages.ts  - 알림 문구
       notify-triggers.ts  - 알림 발송 표 (전이 후 상태 → 수신자)
+    web-push/
+      crypto.ts           - RFC 8291 페이로드 암호화 + RFC 8292 VAPID 서명 (WebCrypto)
+      send.ts             - 발송 (죽은 구독 자동 정리, 프록시 경유)
+      store.ts            - pubkey → 구독 목록 (기기별 다중 구독)
+      vapid-store.ts      - VAPID 개인키 (NIP-78 백업으로 어드민 기기 간 공유)
+      types.ts            - PushSubscriptionPayload + 검증
     lightning/
       types.ts            - NodeInfo, DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus
       adapter.ts          - LightningAdapter 인터페이스
@@ -595,7 +604,8 @@ admin/
       index.ts            - 팩토리 (LnConfig → LightningAdapter) + re-exports
     components/
       LoginScreen.tsx     - NIP-46 로그인 화면
-      LnConfigPage.tsx    - LN 노드 설정 입력/저장 폼
+      LnConfigPage.tsx    - LN 노드 설정 입력/저장 폼 (+ VapidKeyBox)
+      VapidKeyBox.tsx     - Web Push 발송 키 입력/상태
       OrderQueue.tsx      - 주문 단위 클레임 대기열
       OrderClaimList.tsx  - 주문별 클레임 목록
       ClaimCard.tsx       - 개별 클레임 카드 (승인/거절 + 유동성 검증)

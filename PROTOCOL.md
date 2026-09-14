@@ -245,6 +245,16 @@ Admin이 요청을 검토하고 타당하면 kind 30402를 갱신한다.
 | `deposit-required` | Admin | 보증금 hold invoice 전달 | `['p', recipientPubkey]`, `['bolt11', invoice]` |
 | `deposit-accepted` / `-cancelled` / `-settled` | Admin | 보증금 상태 변경 알림 | `['p', recipientPubkey]` |
 | `reveal-request` | Admin | 분쟁 중재용 계좌정보 공개 요청 | `['p', sponsorPubkey]` |
+| `push-subscription` | Customer / Sponsor | Web Push 구독 등록 | `['p', APP_PUBKEY]`, content=NIP-44 암호화. **a-tag·expiration 없음** |
+
+#### `push-subscription`에 a-tag도 expiration도 없는 이유
+
+구독은 **계정 단위**이고 주문보다 오래 산다. 주문에 묶거나 만료를 달면 그 주문이
+끝나는 순간 다음 거래의 알림이 조용히 끊긴다 — 실패가 눈에 안 보이는 종류라 특히 나쁘다.
+
+내용을 NIP-44로 암호화하는 것도 필수다. 엔드포인트와 `auth` 시크릿이 공개되면
+**아무나 그 유저에게 푸시를 쏠 수 있다.** VAPID는 발신자를 제한하는 장치일 뿐,
+엔드포인트 자체가 비밀이어야 성립한다.
 
 #### `account-info`의 커밋먼트는 솔티드다
 
@@ -789,10 +799,21 @@ Sponsor의 invoice → invoice 디코딩 → destination node pubkey 추출
   (예외: 알림 설정 화면 — 알림을 받으려면 키를 nostr 클라이언트에 넣어야 하므로
   거기서만 드러난다. 순전히 선택이라 안 쓰면 끝까지 안 보인다)
 
-## 알림 (NIP-17)
+## 알림
 
-Admin이 유저에게 "당신 차례입니다"를 보낸다. 앱을 열고 있지 않아도
-nostr 클라이언트가 대신 받아 알림을 띄운다.
+Admin이 유저에게 "당신 차례입니다"를 보낸다. 앱을 열고 있지 않아도 알림이 뜬다.
+
+**통로가 둘이고 문구는 한 벌이다.** 같은 사건을 Web Push와 NIP-17이 각각 나르되
+문구 표는 `admin/src/nostr/notify-messages.ts` 한 곳에서 나온다 — 두 벌로 두면
+한쪽만 고치는 일이 반드시 생긴다.
+
+| | Web Push | NIP-17 DM |
+|---|---|---|
+| 유저가 할 일 | 브라우저 "허용" 1회 | nostr 클라이언트에 키 넣기 |
+| 설치 | 없음 | 클라이언트 앱 |
+| 브라우저 닫아도 | 안드로이드 ✅ / PC는 프로세스 생존 시 | 클라이언트가 받음 |
+| iOS | 홈 화면 추가 시 ✅ | ❌ (지원 클라이언트 없음) |
+| 위치 | 1순위 | 받침 |
 
 ### 발송 시점
 

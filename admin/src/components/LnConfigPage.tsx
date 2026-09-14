@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { VapidKeyBox } from './VapidKeyBox';
 import type { LnConfig } from '../nostr/ln-config';
 import { publishLnConfig } from '../nostr/ln-config';
 import type { LightningBackend } from '../lightning';
@@ -81,6 +82,8 @@ export function LnConfigPage({ onSave, onBack }: Props) {
       </label>
 
       {error && <p style={styles.error}>{error}</p>}
+
+      <VapidKeyBox />
 
       <div style={styles.actions}>
         <button style={styles.backBtn} onClick={onBack} disabled={saving}>

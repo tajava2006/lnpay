@@ -15,11 +15,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Order } from '@sajwo-tracker/shared';
 
 vi.mock('../nostr/notify', () => ({ notify: vi.fn().mockResolvedValue(true) }));
+vi.mock('../web-push/send', () => ({ sendPush: vi.fn().mockResolvedValue(1) }));
 
 import { notify } from '../nostr/notify';
+import { sendPush } from '../web-push/send';
 import { notifyTransition, notifyAccountInfoArrived } from '../nostr/notify-triggers';
 
 const notifySpy = notify as ReturnType<typeof vi.fn>;
+const pushSpy = sendPush as ReturnType<typeof vi.fn>;
 
 const CUSTOMER = 'customer-pubkey-aaaa';
 const SPONSOR = 'sponsor-pubkey-bbbb';
@@ -47,6 +50,39 @@ function recipients(): string[] {
 describe('알림 발송 표', () => {
   beforeEach(() => {
     notifySpy.mockClear();
+    pushSpy.mockClear();
+  });
+
+  describe('두 통로가 같이 나간다', () => {
+    it('같은 수신자에게 Web Push와 NIP-17이 모두 간다', () => {
+      notifyTransition(order('remitted'));
+
+      expect(pushSpy).toHaveBeenCalledTimes(1);
+      expect(notifySpy).toHaveBeenCalledTimes(1);
+      expect(pushSpy.mock.calls[0]?.[0]).toBe(CUSTOMER);
+      expect(notifySpy.mock.calls[0]?.[0]).toBe(CUSTOMER);
+    });
+
+    it('문구가 한 벌에서 나와 두 통로가 같은 내용을 나른다', () => {
+      notifyTransition(order('remitted'));
+
+      const pushBody = (pushSpy.mock.calls[0]?.[1] as { body: string }).body;
+      const dmText = notifySpy.mock.calls[0]?.[1] as string;
+      expect(dmText).toContain(pushBody);
+    });
+
+    it('푸시 tag가 orderId라 같은 주문 알림이 쌓이지 않는다', () => {
+      notifyTransition(order('remitted'));
+
+      expect((pushSpy.mock.calls[0]?.[1] as { tag?: string }).tag).toBe('order-1');
+    });
+
+    it('푸시 url은 앱 내부 경로다 — 절대 URL이 아니다', () => {
+      notifyTransition(order('verified'));
+
+      const url = (pushSpy.mock.calls[0]?.[1] as { url: string }).url;
+      expect(url.startsWith('/')).toBe(true);
+    });
   });
 
   describe('고객 차례 — 고객에게만 간다', () => {
@@ -77,9 +113,10 @@ describe('알림 발송 표', () => {
   });
 
   describe('조용해야 하는 구간', () => {
-    it.each(['requested', 'claimed'] as const)('%s에서는 아무에게도 안 보낸다', state => {
+    it.each(['requested', 'claimed'] as const)('%s에서는 두 통로 다 조용하다', state => {
       notifyTransition(order(state));
       expect(notifySpy).not.toHaveBeenCalled();
+      expect(pushSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -100,6 +137,7 @@ describe('알림 발송 표', () => {
     it('후원자가 없으면 아무것도 안 한다', () => {
       notifyAccountInfoArrived(order('escrowed', false));
       expect(notifySpy).not.toHaveBeenCalled();
+      expect(pushSpy).not.toHaveBeenCalled();
     });
   });
 });

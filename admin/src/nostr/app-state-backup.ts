@@ -29,6 +29,8 @@ const APP_DATA_KIND = 30078;
 export const BACKUP_TAGS = {
   pendingDeposits: `deposits:${CLIENT_TAG}`,
   settings: `settings:${CLIENT_TAG}`,
+  /** Web Push VAPID 개인키 — 기기마다 따로 입력하지 않게 */
+  vapid: `vapid:${CLIENT_TAG}`,
 } as const;
 
 /** 상태를 NIP-44로 암호화해 쓰기 릴레이에 발행한다. */

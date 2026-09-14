@@ -99,7 +99,9 @@ export interface AccountInfoRequest extends RequestBase {
 export interface SimpleRequest extends RequestBase {
   action: 'payment-confirm' | 'cancel-request' | 'remit-request' | 'dispute-message' | 'claim-price-error'
     | 'deposit-required' | 'deposit-accepted' | 'deposit-cancelled' | 'deposit-settled'
-    | 'reveal-request';
+    | 'reveal-request'
+    /** 구독 정보는 content에 NIP-44로 실려 오므로 파싱된 필드가 없다 */
+    | 'push-subscription';
 }
 
 export type Request = OrderRequest | ClaimRequest | AccountInfoRequest | SimpleRequest;

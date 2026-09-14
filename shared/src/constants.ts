@@ -56,6 +56,8 @@ export const REQUEST_ACTIONS = {
   COUPANG_STATUS: 'coupang-status',
   /** Admin → 후원자: 분쟁 중재를 위해 받은 계좌정보를 공개해 달라는 요청 */
   REVEAL_REQUEST: 'reveal-request',
+  /** 유저 → Admin: Web Push 구독 정보 등록 (NIP-44 암호화) */
+  PUSH_SUBSCRIPTION: 'push-subscription',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 
@@ -85,3 +87,17 @@ export const FALLBACK_RELAYS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
 ];
+
+/**
+ * Web Push VAPID 공개키 (P-256 uncompressed, base64url)
+ *
+ * 유저가 구독할 때 `applicationServerKey`로 쓰고, 어드민이 보낼 때 같은 키쌍의
+ * 개인키로 JWT를 서명한다. 푸시 서비스가 그 서명을 이 공개키로 검증해서
+ * "우리가 보낸 게 맞다"를 확인한다 — 남이 우리 구독자에게 못 쏘게 하는 장치다.
+ *
+ * ⚠️ 이 값을 바꾸면 **기존 구독이 전부 무효**가 된다. 구독은 발급 시점의
+ * applicationServerKey에 묶여서, 키가 달라지면 푸시 서비스가 403으로 거절한다.
+ * 유저가 알림을 다시 켜야 살아난다. 개인키는 어드민 설정에만 있고 여기 없다.
+ */
+export const VAPID_PUBLIC_KEY =
+  'BEZykBtDbqMEaAPgxiJUhP0ipF5jOW4zViDWKERB5iI53NMzcgCYMRWOQJY0k6fvGV24izWDBfBjcjNL0LAWe1k';

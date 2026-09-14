@@ -52,6 +52,30 @@ export function asPush(n: Notice, tag?: string): { title: string; body: string; 
   return { title: '페어바이', body: n.body, url: path(n.tab), ...(tag ? { tag } : {}) };
 }
 
+/**
+ * 구독 확인 — **푸시 전용**, 등록 직후 딱 한 번.
+ *
+ * 두 가지를 한다.
+ *
+ * **확인.** 유저는 "알림 켜기"를 누른 뒤 정말 켜졌는지 알 방법이 없다. 다음 거래
+ * 전이까지 기다려야 아는데, 그때 안 오면 어디가 틀렸는지 되짚을 수가 없다.
+ *
+ * **첫 알림을 대신 맞아준다.** macOS는 브라우저가 처음 알림을 띄우려 할 때
+ * "「Firefox」에서 알림을 보내려고 합니다" 같은 OS 권한 창을 먼저 띄운다.
+ * 그걸 허용하는 사이 정작 그 첫 알림은 묻혀서 안 보인다. 그 자리를 실제 거래
+ * 알림이 맞으면 "결제하세요"가 통째로 증발하는데, 이 문구가 대신 맞으면
+ * 잃는 게 없다. 그 다음부터는 정상적으로 뜬다.
+ *
+ * NIP-17로는 보내지 않는다 — nostr 클라이언트는 권한 문제가 없고, 거기서는
+ * 이 문구가 그냥 소음이다.
+ */
+export const PUSH_WELCOME = {
+  title: '페어바이',
+  body: '알림이 등록되었습니다. 거래가 회원님 차례가 되면 여기로 알려드립니다.',
+  url: '/',
+  tag: 'pairbuy-welcome',
+} as const;
+
 export const NOTIFY = {
   /** 후원자가 붙고 검증도 끝났다. 고객이 결제해야 거래가 시작된다. */
   customerShouldPay: (): Notice =>

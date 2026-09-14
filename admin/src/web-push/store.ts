@@ -28,15 +28,26 @@ function save(map: SubscriptionMap): void {
   localStorage.setItem(KEY, JSON.stringify(map));
 }
 
-/** 구독을 등록한다. 같은 엔드포인트면 갱신(키가 회전될 수 있다). */
-export function saveSubscription(pubkey: string, sub: PushSubscriptionPayload): void {
+/**
+ * 구독을 등록한다. 같은 엔드포인트면 갱신(키가 회전될 수 있다).
+ *
+ * **처음 보는 엔드포인트일 때만 true**를 반환한다. 호출자가 이걸로 환영 알림을
+ * 한 번만 보낸다 — 어드민은 재부팅할 때마다 릴레이에서 같은 등록 이벤트를 다시
+ * 받으므로, 저장할 때마다 보내면 어드민을 새로고침할 때마다 유저에게
+ * "등록되었습니다"가 날아간다.
+ */
+export function saveSubscription(pubkey: string, sub: PushSubscriptionPayload): boolean {
   const map = load();
   const list = map[pubkey] ?? [];
+  const isNew = !list.some(s => s.endpoint === sub.endpoint);
+
   const next = list.filter(s => s.endpoint !== sub.endpoint);
   next.push(sub);
   map[pubkey] = next;
   save(map);
-  console.log('[Push] 구독 저장:', pubkey.slice(0, 8), '— 총', next.length, '개');
+
+  console.log('[Push] 구독 저장:', pubkey.slice(0, 8), '— 총', next.length, '개', isNew ? '(신규)' : '(기존)');
+  return isNew;
 }
 
 export function getSubscriptions(pubkey: string): PushSubscriptionPayload[] {

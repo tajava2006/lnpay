@@ -35,6 +35,8 @@ import { subscribeAdmin } from './subscribe';
 import { publishOrder, publishClaimPriceError, publishDepositRequired } from './publish';
 import { notifyTransition, notifyAccountInfoArrived } from './notify-triggers';
 import { saveSubscription } from '../web-push/store';
+import { sendPush } from '../web-push/send';
+import { PUSH_WELCOME } from './notify-messages';
 import { isPushSubscriptionPayload } from '../web-push/types';
 import { getSigner } from './nip46';
 import { parseRequestEvent, parseOrderEvent } from '../types';
@@ -161,7 +163,11 @@ async function handlePushSubscription(request: Request): Promise<void> {
       console.warn('[Push] 구독 형식이 아님:', request.pubkey.slice(0, 8));
       return;
     }
-    saveSubscription(request.pubkey, parsed);
+    // 처음 보는 기기일 때만 환영 알림을 보낸다. 어드민을 새로고침할 때마다
+    // 같은 등록 이벤트가 릴레이에서 다시 오므로, 무조건 보내면 그때마다 날아간다.
+    if (saveSubscription(request.pubkey, parsed)) {
+      void sendPush(request.pubkey, PUSH_WELCOME);
+    }
   } catch (e) {
     console.warn('[Push] 구독 등록 처리 실패:', request.pubkey.slice(0, 8), e);
   }

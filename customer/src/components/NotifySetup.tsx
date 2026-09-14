@@ -114,7 +114,12 @@ function PushSection({ state, onEnable, onDisable }: {
         <>
           <p style={styles.cardText}>
             설치할 것도, 계정을 만들 것도 없습니다. 아래 버튼을 누르고 브라우저가 묻는
-            알림 권한을 허용하면 끝입니다.
+            알림 권한을 허용하면 끝입니다. 켜지면 <b>확인 알림이 하나</b> 갑니다 —
+            그게 오면 제대로 된 겁니다.
+          </p>
+          <p style={styles.cardSub}>
+            맥이나 윈도우에서는 브라우저가 알림을 처음 띄울 때 운영체제가 한 번 더
+            물어볼 수 있습니다. 그것도 허용해 주세요.
           </p>
           {state.kind === 'error' && <p style={styles.err}>{state.message}</p>}
           <button onClick={onEnable} style={styles.primaryBtn}>알림 켜기</button>
@@ -278,6 +283,12 @@ const styles = {
     fontSize: 13,
     lineHeight: 1.6,
     color: '#4B5563',
+  },
+  cardSub: {
+    margin: '0 0 12px 0',
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#9CA3AF',
   },
   primaryBtn: {
     padding: '9px 20px',

@@ -43,7 +43,7 @@ export function VapidKeyBox() {
   }
 
   return (
-    <div style={styles.box}>
+    <div style={stored ? styles.box : { ...styles.box, ...styles.boxWarn }}>
       <div style={styles.head}>
         <b style={styles.title}>Web Push 발송 키</b>
         <span style={stored ? styles.ok : styles.missing}>
@@ -54,6 +54,16 @@ export function VapidKeyBox() {
       <p style={styles.desc}>
         VAPID 개인키(base64url 43자). 릴레이에 암호화 백업되어 다른 어드민 기기에서도
         자동으로 불러옵니다. 이 키를 바꾸면 기존 구독이 전부 무효가 됩니다.
+      </p>
+
+      {/*
+        이 화면 아래쪽에 "암호화 후 저장"(LN 설정용) 버튼이 따로 있다.
+        실제로 그걸 누르고 저장됐다고 믿은 사고가 있었다 — 키는 안 들어갔고
+        알림만 조용히 안 나갔다.
+      */}
+      <p style={styles.hint}>
+        아래 "암호화 후 저장"은 LN 설정용입니다. 이 키는 <b>오른쪽 저장 버튼</b>을
+        눌러야 저장됩니다.
       </p>
 
       <div style={styles.row}>
@@ -84,6 +94,20 @@ const styles = {
     marginTop: 24,
     paddingTop: 20,
     borderTop: '1px solid #E5E7EB',
+  },
+  boxWarn: {
+    marginTop: 24,
+    padding: 16,
+    borderTop: 'none',
+    background: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    borderRadius: 8,
+  },
+  hint: {
+    margin: '0 0 10px 0',
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#92400E',
   },
   head: {
     display: 'flex',

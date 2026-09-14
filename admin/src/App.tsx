@@ -11,6 +11,7 @@ import { initEscrowCache, mergeRestoredEntries } from './escrow-store';
 import { fetchEscrowBackup } from './nostr/escrow-backup';
 import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
+import { getVapidPrivateKey, restoreVapidPrivateKey } from './web-push/vapid-store';
 import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
 import { HistoryPage } from './components/HistoryPage';
@@ -58,6 +59,8 @@ export function App() {
   const lnConfigBroadcastedRef = useRef(false);
   // LN 설정 페이지 표시 여부
   const [showLnConfig, setShowLnConfig] = useState(false);
+  // 설정 화면을 다녀오면 다시 읽는다 — 거기서 입력했을 수 있다.
+  const [pushKeyOk, setPushKeyOk] = useState(() => !!getVapidPrivateKey());
 
   // ─── LN 어댑터 + 노드 트래커 (lnConfig 의존) ─────
 
@@ -174,6 +177,13 @@ export function App() {
         // 오더·요청은 릴레이 이벤트로 재구성되지만 이 둘은 그럴 수 없다.
         if (cancelled) return;
         await restorePendingDeposits();
+
+        // 다른 어드민 기기에서 입력한 푸시 키를 넘겨받는다.
+        // 설정 화면을 열지 않아도 복원돼야 한다 — 안 그러면 그 기기에서만
+        // 알림이 조용히 안 나간다.
+        if (cancelled) return;
+        await restoreVapidPrivateKey();
+        if (!cancelled) setPushKeyOk(!!getVapidPrivateKey());
 
         if (cancelled) return;
         // 전역 설정이라 원격이 우선이다. 복원되면 화면 값도 맞춰준다.
@@ -296,7 +306,10 @@ export function App() {
       <div style={styles.container}>
         <LnConfigPage
           onSave={handleLnConfigSave}
-          onBack={() => setShowLnConfig(false)}
+          onBack={() => {
+            setPushKeyOk(!!getVapidPrivateKey());
+            setShowLnConfig(false);
+          }}
         />
       </div>
     );
@@ -325,6 +338,16 @@ export function App() {
           >
             {lnConfig ? 'LN 설정' : 'LN 설정 필요'}
           </button>
+          {/*
+            푸시 키가 없으면 알림이 **조용히** 안 나간다 — 거래는 정상 진행되고
+            콘솔에만 경고가 남아서, 실제로 이것 때문에 한참 헤맸다.
+            메인 화면에서 바로 보이게 둔다.
+          */}
+          {!pushKeyOk && (
+            <button style={styles.lnConfigBtnWarn} onClick={() => setShowLnConfig(true)}>
+              푸시 키 필요
+            </button>
+          )}
         </div>
         <p style={styles.subtitle}>
           {currentPage === 'detail' && selectedOrderId

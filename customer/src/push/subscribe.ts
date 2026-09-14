@@ -96,12 +96,40 @@ export async function subscribeToPush(): Promise<PushSubscriptionPayload> {
   const existing = await reg.pushManager.getSubscription();
   if (existing) return serialize(existing);
 
-  const sub = await reg.pushManager.subscribe({
-    // false로 두면 크롬이 거부한다. 조용한 푸시는 허용되지 않는다.
-    userVisibleOnly: true,
-    applicationServerKey: VAPID_PUBLIC_KEY,
-  });
-  return serialize(sub);
+  try {
+    const sub = await reg.pushManager.subscribe({
+      // false로 두면 크롬이 거부한다. 조용한 푸시는 허용되지 않는다.
+      userVisibleOnly: true,
+      applicationServerKey: VAPID_PUBLIC_KEY,
+    });
+    return serialize(sub);
+  } catch (err) {
+    throw new Error(explainSubscribeFailure(err));
+  }
+}
+
+/**
+ * 구독 실패를 사람이 고칠 수 있는 말로 바꾼다.
+ *
+ * 브라우저가 주는 "Registration failed - push service error"는 원인을 전혀
+ * 알려주지 않는데, 실제로는 브레이브에서 구글 푸시가 기본으로 꺼져 있는 게
+ * 대부분이다. 그대로 보여주면 유저는 우리 앱이 고장난 줄 안다.
+ */
+function explainSubscribeFailure(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+
+  if (/push service error|Registration failed/i.test(raw)) {
+    // navigator.brave는 브레이브만 노출한다.
+    const isBrave = 'brave' in navigator;
+    if (isBrave) {
+      return '브레이브는 푸시 알림이 기본으로 꺼져 있습니다. '
+        + '주소창에 brave://settings/privacy 를 열고 "구글 푸시 메시지 서비스 사용"을 켠 뒤 '
+        + '브레이브를 완전히 종료했다 다시 켜고 시도해 주세요.';
+    }
+    return '브라우저의 푸시 서비스에 연결하지 못했습니다. '
+      + '브라우저 설정에서 푸시 알림이 꺼져 있지 않은지 확인해 주세요.';
+  }
+  return `알림을 켜지 못했습니다: ${raw}`;
 }
 
 /** 이 브라우저의 구독을 해지한다. 어드민 쪽 정리는 발송 실패 시 자동으로 된다. */

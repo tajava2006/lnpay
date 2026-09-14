@@ -51,14 +51,28 @@ export function decodeBolt11(bolt11: string): DecodedBolt11 | null {
  * a-tag에서 orderId를 추출하고, action 태그로 요청 종류를 분류한다.
  */
 export function parseRequestEvent(event: Event): Request | null {
+  const action = event.tags.find(t => t[0] === 'action')?.[1] ?? 'claim';
+
+  // 계정 단위 요청은 오더에 묶이지 않으므로 a 태그가 없는 게 정상이다.
+  // 아래의 a 태그 필수 검사보다 **먼저** 걸러야 한다 — 안 그러면 조용히 버려진다.
+  if (action === 'push-subscription') {
+    return {
+      eventId: event.id,
+      orderId: '', // 오더와 무관. 호출자가 requests 스토어에 넣지 않고 바로 처리한다
+      pubkey: event.pubkey,
+      createdAt: event.created_at,
+      expiration: 0,
+      raw: event as object,
+      action,
+    };
+  }
+
   const aTag = event.tags.find(t => t[0] === 'a')?.[1];
   if (!aTag) return null;
 
   const parts = aTag.split(':');
   if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return null;
   const orderId = parts[2];
-
-  const action = event.tags.find(t => t[0] === 'action')?.[1] ?? 'claim';
 
   const expirationTag = event.tags.find(t => t[0] === 'expiration')?.[1];
   const expiration = expirationTag ? Number(expirationTag) : 0;

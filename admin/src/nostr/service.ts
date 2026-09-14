@@ -81,6 +81,13 @@ export function startAdminSubscription(): Promise<void> {
           return;
         }
 
+        // 구독 등록은 오더 요청이 아니다 — orderId가 없으므로 requests 스토어에
+        // 넣으면 빈 키로 오염된다. 바로 처리하고 끝낸다.
+        if (request.action === 'push-subscription') {
+          void handlePushSubscription(request);
+          return;
+        }
+
         upsertRequest(request);
         void syncRequestToIdb(request);
 
@@ -128,8 +135,6 @@ function dispatchRequest(request: Request): void {
     handleAccountInfo(request);
   } else if (request.action === 'remit-request') {
     void handleRemitRequest(request);
-  } else if (request.action === 'push-subscription') {
-    void handlePushSubscription(request);
   }
 }
 

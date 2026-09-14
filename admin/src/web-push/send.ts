@@ -106,7 +106,12 @@ async function sendOne(
  */
 export async function sendPush(pubkey: string, message: PushMessage): Promise<number> {
   const subs = getSubscriptions(pubkey);
-  if (subs.length === 0) return 0;
+  if (subs.length === 0) {
+    // 반드시 로그를 남긴다. "구독이 없다"와 "보냈는데 실패했다"는 원인이 전혀
+    // 다른데, 조용히 return하면 둘 다 "알림이 안 온다"로만 보인다.
+    console.log('[Push]', pubkey.slice(0, 8), '— 등록된 구독 없음, 발송 안 함');
+    return 0;
+  }
 
   const results = await Promise.all(subs.map(s => sendOne(pubkey, s, message)));
   const sent = results.filter(Boolean).length;

@@ -25,9 +25,17 @@ import type { PushSubscriptionPayload } from './types';
 
 /**
  * 중계 경로. 빈 문자열이면 엔드포인트로 직접 POST한다.
- * 배포 시 nginx에 화이트리스트 프록시를 두고 이 값을 채운다.
+ *
+ * **프로덕션 기본값은 같은 오리진의 `/push`**다. 어드민이 배포된 도메인에 nginx가
+ * 이미 있으므로, 상대 경로로 두면 CORS가 아예 성립하지 않고(같은 오리진) 설정
+ * 파일도 하나 안 늘어난다. VPS에서 빌드하는 구조라 env를 따로 심으면 잊기 쉽다.
+ *
+ * **개발 기본값은 직접 발송**이다. 로컬에는 nginx가 없으니 프록시로 보내면
+ * 파이어폭스 상대로 되던 것까지 깨진다. 크롬·사파리가 dev에서 안 되는 건
+ * 알려진 제약으로 두고, 필요하면 VITE_PUSH_PROXY로 프로덕션 프록시를 가리킨다.
  */
-const PUSH_PROXY = import.meta.env.VITE_PUSH_PROXY ?? '';
+const PUSH_PROXY = import.meta.env.VITE_PUSH_PROXY
+  ?? (import.meta.env.PROD ? '/push' : '');
 
 /** VAPID `sub` — 푸시 서비스가 문제 생겼을 때 연락할 곳. */
 const VAPID_SUBJECT = 'https://customer.hoppe-relay.it.com';

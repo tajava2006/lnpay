@@ -38,6 +38,7 @@ import { saveSubscription } from '../web-push/store';
 import { sendPushToDevice } from '../web-push/send';
 import { PUSH_WELCOME } from './notify-messages';
 import { isPushSubscriptionPayload } from '../web-push/types';
+import { claimNotification } from '../notified-events';
 import { getSigner } from './nip46';
 import { parseRequestEvent, parseOrderEvent } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
@@ -750,6 +751,11 @@ function handleAccountInfo(request: Request): void {
     console.warn('[Admin] account-info pubkey mismatch for', request.orderId);
     return;
   }
+
+  // 상태를 바꾸지 않는 알림이라 canTransition 같은 방어가 없다. 릴레이는 어드민이
+  // 부팅할 때마다 과거 이벤트를 전부 다시 보내므로, 이 가드가 없으면 어드민을
+  // 만질 때마다 옛 주문의 "계좌 도착" 알림이 계속 날아간다.
+  if (!claimNotification(request.eventId)) return;
 
   notifyAccountInfoArrived(order);
 }

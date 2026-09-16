@@ -66,6 +66,27 @@ function AppContent() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // 알림 클릭 → 서비스워커가 목적지를 알려준다.
+  //
+  // 서비스워커가 직접 이동시키면(client.navigate) 페이지가 통째로 다시 읽혀
+  // 쓰던 입력이 날아간다. 그래서 주소만 받아 앱 안에서 라우팅한다 —
+  // popstate와 같은 경로를 타므로 뒤로가기 동작도 그대로다.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const onMessage = (e: MessageEvent) => {
+      const data = e.data as { type?: string; url?: string } | null;
+      if (data?.type !== 'pairbuy-navigate' || typeof data.url !== 'string') return;
+
+      history.pushState(null, '', data.url);
+      setTab(readTabFromUrl());
+      setDetailOrderId(readOrderFromUrl());
+    };
+
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, []);
+
   const goTab = useCallback((next: Tab) => {
     history.pushState(null, '', urlForTab(next));
     setTab(next);

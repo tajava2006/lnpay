@@ -38,15 +38,22 @@ self.addEventListener('notificationclick', (event) => {
   const target = (event.notification.data && event.notification.data.url) || '/';
 
   // 이미 열린 탭이 있으면 거기로 보낸다. 매번 새 탭을 여는 건 성가시다.
+  //
+  // 포커스만 주고 이동은 앱에게 맡긴다. 예전에는 client.navigate()를 썼는데
+  // 그건 이미 같은 주소에 있어도 **전체 페이지를 다시 읽는다** — 쓰던 계좌
+  // 정보나 채팅 입력이 통째로 날아간다.
+  //
+  // 새로고침이 재연결에 필요한 것도 아니다. 앱이 visibilitychange에서 구독을
+  // 다시 맺으므로, 탭에 포커스가 가는 순간 릴레이 연결은 이미 복구된다.
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clients) => {
         for (const client of clients) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.navigate(target);
-            return client.focus();
-          }
+          if (!client.url.startsWith(self.location.origin)) continue;
+          client.postMessage({ type: 'pairbuy-navigate', url: target });
+          return 'focus' in client ? client.focus() : undefined;
         }
+        // 열린 탭이 없으면 새로 연다 — 이때는 어차피 처음부터 뜬다.
         return self.clients.openWindow(target);
       }),
   );

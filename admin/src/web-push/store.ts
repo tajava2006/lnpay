@@ -12,8 +12,37 @@ import type { PushSubscriptionPayload } from './types';
 
 const KEY = 'push-subscriptions';
 
+/**
+ * 죽은 것으로 확인된 엔드포인트 묘비.
+ *
+ * 이게 없으면 되살아난다. 구독 등록 이벤트는 만료가 없어서 어드민이 부팅할 때마다
+ * 릴레이가 **전부 다시 보내주는데**, 그중 이미 죽은 엔드포인트가 "처음 보는 것"으로
+ * 잡혀 저장 → 환영 알림 → 410 → 삭제 → 다음 부팅에 또 처음 보는 것... 이 무한히 돈다.
+ *
+ * 푸시 서비스의 404/410은 영구적이다(엔드포인트는 재사용되지 않는다). 그래서 한 번
+ * 죽은 건 영원히 죽은 것으로 취급해도 안전하다.
+ */
+const DEAD_KEY = 'push-subscriptions-dead';
+const DEAD_MAX = 200;
+
 /** pubkey → 구독 목록 */
 type SubscriptionMap = Record<string, PushSubscriptionPayload[]>;
+
+function loadDead(): string[] {
+  try {
+    const raw = localStorage.getItem(DEAD_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function markDead(endpoint: string): void {
+  const list = loadDead().filter(e => e !== endpoint);
+  list.push(endpoint);
+  // 오래된 것부터 버린다. 무한히 쌓을 이유는 없다.
+  localStorage.setItem(DEAD_KEY, JSON.stringify(list.slice(-DEAD_MAX)));
+}
 
 function load(): SubscriptionMap {
   try {
@@ -37,6 +66,12 @@ function save(map: SubscriptionMap): void {
  * "등록되었습니다"가 날아간다.
  */
 export function saveSubscription(pubkey: string, sub: PushSubscriptionPayload): boolean {
+  // 죽은 걸로 확인된 엔드포인트는 되살리지 않는다. 릴레이가 옛 등록 이벤트를
+  // 계속 재전송하므로, 이 가드가 없으면 매 부팅마다 신규로 잡혀 알림이 나간다.
+  if (loadDead().includes(sub.endpoint)) {
+    return false;
+  }
+
   const map = load();
   const list = map[pubkey] ?? [];
   const isNew = !list.some(s => s.endpoint === sub.endpoint);
@@ -61,6 +96,8 @@ export function getSubscriptions(pubkey: string): PushSubscriptionPayload[] {
  * 그대로 두면 발송 때마다 헛 요청이 나가므로 그때 정리한다.
  */
 export function removeSubscription(pubkey: string, endpoint: string): void {
+  markDead(endpoint);
+
   const map = load();
   const list = map[pubkey];
   if (!list) return;
@@ -74,4 +111,5 @@ export function removeSubscription(pubkey: string, endpoint: string): void {
 /** 테스트용 초기화 */
 export function _resetForTesting(): void {
   localStorage.removeItem(KEY);
+  localStorage.removeItem(DEAD_KEY);
 }

@@ -92,11 +92,22 @@ describe('구독 저장소', () => {
       expect(getSubscriptions(USER)).toEqual([]);
     });
 
-    it('지운 뒤 다시 등록하면 신규로 본다 — 환영 알림이 다시 간다', () => {
+    it('한 번 죽은 엔드포인트는 되살아나지 않는다', () => {
       saveSubscription(USER, sub('https://push/a'));
       removeSubscription(USER, 'https://push/a');
 
-      expect(saveSubscription(USER, sub('https://push/a'))).toBe(true);
+      // 릴레이가 옛 등록 이벤트를 다시 보내도 저장되지 않는다.
+      // 이 가드가 없으면 매 부팅마다 신규 → 환영 알림 → 410 → 삭제가 무한히 돈다.
+      expect(saveSubscription(USER, sub('https://push/a'))).toBe(false);
+      expect(getSubscriptions(USER)).toEqual([]);
+    });
+
+    it('죽은 건 죽은 채로, 새 엔드포인트는 정상 등록된다', () => {
+      saveSubscription(USER, sub('https://push/dead'));
+      removeSubscription(USER, 'https://push/dead');
+
+      expect(saveSubscription(USER, sub('https://push/fresh'))).toBe(true);
+      expect(getSubscriptions(USER).map(s => s.endpoint)).toEqual(['https://push/fresh']);
     });
   });
 

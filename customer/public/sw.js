@@ -82,6 +82,9 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(event.request)),
+      // 캐시에도 없으면 undefined가 되는데, respondWith(undefined)는
+      // "Failed to convert value to 'Response'"로 터진다. 네트워크가 끊긴
+      // 상태에서 처음 보는 경로를 열면 바로 이 경우다 — 반드시 Response를 준다.
+      .catch(async () => (await caches.match(event.request)) ?? Response.error()),
   );
 });

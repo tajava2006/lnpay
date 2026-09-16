@@ -109,6 +109,21 @@ async function sendOne(
 }
 
 /**
+ * 지정한 **한 기기에만** 보낸다.
+ *
+ * 환영 알림이 이걸 쓴다. 방금 등록한 기기에 "등록됐다"를 알리는 것이라
+ * 그 사람의 다른 기기까지 울릴 이유가 없다. 실제로 sendPush(전체 발송)를 쓰다가
+ * 어드민을 새로고침할 때마다 멀쩡히 살아 있는 다른 기기가 계속 울렸다.
+ */
+export async function sendPushToDevice(
+  pubkey: string,
+  sub: PushSubscriptionPayload,
+  message: PushMessage,
+): Promise<boolean> {
+  return sendOne(pubkey, sub, message);
+}
+
+/**
  * 한 유저의 모든 구독(기기)에 보낸다. 실패해도 던지지 않는다 —
  * 알림은 부가 기능이고, 못 보냈다고 거래를 막아선 안 된다.
  */

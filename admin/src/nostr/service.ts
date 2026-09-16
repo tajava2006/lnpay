@@ -35,7 +35,7 @@ import { subscribeAdmin } from './subscribe';
 import { publishOrder, publishClaimPriceError, publishDepositRequired } from './publish';
 import { notifyTransition, notifyAccountInfoArrived } from './notify-triggers';
 import { saveSubscription } from '../web-push/store';
-import { sendPush } from '../web-push/send';
+import { sendPushToDevice } from '../web-push/send';
 import { PUSH_WELCOME } from './notify-messages';
 import { isPushSubscriptionPayload } from '../web-push/types';
 import { getSigner } from './nip46';
@@ -163,10 +163,13 @@ async function handlePushSubscription(request: Request): Promise<void> {
       console.warn('[Push] 구독 형식이 아님:', request.pubkey.slice(0, 8));
       return;
     }
-    // 처음 보는 기기일 때만 환영 알림을 보낸다. 어드민을 새로고침할 때마다
-    // 같은 등록 이벤트가 릴레이에서 다시 오므로, 무조건 보내면 그때마다 날아간다.
+    // 처음 보는 기기일 때만, 그리고 **그 기기에만** 환영 알림을 보낸다.
+    //
+    // 어드민을 새로고침할 때마다 같은 등록 이벤트가 릴레이에서 다시 오므로
+    // "처음 보는가" 판정이 필요하고, 전체 발송을 쓰면 그 사람의 멀쩡한 다른
+    // 기기까지 매번 울린다 — 둘 다 실제로 겪은 문제다.
     if (saveSubscription(request.pubkey, parsed)) {
-      void sendPush(request.pubkey, PUSH_WELCOME);
+      void sendPushToDevice(request.pubkey, parsed, PUSH_WELCOME);
     }
   } catch (e) {
     console.warn('[Push] 구독 등록 처리 실패:', request.pubkey.slice(0, 8), e);

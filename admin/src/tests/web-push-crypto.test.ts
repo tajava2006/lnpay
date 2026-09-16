@@ -10,7 +10,10 @@
  * 그래서 **RFC 8291 §5의 공식 테스트 벡터**로 바이트 단위 대조를 한다.
  */
 import { describe, it, expect } from 'vitest';
-import { encryptPayload, vapidAuthHeader, audienceOf, b64uToBytes, bytesToB64u } from '../web-push/crypto';
+import {
+  encryptPayload, vapidAuthHeader, audienceOf, vapidKeyPairMatches,
+  b64uToBytes, bytesToB64u,
+} from '../web-push/crypto';
 
 // ── RFC 8291 §5 공식 벡터 ────────────────────────────────────────────
 const VEC = {
@@ -129,5 +132,34 @@ describe('RFC 8292 VAPID', () => {
     const sig = header.split('.')[2]!.split(',')[0]!;
 
     expect(b64uToBytes(sig)).toHaveLength(64);
+  });
+});
+
+describe('VAPID 키쌍 짝 검증', () => {
+  const PUB = 'BEZykBtDbqMEaAPgxiJUhP0ipF5jOW4zViDWKERB5iI53NMzcgCYMRWOQJY0k6fvGV24izWDBfBjcjNL0LAWe1k';
+  const PRIV_D = 'kc1tgSuCQKfcAi3w1Z71p_JJCDQqXUHkBaqw-5fi7qg';
+
+  /**
+   * 이 검증이 왜 있는가: 형식만 맞고 짝이 아닌 키는 푸시 서비스마다 다르게 실패한다.
+   * FCM은 403 "invalid JWT provided", Mozilla는 서명을 검증하지 않아 201로 통과한다.
+   * 파이어폭스에서 알림이 잘 오니까 키를 의심하지 않게 되는 게 진짜 함정이었다.
+   */
+  it('짝이 맞으면 true', async () => {
+    expect(await vapidKeyPairMatches(PUB, PRIV_D)).toBe(true);
+  });
+
+  it('짝이 아닌 개인키는 false — 형식은 멀쩡해도 거른다', async () => {
+    const other = await crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign'],
+    ) as CryptoKeyPair;
+    const jwk = await crypto.subtle.exportKey('jwk', other.privateKey);
+
+    expect(jwk.d).toMatch(/^[A-Za-z0-9_-]{43}$/); // 형식 검사는 통과하는 값이다
+    expect(await vapidKeyPairMatches(PUB, jwk.d!)).toBe(false);
+  });
+
+  it('쓰레기 값은 던지지 않고 false', async () => {
+    expect(await vapidKeyPairMatches(PUB, 'not-a-key')).toBe(false);
+    expect(await vapidKeyPairMatches('not-a-public-key', PRIV_D)).toBe(false);
   });
 });

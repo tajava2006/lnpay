@@ -174,6 +174,42 @@ export function audienceOf(endpoint: string): string {
 }
 
 /**
+ * 개인키가 정말 그 공개키의 짝인지 서명 왕복으로 확인한다.
+ *
+ * 형식 검사(base64url 43자)만으로는 부족하다. 짝이 아닌 키도 형식은 멀쩡해서
+ * 그대로 저장되고, 그 다음부터 **푸시 서비스마다 다르게** 실패한다:
+ *
+ *   FCM(크롬 계열)  403 permission denied: invalid JWT provided
+ *   Mozilla(파폭)   201 — 일반 구독에는 서명을 검증하지 않아 그냥 통과한다
+ *
+ * 이 비대칭이 특히 고약하다. 파이어폭스에서는 알림이 멀쩡히 오니까 키를 의심하지
+ * 않게 되고, 크롬만 안 되는 걸 CORS나 프록시 탓으로 몰게 된다(실제로 그렇게 헤맸다).
+ * 그래서 저장하는 순간 여기서 막는다.
+ */
+export async function vapidKeyPairMatches(
+  publicKeyB64u: string,
+  privateD: string,
+): Promise<boolean> {
+  try {
+    const publicKey = b64uToBytes(publicKeyB64u);
+    const priv = await importVapidKey(privateD, publicKey);
+    const probe = utf8('vapid-keypair-check');
+
+    const sig = await crypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' }, priv, probe as BufferSource,
+    );
+    const pub = await crypto.subtle.importKey(
+      'raw', publicKey as BufferSource, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'],
+    );
+    return await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' }, pub, sig, probe as BufferSource,
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * `Authorization: vapid t=..., k=...` 헤더 값을 만든다.
  *
  * exp는 12시간 뒤로 둔다. 스펙 상한은 24시간이고, 짧을수록 탈취된 토큰의

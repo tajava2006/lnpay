@@ -11,7 +11,7 @@ import { initEscrowCache, mergeRestoredEntries } from './escrow-store';
 import { fetchEscrowBackup } from './nostr/escrow-backup';
 import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
-import { getVapidPrivateKey, restoreVapidPrivateKey } from './web-push/vapid-store';
+import { getVapidPrivateKey, restoreVapidPrivateKey, discardVapidKeyIfMismatched } from './web-push/vapid-store';
 import { OrderQueue } from './components/OrderQueue';
 import { OrderClaimList } from './components/OrderClaimList';
 import { HistoryPage } from './components/HistoryPage';
@@ -182,6 +182,7 @@ export function App() {
         // 설정 화면을 열지 않아도 복원돼야 한다 — 안 그러면 그 기기에서만
         // 알림이 조용히 안 나간다.
         if (cancelled) return;
+        await discardVapidKeyIfMismatched();
         await restoreVapidPrivateKey();
         if (!cancelled) setPushKeyOk(!!getVapidPrivateKey());
 

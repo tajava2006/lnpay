@@ -23,6 +23,20 @@ import { getSecretKey, storage } from '@sajwo-tracker/shared';
 import { checkPushSupport, subscribeToPush, getExistingSubscription, unsubscribeFromPush } from '../push/subscribe';
 import { publishPushSubscription } from '../push/publish';
 
+/**
+ * nostr 클라이언트 안내를 화면에 낼지.
+ *
+ * Web Push가 크롬·브레이브·파이어폭스·안드로이드까지 다 커버하게 되면서
+ * 이 경로는 실사용 가치가 없어졌다. 유저에게 "앱 하나 더 까세요"는 그 자체로
+ * 이탈 사유이고, 안 쓸 선택지를 접어서라도 보여주면 화면만 복잡해진다.
+ *
+ * 그래도 코드는 지우지 않는다. 브라우저 정책이 바뀌거나 푸시 서비스가 막히는
+ * 날이 오면 이게 유일한 대안이 된다 — 그때 이 상수만 true로 돌리면 된다.
+ * (어드민의 NIP-17 발송은 계속 돈다. 이미 키를 클라이언트에 넣어둔 사람은
+ * 그대로 받는다.)
+ */
+const SHOW_NOSTR_FALLBACK: boolean = false;
+
 type PushState =
   | { kind: 'checking' }
   | { kind: 'unsupported'; reason: string }
@@ -83,10 +97,14 @@ export function NotifySetup({ onClose }: { onClose: () => void }) {
 
         <PushSection state={push} onEnable={handleEnable} onDisable={handleDisable} />
 
-        <button onClick={() => setShowNostr(v => !v)} style={styles.disclosure}>
-          {showNostr ? '▾' : '▸'} nostr 클라이언트로 받기 (선택)
-        </button>
-        {showNostr && <NostrSection />}
+        {SHOW_NOSTR_FALLBACK && (
+          <>
+            <button onClick={() => setShowNostr(v => !v)} style={styles.disclosure}>
+              {showNostr ? '▾' : '▸'} nostr 클라이언트로 받기 (선택)
+            </button>
+            {showNostr && <NostrSection />}
+          </>
+        )}
       </div>
     </div>
   );

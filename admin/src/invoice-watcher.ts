@@ -24,11 +24,16 @@ import { getSnapshot as getRequestSnapshot } from './request-store';
 import { getEscrowEntry } from './escrow-store';
 import { canTransition } from './state-machine';
 import { publishOrder, publishDepositStatus } from './nostr/publish';
-import { createOrder } from './nostr/service';
+import { createOrder, approveOrder } from './nostr/service';
+import { isAutoApproveEnabled, shouldAutoApprove } from './auto-approve';
+import { getSponsorDepositPercent } from './deposit-config';
 import { notifyTransition } from './nostr/notify-triggers';
 import { idbMigrateOrderWithRequests } from '@sajwo-tracker/shared';
 import { getAllPendingDeposits, deletePendingDeposit } from './pending-deposit-store';
 import { handleDepositOnTransition } from './deposit-lifecycle';
+
+/** 자동 승인 진행 중인 오더. 릴레이 에코가 오기 전 중복 승인을 막는다. */
+const approving = new Set<string>();
 
 const POLL_INTERVAL = 15_000; // 15초
 const SETTLE_SAFETY_MARGIN = 10 * 60; // 10분
@@ -154,6 +159,34 @@ async function poll(): Promise<void> {
         }
       } catch (err) {
         console.warn('[InvoiceWatcher] lookup failed for', order.orderId, err);
+      }
+    }
+
+    // Phase 1.5: claimed 오더 — 자동 승인
+    //
+    // 어드민이 눌러야 진행되던 유일한 "판단 없는" 단계다. 접속만 해 있으면
+    // 거래가 완주하도록 여기서 넘긴다. 근거 = auto-approve.ts
+    if (isAutoApproveEnabled()) {
+      const now = Math.floor(Date.now() / 1000);
+      const sponsorDepositRequired = getSponsorDepositPercent() > 0;
+
+      for (const order of orders) {
+        if (!shouldAutoApprove(order, { sponsorDepositRequired, now })) continue;
+        // 승인은 릴레이 에코로 로컬에 반영되므로, 그 사이 다음 틱이 와도 같은
+        // 오더를 또 승인하려 든다. 진행 중인 것은 건너뛴다.
+        if (approving.has(order.orderId)) continue;
+
+        approving.add(order.orderId);
+        void approveOrder(order.orderId, adapter!)
+          .then(result => {
+            if (result.success) {
+              console.log('[InvoiceWatcher] 자동 승인:', order.orderId);
+            } else if (result.error !== 'NO_PRICE_FEED') {
+              // 시세 피드 일시 부재는 다음 턴에 낫는다 — 매번 시끄럽게 하지 않는다.
+              console.warn('[InvoiceWatcher] 자동 승인 실패:', order.orderId, result.error);
+            }
+          })
+          .finally(() => approving.delete(order.orderId));
       }
     }
 

@@ -19,6 +19,7 @@ import { OrderDetail } from './components/OrderDetail';
 import { NodeStatus } from './components/NodeStatus';
 import { getCustomerDepositPercent, setCustomerDepositPercent, getSponsorDepositPercent, setSponsorDepositPercent, restoreDepositSettings } from './deposit-config';
 import { restorePendingDeposits } from './pending-deposit-store';
+import { isAutoApproveEnabled, setAutoApproveEnabled } from './auto-approve';
 import { BtcPrice, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { createLightningAdapter, createNodeTracker } from './lightning';
@@ -61,6 +62,8 @@ export function App() {
   const [showLnConfig, setShowLnConfig] = useState(false);
   // 설정 화면을 다녀오면 다시 읽는다 — 거기서 입력했을 수 있다.
   const [pushKeyOk, setPushKeyOk] = useState(() => !!getVapidPrivateKey());
+  // 판단이 필요 없는 유일한 블로커를 자동으로 넘긴다. 기본 켜짐.
+  const [autoApprove, setAutoApprove] = useState(isAutoApproveEnabled);
 
   // ─── LN 어댑터 + 노드 트래커 (lnConfig 의존) ─────
 
@@ -361,6 +364,17 @@ export function App() {
         </p>
         <BtcPrice tracker={tracker} />
         {nodeTracker && <NodeStatus tracker={nodeTracker} />}
+        <label style={styles.depositLabel}>
+          <input
+            type="checkbox"
+            checked={autoApprove}
+            onChange={e => {
+              setAutoApproveEnabled(e.target.checked);
+              setAutoApprove(e.target.checked);
+            }}
+          />
+          클레임 자동 승인
+        </label>
         <label style={styles.depositLabel}>
           고객 보증금
           <select

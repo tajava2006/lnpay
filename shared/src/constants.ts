@@ -101,3 +101,19 @@ export const FALLBACK_RELAYS = [
  */
 export const VAPID_PUBLIC_KEY =
   'BEZykBtDbqMEaAPgxiJUhP0ipF5jOW4zViDWKERB5iI53NMzcgCYMRWOQJY0k6fvGV24izWDBfBjcjNL0LAWe1k';
+
+/**
+ * NIP-17 DM 알림을 쓸지.
+ *
+ * 2026-09-17 off. Web Push가 크롬·브레이브·파이어폭스·안드로이드까지 다 커버하게
+ * 되면서 이 경로를 안내할 이유가 없어졌고, 안내를 감춘 채로 계속 발송하면 아무도
+ * 안 여는 gift wrap이 릴레이에 쌓이기만 한다(계정 단위라 만료 태그도 없다).
+ *
+ * 이 스위치 하나가 세 곳을 함께 끈다:
+ *   - 유저 신원 발행 (kind 0 + 10002) — NIP-17 인박스 탐색 전용이라 같이 무의미
+ *   - 어드민 DM 발송 (kind 1059)
+ *   - 🔔 모달의 nostr 안내 섹션
+ *
+ * 코드는 남긴다. 브라우저 정책이 바뀌거나 푸시 서비스가 막히면 유일한 대안이 된다.
+ */
+export const NOSTR_DM_NOTIFICATIONS = false;

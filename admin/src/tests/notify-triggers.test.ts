@@ -3,13 +3,12 @@
  *
  * 여기서 지키려는 건 두 가지다.
  *
- * **누가 받는가.** 알림은 NIP-17로 봉해지지만 수신자를 잘못 고르면 봉투가
- * 무슨 소용이든 내용이 남에게 간다. 특히 고객/후원자를 뒤바꾸는 실수는
- * 타입으로 잡히지 않는다 — 둘 다 string이라서.
+ * **누가 받는가.** 수신자를 잘못 고르면 거래 내용이 남에게 간다. 특히 고객/후원자를
+ * 뒤바꾸는 실수는 타입으로 안 잡힌다 — 둘 다 string이라서.
  *
- * **언제 보내는가.** "당신 차례입니다"가 아닌 순간에 보내면 알림이 소음이
- * 되고, 소음이 되면 정작 움직여야 할 때 놓친다. requested/claimed에서
- * 조용해야 하는 이유가 그것이다.
+ * **언제 보내는가.** "당신 차례입니다"가 아닌 순간에 보내면 알림이 소음이 되고,
+ * 소음이 되면 정작 움직여야 할 때 놓친다. requested/claimed에서 조용해야 하는
+ * 이유가 그것이다.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Order } from '@sajwo-tracker/shared';
@@ -44,7 +43,13 @@ function order(state: Order['state'], withSponsor = true): Order {
 
 /** 이 전이에서 알림을 받은 사람들 */
 function recipients(): string[] {
-  return notifySpy.mock.calls.map(c => c[0] as string);
+  return pushSpy.mock.calls.map(c => c[0] as string);
+}
+
+/** 그 사람에게 간 푸시 본문 */
+function bodyFor(pubkey: string): string | undefined {
+  const call = pushSpy.mock.calls.find(c => c[0] === pubkey);
+  return call ? (call[1] as { body: string }).body : undefined;
 }
 
 describe('알림 발송 표', () => {
@@ -53,22 +58,17 @@ describe('알림 발송 표', () => {
     pushSpy.mockClear();
   });
 
-  describe('두 통로가 같이 나간다', () => {
-    it('같은 수신자에게 Web Push와 NIP-17이 모두 간다', () => {
+  describe('통로', () => {
+    /**
+     * NIP-17은 2026-09-17에 껐다(NOSTR_DM_NOTIFICATIONS). 안내를 화면에서 감춘
+     * 뒤로는 아무도 안 여는 gift wrap이 릴레이에 쌓이기만 한다. 코드는 남아 있어
+     * 스위치만 켜면 살아나는데, **꺼둔 동안 새는 일이 없어야** 한다.
+     */
+    it('Web Push로만 나간다 — NIP-17은 꺼져 있다', () => {
       notifyTransition(order('remitted'));
 
       expect(pushSpy).toHaveBeenCalledTimes(1);
-      expect(notifySpy).toHaveBeenCalledTimes(1);
-      expect(pushSpy.mock.calls[0]?.[0]).toBe(CUSTOMER);
-      expect(notifySpy.mock.calls[0]?.[0]).toBe(CUSTOMER);
-    });
-
-    it('문구가 한 벌에서 나와 두 통로가 같은 내용을 나른다', () => {
-      notifyTransition(order('remitted'));
-
-      const pushBody = (pushSpy.mock.calls[0]?.[1] as { body: string }).body;
-      const dmText = notifySpy.mock.calls[0]?.[1] as string;
-      expect(dmText).toContain(pushBody);
+      expect(notifySpy).not.toHaveBeenCalled();
     });
 
     it('푸시 tag가 orderId라 같은 주문 알림이 쌓이지 않는다', () => {
@@ -93,8 +93,9 @@ describe('알림 발송 표', () => {
 
     it('remitted는 후원자가 이미 송금을 마친 상태라 반드시 알린다', () => {
       notifyTransition(order('remitted'));
-      expect(notifySpy).toHaveBeenCalledTimes(1);
-      expect(notifySpy.mock.calls[0]?.[1]).toContain('컨펌');
+
+      expect(pushSpy).toHaveBeenCalledTimes(1);
+      expect(bodyFor(CUSTOMER)).toContain('컨펌');
     });
   });
 
@@ -106,17 +107,18 @@ describe('알림 발송 표', () => {
 
     it('분쟁 승자와 패자에게 다른 문구가 간다', () => {
       notifyTransition(order('customer_wins'));
-      const byPubkey = new Map(notifySpy.mock.calls.map(c => [c[0] as string, c[1] as string]));
-      expect(byPubkey.get(CUSTOMER)).toContain('유리하게');
-      expect(byPubkey.get(SPONSOR)).not.toContain('유리하게');
+
+      expect(bodyFor(CUSTOMER)).toContain('유리하게');
+      expect(bodyFor(SPONSOR)).not.toContain('유리하게');
     });
   });
 
   describe('조용해야 하는 구간', () => {
-    it.each(['requested', 'claimed'] as const)('%s에서는 두 통로 다 조용하다', state => {
+    it.each(['requested', 'claimed'] as const)('%s에서는 아무것도 안 나간다', state => {
       notifyTransition(order(state));
-      expect(notifySpy).not.toHaveBeenCalled();
+
       expect(pushSpy).not.toHaveBeenCalled();
+      expect(notifySpy).not.toHaveBeenCalled();
     });
   });
 
@@ -130,14 +132,16 @@ describe('알림 발송 표', () => {
   describe('계좌 도착 — 후원자 차례', () => {
     it('후원자에게만 간다', () => {
       notifyAccountInfoArrived(order('escrowed'));
+
       expect(recipients()).toEqual([SPONSOR]);
-      expect(notifySpy.mock.calls[0]?.[1]).toContain('송금');
+      expect(bodyFor(SPONSOR)).toContain('송금');
     });
 
     it('후원자가 없으면 아무것도 안 한다', () => {
       notifyAccountInfoArrived(order('escrowed', false));
-      expect(notifySpy).not.toHaveBeenCalled();
+
       expect(pushSpy).not.toHaveBeenCalled();
+      expect(notifySpy).not.toHaveBeenCalled();
     });
   });
 });

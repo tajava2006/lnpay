@@ -15,15 +15,17 @@
  *
  * 모두 fire-and-forget이다. 알림 실패가 거래 진행을 막아선 안 된다.
  */
-import type { Order } from '@sajwo-tracker/shared';
+import { NOSTR_DM_NOTIFICATIONS, type Order } from '@sajwo-tracker/shared';
 import { notify } from './notify';
 import { sendPush } from '../web-push/send';
 import { NOTIFY, asDirectMessage, asPush, type Notice } from './notify-messages';
 
-/** 한 사람에게 두 통로로 같은 알림을 보낸다. */
+/** 한 사람에게 알림을 보낸다. */
 function deliver(pubkey: string, notice: Notice, orderId: string): void {
   void sendPush(pubkey, asPush(notice, orderId));
-  void notify(pubkey, asDirectMessage(notice));
+  // NIP-17은 현재 꺼져 있다 — 안내를 감춘 뒤로는 아무도 안 여는 gift wrap이
+  // 릴레이에 쌓이기만 한다. 되살릴 땐 NOSTR_DM_NOTIFICATIONS만 켜면 된다.
+  if (NOSTR_DM_NOTIFICATIONS) void notify(pubkey, asDirectMessage(notice));
 }
 
 /**

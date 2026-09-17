@@ -19,7 +19,8 @@
 import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { nsecEncode } from 'nostr-tools/nip19';
-import { getSecretKey, storage } from '@sajwo-tracker/shared';
+import { getSecretKey, storage, NOSTR_DM_NOTIFICATIONS } from '@sajwo-tracker/shared';
+import { InstallApp } from './InstallApp';
 import { checkPushSupport, subscribeToPush, getExistingSubscription, unsubscribeFromPush } from '../push/subscribe';
 import { publishPushSubscription } from '../push/publish';
 
@@ -31,11 +32,13 @@ import { publishPushSubscription } from '../push/publish';
  * 이탈 사유이고, 안 쓸 선택지를 접어서라도 보여주면 화면만 복잡해진다.
  *
  * 그래도 코드는 지우지 않는다. 브라우저 정책이 바뀌거나 푸시 서비스가 막히는
- * 날이 오면 이게 유일한 대안이 된다 — 그때 이 상수만 true로 돌리면 된다.
- * (어드민의 NIP-17 발송은 계속 돈다. 이미 키를 클라이언트에 넣어둔 사람은
- * 그대로 받는다.)
+ * 날이 오면 이게 유일한 대안이 된다.
+ *
+ * 화면과 발송을 따로 끄면 반드시 어긋난다(안내는 없는데 계속 쏘거나, 그 반대).
+ * 그래서 발송 스위치를 그대로 따라간다 — 되살릴 땐 `NOSTR_DM_NOTIFICATIONS`
+ * 하나만 켜면 안내·발송·신원 발행이 같이 살아난다.
  */
-const SHOW_NOSTR_FALLBACK: boolean = false;
+const SHOW_NOSTR_FALLBACK: boolean = NOSTR_DM_NOTIFICATIONS;
 
 type PushState =
   | { kind: 'checking' }
@@ -94,6 +97,12 @@ export function NotifySetup({ onClose }: { onClose: () => void }) {
           거래가 회원님 차례로 넘어올 때 알려드립니다. 결제할 때, 계좌를 보낼 때,
           입금을 확인할 때 — 화면을 지켜보지 않아도 되도록.
         </p>
+
+        {/*
+          설치 안내를 알림 위에 둔다. iOS는 홈 화면에 추가해야만 PushManager가
+          생겨서, 순서가 뒤바뀌면 "알림 켜기"가 왜 막히는지 알 수 없다.
+        */}
+        <InstallApp />
 
         <PushSection state={push} onEnable={handleEnable} onDisable={handleDisable} />
 

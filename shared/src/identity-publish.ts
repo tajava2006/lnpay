@@ -22,6 +22,7 @@
  */
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
+import { NOSTR_DM_NOTIFICATIONS } from './constants';
 import { getReadRelays } from './relays';
 import type { StorageAdapter } from './types';
 
@@ -47,6 +48,10 @@ export async function ensureIdentityPublished(
   storage: StorageAdapter,
   secretKey: Uint8Array,
 ): Promise<void> {
+  // NIP-17이 꺼져 있으면 이 이벤트들은 쓸 데가 없다. 인박스 탐색 전용이라
+  // 발행해봐야 릴레이에 남기만 한다.
+  if (!NOSTR_DM_NOTIFICATIONS) return;
+
   const done = await storage.get<boolean>(PUBLISHED_KEY);
   if (done) return;
 

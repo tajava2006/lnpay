@@ -27,6 +27,14 @@ export interface Order {
   expiration: number;
   /** verified 전이 시 Admin이 생성한 hold invoice (Customer 결제용) */
   bolt11?: string;
+  /**
+   * 후원자가 최종적으로 받을 금액 (sat). verified에서 Admin이 시세로 확정한다.
+   * 고객의 에스크로 금액은 여기서 파생된다(ceil(payoutSat × 1.005)) — 반대가 아니다.
+   * 후원자 인보이스는 이 값과 **정확히** 일치해야 받아준다.
+   */
+  payoutSat?: number;
+  /** 검증을 통과한 후원자 인보이스 (invoiced 이후 존재). 지급 대상 */
+  sponsorInvoice?: string;
   /** Sponsor에게 BTC 송금 완료 여부 */
   disbursed?: boolean;
   /** 고객 보증금 hold invoice payment hash (cancel/settle용) */
@@ -104,7 +112,20 @@ export interface SimpleRequest extends RequestBase {
     | 'push-subscription';
 }
 
-export type Request = OrderRequest | ClaimRequest | AccountInfoRequest | SimpleRequest;
+/**
+ * 후원자가 지급받을 인보이스 제출.
+ *
+ * 클레임이 아니라 **에스크로 이후**에 온다. 이 이벤트가 검증을 통과해야
+ * 오더가 `invoiced`가 되고, 그래야 고객이 계좌 정보를 발행한다.
+ * 근거 = docs/DESIGN-LATE-INVOICE.md
+ */
+export interface SponsorInvoiceRequest extends RequestBase {
+  action: 'sponsor-invoice';
+  bolt11: string;
+}
+
+export type Request =
+  | OrderRequest | ClaimRequest | AccountInfoRequest | SponsorInvoiceRequest | SimpleRequest;
 
 /** 계좌정보 (Customer → Sponsor 암호화 전달) */
 export interface AccountInfo {

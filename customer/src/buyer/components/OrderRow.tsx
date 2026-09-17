@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CustomerOrder } from '../types';
+import { canSendAccountInfo } from '@sajwo-tracker/shared';
 import type { AccountInfo, PriceTracker } from '@sajwo-tracker/shared';
 import { getDisplayMeta, isDeletable, isCancellable, isFinal } from '../order-states';
 import { publishOrderRequest, publishNotification, publishAccountInfo } from '../nostr/publish';
@@ -42,12 +43,16 @@ export function OrderRow({ order, tracker, now }: Props) {
   // 보증금 결제 대기: Admin 미등록 + depositBolt11 존재 + 아직 상태 알림 없음
   const showDeposit = !order.adminState && order.depositBolt11 && !isExpired && !order.depositStatus;
   // 수동 주문: escrowed에서 계좌 입력 모달 버튼 표시
-  const showAccountBtn = !isParsed && order.adminState === 'escrowed' && order.sponsorPubkey && !order.accountInfo;
+  // 계좌 전달은 `invoiced`부터다 — 후원자 인보이스가 검증된 뒤라야 한다.
+  // 그래야 후원자가 "받을 준비가 된" 상태에서만 원화를 보낸다(불변조건 I-009).
+  const accountUnlocked = canSendAccountInfo(order.adminState);
+
+  const showAccountBtn = !isParsed && accountUnlocked && order.sponsorPubkey && !order.accountInfo;
   // 계좌 전달 완료 표시 (수동/파싱 공통: escrowed에서 전달)
-  const accountSent = order.accountInfo && order.adminState === 'escrowed';
+  const accountSent = order.accountInfo && accountUnlocked;
   // 파싱 주문 escrowed + sponsorPubkey: 자동 전달 중 표시
-  const autoSendingAccount = isParsed && order.adminState === 'escrowed' && order.sponsorPubkey && !order.accountInfo;
-  const showConfirmPaid = (order.adminState === 'escrowed' && !!order.accountInfo) || order.adminState === 'remitted';
+  const autoSendingAccount = isParsed && accountUnlocked && order.sponsorPubkey && !order.accountInfo;
+  const showConfirmPaid = (accountUnlocked && !!order.accountInfo) || order.adminState === 'remitted';
   const canCancel = isCancellable(order);
   const canDelete = isDeletable(order);
   const isUrgent = order.expiration > 0 && !isExpired && order.expiration - now < 3600;
@@ -87,6 +92,12 @@ export function OrderRow({ order, tracker, now }: Props) {
   }
 
   async function handleAccountSubmit(info: AccountInfo) {
+    // 버튼이 안 보이는 상태에서도 이 함수에 도달할 수 있는 경로가 생길 수 있다.
+    // 발행 직전에 한 번 더 본다 — 이 한 줄이 후원자의 원화를 지킨다.
+    if (!canSendAccountInfo(order.adminState)) {
+      alert('아직 후원자가 받을 인보이스를 등록하지 않았습니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
     setSendingAccount(true);
     try {
       const result = await publishAccountInfo(order, info);

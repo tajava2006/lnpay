@@ -12,21 +12,36 @@ import type { OrderState } from '@sajwo-tracker/shared';
 /**
  * 허용된 상태 전이 맵
  *
- * requested ⇄ claimed → verified → escrowed ─→ remitted ─→ paid
- *                                     │                ├──→ sponsor_wins
- *                                     └──→ paid        └──→ customer_wins
+ * requested ⇄ claimed → verified → escrowed → invoiced ─→ remitted ─→ paid
+ *                                                  │                ├──→ sponsor_wins
+ *                                                  └──→ paid        └──→ customer_wins
  *
  * cancelled: requested, claimed, verified에서만 전이 가능
  *   (escrowed 이후는 상대방이 행동할 수 있는 상태이므로 일방 취소 불가)
  *   (remitted는 반드시 분쟁 판정 경로로 종결: paid / sponsor_wins / customer_wins)
  *
  * 터미널: paid, cancelled, sponsor_wins, customer_wins
+ *
+ * ── `escrowed → paid` 지름길을 뺀 이유 (2026-09-18)
+ *
+ * 후원자 인보이스를 클레임이 아니라 에스크로 이후에 받게 바뀌면서, `escrowed`는
+ * **지급 대상이 아직 없는 상태**가 됐다. 거기서 settle하면 BTC를 어드민이 받아
+ * 놓고 보낼 곳이 없다. 그래서 그 지름길은 `invoiced → paid`로 옮겼다 —
+ * 같은 지름길이되 지급 대상이 확보된 뒤다. 불변조건 I-010.
+ *
+ * ── `escrowed`/`invoiced`에서 취소를 열지 않는 이유
+ *
+ * `escrowed`에서는 계좌가 아직 안 나갔으니 후원자가 송금했을 리 없어 안전해
+ * 보인다. 하지만 고객이 코드를 고쳐 계좌를 미리 뿌리고 후원자도 고친 코드로
+ * 송금하면 T-003(선취적 취소)이 그대로 부활한다. 얻는 건 "멈춘 거래 조기 종료"
+ * 정도인데 그건 CLTV 타임아웃이 이미 한다. 열지 않는다.
  */
 const TRANSITIONS: Record<OrderState, readonly OrderState[]> = {
   requested: ['claimed', 'cancelled'],
   claimed: ['requested', 'verified', 'cancelled'],
   verified: ['escrowed', 'cancelled'],
-  escrowed: ['remitted', 'paid'],
+  escrowed: ['invoiced'],
+  invoiced: ['remitted', 'paid'],
   remitted: ['paid', 'sponsor_wins', 'customer_wins'],
   paid: [],
   cancelled: [],
@@ -38,25 +53,43 @@ export function canTransition(from: OrderState, to: OrderState): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
+/** 에스크로에 얹는 마진. 라우팅 수수료 재원이자 우리 몫이다. */
+const FEE_RATE = 1.005;
+
 /**
- * Sponsor 청구 인보이스 금액이 허용 범위 내인지 검증한다.
+ * 후원자가 받을 금액(sat)을 시세로 확정한다. `verified`에서 **한 번만** 부르고,
+ * 그 뒤로는 오더에 박혀 아무도 못 바꾼다.
  *
- * @param orderPriceKrw - 오더의 KRW 금액
- * @param btcPriceKrw   - 현재 BTC/KRW 가격
- * @param amountSat     - Sponsor 인보이스 금액 (satoshi)
- * @returns 허용 범위(±5%) 내이면 true
+ * 예전에는 후원자가 낸 인보이스 금액이 기준이었고, 그래서 ±5% 범위 검사가
+ * 필요했다(신뢰할 수 없는 출처라서). 기준이 어드민으로 오면서 그 검사는
+ * 사라졌다 — 방어할 대상 자체가 없어졌다.
  */
-export function isInvoiceAmountValid(
-  orderPriceKrw: number,
-  btcPriceKrw: number,
-  amountSat: number,
-): boolean {
-  if (!Number.isFinite(orderPriceKrw) || orderPriceKrw <= 0) return false;
-  if (!Number.isFinite(btcPriceKrw) || btcPriceKrw <= 0) return false;
-  if (!Number.isFinite(amountSat) || amountSat <= 0) return false;
-  const expectedSat = Math.round((orderPriceKrw / btcPriceKrw) * 1e8);
-  const ratio = amountSat / expectedSat;
-  return ratio >= 0.95 && ratio <= 1.05;
+export function computePayoutSat(orderPriceKrw: number, btcPriceKrw: number): number | null {
+  if (!Number.isFinite(orderPriceKrw) || orderPriceKrw <= 0) return null;
+  if (!Number.isFinite(btcPriceKrw) || btcPriceKrw <= 0) return null;
+  const sat = Math.round((orderPriceKrw / btcPriceKrw) * 1e8);
+  return sat > 0 ? sat : null;
+}
+
+/**
+ * 고객이 낼 에스크로 금액. **payout에서 파생한다 — 반대가 아니다.**
+ *
+ * 에스크로를 먼저 정하고 후원자가 ÷1.005로 역산하면 반올림이 1 sat 어긋나
+ * 정확 일치 검증이 깨진다. payout을 기준으로 두면 검증이 등식이 된다.
+ *
+ * `ceil`인 이유: 마진이 최소 1 sat은 남아야 라우팅 수수료를 댄다. `round`면
+ * 소액에서 마진이 0이 될 수 있다.
+ */
+export function computeEscrowSat(payoutSat: number): number {
+  return Math.ceil(payoutSat * FEE_RATE);
+}
+
+/**
+ * 후원자가 제출한 인보이스 금액이 지급 예정액과 **정확히** 일치하는지.
+ * 범위가 아니라 등식이다 — 금액을 정한 게 우리라 근사할 이유가 없다.
+ */
+export function isPayoutAmountExact(payoutSat: number | undefined, amountSat: number): boolean {
+  return typeof payoutSat === 'number' && payoutSat > 0 && amountSat === payoutSat;
 }
 
 export interface TransitionResult {

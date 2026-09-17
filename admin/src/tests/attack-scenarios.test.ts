@@ -171,60 +171,50 @@ describe('FSM 공격 — 취소/완료된 오더 재활용', () => {
   });
 });
 
-// ── 가격 조작 공격 ────────────────────────────────────────────────────
+// ── 금액 결정 위치 이동 ────────────────────────────────────────────────
 
-describe('가격 조작 공격 — 허용 범위 밖 인보이스 제출', () => {
+describe('클레임은 더 이상 금액을 정하지 않는다', () => {
+  /**
+   * 2026-09-18: 인보이스를 클레임이 아니라 에스크로 이후에 받게 바뀌면서,
+   * 금액을 정하는 주체가 후원자 → 어드민으로 옮겨갔다.
+   *
+   * 예전에는 후원자가 낸 금액이 기준이라 ±5% 범위 검사가 필요했다. 이제는
+   * 어드민이 시세로 정하므로 클레임 단계에서 검사할 금액 자체가 없다.
+   * 검증은 `sponsor-invoice` 수신 시 **정확 일치**로 이동했다
+   * (state-machine.test.ts의 "인보이스 금액 정확 일치").
+   *
+   * 근거 = docs/DESIGN-LATE-INVOICE.md
+   */
   beforeEach(() => {
     upsertOrder(makeOrder({ state: 'requested' }));
   });
 
-  it('50% 저가 인보이스 제출 (500,000 sat) → 차단', async () => {
-    const claim = makeClaimRequest({
-      invoice: {
-        bolt11: 'lnbc-underpay',
-        decoded: {
-          destination: SPONSOR_PUBKEY,
-          amountSat: Math.round(EXPECTED_SAT * 0.5),
-          paymentHash: 'hash-underpay',
-          expiresAt: Math.floor(Date.now() / 1000) + 3600,
-          routeHints: [],
-        },
-        liquidityVerified: true,
-      },
-    });
+  it('인보이스 없이도 클레임이 성립한다 — 후원자 유동성이 고객을 막지 않는다', async () => {
+    const claim = makeClaimRequest({ invoice: null });
+
     await handleClaim(claim);
-    expect(publishOrderSpy).not.toHaveBeenCalled();
+
+    expect(publishOrderSpy).toHaveBeenCalled();
+    const published = publishOrderSpy.mock.calls[0]![0] as { state: string; sponsorPubkey: string };
+    expect(published.state).toBe('claimed');
+    expect(published.sponsorPubkey).toBe(SPONSOR_PUBKEY);
   });
 
-  it('200% 고가 인보이스 제출 (2,000,000 sat) → 차단', async () => {
-    const claim = makeClaimRequest({
-      invoice: {
-        bolt11: 'lnbc-overpay',
-        decoded: {
-          destination: SPONSOR_PUBKEY,
-          amountSat: Math.round(EXPECTED_SAT * 2.0),
-          paymentHash: 'hash-overpay',
-          expiresAt: Math.floor(Date.now() / 1000) + 3600,
-          routeHints: [],
-        },
-        liquidityVerified: true,
-      },
-    });
-    await handleClaim(claim);
-    expect(publishOrderSpy).not.toHaveBeenCalled();
-  });
-
-  it('3사 거래소 전체 다운 시 claim → 차단 (S-008)', async () => {
-    setPriceTracker(makePriceTracker(null));
-    await handleClaim(makeClaimRequest());
-    expect(publishOrderSpy).not.toHaveBeenCalled();
-  });
-
-  it('decoded 없는 인보이스 제출 → 차단', async () => {
+  it('디코드 안 되는 인보이스가 붙어 있어도 클레임 자체는 막지 않는다', async () => {
     const claim = makeClaimRequest({
       invoice: { bolt11: 'lnbc-nodecode', decoded: null, liquidityVerified: false },
     });
+
     await handleClaim(claim);
+
+    expect(publishOrderSpy).toHaveBeenCalled();
+  });
+
+  it('자기 주문 자기 클레임은 여전히 차단된다', async () => {
+    const claim = makeClaimRequest({ pubkey: CUSTOMER_PUBKEY });
+
+    await handleClaim(claim);
+
     expect(publishOrderSpy).not.toHaveBeenCalled();
   });
 });
@@ -291,8 +281,9 @@ describe('정상 플로우 — 올바른 Actor가 올바른 액션 수행', () =
     expect(published.sponsorPubkey).toBe(SPONSOR_PUBKEY);
   });
 
-  it('Customer가 escrowed 상태에서 payment-confirm → 상태 전이 승인', async () => {
-    upsertOrder(makeOrder({ state: 'escrowed', sponsorPubkey: SPONSOR_PUBKEY }));
+  it('Customer가 invoiced 상태에서 payment-confirm → 상태 전이 승인', async () => {
+    // escrowed에서는 지급 대상(후원자 인보이스)이 없어 settle하면 안 된다(I-010).
+    upsertOrder(makeOrder({ state: 'invoiced', sponsorPubkey: SPONSOR_PUBKEY }));
     await handlePaymentConfirm(makeRequest('payment-confirm', CUSTOMER_PUBKEY));
     expect(publishOrderSpy).toHaveBeenCalledTimes(1);
     const published = publishOrderSpy.mock.calls[0][0] as Order;

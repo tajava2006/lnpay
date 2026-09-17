@@ -1,6 +1,6 @@
 // Types
 export type { StorageAdapter, NostrKeypair, CachedRelayList, Order, AccountInfo, DisputeMessagePayload, ChatMessage } from './types';
-export type { RequestBase, RouteHintHop, DecodedBolt11, Invoice, OrderRequest, ClaimRequest, AccountInfoRequest, SimpleRequest, Request } from './types';
+export type { RequestBase, RouteHintHop, DecodedBolt11, Invoice, OrderRequest, ClaimRequest, AccountInfoRequest, SponsorInvoiceRequest, SimpleRequest, Request } from './types';
 
 // Constants
 export {
@@ -77,7 +77,7 @@ export { InvoicePayBlock } from './components/InvoicePayBlock';
 export { OrderProgress } from './components/OrderProgress';
 
 // 거래 진행도 (고객·후원자 공용 단계 모델)
-export { PROGRESS_STEPS, resolveProgress, stepActor } from './order-progress';
+export { canSendAccountInfo, PROGRESS_STEPS, resolveProgress, stepActor } from './order-progress';
 export type {
   ProgressRole, StepStatus, StepActor, StepAction,
   ProgressStep, ProgressContext, ResolvedStep, Progress, TerminalInfo,

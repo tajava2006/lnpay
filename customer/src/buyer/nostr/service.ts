@@ -10,6 +10,7 @@
  * 3. 파싱 주문이 escrowed에 도달하면 계좌정보 자동 전송
  */
 import {
+  canSendAccountInfo,
   nip44Decrypt,
   APP_PUBKEY,
   REQUEST_ACTIONS,
@@ -40,8 +41,13 @@ export function handleAdminOrder(event: Event, myPubkey: string): void {
   // 릴레이는 만료 시 오더를 지운다. 내가 관여한 거래의 영구 기록은 IDB뿐이다.
   void archiveOrder(event);
 
-  // 파싱 주문 escrowed 도달 시 계좌정보 자동 전송
-  if (update.adminState === 'escrowed' && update.sponsorPubkey) {
+  // 파싱 주문의 계좌정보 자동 전송.
+  //
+  // **`escrowed`가 아니라 `invoiced`다** (불변조건 I-009). 후원자 인보이스가
+  // 검증되기 전에 계좌가 나가면, 후원자가 받을 준비도 안 된 상태에서 원화를
+  // 보낼 수 있다. 수동 경로만 막고 여기를 놔두면 파싱 주문은 **항상** 게이트를
+  // 우회한다 — 자동이라 사람이 눈치채지도 못한다.
+  if (update.adminState === 'invoiced' && update.sponsorPubkey) {
     const order = getSnapshot()[update.orderId];
     if (order?.source === 'parsed' && order.fixedAccountInfo && !order.accountInfo) {
       void autoSendAccountInfo(order.orderId);
@@ -120,6 +126,13 @@ function isDepositAction(action: string | undefined): boolean {
 async function autoSendAccountInfo(orderId: string): Promise<void> {
   const order = getSnapshot()[orderId];
   if (!order?.fixedAccountInfo || !order.sponsorPubkey) return;
+
+  // 호출 지점이 하나뿐이어도 여기서 다시 본다. 게이트가 호출자에만 있으면
+  // 호출자가 하나 늘어나는 순간 뚫린다.
+  if (!canSendAccountInfo(order.adminState)) {
+    console.warn('[Customer] 계좌 자동 전송 보류 — 아직 인보이스 미등록:', orderId, order.adminState);
+    return;
+  }
 
   console.log('[Customer] Auto-sending account info for parsed order', orderId);
 

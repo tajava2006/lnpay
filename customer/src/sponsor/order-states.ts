@@ -38,6 +38,12 @@ export const ORDER_STATE_META: Record<OrderState, OrderStateMeta> = {
     textColor: '#7C3AED',
     isFinal: false,
   },
+  invoiced: {
+    label: '계좌 받는 중',
+    bgColor: '#EDE9FE',
+    textColor: '#7C3AED',
+    isFinal: false,
+  },
   remitted: {
     label: '송금 주장',
     bgColor: '#FCE7F3',

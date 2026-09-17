@@ -72,7 +72,10 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
   // 후원자 보증금 설정 시 sponsorDepositPaymentHash가 있어야 승인 가능
   const sponsorDepositRequired = getSponsorDepositPercent() > 0;
   const sponsorDepositPaid = !!order?.sponsorDepositPaymentHash;
-  const canApprove = isClaim && !!lnAdapter && (invoice?.liquidityVerified ?? false)
+  // 유동성 검증은 더 이상 승인의 전제가 아니다. 후원자 노드 사정 때문에 고객이
+  // 에스크로조차 못 거는 게 문제였다. 프로빙은 인보이스가 도착하는
+  // `escrowed → invoiced` 시점, 즉 원화 이체 직전으로 옮겼다.
+  const canApprove = isClaim && !!lnAdapter
     && (!sponsorDepositRequired || sponsorDepositPaid);
 
   const [copied, setCopied] = useState(false);
@@ -126,18 +129,12 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
   async function handleApprove() {
     if (!lnAdapter || !order) return;
 
-    const sponsorSat = decoded?.amountSat;
-    if (!sponsorSat) {
-      setApproveError('인보이스 금액 없음');
-      return;
-    }
-
     setApproving(true);
     setApproveError(null);
 
-    // 후원자의 bolt11 금액 + 0.5% 가산 (paid 시 라우팅 수수료 선취)
-    const amountSat = Math.round(sponsorSat * 1.005);
-    const result = await approveOrder(request.orderId, lnAdapter, amountSat);
+    // 금액은 어드민이 시세로 정한다. 클레임에는 인보이스가 없다
+    // (docs/DESIGN-LATE-INVOICE.md — 인보이스는 에스크로 이후에 받는다).
+    const result = await approveOrder(request.orderId, lnAdapter);
     if (!result.success) {
       setApproveError(result.error ?? '승인 실패');
     }
@@ -218,9 +215,6 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
           >
             {approving ? '승인 중...' : '승인'}
           </button>
-          {!invoice?.liquidityVerified && (
-            <span style={styles.unverifiedHint}>유동성 미검증</span>
-          )}
           {sponsorDepositRequired && !sponsorDepositPaid && (
             <span style={styles.unverifiedHint}>후원자 보증금 미납</span>
           )}

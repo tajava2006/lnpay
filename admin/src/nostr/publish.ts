@@ -48,6 +48,14 @@ export async function publishOrder(order: Order): Promise<object> {
   if (order.bolt11) {
     tags.push(['bolt11', order.bolt11]);
   }
+  // 후원자가 만들 인보이스 금액. 새 kind 1111을 만드는 대신 오더에 싣는다 —
+  // 양쪽 다 이미 이 이벤트를 구독 중이고, addressable이라 재전송 중복도 없다.
+  if (order.payoutSat) {
+    tags.push(['payout', String(order.payoutSat)]);
+  }
+  if (order.sponsorInvoice) {
+    tags.push(['sponsor-invoice', order.sponsorInvoice]);
+  }
   if (order.disbursed) {
     tags.push(['disbursed', 'true']);
   }
@@ -236,14 +244,18 @@ export async function publishDepositStatus(
 }
 
 /**
- * 클레임 가격 오류 알림을 kind 1111로 발행한다.
- * 인보이스 금액이 현재 시세 범위를 벗어날 때 Sponsor에게 재발행을 요청한다.
- * 오더 상태에 영향 없음 (사용성 개선 목적 알림).
+ * 후원자 인보이스 거절 사유를 kind 1111로 알린다.
+ *
+ * 거절은 조용하면 안 된다 — 후원자는 제출했다고 믿고 계좌를 기다리는데
+ * 영영 안 오는 상태가 된다. 오더 상태에는 영향이 없다(알림 전용).
+ *
+ * `expected-sats`에 지급 예정액을 실어 보내 후원자가 바로 다시 만들 수 있게 한다.
  */
-export async function publishClaimPriceError(
+export async function publishInvoiceRejected(
   orderId: string,
   sponsorPubkey: string,
-  expectedSats: number,
+  reason: 'DECODE_FAILED' | 'AMOUNT_MISMATCH' | 'EXPIRES_TOO_SOON',
+  expectedSats = 0,
 ): Promise<void> {
   const signer = getSigner();
   if (!signer) return;
@@ -259,6 +271,7 @@ export async function publishClaimPriceError(
       ['t', CLIENT_TAG],
       ['p', sponsorPubkey],
       ['p', APP_PUBKEY],
+      ['reason', reason],
       ['expected-sats', String(expectedSats)],
       ['expiration', String(now + 3600)],
     ],
@@ -271,7 +284,7 @@ export async function publishClaimPriceError(
   const pool = new SimplePool();
   try {
     await Promise.allSettled(pool.publish(relays, signed));
-    console.log('[Admin] Published claim-price-error for', orderId, 'to', sponsorPubkey.slice(0, 12));
+    console.log('[Admin] Published invoice-rejected(%s) for %s to %s', reason, orderId, sponsorPubkey.slice(0, 12));
   } finally {
     pool.destroy();
   }

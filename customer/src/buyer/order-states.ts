@@ -46,6 +46,12 @@ const ADMIN_STATE_META: Record<OrderState, DisplayMeta> = {
     textColor: '#7C3AED',
     isFinal: false,
   },
+  invoiced: {
+    label: '계좌 전달 대기',
+    bgColor: '#EDE9FE',
+    textColor: '#7C3AED',
+    isFinal: false,
+  },
   remitted: {
     label: '송금 확인 대기',
     bgColor: '#FCE7F3',

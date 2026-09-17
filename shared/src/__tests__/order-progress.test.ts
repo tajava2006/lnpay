@@ -20,6 +20,7 @@ describe('resolveProgress', () => {
       'done',     // claimed
       'current',  // verified
       'upcoming', // escrowed
+      'upcoming', // invoiced
       'upcoming', // remitted
       'upcoming', // paid
     ]);
@@ -35,18 +36,25 @@ describe('resolveProgress', () => {
     expect(customer.isMyTurn).toBe(false);
   });
 
-  it('escrowed는 계좌정보 전달 여부로 차례가 넘어간다', () => {
+  it('escrowed는 후원자 차례다 — 인보이스를 등록해야 한다', () => {
+    // 계좌 전달은 invoiced부터다. escrowed에서는 후원자가 인보이스를 낼 차례.
+    expect(stepActor('escrowed')).toBe('sponsor');
+    expect(resolveProgress('sponsor', 'escrowed').steps[idx('escrowed')]!.isMyTurn).toBe(true);
+    expect(resolveProgress('customer', 'escrowed').steps[idx('escrowed')]!.isMyTurn).toBe(false);
+  });
+
+  it('invoiced는 계좌정보 전달 여부로 차례가 넘어간다', () => {
     // 아직 계좌 안 보냄 → 고객 차례
-    expect(stepActor('escrowed', { accountInfoSent: false })).toBe('customer');
-    expect(resolveProgress('customer', 'escrowed', { accountInfoSent: false })
-      .steps[idx('escrowed')]!.isMyTurn).toBe(true);
+    expect(stepActor('invoiced', { accountInfoSent: false })).toBe('customer');
+    expect(resolveProgress('customer', 'invoiced', { accountInfoSent: false })
+      .steps[idx('invoiced')]!.isMyTurn).toBe(true);
 
     // 계좌 보냄 → 후원자 차례
-    expect(stepActor('escrowed', { accountInfoSent: true })).toBe('sponsor');
-    expect(resolveProgress('sponsor', 'escrowed', { accountInfoSent: true })
-      .steps[idx('escrowed')]!.isMyTurn).toBe(true);
-    expect(resolveProgress('customer', 'escrowed', { accountInfoSent: true })
-      .steps[idx('escrowed')]!.isMyTurn).toBe(false);
+    expect(stepActor('invoiced', { accountInfoSent: true })).toBe('sponsor');
+    expect(resolveProgress('sponsor', 'invoiced', { accountInfoSent: true })
+      .steps[idx('invoiced')]!.isMyTurn).toBe(true);
+    expect(resolveProgress('customer', 'invoiced', { accountInfoSent: true })
+      .steps[idx('invoiced')]!.isMyTurn).toBe(false);
   });
 
   it('claimed는 어느 쪽도 내 차례가 아니다 (에스크로 검증 대기)', () => {

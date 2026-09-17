@@ -24,6 +24,7 @@ import {
   type AccountInfoRequest,
   type PreparedChatMessage,
 } from '@sajwo-tracker/shared';
+import type { EventTemplate } from 'nostr-tools/core';
 
 /**
  * 특정 오더에 대해 클레임 이벤트를 발행한다.
@@ -238,4 +239,50 @@ export async function publishAccountReveal(order: Order): Promise<boolean> {
   };
 
   return publishDisputeMessage(order, payload);
+}
+
+
+/**
+ * 지급받을 인보이스를 어드민에 제출한다 (`escrowed` 이후).
+ *
+ * 클레임 때가 아니라 여기서 내는 이유: 후원자 노드 사정이 고객의 에스크로를
+ * 막지 않게 하고, 인보이스가 묵어 만료되는 구간을 줄이기 위해서다.
+ * 그리고 **이걸 내야 고객이 계좌 정보를 보낸다** — 받을 준비가 안 된 채로
+ * 원화를 보내는 사고를 막는 장치다. 근거 = docs/DESIGN-LATE-INVOICE.md
+ *
+ * 금액은 오더의 `payout` 태그와 **정확히** 일치해야 어드민이 받아준다.
+ */
+export async function publishSponsorInvoice(
+  order: { orderId: string; expiration: number },
+  bolt11: string,
+): Promise<boolean> {
+  const [sk, relays] = await Promise.all([
+    getSecretKey(storage),
+    getReadRelays(storage),
+  ]);
+
+  const template: EventTemplate = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['action', REQUEST_ACTIONS.SPONSOR_INVOICE],
+      ['t', CLIENT_TAG],
+      ['p', APP_PUBKEY],
+      ['bolt11', bolt11],
+      ['expiration', String(order.expiration)],
+    ],
+    content: '',
+  };
+
+  const signed = finalizeEvent(template, sk);
+  const pool = new SimplePool();
+  try {
+    const results = await Promise.allSettled(pool.publish(relays, signed));
+    const ok = results.some(r => r.status === 'fulfilled');
+    console.log(ok ? '[Sponsor] 인보이스 제출' : '[Sponsor] 인보이스 제출 실패', order.orderId);
+    return ok;
+  } finally {
+    pool.destroy();
+  }
 }

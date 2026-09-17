@@ -58,6 +58,8 @@ export const REQUEST_ACTIONS = {
   REVEAL_REQUEST: 'reveal-request',
   /** 유저 → Admin: Web Push 구독 정보 등록 (NIP-44 암호화) */
   PUSH_SUBSCRIPTION: 'push-subscription',
+  /** 후원자 → Admin: 지급받을 인보이스 제출 (escrowed 이후) */
+  SPONSOR_INVOICE: 'sponsor-invoice',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 
@@ -67,6 +69,8 @@ export const ORDER_STATES = {
   CLAIMED: 'claimed',
   VERIFIED: 'verified',
   ESCROWED: 'escrowed',
+  /** 후원자 인보이스가 검증됨. 이 상태부터 고객이 계좌 정보를 발행한다 */
+  INVOICED: 'invoiced',
   REMITTED: 'remitted',
   PAID: 'paid',
   CANCELLED: 'cancelled',

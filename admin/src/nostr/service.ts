@@ -28,11 +28,12 @@ import {
   type Request,
   type OrderRequest,
   type ClaimRequest,
+  type SponsorInvoiceRequest,
   type PriceTracker,
   storage,
 } from '@sajwo-tracker/shared';
 import { subscribeAdmin } from './subscribe';
-import { publishOrder, publishClaimPriceError, publishDepositRequired } from './publish';
+import { publishOrder, publishInvoiceRejected, publishDepositRequired } from './publish';
 import { notifyTransition, notifyAccountInfoArrived } from './notify-triggers';
 import { saveSubscription } from '../web-push/store';
 import { sendPushToDevice } from '../web-push/send';
@@ -40,15 +41,27 @@ import { PUSH_WELCOME } from './notify-messages';
 import { isPushSubscriptionPayload } from '../web-push/types';
 import { claimNotification } from '../notified-events';
 import { getSigner } from './nip46';
-import { parseRequestEvent, parseOrderEvent } from '../types';
+import { parseRequestEvent, parseOrderEvent, decodeBolt11 } from '../types';
 import { upsertRequest, markSynced } from '../request-store';
 import { upsertOrder, getOrder } from '../order-store';
-import { canTransition, isInvoiceAmountValid } from '../state-machine';
+import {
+  canTransition, computePayoutSat, computeEscrowSat, isPayoutAmountExact,
+} from '../state-machine';
 import type { LightningAdapter } from '../lightning';
 import { getPreimage, getEscrowEntry } from '../escrow-store';
 import { getCustomerDepositPercent, getSponsorDepositPercent } from '../deposit-config';
 import { savePendingDeposit, getPendingDeposit } from '../pending-deposit-store';
 import { handleDepositOnTransition } from '../deposit-lifecycle';
+
+/**
+ * 후원자 인보이스에 요구하는 최소 잔여 수명.
+ *
+ * 제출(escrowed)부터 지급(paid)까지 계좌 전달 + 원화 이체 + 고객 컨펌이 들어간다.
+ * 은행 영업시간을 넘기면 하루도 간다. 6시간은 "그 안에 대부분 끝난다"가 아니라
+ * **지갑 기본값(흔히 1시간)을 거르되 너무 빡세지 않은 선**이다. 그래도 만료되는
+ * 건 재제출로 받는다.
+ */
+const MIN_INVOICE_LIFETIME_SEC = 6 * 60 * 60;
 
 const guard = createSubscriptionGuard('Admin');
 let lnAdapterRef: LightningAdapter | null = null;
@@ -138,6 +151,84 @@ function dispatchRequest(request: Request): void {
     handleAccountInfo(request);
   } else if (request.action === 'remit-request') {
     void handleRemitRequest(request);
+  } else if (request.action === 'sponsor-invoice') {
+    void handleSponsorInvoice(request);
+  }
+}
+
+/**
+ * 후원자가 지급받을 인보이스를 제출했다 → `escrowed → invoiced`.
+ *
+ * **이 전이가 계좌 정보의 관문이다.** 고객 앱은 `invoiced` 이전에는 계좌를
+ * 발행하지 않으므로, 여기를 통과하지 못하면 후원자는 원화를 보낼 수 없다.
+ * 후원자 보호가 목적이다 — 되돌릴 수 없는 이체 직전에 "받을 준비가 됐는가"를
+ * 확인시킨다. 근거 = docs/DESIGN-LATE-INVOICE.md
+ *
+ * 검증 네 가지. 하나라도 어긋나면 저장하지 않는다(불변조건 I-011).
+ */
+async function handleSponsorInvoice(request: SponsorInvoiceRequest): Promise<void> {
+  const order = getOrder(request.orderId);
+  if (!order) return;
+
+  // ① 소유자 — 남이 남의 오더에 지급처를 꽂지 못하게. remit-request와 같은 패턴.
+  if (order.sponsorPubkey !== request.pubkey) {
+    console.warn('[Admin] sponsor-invoice pubkey mismatch for', request.orderId);
+    return;
+  }
+
+  // ② 순서 — escrowed에서만 받는다. 에스크로 전에 받아주면 계좌 관문이
+  //    앞당겨져 "돈은 안 잠겼는데 계좌가 나가는" 창이 생긴다.
+  //    invoiced에서의 재제출은 아래에서 따로 허용한다(만료 교체).
+  const isReplacement = order.state === 'invoiced';
+  if (!isReplacement && !canTransition(order.state, 'invoiced')) {
+    console.warn('[Admin] Cannot accept sponsor-invoice for', request.orderId, '- state:', order.state);
+    return;
+  }
+
+  const decoded = decodeBolt11(request.bolt11);
+  if (!decoded) {
+    console.warn('[Admin] sponsor-invoice decode failed for', request.orderId);
+    void publishInvoiceRejected(request.orderId, request.pubkey, 'DECODE_FAILED').catch(() => {});
+    return;
+  }
+
+  // ③ 금액 — 범위가 아니라 **정확 일치**. 금액을 정한 게 우리라 근사할 이유가 없다.
+  if (!isPayoutAmountExact(order.payoutSat, decoded.amountSat)) {
+    console.warn(
+      '[Admin] sponsor-invoice amount mismatch for %s (expected %d, got %d)',
+      request.orderId, order.payoutSat ?? 0, decoded.amountSat,
+    );
+    void publishInvoiceRejected(request.orderId, request.pubkey, 'AMOUNT_MISMATCH', order.payoutSat ?? 0).catch(() => {});
+    return;
+  }
+
+  // ④ 만료 — 제출 시점에 최소 수명을 요구한다. 지급은 계좌 전달 + 원화 이체 +
+  //    컨펌 뒤라 몇 시간 뒤다. 그래도 만료될 수 있어 재제출을 열어두지만,
+  //    하한이 없으면 그 빈도가 감당이 안 된다.
+  const now = Math.floor(Date.now() / 1000);
+  if (decoded.expiresAt > 0 && decoded.expiresAt - now < MIN_INVOICE_LIFETIME_SEC) {
+    console.warn('[Admin] sponsor-invoice expires too soon for', request.orderId);
+    void publishInvoiceRejected(request.orderId, request.pubkey, 'EXPIRES_TOO_SOON').catch(() => {});
+    return;
+  }
+
+  const updatedOrder: Order = {
+    ...order,
+    state: 'invoiced',
+    sponsorInvoice: request.bolt11,
+    updatedAt: now,
+  };
+
+  try {
+    await publishOrder(updatedOrder);
+    console.log(
+      '[Admin] Order', request.orderId,
+      isReplacement ? 'sponsor invoice replaced' : 'invoiced (sponsor invoice accepted)',
+    );
+    // 교체는 이미 invoiced라 상태가 안 바뀐다 — 알림도 보내지 않는다.
+    if (!isReplacement) notifyTransition(updatedOrder);
+  } catch (e) {
+    console.error('[Admin] Failed to publish invoiced order for', request.orderId, e);
   }
 }
 
@@ -193,7 +284,6 @@ export function stopAdminSubscription(): void {
 export async function approveOrder(
   orderId: string,
   lnAdapter: LightningAdapter,
-  amountSat: number,
 ): Promise<{ success: boolean; error?: string }> {
   const order = getOrder(orderId);
   if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
@@ -201,6 +291,19 @@ export async function approveOrder(
   if (!canTransition(order.state, 'verified')) {
     return { success: false, error: `INVALID_TRANSITION: ${order.state} → verified` };
   }
+
+  // ── 금액 확정 ──
+  //
+  // 여기가 **금액이 정해지는 유일한 지점**이다. 후원자가 받을 payout을 시세로
+  // 정하고 고객이 낼 에스크로를 거기서 파생한다. 이후 아무도 못 바꾼다.
+  // 시세를 못 읽으면 조용히 넘어가지 않고 명시적으로 실패한다 — 값이 틀리면
+  // 돈이 틀리기 때문이다.
+  const btcPrice = priceTrackerRef?.getSnapshot().price;
+  const payoutSat = btcPrice ? computePayoutSat(order.price, btcPrice) : null;
+  if (!payoutSat) {
+    return { success: false, error: 'NO_PRICE_FEED' };
+  }
+  const amountSat = computeEscrowSat(payoutSat);
 
   // hold invoice 만료 = 오더 만료까지 남은 시간 (인지부하 감소를 위해 통일)
   const now = Math.floor(Date.now() / 1000);
@@ -230,6 +333,7 @@ export async function approveOrder(
     ...order,
     state: 'verified',
     bolt11,
+    payoutSat,
     updatedAt: now,
   };
 
@@ -807,29 +911,10 @@ export async function handleClaim(request: ClaimRequest): Promise<void> {
     return;
   }
 
-  // ── 인보이스 검증 ──
-  const decoded = request.invoice?.decoded;
-  if (!decoded) {
-    console.warn('[Admin] Claim without valid invoice, ignoring:', request.orderId);
-    return;
-  }
-
-  // ── 가격 범위 검증 ──
-  const btcPrice = priceTrackerRef?.getSnapshot().price;
-  if (!btcPrice || btcPrice <= 0) {
-    console.warn('[Admin] No price feed available, rejecting claim:', request.orderId);
-    return;
-  }
-  if (!isInvoiceAmountValid(order.price, btcPrice, decoded.amountSat)) {
-    const expectedSat = Math.round((order.price / btcPrice) * 1e8);
-    console.warn(
-      '[Admin] Claim price out of range, ignoring: %s (expected ~%d sat, got %d sat)',
-      request.orderId, expectedSat, decoded.amountSat,
-    );
-    // 가격 오류 알림 (best-effort, 실패해도 무시)
-    void publishClaimPriceError(request.orderId, request.pubkey, expectedSat).catch(() => {});
-    return;
-  }
+  // 인보이스는 여기서 받지 않는다. 클레임은 "내가 맡겠다"일 뿐이고,
+  // 지급받을 인보이스는 에스크로가 잡힌 뒤(`escrowed → invoiced`)에 받는다.
+  // 근거 = docs/DESIGN-LATE-INVOICE.md — 후원자 유동성 사정이 고객의 결제를
+  // 막지 않게 하고, 인보이스가 묵어 만료되는 구간을 줄인다.
 
   const updatedOrder: Order = {
     ...order,
@@ -850,7 +935,12 @@ export async function handleClaim(request: ClaimRequest): Promise<void> {
   const sponsorDepositPercent = getSponsorDepositPercent();
   if (sponsorDepositPercent > 0 && lnAdapterRef) {
     try {
-      const depositSats = Math.max(1, Math.round(decoded.amountSat * sponsorDepositPercent / 100));
+      // 인보이스가 없어졌으므로 시세로 기준액을 잡는다. 보증금은 어림값이면
+      // 충분하다 — 담보 크기지 지급액이 아니다.
+      const btcPrice = priceTrackerRef?.getSnapshot().price;
+      const basisSat = btcPrice && btcPrice > 0 ? computePayoutSat(order.price, btcPrice) : null;
+      if (!basisSat) throw new Error('시세 없음 — 보증금 산출 불가');
+      const depositSats = Math.max(1, Math.round(basisSat * sponsorDepositPercent / 100));
       const now = Math.floor(Date.now() / 1000);
       const expiry = Math.max(300, order.expiration - now);
       const DEPOSIT_CLTV_MARGIN = 24 * 60 * 60; // 24시간

@@ -83,6 +83,19 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
   },
   {
     state: 'escrowed',
+    title: '후원자 인보이스 등록',
+    actor: 'sponsor',
+    customer: [
+      { text: '후원자가 BTC를 받을 인보이스를 등록하기를 기다립니다.' },
+      { text: '등록되면 계좌 정보를 보낼 수 있게 됩니다.' },
+    ],
+    sponsor: [
+      { text: '표시된 금액 그대로 인보이스를 만들어 등록합니다.' },
+      { text: '등록해야 고객의 계좌 정보를 받을 수 있습니다.' },
+    ],
+  },
+  {
+    state: 'invoiced',
     title: '계좌 전달 · 원화 송금',
     actor: 'customer',
     customer: [
@@ -114,7 +127,7 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
       { text: '거래가 끝났습니다.' },
     ],
     sponsor: [
-      { text: '에스크로가 처음 제출한 인보이스로 BTC를 보냅니다.' },
+      { text: '등록한 인보이스로 BTC를 보냅니다.' },
     ],
   },
 ] as const;
@@ -151,7 +164,9 @@ const TERMINALS: Record<TerminalInfo['state'], Omit<TerminalInfo, 'state'>> = {
  * 고객이 계좌를 보내야 후원자가 송금할 수 있다.
  */
 export function stepActor(state: OrderState, ctx: ProgressContext = {}): StepActor {
-  if (state === 'escrowed') return ctx.accountInfoSent ? 'sponsor' : 'customer';
+  // escrowed는 후원자 차례다(인보이스 등록). 계좌 발행은 invoiced부터라
+  // accountInfoSent 분기도 그쪽으로 옮겼다.
+  if (state === 'invoiced') return ctx.accountInfoSent ? 'sponsor' : 'customer';
   const idx = STEP_INDEX.get(state);
   return idx === undefined ? 'admin' : PROGRESS_STEPS[idx]!.actor;
 }
@@ -226,4 +241,22 @@ export function resolveProgress(
   });
 
   return { steps, currentIndex, terminal, total: PROGRESS_STEPS.length };
+}
+
+/**
+ * 계좌 정보를 발행해도 되는 상태인가.
+ *
+ * **후원자 보호의 핵심 게이트다** (불변조건 I-009). 후원자의 되돌릴 수 없는
+ * 행동은 원화 이체이고 그건 계좌번호를 본 직후에 일어난다. 그래서 "받을 준비가
+ * 됐음"(= 인보이스 등록 완료)이 확인되기 전에는 계좌가 **릴레이에 존재하지도
+ * 않아야** 한다. 가리는 게 아니라 발행하지 않는 것이다.
+ *
+ * 고객 앱에는 발행 경로가 둘(수동 입력·파싱 주문 자동 전송)이라 판정을 한 곳에
+ * 두고 양쪽이 같이 쓴다. 한쪽만 막으면 게이트가 없는 것과 같다.
+ */
+export function canSendAccountInfo(state: OrderState | undefined): boolean {
+  // undefined는 "아직 모른다"이고, 모르면 보내지 않는다.
+  // 인자를 필수로 두면 호출부마다 `?? 'requested'` 같은 임시방편이 붙는데,
+  // 그 임시방편이 어느 날 `?? 'invoiced'`가 되면 게이트가 사라진다.
+  return state === 'invoiced' || state === 'remitted';
 }

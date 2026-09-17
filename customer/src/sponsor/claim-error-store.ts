@@ -6,7 +6,23 @@
  * 영구 저장 불필요 (세션 알림 목적).
  */
 
+/**
+ * 어드민이 보낸 인보이스 거절 사유.
+ *
+ * 예전엔 클레임 시 금액이 시세 범위를 벗어난 경우만 있었다(그래서 이름이
+ * claim-price-error). 인보이스를 에스크로 이후에 받게 되면서 사유가 늘었고,
+ * 어느 쪽이든 **조용히 실패하면 후원자는 등록됐다고 믿고 오지 않을 계좌를
+ * 기다린다** — 그래서 이유를 반드시 화면에 띄운다.
+ */
+export type InvoiceRejectReason =
+  | 'DECODE_FAILED'
+  | 'AMOUNT_MISMATCH'
+  | 'EXPIRES_TOO_SOON'
+  | 'EXPIRED_BEFORE_PAYOUT'
+  | 'LIQUIDITY_WARNING';
+
 export interface ClaimPriceError {
+  reason?: InvoiceRejectReason;
   orderId: string;
   expectedSats: number;
   receivedAt: number;
@@ -37,10 +53,10 @@ export function getClaimErrorSnapshot(): ErrorMap {
 
 // ── 뮤테이션 API ───────────────────────────────────
 
-export function setClaimError(orderId: string, expectedSats: number): void {
+export function setClaimError(orderId: string, expectedSats: number, reason?: InvoiceRejectReason): void {
   errors = {
     ...errors,
-    [orderId]: { orderId, expectedSats, receivedAt: Math.floor(Date.now() / 1000) },
+    [orderId]: { orderId, expectedSats, reason, receivedAt: Math.floor(Date.now() / 1000) },
   };
   notify();
 }
@@ -50,4 +66,22 @@ export function clearClaimError(orderId: string): void {
   const { [orderId]: _, ...rest } = errors;
   errors = rest;
   notify();
+}
+
+/** 거절 사유를 사람이 읽을 문장으로. 코드 그대로 보여주면 아무 도움이 안 된다. */
+export function rejectReasonText(e: ClaimPriceError): string {
+  switch (e.reason) {
+    case 'DECODE_FAILED':
+      return '인보이스를 읽지 못했습니다. 전체를 다시 복사해 주세요.';
+    case 'AMOUNT_MISMATCH':
+      return `금액이 다릅니다. ${e.expectedSats.toLocaleString()} sats로 정확히 다시 만들어 주세요.`;
+    case 'EXPIRES_TOO_SOON':
+      return '유효시간이 너무 짧습니다. 최소 6시간 이상으로 만들어 주세요.';
+    case 'EXPIRED_BEFORE_PAYOUT':
+      return '인보이스가 만료됐습니다. 새로 만들어 등록해 주세요 — 거래는 그대로 진행됩니다.';
+    case 'LIQUIDITY_WARNING':
+      return '경로 확인에 실패했습니다. 등록은 됐지만 받지 못할 수 있으니 인바운드 용량을 확인해 주세요.';
+    default:
+      return `현재 시세 기준 ${e.expectedSats.toLocaleString()} sats로 재발행해 주세요.`;
+  }
 }

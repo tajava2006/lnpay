@@ -231,3 +231,40 @@ escrowSat = ceil(payoutSat × 1.005)        ← 고객이 낼 금액. 여기서 
 |---|---|
 | **보호 대상** | 에스크로 마진 (라우팅 수수료 재원) |
 | **불변조건** | 검증을 통과하지 못한 인보이스는 저장되지 않는다. 재제출도 같은 등식을 통과해야 한다 |
+
+
+---
+
+# 구현 매핑 (2026-09-18)
+
+| 조각 | 위치 |
+|---|---|
+| 상태·전이 | `admin/src/state-machine.ts` TRANSITIONS |
+| 금액 규칙 | 같은 파일 `computePayoutSat` / `computeEscrowSat` / `isPayoutAmountExact` |
+| payout 확정 | `admin/src/nostr/service.ts` `approveOrder` |
+| 인보이스 수신·검증·프로빙 | 같은 파일 `handleSponsorInvoice` |
+| 지급 | 같은 파일 `runDisbursement` — `order.sponsorInvoice` 사용 + 지급 직전 만료 재검사 |
+| 오더 태그(`payout`/`sponsor-invoice`) | `admin/src/nostr/publish.ts` `publishOrder` |
+| 거절 통보 | 같은 파일 `publishInvoiceRejected` |
+| 계좌 게이트 | `shared/src/order-progress.ts` `canSendAccountInfo` |
+| 게이트 적용 (수동) | `customer/src/buyer/components/OrderRow.tsx` |
+| 게이트 적용 (자동) | `customer/src/buyer/nostr/service.ts` |
+| 후원자 제출 UI | `customer/src/sponsor/components/SponsorInvoiceForm.tsx` |
+| 거절 사유 표시 | `customer/src/sponsor/claim-error-store.ts` `rejectReasonText` |
+
+## 회귀 테스트
+
+| 테스트 | 지키는 것 |
+|---|---|
+| `admin/src/tests/state-machine.test.ts` | 순서 건너뛰기 차단(D·F), 취소 차단(G), 금액 정확 일치(B) |
+| `shared/src/__tests__/account-gate.test.ts` | 계좌 발행 게이트(I-009) — 열린 상태가 정확히 둘뿐임을 고정 |
+| `admin/src/tests/attack-scenarios.test.ts` | 클레임이 더 이상 금액을 정하지 않음, 자기 클레임 차단 유지 |
+| `shared/src/__tests__/order-progress.test.ts` | 단계 순서와 차례 판정 |
+
+## 아직 안 한 것
+
+- **만료 하한(6시간)의 실측 근거 없음.** 지갑 기본값(흔히 1시간)을 거르되 과하지
+  않은 선으로 잡은 값이다. 거절이 잦으면 낮추고, 만료가 잦으면 올린다.
+- **`escrowed`에서 오래 머무는 오더의 알림 없음.** 후원자가 인보이스를 안 내면
+  조용히 CLTV 타임아웃까지 간다. 손실은 없지만 알려주는 편이 낫다.
+- 어드민 화면에 `invoiced` 전용 표시 없음 — 상태 라벨로만 구분된다.

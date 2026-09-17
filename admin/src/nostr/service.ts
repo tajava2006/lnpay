@@ -212,6 +212,35 @@ async function handleSponsorInvoice(request: SponsorInvoiceRequest): Promise<voi
     return;
   }
 
+  // ⑤ 유동성 프로빙 — 원화 이체 직전에 여기서 한다.
+  //
+  // 예전에는 claimed → verified를 막고 있었다. 그러면 후원자 노드 사정으로
+  // 고객이 에스크로조차 못 걸었는데, 정작 유동성 부족으로 손해 보는 건 후원자다.
+  // 이 자리로 옮기면 고객의 진행을 막지 않으면서 **후원자가 원화를 보내기 전에**
+  // "정말 받을 수 있는가"를 확인시킨다. 그게 프로빙의 원래 목적이다.
+  //
+  // 실패해도 막지는 않는다. 프로빙은 경로 추정일 뿐이고 소액에서는 오탐도 난다.
+  // 유저 책임 범위를 인프라가 떠안지 않는다 — 대신 결과를 알려준다.
+  let liquidityOk: boolean | null = null;
+  if (lnAdapterRef) {
+    try {
+      const probe = await lnAdapterRef.probe(
+        decoded.destination,
+        decoded.amountSat,
+        undefined,
+        decoded.routeHints.length > 0 ? decoded.routeHints : undefined,
+      );
+      liquidityOk = probe.status === 'reachable';
+      if (!liquidityOk) {
+        console.warn('[Admin] 인보이스 유동성 프로빙 실패(차단은 안 함):', request.orderId, probe.status);
+        void publishInvoiceRejected(request.orderId, request.pubkey, 'LIQUIDITY_WARNING', order.payoutSat ?? 0)
+          .catch(() => {});
+      }
+    } catch (e) {
+      console.warn('[Admin] 프로빙 요청 실패 — 판단 보류:', request.orderId, e);
+    }
+  }
+
   const updatedOrder: Order = {
     ...order,
     state: 'invoiced',
@@ -224,6 +253,7 @@ async function handleSponsorInvoice(request: SponsorInvoiceRequest): Promise<voi
     console.log(
       '[Admin] Order', request.orderId,
       isReplacement ? 'sponsor invoice replaced' : 'invoiced (sponsor invoice accepted)',
+      liquidityOk === null ? '(프로빙 미실시)' : liquidityOk ? '(유동성 OK)' : '(유동성 경고)',
     );
     // 교체는 이미 invoiced라 상태가 안 바뀐다 — 알림도 보내지 않는다.
     if (!isReplacement) notifyTransition(updatedOrder);
@@ -429,21 +459,27 @@ async function runDisbursement(
   lnAdapter: LightningAdapter,
 ): Promise<{ success: boolean; error?: string }> {
 
-  // IDB에서 해당 Sponsor의 claim request 조회 → bolt11 추출
-  let sponsorBolt11: string | undefined;
-  try {
-    const requests = await idbGetRequestsByOrderId(orderId);
-    const claimRequest = requests
-      .filter((r): r is ClaimRequest => r.action === 'claim' && r.pubkey === order.sponsorPubkey && !!r.invoice?.bolt11)
-      .sort((a, b) => b.createdAt - a.createdAt)[0];
-    sponsorBolt11 = claimRequest?.invoice?.bolt11;
-  } catch (e) {
-    console.error('[Admin] IDB request lookup failed for', orderId, e);
-    return { success: false, error: 'IDB_LOOKUP_FAILED' };
+  // 지급처는 오더에 박혀 있다. 예전에는 IDB에서 claim request를 뒤져 bolt11을
+  // 꺼냈는데, 인보이스를 클레임이 아니라 에스크로 이후에 받게 되면서 거기엔
+  // 더 이상 없다. `sponsorInvoice`는 금액·소유자·만료 검증을 통과한 것만 들어온다
+  // (불변조건 I-011) — 여기서 다시 의심할 필요가 없다.
+  const sponsorBolt11 = order.sponsorInvoice;
+  if (!sponsorBolt11) {
+    // 도달하면 FSM에 구멍이 뚫린 것이다. paid/sponsor_wins는 invoiced를 거쳐야만
+    // 오는데 invoiced는 검증된 인보이스 없이는 만들어지지 않는다(I-010).
+    console.error('[Admin] 지급 대상 인보이스가 없다 — FSM 불변조건 위반:', orderId, order.state);
+    return { success: false, error: 'NO_SPONSOR_BOLT11' };
   }
 
-  if (!sponsorBolt11) {
-    return { success: false, error: 'NO_SPONSOR_BOLT11' };
+  // 만료는 제출 시점에 한 번 봤지만, 그 사이 계좌 전달 + 원화 이체 + 컨펌이
+  // 지나갔다. 결제를 쏘기 직전에 다시 본다 — 만료된 인보이스로 쏘면 LN이
+  // 거절하고 그 이유가 로그 깊숙이 묻힌다.
+  const decoded = decodeBolt11(sponsorBolt11);
+  if (decoded && decoded.expiresAt > 0 && decoded.expiresAt <= Math.floor(Date.now() / 1000)) {
+    console.warn('[Admin] 후원자 인보이스 만료 — 재제출 필요:', orderId);
+    void publishInvoiceRejected(orderId, order.sponsorPubkey!, 'EXPIRED_BEFORE_PAYOUT', order.payoutSat ?? 0)
+      .catch(() => {});
+    return { success: false, error: 'INVOICE_EXPIRED' };
   }
 
   // 결제 전송

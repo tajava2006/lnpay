@@ -3,10 +3,11 @@ import { InvoicePayBlock, sponsorRelation } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim, publishRemitRequest } from '../nostr/claim';
 import { getStateMeta } from '../order-states';
+import { SponsorInvoiceForm } from './SponsorInvoiceForm';
 import { decodeBolt11 } from '../bolt11';
 import type { Bolt11Result } from '../bolt11';
 import { subscribeAccountInfo, getAccountInfoSnapshot } from '../account-store';
-import { subscribeClaimErrors, getClaimErrorSnapshot, clearClaimError } from '../claim-error-store';
+import { subscribeClaimErrors, getClaimErrorSnapshot, clearClaimError, rejectReasonText } from '../claim-error-store';
 import { subscribe as subscribeDeposits, getSnapshot as getDepositSnapshot } from '../deposit-store';
 // QR 스캐너는 jsqr(~30KB)을 끌고 오는데 클레임할 때만 쓴다.
 // 첫 화면이 오더북이라 대부분의 방문에서 쓰이지 않으므로 지연 로딩한다.
@@ -101,9 +102,17 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
   // 안 그러면 남의 escrowed 주문에도 "계좌 정보 대기 중"이 떠서
   // 자기가 관여한 거래로 착각하게 된다.
   const isMine = relation === 'mine';
-  const showAccountInfo = isMine && order.state === 'escrowed' && accountInfo;
-  const showWaitingAccount = isMine && order.state === 'escrowed' && !accountInfo;
-  const canRemit = isMine && order.state === 'escrowed' && accountInfo;
+  // 계좌는 `invoiced`부터 온다 — 내 인보이스가 검증된 뒤라야 고객이 발행한다.
+  // `escrowed`는 그 앞 단계, 즉 **내가 인보이스를 낼 차례**다.
+  //
+  // `invoiced`에서도 거절 통보가 와 있으면 다시 띄운다 — 지급 직전에 인보이스가
+  // 만료된 경우다. 이때 거래는 살아 있고 필요한 건 새 인보이스뿐이라,
+  // 폼이 안 보이면 후원자가 할 수 있는 게 없어진다.
+  const needsInvoice = isMine
+    && (order.state === 'escrowed' || (order.state === 'invoiced' && !!claimError));
+  const showAccountInfo = isMine && order.state === 'invoiced' && accountInfo;
+  const showWaitingAccount = isMine && order.state === 'invoiced' && !accountInfo;
+  const canRemit = isMine && order.state === 'invoiced' && accountInfo;
 
   function handleInvoiceChange(value: string) {
     setInvoiceText(value);
@@ -322,6 +331,14 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
                 보증금: {deposit.status === 'accepted' ? '전달 완료'
                   : deposit.status === 'cancelled' ? '환불됨' : '몰수됨'}
               </span>
+            )}
+
+            {needsInvoice && (
+              <SponsorInvoiceForm
+                order={order}
+                onSubmitted={() => clearClaimError(order.orderId)}
+                notice={claimError ? rejectReasonText(claimError) : null}
+              />
             )}
 
             {showWaitingAccount && (

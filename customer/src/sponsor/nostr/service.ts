@@ -25,7 +25,7 @@ import type { Event } from 'nostr-tools/core';
 import { parseEvent, parseAccountInfoEvent } from '../types';
 import { upsertOrder, markSynced } from '../order-store';
 import { setAccountInfo } from '../account-store';
-import { setClaimError } from '../claim-error-store';
+import { setClaimError, type InvoiceRejectReason } from '../claim-error-store';
 import { setDepositBolt11, setDepositStatus } from '../deposit-store';
 import { setRevealRequested } from '../reveal-request-store';
 import type { AccountInfoEvent } from '../types';
@@ -155,16 +155,24 @@ async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
   }
 }
 
-// ── claim-price-error 처리 ────────────────────────────
+// ── 인보이스 거절 사유 처리 ────────────────────────────
 
+/**
+ * 어드민이 인보이스를 받지 않았을 때 오는 알림.
+ *
+ * `expected-sats`가 0일 수 있다(디코드 실패·만료처럼 금액과 무관한 사유).
+ * 예전에는 금액이 없으면 통째로 무시했는데, 그러면 후원자는 등록됐다고 믿고
+ * 오지 않을 계좌를 기다린다. 이유가 있으면 금액이 없어도 띄운다.
+ */
 function handleClaimPriceError(event: Event): void {
   const orderId = extractOrderId(event.tags);
   if (!orderId) return;
 
-  const expectedSats = Number(event.tags.find(t => t[0] === 'expected-sats')?.[1]);
-  if (!expectedSats || expectedSats <= 0) return;
+  const expectedSats = Number(event.tags.find(t => t[0] === 'expected-sats')?.[1]) || 0;
+  const reason = event.tags.find(t => t[0] === 'reason')?.[1] as InvoiceRejectReason | undefined;
+  if (!reason && expectedSats <= 0) return;
 
-  setClaimError(orderId, expectedSats);
-  console.log('[Sponsor] Claim price error for', orderId, '- expected:', expectedSats, 'sats');
+  setClaimError(orderId, expectedSats, reason);
+  console.log('[Sponsor] 인보이스 거절:', orderId, reason ?? '(사유 없음)', expectedSats, 'sats');
 }
 

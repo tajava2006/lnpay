@@ -104,7 +104,7 @@ export const FALLBACK_RELAYS = [
  * 유저가 알림을 다시 켜야 살아난다. 개인키는 어드민 설정에만 있고 여기 없다.
  */
 export const VAPID_PUBLIC_KEY =
-  'BEZykBtDbqMEaAPgxiJUhP0ipF5jOW4zViDWKERB5iI53NMzcgCYMRWOQJY0k6fvGV24izWDBfBjcjNL0LAWe1k';
+  'BPQARlaUd2GNRFgRCSOR0orzzEABonRXfsfK627qvJzSD6pUdveRLeWbGLlgjky17upvBO8jnuce2JN-5HTKUNk';
 
 /**
  * NIP-17 DM 알림을 쓸지.

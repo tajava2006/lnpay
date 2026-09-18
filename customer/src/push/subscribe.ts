@@ -18,6 +18,15 @@
  */
 import { VAPID_PUBLIC_KEY } from '@sajwo-tracker/shared';
 
+/** 구독할 때 실제로 쓴 VAPID 공개키. 브라우저가 안 알려줄 때의 대조용. */
+const KEY_USED = 'push-vapid-key-used';
+
+function bytesToB64u(b: Uint8Array): string {
+  let bin = '';
+  for (const byte of b) bin += String.fromCharCode(byte);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 /** 어드민에게 넘기는 구독 정보. 브라우저가 준 값을 그대로 옮긴다. */
 export interface PushSubscriptionPayload {
   endpoint: string;
@@ -61,12 +70,67 @@ export function checkPushSupport(): PushSupport {
   return { supported: true };
 }
 
-/** 이미 이 브라우저에서 구독했는지 본다. */
+/**
+ * 이 구독이 **지금 쓰는 VAPID 공개키로** 발급된 것인가.
+ *
+ * 구독은 발급 시점의 `applicationServerKey`에 영구히 묶인다. 서버 키를 바꾸면
+ * 옛 구독으로 가는 푸시는 403(invalid JWT)으로 죽는데, **유저 쪽에서는 아무
+ * 신호가 없다** — 알림을 켜둔 채로 영영 못 받는다. 그래서 키가 바뀌었는지를
+ * 앱이 스스로 알아채야 한다.
+ *
+ * 브라우저가 `options.applicationServerKey`로 알려준다. 못 알려주는 구형
+ * 브라우저를 위해 구독할 때 쓴 키를 따로 적어두고 그걸로 대조한다.
+ */
+function usesCurrentKey(sub: PushSubscription): boolean {
+  const applied = sub.options?.applicationServerKey;
+  if (applied) {
+    return bytesToB64u(new Uint8Array(applied)) === VAPID_PUBLIC_KEY;
+  }
+  // 브라우저가 안 알려주면 우리가 적어둔 값으로 판단한다.
+  // 기록조차 없으면 키 교체 이전에 만든 구독이므로 옛것으로 본다.
+  return localStorage.getItem(KEY_USED) === VAPID_PUBLIC_KEY;
+}
+
+/** 이미 이 브라우저에서 구독했는지 본다. 옛 키로 발급된 것은 없는 셈 친다. */
 export async function getExistingSubscription(): Promise<PushSubscriptionPayload | null> {
   if (checkPushSupport().supported !== true) return null;
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
-  return sub ? serialize(sub) : null;
+  if (!sub || !usesCurrentKey(sub)) return null;
+  return serialize(sub);
+}
+
+/**
+ * VAPID 키가 바뀌었으면 조용히 재구독한다. 앱 부팅 시 1회.
+ *
+ * 유저가 뭔가를 다시 누르게 만들면 대부분 영영 안 누른다 — 알림이 안 오는 걸
+ * 모르니까 누를 이유도 없다. 이미 알림 권한이 있으므로 사용자 제스처 없이도
+ * 재구독이 되고, 유저는 아무것도 눈치채지 못한 채 계속 알림을 받는다.
+ */
+export async function migratePushSubscriptionIfKeyChanged(
+  publish: (sub: PushSubscriptionPayload) => Promise<boolean>,
+): Promise<void> {
+  if (checkPushSupport().supported !== true) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (!existing || usesCurrentKey(existing)) return;
+
+    console.log('[Push] VAPID 키가 바뀌었다 — 재구독');
+    await existing.unsubscribe();
+
+    const fresh = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: VAPID_PUBLIC_KEY,
+    });
+    localStorage.setItem(KEY_USED, VAPID_PUBLIC_KEY);
+    await publish(serialize(fresh));
+  } catch (e) {
+    // 실패해도 앱 동작을 막지 않는다. 다음 부팅에 다시 시도된다.
+    console.warn('[Push] 재구독 실패:', e);
+  }
 }
 
 /**
@@ -94,7 +158,9 @@ export async function subscribeToPush(): Promise<PushSubscriptionPayload> {
   // 이미 구독돼 있으면 그대로 쓴다. 재구독하면 엔드포인트가 바뀌어
   // 어드민에 남은 옛 구독이 죽은 채로 남는다.
   const existing = await reg.pushManager.getSubscription();
-  if (existing) return serialize(existing);
+  if (existing && usesCurrentKey(existing)) return serialize(existing);
+  // 옛 키로 만든 구독은 살려둬도 푸시가 403으로 죽는다. 버리고 새로 만든다.
+  if (existing) await existing.unsubscribe();
 
   try {
     const sub = await reg.pushManager.subscribe({
@@ -102,6 +168,7 @@ export async function subscribeToPush(): Promise<PushSubscriptionPayload> {
       userVisibleOnly: true,
       applicationServerKey: VAPID_PUBLIC_KEY,
     });
+    localStorage.setItem(KEY_USED, VAPID_PUBLIC_KEY);
     return serialize(sub);
   } catch (err) {
     throw new Error(explainSubscribeFailure(err));

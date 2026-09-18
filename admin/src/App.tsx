@@ -20,6 +20,7 @@ import { NodeStatus } from './components/NodeStatus';
 import { getCustomerDepositPercent, setCustomerDepositPercent, getSponsorDepositPercent, setSponsorDepositPercent, restoreDepositSettings } from './deposit-config';
 import { restorePendingDeposits } from './pending-deposit-store';
 import { isAutoApproveEnabled, setAutoApproveEnabled } from './auto-approve';
+import { purgeSubscriptionsIfKeyChanged } from './web-push/store';
 import { BtcPrice, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { createLightningAdapter, createNodeTracker } from './lightning';
@@ -185,6 +186,8 @@ export function App() {
         // 설정 화면을 열지 않아도 복원돼야 한다 — 안 그러면 그 기기에서만
         // 알림이 조용히 안 나간다.
         if (cancelled) return;
+        // 공개키가 바뀌었으면 옛 구독은 전부 403이 된다. 먼저 비운다.
+        purgeSubscriptionsIfKeyChanged();
         await discardVapidKeyIfMismatched();
         await restoreVapidPrivateKey();
         if (!cancelled) setPushKeyOk(!!getVapidPrivateKey());

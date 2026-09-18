@@ -8,9 +8,39 @@
  * 어드민 기기 간 동기화는 저절로 된다: 구독 등록이 릴레이의 kind 1111로 오고
  * 어드민 기기 전부가 그걸 받아 각자 저장한다. 그래서 NIP-78 백업이 따로 필요 없다.
  */
+import { VAPID_PUBLIC_KEY } from '@sajwo-tracker/shared';
 import type { PushSubscriptionPayload } from './types';
 
 const KEY = 'push-subscriptions';
+
+/**
+ * 이 저장소가 어느 VAPID 공개키 시절에 만들어졌는지.
+ *
+ * 구독은 발급 시점의 서버 키에 묶여 있어서, 키를 바꾸면 기존 구독으로 가는
+ * 푸시가 전부 403이 된다. 그대로 두면 전이마다 죽은 엔드포인트에 헛 요청이
+ * 나가고 로그가 403으로 도배된다. 403은 프록시 오설정 등 다른 이유로도 나므로
+ * "403이면 지운다"는 위험하다 — 대신 키가 바뀐 걸 확인했을 때 한 번에 비운다.
+ */
+const KEY_EPOCH = 'push-subscriptions-vapid-key';
+
+/**
+ * VAPID 키가 바뀌었으면 저장된 구독을 전부 버린다. 어드민 부팅 시 1회.
+ * 유저 기기들은 각자 재구독해서 다시 등록해 온다.
+ */
+export function purgeSubscriptionsIfKeyChanged(): boolean {
+  const seen = localStorage.getItem(KEY_EPOCH);
+  if (seen === VAPID_PUBLIC_KEY) return false;
+
+  const had = Object.keys(load()).length;
+  localStorage.removeItem(KEY);
+  localStorage.removeItem(DEAD_KEY);
+  localStorage.setItem(KEY_EPOCH, VAPID_PUBLIC_KEY);
+
+  if (seen !== null && had > 0) {
+    console.warn('[Push] VAPID 키 교체 감지 — 옛 구독', had, '건 폐기. 유저가 재접속하면 다시 등록된다');
+  }
+  return true;
+}
 
 /**
  * 죽은 것으로 확인된 엔드포인트 묘비.

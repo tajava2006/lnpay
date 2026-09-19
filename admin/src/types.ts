@@ -102,6 +102,12 @@ export function parseRequestEvent(event: Event): Request | null {
     }
     case 'account-info':
       return { ...base, action };
+    case 'sponsor-invoice': {
+      // bolt11이 없으면 의미가 없다 — 지급처가 본문이다.
+      const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
+      if (!bolt11) return null;
+      return { ...base, action, bolt11 };
+    }
     case 'payment-confirm':
     case 'cancel-request':
     case 'remit-request':

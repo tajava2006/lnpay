@@ -32,6 +32,9 @@ interface Props {
 export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  // 발행 성공과 어드민 수락은 다른 사건이다. 그 사이를 화면이 말해주지 않으면
+  // 유저는 "안 됐나?" 하고 다시 누른다(실제로 그랬다).
+  const [submitted, setSubmitted] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,16 +69,20 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
   })();
 
   const canSubmit = !!text.trim() && !problem && !sending && payoutSat !== null;
+  // 거절 통보가 오면 "보냈음" 상태를 풀어 다시 낼 수 있게 한다.
+  const waiting = submitted && !notice;
 
   async function handleSubmit() {
     setSending(true);
     setError(null);
+    setSubmitted(false);
     try {
       const ok = await publishSponsorInvoice(order, text.trim());
       if (!ok) {
         setError('제출에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         return;
       }
+      setSubmitted(true);
       onSubmitted();
     } catch {
       setError('제출 중 오류가 발생했습니다.');
@@ -126,6 +133,13 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
         <Suspense fallback={null}>
           <QrScanner onScan={handleScan} onClose={() => setScanning(false)} />
         </Suspense>
+      )}
+
+      {waiting && (
+        <p style={styles.waiting}>
+          등록했습니다. 에스크로가 확인하면 고객이 계좌 정보를 보냅니다 —
+          잠시 기다려 주세요. 다시 보내지 않으셔도 됩니다.
+        </p>
       )}
 
       {problem && <p style={styles.problem}>{problem}</p>}
@@ -189,6 +203,12 @@ const styles = {
     fontSize: 12,
     fontFamily: 'monospace',
     resize: 'vertical' as const,
+  },
+  waiting: {
+    margin: '8px 0 0 0',
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#166534',
   },
   problem: {
     margin: '8px 0 0 0',

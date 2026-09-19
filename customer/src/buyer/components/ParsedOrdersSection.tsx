@@ -51,6 +51,19 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
   );
 
   async function handleAttach(orderId: string) {
+    // 붙이기는 의뢰 만료와 쿠팡 계좌 만료를 **분리**시킨다. 의뢰가 3개월이어도
+    // 가상계좌는 하루면 죽고, 죽은 계좌로 후원자가 송금하면 입금이 안 된다.
+    // 의뢰 쪽 만료는 앱이 관리하지만 이쪽은 쿠팡이 정하므로 여기서 봐야 한다.
+    const hoursLeft = (payload.expirationDate - Date.now()) / 3_600_000;
+    if (hoursLeft <= 0) {
+      alert('이 쿠팡 주문의 입금 기한이 이미 지났습니다. 새로 주문해 주세요.');
+      return;
+    }
+    if (hoursLeft < 3 && !confirm(
+      `입금 기한이 ${Math.floor(hoursLeft * 60)}분밖에 남지 않았습니다.\n\n`
+      + '그 안에 후원자가 원화를 보내지 못하면 입금이 실패합니다. 그래도 연결할까요?',
+    )) return;
+
     setAttaching(true);
     try {
       const ok = attachParsedToOrder(orderId, {

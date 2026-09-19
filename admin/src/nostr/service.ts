@@ -52,7 +52,14 @@ import { getPreimage, getEscrowEntry } from '../escrow-store';
 import { getCustomerDepositPercent, getSponsorDepositPercent } from '../deposit-config';
 import { savePendingDeposit, getPendingDeposit } from '../pending-deposit-store';
 import { handleDepositOnTransition } from '../deposit-lifecycle';
-import { escrowInvoiceExpiry } from '../escrow-window';
+import { escrowInvoiceExpiry, escrowDeadline } from '../escrow-window';
+
+/**
+ * 에스크로 만료가 이만큼 남지 않았으면 새 약속을 받지 않는다.
+ * invoice-watcher의 선제 settle 마진과 같은 값이어야 한다 — 다르면 한쪽이
+ * "아직 괜찮다"고 받아들인 걸 다른 쪽이 "이미 늦었다"고 처리한다.
+ */
+const SETTLE_SAFETY_MARGIN_SEC = 10 * 60;
 
 /**
  * 후원자 인보이스에 요구하는 최소 잔여 수명.
@@ -211,6 +218,19 @@ async function handleSponsorInvoice(request: SponsorInvoiceRequest): Promise<voi
     console.warn('[Admin] sponsor-invoice expires too soon for', request.orderId);
     void publishInvoiceRejected(request.orderId, request.pubkey, 'EXPIRES_TOO_SOON').catch(() => {});
     return;
+  }
+
+  // 에스크로가 먼저 죽으면 후원자가 원화를 보낸 뒤 HTLC가 타임아웃으로 환불된다
+  // — 후원자만 잃는 최악의 결말이다. 인보이스 수명 하한(6h)만 보면 에스크로가
+  // 2시간 남았을 때 6시간짜리를 내도 통과해버린다. 남은 에스크로 시간도 본다.
+  const entry = getEscrowEntry(request.orderId);
+  if (entry) {
+    const escrowLeft = escrowDeadline(order.expiration, entry.createdAt) - now;
+    if (escrowLeft <= SETTLE_SAFETY_MARGIN_SEC) {
+      console.warn('[Admin] 에스크로가 곧 만료 — 인보이스를 받지 않는다:', request.orderId, escrowLeft, 's');
+      void publishInvoiceRejected(request.orderId, request.pubkey, 'ESCROW_ENDING_SOON').catch(() => {});
+      return;
+    }
   }
 
   // ⑤ 유동성 프로빙 — 원화 이체 직전에 여기서 한다.
@@ -563,7 +583,14 @@ export async function resolveDisputeSponsorWins(
       }
     }
   } else {
-    console.warn('[Admin] Cannot settle: missing', !preimage ? 'preimage' : 'lnAdapter', 'for', orderId);
+    // 프리이미지가 없으면 settle을 못 한다 = BTC를 못 받았다. 그런데 아래에서는
+    // 후원자에게 지급이 나간다 — **어드민이 받지도 않은 돈을 주는 유일한 경로**였다.
+    // (escrow-store가 아직 복원되지 않은 새 기기에서 판정하면 실제로 도달한다.)
+    console.error(
+      '[Admin] 프리이미지 없이 sponsor_wins 불가 — 정산할 수 없는데 지급이 나간다:',
+      orderId, !preimage ? 'no-preimage' : 'no-adapter',
+    );
+    return { success: false, error: 'CANNOT_SETTLE' };
   }
 
   const updatedOrder: Order = {

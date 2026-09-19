@@ -266,7 +266,7 @@ export async function publishDepositStatus(
 export async function publishInvoiceRejected(
   orderId: string,
   sponsorPubkey: string,
-  reason: 'DECODE_FAILED' | 'AMOUNT_MISMATCH' | 'EXPIRES_TOO_SOON' | 'EXPIRED_BEFORE_PAYOUT' | 'LIQUIDITY_WARNING',
+  reason: 'DECODE_FAILED' | 'AMOUNT_MISMATCH' | 'EXPIRES_TOO_SOON' | 'EXPIRED_BEFORE_PAYOUT' | 'LIQUIDITY_WARNING' | 'ESCROW_ENDING_SOON',
   expectedSats = 0,
 ): Promise<void> {
   const signer = getSigner();

@@ -53,6 +53,12 @@
 - [ ] **invoiced 정체 감지**: 후원자가 인보이스를 안 내면 조용히 CLTV 타임아웃까지 간다.
       손실은 없지만 알려주는 편이 낫다
 
+## 대규모 아이디어
+
+- [ ] **온체인 전용 트랙**: 라이트닝이 아니라 taproot 2-of-3 에스크로.
+      쿠팡 결제가 아니라 non-KYC 비트코인 거래 용도(유저 피드백). 수수료 0(온체인만),
+      happy path에서 어드민 무개입. 검토 = [docs/IDEA-ONCHAIN-TRACK.md](docs/IDEA-ONCHAIN-TRACK.md)
+
 ## 스팸/DoS 차단
 
 ### Customer 스팸 차단

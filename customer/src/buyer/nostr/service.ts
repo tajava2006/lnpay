@@ -123,6 +123,17 @@ function isDepositAction(action: string | undefined): boolean {
 
 // ── 계좌정보 자동 전송 ────────────────────────────
 
+/**
+ * 계좌 정보를 지금 보낸다.
+ *
+ * 자동 전송은 `invoiced`로 **들어오는 순간**에만 돈다. 파싱 주문을 나중에 붙이면
+ * 그 순간은 이미 지나갔으므로, 붙인 쪽에서 직접 한 번 밀어줘야 한다.
+ * 게이트(`canSendAccountInfo`)는 안에서 다시 확인하므로 아무 때나 불러도 안전하다.
+ */
+export async function sendAccountInfoNow(orderId: string): Promise<void> {
+  return autoSendAccountInfo(orderId);
+}
+
 async function autoSendAccountInfo(orderId: string): Promise<void> {
   const order = getSnapshot()[orderId];
   if (!order?.fixedAccountInfo || !order.sponsorPubkey) return;

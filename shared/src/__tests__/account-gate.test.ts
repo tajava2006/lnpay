@@ -9,7 +9,7 @@
  * 함수를 쓴다. 판정이 한 곳이어야 한쪽만 뚫리는 일이 없다.
  */
 import { describe, it, expect } from 'vitest';
-import { canSendAccountInfo } from '../order-progress';
+import { canSendAccountInfo, canAttachParsedOrder } from '../order-progress';
 import type { OrderState } from '../constants';
 
 describe('canSendAccountInfo', () => {
@@ -60,5 +60,39 @@ describe('canSendAccountInfo', () => {
     ];
 
     expect(ALL.filter(canSendAccountInfo)).toEqual(['invoiced', 'remitted']);
+  });
+});
+
+describe('canAttachParsedOrder', () => {
+  /**
+   * 계좌가 나간 뒤에 바꾸면 후원자가 이미 본 계좌와 달라진다. 원화가 엉뚱한
+   * 곳으로 가거나 입금이 확인되지 않는다 — 되돌릴 수 없는 종류의 사고다.
+   */
+  it('계좌를 이미 보냈으면 어떤 상태든 막는다', () => {
+    const ALL: OrderState[] = [
+      'requested', 'claimed', 'verified', 'escrowed', 'invoiced',
+      'remitted', 'paid', 'cancelled', 'sponsor_wins', 'customer_wins',
+    ];
+    for (const state of ALL) {
+      expect(canAttachParsedOrder(state, true)).toBe(false);
+    }
+  });
+
+  it('계좌 전달 전이면 invoiced까지 열려 있다', () => {
+    const open: OrderState[] = ['requested', 'claimed', 'verified', 'escrowed', 'invoiced'];
+    for (const state of open) {
+      expect(canAttachParsedOrder(state, false)).toBe(true);
+    }
+  });
+
+  it('원화가 오간 뒤(remitted)와 종료 상태는 막는다', () => {
+    const closed: OrderState[] = ['remitted', 'paid', 'cancelled', 'sponsor_wins', 'customer_wins'];
+    for (const state of closed) {
+      expect(canAttachParsedOrder(state, false)).toBe(false);
+    }
+  });
+
+  it('상태를 모르면 막는다', () => {
+    expect(canAttachParsedOrder(undefined, false)).toBe(false);
   });
 });

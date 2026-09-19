@@ -261,3 +261,22 @@ export function canSendAccountInfo(state: OrderState | undefined): boolean {
   // 그 임시방편이 어느 날 `?? 'invoiced'`가 되면 게이트가 사라진다.
   return state === 'invoiced' || state === 'remitted';
 }
+
+/**
+ * 파싱된 쿠팡 주문을 이 의뢰에 붙여도 되는가.
+ *
+ * 기준은 하나다 — **계좌가 아직 안 나갔는가.** 나간 뒤에 바꾸면 후원자가 이미
+ * 본 계좌와 달라져, 원화가 엉뚱한 곳으로 가거나 입금이 확인되지 않는다.
+ *
+ * `invoiced`까지 열어두는 이유: 거기가 계좌가 실제로 필요해지는 시점이고,
+ * 이 기능이 제일 쓸모 있는 자리이기도 하다(후원자가 붙은 걸 보고 그제야
+ * 쿠팡에 주문을 넣는 흐름).
+ */
+export function canAttachParsedOrder(
+  state: OrderState | undefined,
+  alreadySentAccountInfo: boolean,
+): boolean {
+  if (alreadySentAccountInfo) return false;
+  return state === 'requested' || state === 'claimed'
+    || state === 'verified' || state === 'escrowed' || state === 'invoiced';
+}

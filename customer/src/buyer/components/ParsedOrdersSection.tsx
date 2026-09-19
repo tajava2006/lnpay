@@ -1,8 +1,11 @@
 import { useState, useSyncExternalStore } from 'react';
+import { canAttachParsedOrder } from '@sajwo-tracker/shared';
 import { subscribeParsed, getParsedSnapshot, removeParsedOrder } from '../parsed-store';
-import { addOrder } from '../order-store';
+import {
+  subscribe, getSnapshot, addOrder, markPublished, attachParsedToOrder,
+} from '../order-store';
+import { sendAccountInfoNow } from '../nostr/service';
 import { publishOrderRequest } from '../nostr/publish';
-import { markPublished } from '../order-store';
 import type { CustomerOrder } from '../types';
 import { newOrderId } from '../order-id';
 import type { ParsedOrderPayload } from '../types';
@@ -28,6 +31,47 @@ export function ParsedOrdersSection() {
 
 function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: ParsedOrderPayload }) {
   const [requesting, setRequesting] = useState(false);
+  const [attaching, setAttaching] = useState(false);
+
+  const orders = useSyncExternalStore(subscribe, getSnapshot);
+
+  /**
+   * 이 파싱 주문을 붙일 수 있는 기존 의뢰.
+   *
+   * 금액은 **정확히** 같아야 한다. 후원자는 의뢰 금액을 보내고 쿠팡은 주문 금액을
+   * 기다리므로, 1원만 달라도 입금이 확인되지 않는다.
+   *
+   * 화면이 먼저 제안하는 게 핵심이다. 설명을 어디 적어두는 것보다, 맞는 후보가
+   * 있을 때 그걸 위에 보여주는 쪽이 "이렇게 쓸 수 있다"를 확실히 알린다.
+   */
+  const attachable = Object.values(orders).filter(o =>
+    o.price === payload.price
+    && !o.fixedAccountInfo
+    && canAttachParsedOrder(o.adminState, !!o.accountInfo),
+  );
+
+  async function handleAttach(orderId: string) {
+    setAttaching(true);
+    try {
+      const ok = attachParsedToOrder(orderId, {
+        coupangOrderId: payload.coupangOrderId,
+        productName: payload.productName,
+        bankName: payload.bankName,
+        accountNumber: payload.accountNumber,
+        holderName: payload.depositor,
+      });
+      if (!ok) {
+        alert('연결에 실패했습니다. 의뢰를 다시 확인해 주세요.');
+        return;
+      }
+      // 이미 계좌를 보낼 수 있는 단계면 지금 바로 보낸다. 그 단계로 들어올 때
+      // 도는 자동 전송은 이미 지나갔으므로 여기서 직접 밀어줘야 한다.
+      await sendAccountInfoNow(orderId);
+      removeParsedOrder(eventId);
+    } finally {
+      setAttaching(false);
+    }
+  }
 
   const expirationDate = new Date(payload.expirationDate);
   const expirationStr = `${expirationDate.getFullYear()}.${String(expirationDate.getMonth() + 1).padStart(2, '0')}.${String(expirationDate.getDate()).padStart(2, '0')} ${String(expirationDate.getHours()).padStart(2, '0')}:${String(expirationDate.getMinutes()).padStart(2, '0')}`;
@@ -98,6 +142,28 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
           <span style={styles.fieldValue}>{expirationStr}</span>
         </div>
       </div>
+      {attachable.length > 0 && (
+        <div style={styles.attachBox}>
+          <p style={styles.attachTitle}>
+            금액이 같은 의뢰가 {attachable.length}건 있습니다 — 여기에 연결할까요?
+          </p>
+          <p style={styles.attachHint}>
+            연결하면 새 의뢰를 올리지 않고 <b>이미 진행 중인 의뢰</b>에 이 계좌를 씁니다.
+            후원자를 기다리며 걸어둔 의뢰가 있다면 이쪽입니다.
+          </p>
+          {attachable.map(o => (
+            <button
+              key={o.orderId}
+              onClick={() => handleAttach(o.orderId)}
+              disabled={attaching || requesting}
+              style={styles.attachBtn}
+            >
+              {o.memo || '직접 입력'} · {o.price.toLocaleString()}원 에 연결
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={styles.orderActions}>
         <button
           onClick={handleRequest}
@@ -191,6 +257,39 @@ const styles = {
   orderActions: {
     display: 'flex',
     gap: 8,
+  },
+  attachBox: {
+    margin: '0 12px 8px',
+    padding: 10,
+    background: '#EEF2FF',
+    border: '1px solid #C7D2FE',
+    borderRadius: 8,
+  },
+  attachTitle: {
+    margin: '0 0 4px 0',
+    fontSize: 13,
+    fontWeight: 600 as const,
+    color: '#3730A3',
+  },
+  attachHint: {
+    margin: '0 0 8px 0',
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#4338CA',
+  },
+  attachBtn: {
+    display: 'block',
+    width: '100%',
+    marginBottom: 6,
+    padding: '8px 12px',
+    background: '#4F46E5',
+    color: 'white',
+    border: 'none',
+    borderRadius: 6,
+    fontSize: 13,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'left' as const,
   },
   requestBtn: {
     padding: '8px 20px',

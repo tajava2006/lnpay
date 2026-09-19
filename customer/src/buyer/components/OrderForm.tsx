@@ -5,6 +5,24 @@ import type { CustomerOrder } from '../types';
 
 const DEFAULT_EXPIRY_HOURS = 24;
 
+/**
+ * 의뢰 유효기간 선택지.
+ *
+ * 길게 잡아도 안전하다 — 홀드 인보이스 수명은 여기서 분리돼 있어서(escrow-window.ts)
+ * 후원자가 붙은 뒤 하루 안에 결제하면 된다. 예전엔 이 값이 곧 CLTV라 길게 잡으면
+ * 채널 상한을 넘어 터졌다.
+ *
+ * 쿠팡 가상계좌는 하루면 죽으므로 **주문은 후원자가 붙은 뒤에** 넣는 게 맞다.
+ * 그래서 긴 유효기간이 의미가 있다.
+ */
+const EXPIRY_OPTIONS = [
+  { hours: 24, label: '1일' },
+  { hours: 72, label: '3일' },
+  { hours: 24 * 7, label: '1주' },
+  { hours: 24 * 30, label: '1개월' },
+  { hours: 24 * 90, label: '3개월' },
+] as const;
+
 export function OrderForm() {
   const [price, setPrice] = useState('');
   const [memo, setMemo] = useState('');
@@ -64,16 +82,21 @@ export function OrderForm() {
           />
         </label>
         <label style={styles.label}>
-          <span style={styles.labelText}>유효기간 (시간)</span>
-          <input
-            type="number"
+          <span style={styles.labelText}>유효기간</span>
+          <select
             value={expiryHours}
             onChange={e => setExpiryHours(e.target.value)}
-            min="1"
-            max="72"
             style={styles.input}
-          />
+          >
+            {EXPIRY_OPTIONS.map(o => (
+              <option key={o.hours} value={o.hours}>{o.label}</option>
+            ))}
+          </select>
         </label>
+        <p style={styles.expiryHint}>
+          급하지 않으면 길게 잡아두세요. 후원자가 붙을 때까지 기다렸다가,
+          그때 쿠팡 주문을 넣어 이 의뢰에 연결하면 됩니다.
+        </p>
         <button type="submit" style={styles.submitBtn}>의뢰 등록</button>
       </form>
     </div>
@@ -116,6 +139,12 @@ const styles = {
     borderRadius: 6,
     fontSize: 14,
     outline: 'none',
+  },
+  expiryHint: {
+    margin: '-4px 0 8px 0',
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#6B7280',
   },
   submitBtn: {
     padding: '8px 20px',

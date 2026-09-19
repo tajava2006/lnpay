@@ -210,3 +210,52 @@ export function stopCleanup(): void {
     cleanupTimer = null;
   }
 }
+
+/**
+ * 파싱된 쿠팡 주문을 **기존 의뢰에 붙인다.**
+ *
+ * ── 왜 있는가
+ *
+ * 급하지 않은 구매는 "가격만 맞춰 의뢰를 오래 걸어두고 후원자를 기다리는" 쓰임이
+ * 자연스럽다. 그런데 쿠팡 무통장 가상계좌는 하루면 죽으므로, 주문은 **후원자가
+ * 붙은 뒤에** 넣어야 한다. 그러면 그 시점의 파싱 결과를 새 의뢰로 올릴 게 아니라
+ * 이미 후원자가 붙어 있는 기존 의뢰에 연결해야 한다.
+ *
+ * ── 왜 이것만으로 되는가
+ *
+ * 수동 의뢰와 파싱 의뢰의 **유일한 차이가 `fixedAccountInfo`**다. 그걸 써넣으면
+ * 그 뒤 계좌 전달은 기존 경로가 알아서 한다 — 새 이벤트도 상태도 필요 없고,
+ * 어드민·후원자는 이런 일이 있었는지조차 모른다.
+ */
+export function attachParsedToOrder(
+  orderId: string,
+  parsed: {
+    coupangOrderId: string;
+    productName: string;
+    bankName: string;
+    accountNumber: string;
+    holderName: string;
+  },
+): boolean {
+  const order = orders[orderId];
+  if (!order) return false;
+
+  orders = {
+    ...orders,
+    [orderId]: {
+      ...order,
+      coupangOrderId: parsed.coupangOrderId,
+      memo: parsed.productName,
+      // source는 'parsed'로 바꾸지 않는다. 이 의뢰는 사람이 손으로 만든 것이고,
+      // 자동 전송이 보는 건 source가 아니라 fixedAccountInfo의 유무다.
+      fixedAccountInfo: {
+        bankName: parsed.bankName,
+        accountNumber: parsed.accountNumber,
+        holderName: parsed.holderName,
+      },
+    },
+  };
+  saveToStorage();
+  notify();
+  return true;
+}

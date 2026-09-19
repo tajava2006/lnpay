@@ -77,7 +77,7 @@ export { InvoicePayBlock } from './components/InvoicePayBlock';
 export { OrderProgress } from './components/OrderProgress';
 
 // 거래 진행도 (고객·후원자 공용 단계 모델)
-export { canSendAccountInfo, PROGRESS_STEPS, resolveProgress, stepActor } from './order-progress';
+export { canAttachParsedOrder, canSendAccountInfo, PROGRESS_STEPS, resolveProgress, stepActor } from './order-progress';
 export type {
   ProgressRole, StepStatus, StepActor, StepAction,
   ProgressStep, ProgressContext, ResolvedStep, Progress, TerminalInfo,

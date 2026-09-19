@@ -52,6 +52,7 @@ import { getPreimage, getEscrowEntry } from '../escrow-store';
 import { getCustomerDepositPercent, getSponsorDepositPercent } from '../deposit-config';
 import { savePendingDeposit, getPendingDeposit } from '../pending-deposit-store';
 import { handleDepositOnTransition } from '../deposit-lifecycle';
+import { escrowInvoiceExpiry } from '../escrow-window';
 
 /**
  * 후원자 인보이스에 요구하는 최소 잔여 수명.
@@ -335,9 +336,11 @@ export async function approveOrder(
   }
   const amountSat = computeEscrowSat(payoutSat);
 
-  // hold invoice 만료 = 오더 만료까지 남은 시간 (인지부하 감소를 위해 통일)
+  // 홀드 인보이스 수명은 **의뢰 수명과 분리**한다. 근거 = escrow-window.ts
+  // 장기 의뢰(후원자를 몇 주씩 기다리는 경우)에 의뢰 만료를 그대로 쓰면
+  // CLTV가 채널 상한(보통 2016블록)을 넘어 인보이스 자체가 못 만들어진다.
   const now = Math.floor(Date.now() / 1000);
-  const expiry = order.expiration - now;
+  const expiry = escrowInvoiceExpiry(order.expiration, now);
   if (expiry <= 0) {
     return { success: false, error: 'ORDER_EXPIRED' };
   }

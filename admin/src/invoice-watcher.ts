@@ -28,6 +28,7 @@ import { createOrder, approveOrder } from './nostr/service';
 import { isAutoApproveEnabled, shouldAutoApprove } from './auto-approve';
 import { getSponsorDepositPercent } from './deposit-config';
 import { notifyTransition } from './nostr/notify-triggers';
+import { escrowDeadline } from './escrow-window';
 import { idbMigrateOrderWithRequests } from '@sajwo-tracker/shared';
 import { getAllPendingDeposits, deletePendingDeposit } from './pending-deposit-store';
 import { handleDepositOnTransition } from './deposit-lifecycle';
@@ -214,7 +215,10 @@ async function handleRemittedOrder(order: Order): Promise<void> {
   try {
     const status = await adapter!.lookupHoldInvoice(entry.paymentHash);
     const now = Math.floor(Date.now() / 1000);
-    const timeToExpiry = order.expiration - now;
+    // 의뢰 만료가 아니라 **에스크로 만료**를 본다. 장기 의뢰에서는 인보이스가
+    // 훨씬 먼저 죽는데 의뢰 만료만 보고 있으면 선제 settle이 영영 안 돈다 —
+    // 후원자가 원화를 보냈는데 HTLC가 타임아웃으로 환불되는 최악의 결말.
+    const timeToExpiry = escrowDeadline(order.expiration, entry.createdAt) - now;
 
     if (status === 'accepted' && timeToExpiry <= SETTLE_SAFETY_MARGIN) {
       // 만료 임박: 선제 settle (비대칭 손실 원칙)

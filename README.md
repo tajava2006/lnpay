@@ -26,15 +26,17 @@ Customer                    Admin (Escrow)                Sponsor
    │                             │                          │
    │  ① Request (BTC order)      │                          │
    │ ───────────────────────────→│                          │
-   │                             │  ② Claim + LN invoice    │
+   │                             │  ② Claim (one click)     │
    │                             │ ←─────────────────────── │
-   │                             │  ③ Probe liquidity        │
-   │  ④ Claim approved           │                          │
+   │  ③ Amount fixed at spot     │                          │
    │ ←─────────────────────────  │                          │
-   │  ⑤ Pay hold invoice         │                          │
+   │  ④ Pay hold invoice         │                          │
    │ ───────────────────────────→│  (BTC locked in HTLC)    │
-   │                             │  ⑥ Send account info     │
-   │                             │ ─────────────────────→   │
+   │                             │  ⑤ Register payout       │
+   │                             │     invoice + probe      │
+   │                             │ ←─────────────────────── │
+   │  ⑥ Send account info        │                          │
+   │ ───────────────────────────→│ ─────────────────────→   │
    │                             │  ⑦ KRW bank transfer     │
    │                             │          ──────────→ [Shop]
    │                             │  ⑧ Settle → release BTC  │
@@ -89,13 +91,24 @@ Fidelity bond lifecycle (when percentage > 0):
 
 ### 3. Lightning Liquidity Probing
 
-Before approving a Sponsor's claim, Admin verifies that the Sponsor's Lightning node actually has enough **inbound liquidity** to receive the BTC payment. A Sponsor without inbound capacity can't receive funds even if the transaction completes.
+When the Sponsor registers their payout invoice — **after** the Customer's BTC is
+already escrowed and **before** the bank transfer — Admin probes whether the
+Sponsor's Lightning node actually has enough **inbound liquidity** to receive the
+payment.
+
+The placement matters. Probing used to gate claim approval, which meant a Sponsor's
+node problems blocked the Customer from escrowing at all — even though the only
+party harmed by missing liquidity is the Sponsor. Now it sits immediately before
+the irreversible step (the bank transfer), which is what it was always for.
+
+A failed probe **warns but does not block**: probing is an estimate and produces
+false negatives on small amounts. The Sponsor decides.
 
 **How probing works:**
 Admin sends a payment attempt using a **random payment hash** (one that nobody knows the preimage for) to the Sponsor's node. This probes the real route capacity without actually completing a payment — no fees incurred.
 
-- If the probe reaches the destination and fails with `INCORRECT_PAYMENT_DETAILS` → path exists, liquidity sufficient → **claim approved**
-- If the probe fails mid-route with `TEMPORARY_CHANNEL_FAILURE` or `NO_ROUTE` → liquidity insufficient → **claim rejected**
+- If the probe reaches the destination and fails with `INCORRECT_PAYMENT_DETAILS` → path exists, liquidity sufficient → **all good**
+- If the probe fails mid-route with `TEMPORARY_CHANNEL_FAILURE` or `NO_ROUTE` → liquidity likely insufficient → **Sponsor is warned**
 
 Why not use a hold invoice for probing? Because hold invoices give the *receiver* settle/cancel control — Admin (the sender) can't cancel unilaterally and would have to wait for CLTV expiry. Random-hash probing solves exactly this.
 

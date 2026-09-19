@@ -259,6 +259,15 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
                 <p style={styles.accountDetail}>
                   예금주: {accountInfo.holderName}
                 </p>
+                {/*
+                  안 눌러도 고객이 입금 컨펌하면 거래는 정상 완료된다
+                  (invoiced → paid가 정상 전이). 그래도 누르는 게 맞다 —
+                  고객이 "왜 안 왔지" 하고 기다리는 시간이 사라진다.
+                */}
+                <p style={styles.remitReminder}>
+                  보내셨으면 아래 <b>'원화 송금했어요'</b>를 꼭 눌러주세요.
+                  고객이 그때부터 입금을 확인합니다.
+                </p>
                 {canRemit && (
                   <button
                     style={{
@@ -478,6 +487,12 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 4,
+  },
+  remitReminder: {
+    margin: '8px 0 0 0',
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#92400E',
   },
   remitAmountRow: {
     display: 'flex',

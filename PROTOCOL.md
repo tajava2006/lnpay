@@ -129,21 +129,28 @@ Admin이 유일한 발행자이므로 모든 오더의 주소에 Admin pubkey가
 ### 상태 머신 (Admin 단일 FSM)
 
 ```
-requested → claimed → verified → escrowed ─→ remitted ─→ paid
-                                    │                ├──→ sponsor_wins
-                                    └──→ paid        └──→ customer_wins
+requested → claimed → verified → escrowed → invoiced ─→ remitted ─→ paid
+                                                │                ├──→ sponsor_wins
+                                                └──→ paid        └──→ customer_wins
 
 cancelled: requested, claimed, verified에서만 전이 가능
   (escrowed 이후는 상대방이 행동할 수 있으므로 일방 취소 불가)
 터미널: paid, cancelled, sponsor_wins, customer_wins
 ```
 
+> `escrowed → paid` 지름길은 **2026-09-18에 제거**했다. 후원자 인보이스를 에스크로
+> 이후에 받게 되면서 `escrowed`는 지급 대상이 아직 없는 상태가 됐고, 거기서
+> settle하면 BTC를 받아놓고 보낼 곳이 없다(불변조건 I-010). 같은 지름길이
+> `invoiced → paid`로 옮겨갔다 — 지급 대상이 확보된 뒤다.
+> 근거 = [docs/DESIGN-LATE-INVOICE.md](docs/DESIGN-LATE-INVOICE.md)
+
 | 상태 | 의미 | NIP-99 status |
 |------|------|---------------|
 | `requested` | Customer가 사줘 요청을 보냄, Admin이 오더 생성 | `active` |
 | `claimed` | Sponsor가 클레임, Admin이 수락 | `active` |
-| `verified` | Admin이 유동성 검증 완료 | `active` |
+| `verified` | Admin이 시세로 금액(`payout`) 확정 + hold invoice 발행 | `active` |
 | `escrowed` | Customer가 hold invoice 결제, BTC 에스크로 중 | `active` |
+| `invoiced` | Sponsor가 지급받을 인보이스 등록 + Admin 검증 완료. **이 상태부터 Customer가 계좌 정보를 발행한다** | `active` |
 | `remitted` | Sponsor가 KRW 송금했다고 주장 | `active` |
 | `paid` | 거래 완료 — Customer가 입금 컨펌 (최종) | `sold` |
 | `cancelled` | 취소 — 거래 불발 (최종) | `sold` |
@@ -156,12 +163,13 @@ cancelled: requested, claimed, verified에서만 전이 가능
 |------|-----|--------|
 | requested | claimed | Sponsor claim 수신 + Admin 수락 |
 | requested | cancelled | 만료 또는 Customer 취소 |
-| claimed | verified | Admin 유동성 검증 완료 |
+| claimed | verified | Admin이 금액 확정 + hold invoice 발행 (자동 승인) |
 | claimed | cancelled | 만료 또는 취소 |
 | verified | escrowed | Customer hold invoice 결제 |
 | verified | cancelled | Customer 이탈 |
-| escrowed | remitted | Sponsor가 KRW 송금 완료 주장 |
-| escrowed | paid | Customer가 직접 입금 컨펌 (Sponsor 시그널 없이) |
+| escrowed | invoiced | Sponsor `sponsor-invoice` 수신 + 금액·소유자·만료 검증 통과 |
+| invoiced | remitted | Sponsor가 KRW 송금 완료 주장 |
+| invoiced | paid | Customer가 직접 입금 컨펌 (Sponsor 시그널 없이) |
 | remitted | paid | Customer가 입금 컨펌 |
 | remitted | sponsor_wins | 분쟁: Admin이 송금 증거 확인 → hold invoice settle → Sponsor에게 BTC 전달 |
 | remitted | customer_wins | 분쟁: 증거 불충분 → hold invoice 환불 → Customer BTC 반환 |
@@ -831,7 +839,8 @@ NIP-17은 2026-09-17부터 **완전히 껐다**(안내·발송·신원 발행 �
 | 전이 후 상태 | 고객 | 후원자 |
 |---|---|---|
 | `verified` | 결제 요청 | — |
-| `escrowed` | 계좌 전달 요청 | — |
+| `escrowed` | — | **인보이스 등록 요청** |
+| `invoiced` | 계좌 전달 요청 | — |
 | `remitted` | **입금 확인·컨펌 요청** | — |
 | `paid` | 완료 | 완료 |
 | `cancelled` | 취소됨 | 취소됨 |

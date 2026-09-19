@@ -203,8 +203,14 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
         <div style={styles.decodeFailed}>인보이스 디코딩 실패</div>
       )}
 
-      {/* 승인 버튼 (클레임 요청에만 표시) */}
-      {isClaim && (
+      {/*
+        승인 버튼 — 클레임 요청이면서 **오더가 아직 claimed일 때만**.
+        예전엔 상태를 안 봐서 이미 escrowed로 넘어간 오더에도 초록 버튼이
+        남아 있었다. 눌러봐야 INVALID_TRANSITION으로 실패하는데, 화면은
+        "누를 수 있는 것"처럼 보여서 뭘 잘못했나 되짚게 만든다.
+        자동 승인이 켜진 뒤로는 평소에 보일 일 자체가 거의 없다.
+      */}
+      {isClaim && orderState === 'claimed' && (
         <div style={styles.actions}>
           <button
             style={canApprove && !approving

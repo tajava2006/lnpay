@@ -97,6 +97,13 @@ export function OrderForm() {
           급하지 않으면 길게 잡아두세요. 후원자가 붙을 때까지 기다렸다가,
           그때 쿠팡 주문을 넣어 이 의뢰에 연결하면 됩니다.
         </p>
+        {Number(expiryHours) > 24 && (
+          <p style={styles.notifyHint}>
+            길게 잡을수록 <b>알림을 켜두는 게 중요합니다</b>. 후원자가 언제 붙을지
+            모르는데, 붙고 나면 <b>하루 안에 결제</b>해야 거래가 유지됩니다.
+            화면 위 🔔에서 켤 수 있습니다.
+          </p>
+        )}
         <button type="submit" style={styles.submitBtn}>의뢰 등록</button>
       </form>
     </div>
@@ -139,6 +146,16 @@ const styles = {
     borderRadius: 6,
     fontSize: 14,
     outline: 'none',
+  },
+  notifyHint: {
+    margin: '-4px 0 8px 0',
+    padding: 8,
+    background: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    borderRadius: 6,
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#78350F',
   },
   expiryHint: {
     margin: '-4px 0 8px 0',

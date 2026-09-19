@@ -43,8 +43,15 @@ export function notifyTransition(order: Order): void {
       toCustomer(NOTIFY.customerShouldPay());
       break;
 
-    // 고객 차례 — 계좌를 보내야 후원자가 송금할 수 있다
+    // 후원자 차례 — 받을 인보이스를 등록해야 거래가 진행된다.
+    // 여기서 고객에게 "계좌를 보내라"고 하면 **할 수 없는 일을 시키는 것**이다
+    // (계좌 발행은 invoiced부터 열린다).
     case 'escrowed':
+      toSponsor(NOTIFY.sponsorShouldRegisterInvoice());
+      break;
+
+    // 고객 차례 — 계좌를 보내야 후원자가 송금할 수 있다
+    case 'invoiced':
       toCustomer(NOTIFY.customerShouldSendAccount());
       break;
 

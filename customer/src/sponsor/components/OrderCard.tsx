@@ -228,9 +228,33 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
 
             {showAccountInfo && accountInfo && (
               <div style={styles.accountSection}>
-                <p style={styles.accountTitle}>계좌 정보</p>
+                <p style={styles.accountTitle}>이 계좌로 원화를 보내세요</p>
+
+                {/*
+                  금액을 계좌 바로 옆에 둔다. 카드 맨 위에도 있지만, 송금하려고
+                  은행 앱으로 넘어가는 순간 보고 있는 건 이 블록이다. 쿠팡
+                  가상계좌는 **금액이 1원만 달라도 입금으로 인식되지 않는다.**
+                */}
+                <div style={styles.remitAmountRow}>
+                  <b style={styles.remitAmount}>{order.price.toLocaleString()}원</b>
+                  <button
+                    style={styles.copyBtn}
+                    onClick={() => void navigator.clipboard.writeText(String(order.price))}
+                    type="button"
+                  >
+                    금액 복사
+                  </button>
+                </div>
+
                 <p style={styles.accountDetail}>
                   {accountInfo.bankName} {accountInfo.accountNumber}
+                  <button
+                    style={styles.copyBtn}
+                    onClick={() => void navigator.clipboard.writeText(accountInfo.accountNumber)}
+                    type="button"
+                  >
+                    계좌 복사
+                  </button>
                 </p>
                 <p style={styles.accountDetail}>
                   예금주: {accountInfo.holderName}
@@ -454,6 +478,24 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 4,
+  },
+  remitAmountRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    margin: '4px 0 8px',
+  },
+  remitAmount: { fontSize: 18, color: '#111827' },
+  copyBtn: {
+    marginLeft: 6,
+    padding: '2px 8px',
+    background: 'transparent',
+    color: '#4F46E5',
+    border: '1px solid #C7D2FE',
+    borderRadius: 4,
+    fontSize: 11,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   },
   accountTitle: {
     fontSize: 12,

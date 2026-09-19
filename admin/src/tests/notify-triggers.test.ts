@@ -86,9 +86,27 @@ describe('알림 발송 표', () => {
   });
 
   describe('고객 차례 — 고객에게만 간다', () => {
-    it.each(['verified', 'escrowed', 'remitted'] as const)('%s', state => {
+    it.each(['verified', 'invoiced', 'remitted'] as const)('%s', state => {
       notifyTransition(order(state));
       expect(recipients()).toEqual([CUSTOMER]);
+    });
+
+    /**
+     * escrowed에서 고객에게 "계좌를 보내라"고 하던 시절이 있었다. 그런데 계좌
+     * 발행은 invoiced부터 열리므로, **할 수 없는 일을 시키는 알림**이었다.
+     * 정작 차례인 후원자는 아무것도 못 받았다.
+     */
+    it('escrowed는 후원자 차례다 — 인보이스 등록', () => {
+      notifyTransition(order('escrowed'));
+
+      expect(recipients()).toEqual([SPONSOR]);
+      expect(bodyFor(SPONSOR)).toContain('인보이스');
+    });
+
+    it('invoiced에서 계좌 요청이 간다 — 거래가 여기서 멈춘다', () => {
+      notifyTransition(order('invoiced'));
+
+      expect(bodyFor(CUSTOMER)).toContain('계좌');
     });
 
     it('remitted는 후원자가 이미 송금을 마친 상태라 반드시 알린다', () => {

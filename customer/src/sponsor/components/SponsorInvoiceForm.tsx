@@ -10,10 +10,14 @@
  * 1 sat만 달라도 거절된다. 그래서 여기서 미리 대조해 보여준다 — 릴레이를 돌고
  * 와서야 거절 사유를 아는 것보다 낫다.
  */
-import { useState } from 'react';
+import { useState, useCallback, lazy, Suspense } from 'react';
 import type { Order } from '@sajwo-tracker/shared';
 import { publishSponsorInvoice } from '../nostr/claim';
 import { decodeBolt11 } from '../bolt11';
+
+// 폰 지갑에서 인보이스를 옮기는 현실적인 방법은 QR이다. 클레임 화면에 있던 걸
+// 인보이스를 실제로 입력하는 여기로 옮겼다.
+const QrScanner = lazy(() => import('./QrScanner').then(m => ({ default: m.QrScanner })));
 
 /** 어드민이 요구하는 최소 잔여 수명과 같은 값. 미리 걸러 왕복을 아낀다. */
 const MIN_LIFETIME_SEC = 6 * 60 * 60;
@@ -28,7 +32,13 @@ interface Props {
 export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleScan = useCallback((data: string) => {
+    setScanning(false);
+    setText(data.trim());
+  }, []);
 
   const payoutSat = order.payoutSat ?? 0;
   const decoded = text.trim() ? decodeBolt11(text.trim()) : null;
@@ -83,14 +93,30 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
         <b style={styles.amount}>{payoutSat.toLocaleString()} sats</b>
       </div>
 
-      <textarea
-        style={styles.input}
-        placeholder="lnbc..."
-        value={text}
-        onChange={e => setText(e.target.value)}
-        rows={3}
-        spellCheck={false}
-      />
+      <div style={styles.inputRow}>
+        <textarea
+          style={styles.input}
+          placeholder="lnbc..."
+          value={text}
+          onChange={e => setText(e.target.value)}
+          rows={3}
+          spellCheck={false}
+        />
+        <button
+          style={styles.qrBtn}
+          onClick={() => setScanning(true)}
+          title="QR 코드 스캔"
+          type="button"
+        >
+          📷
+        </button>
+      </div>
+
+      {scanning && (
+        <Suspense fallback={null}>
+          <QrScanner onScan={handleScan} onClose={() => setScanning(false)} />
+        </Suspense>
+      )}
 
       {problem && <p style={styles.problem}>{problem}</p>}
       {notice && !problem && <p style={styles.problem}>{notice}</p>}
@@ -125,6 +151,15 @@ const styles = {
   },
   amountLabel: { fontSize: 12, color: '#6B7280' },
   amount: { fontSize: 15, color: '#111827', fontFamily: 'monospace' },
+  inputRow: { display: 'flex', gap: 6, alignItems: 'stretch' },
+  qrBtn: {
+    padding: '0 12px',
+    background: 'white',
+    border: '1px solid #D1D5DB',
+    borderRadius: 6,
+    fontSize: 18,
+    cursor: 'pointer',
+  },
   input: {
     width: '100%',
     boxSizing: 'border-box' as const,

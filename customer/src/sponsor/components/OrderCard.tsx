@@ -1,17 +1,14 @@
-import { useState, useCallback, useSyncExternalStore, lazy, Suspense } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { InvoicePayBlock, sponsorRelation } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker } from '@sajwo-tracker/shared';
 import { publishClaim, publishRemitRequest } from '../nostr/claim';
 import { getStateMeta } from '../order-states';
 import { SponsorInvoiceForm } from './SponsorInvoiceForm';
-import { decodeBolt11 } from '../bolt11';
-import type { Bolt11Result } from '../bolt11';
 import { subscribeAccountInfo, getAccountInfoSnapshot } from '../account-store';
 import { subscribeClaimErrors, getClaimErrorSnapshot, clearClaimError, rejectReasonText } from '../claim-error-store';
 import { subscribe as subscribeDeposits, getSnapshot as getDepositSnapshot } from '../deposit-store';
 // QR 스캐너는 jsqr(~30KB)을 끌고 오는데 클레임할 때만 쓴다.
 // 첫 화면이 오더북이라 대부분의 방문에서 쓰이지 않으므로 지연 로딩한다.
-const QrScanner = lazy(() => import('./QrScanner').then(m => ({ default: m.QrScanner })));
 
 interface Props {
   order: Order;
@@ -50,34 +47,13 @@ function formatDate(unixSeconds: number): string {
   });
 }
 
-function formatSats(msat: number): string {
-  const sats = Math.floor(msat / 1000);
-  return sats.toLocaleString() + ' sats';
-}
-
-function krwToSats(krw: number, btcKrw: number): number {
-  return Math.round((krw / btcKrw) * 1e8);
-}
-
 export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Props) {
   const [claiming, setClaiming] = useState(false);
-  const [showInvoiceInput, setShowInvoiceInput] = useState(false);
-  const [frozenBtcPrice, setFrozenBtcPrice] = useState<number | null>(null);
-  const [invoiceText, setInvoiceText] = useState('');
-  const [invoiceResult, setInvoiceResult] = useState<Bolt11Result | null>(null);
   const [remitting, setRemitting] = useState(false);
-  const [showQrScanner, setShowQrScanner] = useState(false);
 
-  const handleQrScan = useCallback((data: string) => {
-    setShowQrScanner(false);
-    handleInvoiceChange(data);
-  }, []);
-
-  const priceSnap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
-  const btcKrw = frozenBtcPrice ?? priceSnap.price;
-  const expectedSats = btcKrw && order.price > 0
-    ? krwToSats(order.price, btcKrw)
-    : null;
+  // 시세 구독은 오더북 정렬·표시에만 쓴다. **여기서 가격이 정해지지 않는다** —
+  // 확정은 어드민이 verified에서 하고 오더의 payout 태그로 내려온다.
+  useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
 
   const accountInfoMap = useSyncExternalStore(subscribeAccountInfo, getAccountInfoSnapshot);
   const accountInfo = accountInfoMap[order.orderId];
@@ -114,27 +90,12 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
   const showWaitingAccount = isMine && order.state === 'invoiced' && !accountInfo;
   const canRemit = isMine && order.state === 'invoiced' && accountInfo;
 
-  function handleInvoiceChange(value: string) {
-    setInvoiceText(value);
-    if (!value.trim()) {
-      setInvoiceResult(null);
-      return;
-    }
-    setInvoiceResult(decodeBolt11(value));
-  }
 
   async function handleClaim() {
-    if (!invoiceResult || !invoiceResult.valid) return;
-
     setClaiming(true);
     try {
-      const ok = await publishClaim(order, invoiceText.trim().toLowerCase());
-      if (ok) {
-        setShowInvoiceInput(false);
-        setFrozenBtcPrice(null);
-        setInvoiceText('');
-        setInvoiceResult(null);
-      } else {
+      const ok = await publishClaim(order);
+      if (!ok) {
         alert('클레임 발행에 실패했습니다.');
       }
     } catch (err) {
@@ -165,13 +126,7 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
   }
 
   // 금액 일치 검증: invoice 금액이 고정된 예상 sats와 동일한지
-  const amountMatch = (() => {
-    if (!invoiceResult?.valid || !expectedSats) return true;
-    const invoiceSats = Math.floor(invoiceResult.amountMsat! / 1000);
-    return invoiceSats === expectedSats;
-  })();
 
-  const isInvoiceValid = invoiceResult?.valid === true && amountMatch;
 
   return (
     <div style={isTaken ? { ...styles.card, ...styles.cardTaken } : styles.card}>
@@ -189,104 +144,28 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
 
       <div style={styles.middle}>
         {canClaim ? (
-          showInvoiceInput ? (
-            <div style={styles.invoiceSection}>
-              {claimError && (
-                <p style={styles.priceErrorMsg}>
-                  인보이스 금액이 현재 시세와 맞지 않습니다.
-                  현재 시세 기준 {claimError.expectedSats.toLocaleString()} sats로 재발행해 주세요.
-                </p>
-              )}
-              <p style={styles.invoiceDesc}>
-                유동성 검증을 위해{' '}
-                {expectedSats !== null
-                  ? <strong>{expectedSats.toLocaleString()} sats</strong>
-                  : <strong>{order.price.toLocaleString()}원</strong>
-                }의 Lightning invoice를 붙여넣어 주세요.
-              </p>
-              <p style={styles.invoiceHint}>
-                본인 지갑에서 위 금액의 invoice를 생성한 뒤 여기에 붙여넣으면,
-                에스크로가 Lightning 경로를 검증합니다. 실제 결제는 발생하지 않습니다.
-              </p>
-              <div style={styles.invoiceInputRow}>
-                <textarea
-                  style={styles.invoiceInput}
-                  placeholder="lnbc..."
-                  value={invoiceText}
-                  onChange={e => handleInvoiceChange(e.target.value)}
-                  rows={3}
-                />
-                <button
-                  style={styles.qrBtn}
-                  onClick={() => setShowQrScanner(true)}
-                  title="QR 코드 스캔"
-                  type="button"
-                >
-                  📷
-                </button>
-              </div>
-              {showQrScanner && (
-                <Suspense fallback={null}>
-                  <QrScanner onScan={handleQrScan} onClose={() => setShowQrScanner(false)} />
-                </Suspense>
-              )}
-              {invoiceResult && !invoiceResult.valid && (
-                <p style={styles.invoiceError}>{invoiceResult.error}</p>
-              )}
-              {invoiceResult?.valid && (
-                <p style={amountMatch ? styles.invoiceSuccess : styles.invoiceError}>
-                  {formatSats(invoiceResult.amountMsat!)}
-                  {!amountMatch && expectedSats !== null && (
-                    ` — ${expectedSats.toLocaleString()} sats로 발행해 주세요.`
-                  )}
-                </p>
-              )}
-              <div style={styles.invoiceBtns}>
-                <button
-                  style={{
-                    ...styles.claimBtn,
-                    opacity: isInvoiceValid && !claiming ? 1 : 0.5,
-                    cursor: isInvoiceValid && !claiming ? 'pointer' : 'not-allowed',
-                  }}
-                  onClick={handleClaim}
-                  disabled={!isInvoiceValid || claiming}
-                >
-                  {claiming ? '발행 중...' : '클레임 발행'}
-                </button>
-                <button
-                  style={styles.cancelBtn}
-                  onClick={() => {
-                    setShowInvoiceInput(false);
-                    setFrozenBtcPrice(null);
-                    setInvoiceText('');
-                    setInvoiceResult(null);
-                  }}
-                  disabled={claiming}
-                >
-                  취소
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <button
-                style={styles.claimBtn}
-                onClick={() => {
-                  clearClaimError(order.orderId);
-                  setFrozenBtcPrice(priceSnap.price);
-                  setShowInvoiceInput(true);
-                }}
-              >
-                사줄게
-              </button>
-              {claimError && (
-                <p style={styles.priceErrorMsg}>
-                  클레임이 거부되었습니다.
-                  현재 시세 기준 {claimError.expectedSats.toLocaleString()} sats로 재발행해 주세요.
-                </p>
-              )}
-            </>
-          )
+          <>
+            {/*
+              클레임은 버튼 하나다. 인보이스는 에스크로가 잡힌 뒤에 낸다
+              (docs/DESIGN-LATE-INVOICE.md). 여기서 받으면 후원자 노드 사정이
+              고객의 결제를 막고, 인보이스는 거래 내내 묵어 만료된다.
+            */}
+            <button
+              style={{
+                ...styles.claimBtn,
+                opacity: claiming ? 0.5 : 1,
+                cursor: claiming ? 'not-allowed' : 'pointer',
+              }}
+              onClick={handleClaim}
+              disabled={claiming}
+            >
+              {claiming ? '발행 중...' : '사줄게'}
+            </button>
+            <p style={styles.invoiceHint}>
+              맡겠다는 표시만 합니다. 고객이 결제를 마치면 BTC 받을 인보이스를
+              등록하게 됩니다.
+            </p>
+          </>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={styles.statusRow}>

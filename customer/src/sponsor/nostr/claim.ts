@@ -30,15 +30,19 @@ import type { EventTemplate } from 'nostr-tools/core';
  * 특정 오더에 대해 클레임 이벤트를 발행한다.
  * 성공 시 오더와 클레임 request를 IDB에 원자적으로 이관한다.
  *
+ * **인보이스를 싣지 않는다.** 클레임은 "내가 맡겠다"일 뿐이고, 지급받을
+ * 인보이스는 에스크로가 잡힌 뒤 `publishSponsorInvoice`로 따로 낸다.
+ * 그래야 후원자 노드 사정이 고객의 결제를 막지 않고, 인보이스가 묵어
+ * 만료되는 구간도 줄어든다. 근거 = docs/DESIGN-LATE-INVOICE.md
+ *
  * Tags:
  *   ['a', '30402:<APP_PUBKEY>:<orderId>']  - Admin 오더 참조
  *   ['action', 'claim']                    - 요청 종류
  *   ['p', APP_PUBKEY]                      - Admin 디스커버리용
  *   ['t', CLIENT_TAG]                      - 클라이언트 식별
- *   ['bolt11', invoice]                    - 유동성 검증용 인보이스
  *   ['expiration', ...]                    - 오더 만료 시각
  */
-export async function publishClaim(order: Order, bolt11: string): Promise<boolean> {
+export async function publishClaim(order: Order): Promise<boolean> {
   const sk = await getSecretKey(storage);
   const relays = await getReadRelays(storage);
 
@@ -50,7 +54,6 @@ export async function publishClaim(order: Order, bolt11: string): Promise<boolea
     ['action', 'claim'],
     ['p', APP_PUBKEY],
     ['t', CLIENT_TAG],
-    ['bolt11', bolt11],
   ];
 
   if (order.expiration > 0) {

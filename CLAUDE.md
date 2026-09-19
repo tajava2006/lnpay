@@ -89,6 +89,11 @@ sajwo-tracker/                ← pnpm workspace 모노레포
   며칠 뒤 열어도 남아 있어야 하고, 봉투 태그는 `p` 하나로 최소화하는 게 NIP-59 의도),
   `push-subscription`(계정 단위라 주문보다 오래 산다 — 만료시키면 다음 거래 알림이
   조용히 끊긴다).
+- **FSM을 고치면 네 가지가 세트다**: 전이 맵 → **알림 문구 → 문서 → 진행도 표시 → 상태 배지**.
+  타입체커가 안 잡아주는 자리라 매번 빠뜨렸다. `admin_closed`를 추가했을 때 진행도가
+  `remitted`까지 완료로 표시됐고, `invoiced`를 추가했을 때 다섯 군데 배지 중 넷에서
+  영어가 그대로 샜다. 상태 목록을 손으로 나열한 표를 만들 때는 `Record<OrderState, …>`로
+  못박아 **빌드가 깨지게** 한다 — `shared/order-display.ts`가 그 본보기다.
 - 빌드 확인: 코드 수정 후 `pnpm build:customer && pnpm build:sponsor && pnpm build:admin` 통과 필수.
 - Dev/Prod 데이터 격리: `CLIENT_TAG`가 dev(`sajwo-tracker-dev`) / prod(`sajwo-tracker`)로 분리.
 - Dev 전용 코드는 `dev-only/` 디렉토리에 파일 단위로 격리하고, `import.meta.env.DEV` 가드 내에서만 import.

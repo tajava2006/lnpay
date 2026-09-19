@@ -19,7 +19,10 @@
  * 때문이다. `now`를 넘기면 그 문제가 사라진다. 여기 있는 건 전부 순수 함수다.
  */
 import { describe, it, expect } from 'vitest';
-import { ESCROW_WINDOW_MAX_SEC, escrowInvoiceExpiry } from '../escrow-window';
+import {
+  ESCROW_WINDOW_MAX_SEC, escrowInvoiceExpiry,
+  depositInvoiceParams, DEPOSIT_CLTV_MARGIN_SEC,
+} from '../escrow-window';
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -29,7 +32,7 @@ const NOW = 1_700_000_000;
 const SETTLE_SAFETY_MARGIN = 10 * 60;        // invoice-watcher
 const MIN_INVOICE_LIFETIME = 6 * HOUR;       // service.ts (후원자 인보이스 하한)
 const DISPUTE_MARGIN = 48 * HOUR;            // approveOrder (에스크로 CLTV 여유)
-const DEPOSIT_CLTV_MARGIN = 24 * HOUR;       // service.ts (보증금 CLTV 여유)
+const DEPOSIT_CLTV_MARGIN = DEPOSIT_CLTV_MARGIN_SEC;  // 프로덕션 상수를 그대로 쓴다
 const MAX_ORDER_EXPIRY = 90 * DAY;           // OrderForm의 제일 긴 선택지
 /** LND 기본 max_cltv_expiry. 이걸 넘는 인보이스는 결제가 불가능하다. */
 const CHANNEL_CLTV_LIMIT = 2016;
@@ -58,11 +61,34 @@ describe('사슬 ② CLTV가 채널 상한 안에', () => {
     expect(toBlocks(expiry + DISPUTE_MARGIN)).toBeLessThan(CHANNEL_CLTV_LIMIT);
   });
 
+  /**
+   * ⚠️ 이 테스트는 **한 번 거짓으로 통과했다.**
+   *
+   * 예전 판은 여기서 `escrowInvoiceExpiry`를 불렀다. 그런데 **프로덕션 보증금
+   * 경로는 그 함수를 안 쓴다** — `request.expiration - now`를 그대로 CLTV로 썼다.
+   * 즉 테스트가 코드가 아니라 "코드가 했어야 할 일"을 검증해서, 버그가 살아 있는
+   * 채로 green이었다(2026-09-19 발견).
+   *
+   * 그래서 지금은 **프로덕션이 실제로 부르는 `depositInvoiceExpiry`** 를 부른다.
+   * 이 import가 service.ts의 것과 갈리면 테스트가 다시 거짓말을 시작한다.
+   */
   it('보증금 CLTV — 제일 긴 의뢰에서도 안전', () => {
     // 보증금이 꺼져 있어 지금은 안 도는 경로지만, 켜는 순간 이 값이 쓰인다.
     // "꺼져 있어서 안 터진다"에 기대면 켤 때 터진다.
-    const expiry = escrowInvoiceExpiry(NOW + MAX_ORDER_EXPIRY, NOW);
-    expect(toBlocks(expiry + DEPOSIT_CLTV_MARGIN)).toBeLessThan(CHANNEL_CLTV_LIMIT);
+    // CLTV를 여기서 다시 계산하지 않는다 — 프로덕션이 내놓는 값을 그대로 본다.
+    expect(depositInvoiceParams(NOW + MAX_ORDER_EXPIRY, NOW).cltvBlocks)
+      .toBeLessThan(CHANNEL_CLTV_LIMIT);
+  });
+
+  it.each([1, 3, 7, 30, 90])('%d일 의뢰의 보증금 CLTV가 상한 이하', days => {
+    // 상한이 걸리기 전엔 30일(4464블록)·90일(13104블록)이 2016을 넘었다.
+    expect(depositInvoiceParams(NOW + days * 24 * HOUR, NOW).cltvBlocks)
+      .toBeLessThan(CHANNEL_CLTV_LIMIT);
+  });
+
+  it('상한을 안 걸면 장기 의뢰가 상한을 넘는다 — 상한이 필요한 이유', () => {
+    // 이게 깨지면 상한 없이도 되는 세상이 온 것이고, 그때 구조를 다시 본다.
+    expect(toBlocks(MAX_ORDER_EXPIRY + DEPOSIT_CLTV_MARGIN)).toBeGreaterThan(CHANNEL_CLTV_LIMIT);
   });
 
   it('의뢰 만료를 그대로 쓰면 상한을 넘는다 — 상한이 필요한 이유', () => {

@@ -53,7 +53,7 @@ import { getPreimage, getEscrowEntry } from '../escrow-store';
 import { getCustomerDepositPercent, getSponsorDepositPercent } from '../deposit-config';
 import { savePendingDeposit, getPendingDeposit } from '../pending-deposit-store';
 import { handleDepositOnTransition } from '../deposit-lifecycle';
-import { escrowInvoiceExpiry, escrowDeadline } from '../escrow-window';
+import { escrowInvoiceExpiry, escrowDeadline, depositInvoiceParams } from '../escrow-window';
 
 /**
  * 에스크로 만료가 이만큼 남지 않았으면 새 약속을 받지 않는다.
@@ -804,11 +804,9 @@ async function handleOrderRequest(request: OrderRequest): Promise<void> {
       if (depositSats > 0) {
         try {
           const now = Math.floor(Date.now() / 1000);
-          const expiry = request.expiration - now;
+          // 수명과 CLTV를 한 함수가 같이 낸다 — 클램프를 건너뛸 수 없게.
+          const { expiry, cltvBlocks: cltvExpiry } = depositInvoiceParams(request.expiration, now);
           if (expiry <= 0) return; // 이미 만료
-
-          const DEPOSIT_CLTV_MARGIN = 24 * 60 * 60; // 24시간
-          const cltvExpiry = Math.ceil((expiry + DEPOSIT_CLTV_MARGIN) / 600);
 
           // deposit:orderId 키로 hold invoice 생성 → escrow-store에 자동 저장
           const result = await lnAdapterRef.createHoldInvoice(
@@ -1090,9 +1088,9 @@ export async function handleClaim(request: ClaimRequest): Promise<void> {
       if (!basisSat) throw new Error('시세 없음 — 보증금 산출 불가');
       const depositSats = Math.max(1, Math.round(basisSat * sponsorDepositPercent / 100));
       const now = Math.floor(Date.now() / 1000);
-      const expiry = Math.max(300, order.expiration - now);
-      const DEPOSIT_CLTV_MARGIN = 24 * 60 * 60; // 24시간
-      const cltvExpiry = Math.ceil((expiry + DEPOSIT_CLTV_MARGIN) / 600);
+      const p = depositInvoiceParams(order.expiration, now);
+      const expiry = Math.max(300, p.expiry);
+      const cltvExpiry = p.cltvBlocks;
 
       const result = await lnAdapterRef.createHoldInvoice(
         `deposit:sponsor:${request.orderId}`, depositSats, expiry, cltvExpiry,

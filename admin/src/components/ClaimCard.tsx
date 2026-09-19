@@ -1,3 +1,4 @@
+import { stateDisplay } from '@sajwo-tracker/shared';
 import { useState } from 'react';
 import type { Request, Order } from '@sajwo-tracker/shared';
 import type { LightningAdapter, ProbeResult } from '../lightning';
@@ -24,18 +25,6 @@ const senderLabel: Record<string, string> = {
   'cancel-request': '고객',
   'remit-request': '후원자',
   'account-info': '고객',
-};
-
-const stateColor: Record<string, string> = {
-  requested: '#D97706',
-  claimed: '#2563EB',
-  verified: '#4F46E5',
-  escrowed: '#7C3AED',
-  remitted: '#BE185D',
-  paid: '#059669',
-  cancelled: '#6B7280',
-  sponsor_wins: '#0F766E',
-  customer_wins: '#0E7490',
 };
 
 function formatDate(unixSeconds: number): string {
@@ -144,7 +133,7 @@ export function ClaimCard({ request, order, lnAdapter }: Props) {
   return (
     <div style={{
       ...styles.card,
-      borderLeft: `4px solid ${orderState ? (stateColor[orderState] ?? '#999') : '#999'}`,
+      borderLeft: `4px solid ${orderState ? stateDisplay(orderState).color : '#999'}`,
     }}>
       <div style={styles.top}>
         <span style={styles.actionBadge}>

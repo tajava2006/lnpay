@@ -6,8 +6,7 @@ import {
   APP_PUBKEY,
   ChatWindow,
   sendChatMessage,
-  retryChatMessage,
-} from '@sajwo-tracker/shared';
+  retryChatMessage, stateDisplay } from '@sajwo-tracker/shared';
 import type { Order, Request, PriceTracker, DisputeMessagePayload, ChatMessage } from '@sajwo-tracker/shared';
 import type { LightningAdapter } from '../lightning';
 import type { HoldInvoiceStatus } from '../lightning/types';
@@ -26,25 +25,6 @@ interface Props {
   tracker: PriceTracker;
   lnAdapter: LightningAdapter | null;
 }
-
-const stateLabel: Record<string, string> = {
-  requested: '요청됨', claimed: '클레임됨', verified: '검증됨',
-  escrowed: '에스크로', remitted: '송금 주장', paid: '완료',
-  cancelled: '취소', sponsor_wins: '후원자 승리', customer_wins: '고객 승리',
-  invoiced: '계좌 전달 대기', admin_closed: '강제 종결',
-};
-
-const stateColor: Record<string, string> = {
-  requested: '#D97706', claimed: '#2563EB', verified: '#4F46E5',
-  escrowed: '#7C3AED', remitted: '#BE185D', paid: '#059669',
-  cancelled: '#6B7280', sponsor_wins: '#0F766E', customer_wins: '#0E7490',
-};
-
-const stateBg: Record<string, string> = {
-  requested: '#FEF3C7', claimed: '#DBEAFE', verified: '#E0E7FF',
-  escrowed: '#EDE9FE', remitted: '#FCE7F3', paid: '#D1FAE5',
-  cancelled: '#F3F4F6', sponsor_wins: '#CCFBF1', customer_wins: '#CFFAFE',
-};
 
 const requestActionLabel: Record<string, string> = {
   'order-request': '주문 요청',
@@ -394,10 +374,10 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
           </div>
           <span style={{
             ...styles.stateBadge,
-            background: stateBg[order.state] ?? '#F3F4F6',
-            color: stateColor[order.state] ?? '#666',
+            background: stateDisplay(order.state).bg,
+            color: stateDisplay(order.state).color,
           }}>
-            {stateLabel[order.state] ?? order.state}
+            {stateDisplay(order.state).label}
           </span>
         </div>
         <div style={styles.summaryMeta}>

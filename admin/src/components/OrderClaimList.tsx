@@ -1,3 +1,4 @@
+import { stateDisplay } from '@sajwo-tracker/shared';
 import { useState, useSyncExternalStore } from 'react';
 import {
   subscribe as requestSubscribe,
@@ -19,18 +20,6 @@ interface Props {
   tracker: PriceTracker;
   lnAdapter: LightningAdapter | null;
 }
-
-const stateLabel: Record<string, string> = {
-  requested: '요청됨',
-  claimed: '클레임됨',
-  verified: '검증됨',
-  escrowed: '에스크로',
-  remitted: '송금 주장',
-  paid: '완료',
-  cancelled: '취소',
-  sponsor_wins: '후원자 승리',
-  customer_wins: '고객 승리',
-};
 
 const DISBURSE_STATES = new Set(['paid', 'sponsor_wins']);
 
@@ -80,7 +69,7 @@ export function OrderClaimList({ orderId, onBack, tracker, lnAdapter }: Props) {
         <div style={styles.orderMeta}>
           {order && (
             <span style={styles.stateBadge}>
-              {stateLabel[order.state] ?? order.state}
+              {stateDisplay(order.state).label}
             </span>
           )}
           {order?.expiration != null && order.expiration > 0 && (

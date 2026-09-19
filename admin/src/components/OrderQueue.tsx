@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { isTerminalState } from '@sajwo-tracker/shared';
+import { isTerminalState, stateDisplay } from '@sajwo-tracker/shared';
 import {
   subscribe as requestSubscribe,
   getSnapshot as requestSnapshot,
@@ -22,42 +22,6 @@ interface Props {
   tracker: PriceTracker;
 }
 
-
-const stateLabel: Record<string, string> = {
-  requested: '요청됨',
-  claimed: '클레임됨',
-  verified: '검증됨',
-  escrowed: '에스크로',
-  remitted: '송금 주장',
-  paid: '완료',
-  cancelled: '취소',
-  sponsor_wins: '후원자 승리',
-  customer_wins: '고객 승리',
-};
-
-const stateColor: Record<string, string> = {
-  requested: '#D97706',
-  claimed: '#2563EB',
-  verified: '#4F46E5',
-  escrowed: '#7C3AED',
-  remitted: '#BE185D',
-  paid: '#059669',
-  cancelled: '#6B7280',
-  sponsor_wins: '#0F766E',
-  customer_wins: '#0E7490',
-};
-
-const stateBg: Record<string, string> = {
-  requested: '#FEF3C7',
-  claimed: '#DBEAFE',
-  verified: '#E0E7FF',
-  escrowed: '#EDE9FE',
-  remitted: '#FCE7F3',
-  paid: '#D1FAE5',
-  cancelled: '#F3F4F6',
-  sponsor_wins: '#CCFBF1',
-  customer_wins: '#CFFAFE',
-};
 
 export function OrderQueue({ onSelectOrder, tracker }: Props) {
   const requests = useSyncExternalStore(requestSubscribe, requestSnapshot);
@@ -121,10 +85,10 @@ export function OrderQueue({ onSelectOrder, tracker }: Props) {
                 </div>
                 <span style={{
                   ...styles.stateBadge,
-                  background: stateBg[s.order.state] ?? '#F3F4F6',
-                  color: stateColor[s.order.state] ?? '#666',
+                  background: stateDisplay(s.order.state).bg,
+                  color: stateDisplay(s.order.state).color,
                 }}>
-                  {stateLabel[s.order.state] ?? s.order.state}
+                  {stateDisplay(s.order.state).label}
                 </span>
               </div>
               <div style={styles.meta}>

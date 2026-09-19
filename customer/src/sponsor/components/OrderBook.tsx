@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
 import type { Order } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
-import { getUserPubkey, storage } from '@sajwo-tracker/shared';
+import { getUserPubkey, storage, isTerminalState } from '@sajwo-tracker/shared';
 import { OrderCard } from './OrderCard';
 
 interface Props {
@@ -10,7 +10,6 @@ interface Props {
   onSelectOrder: (orderId: string) => void;
 }
 
-const TERMINAL_STATES = new Set(['paid', 'cancelled', 'sponsor_wins', 'customer_wins']);
 
 export function OrderBook({ tracker, onSelectOrder }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
@@ -36,7 +35,7 @@ export function OrderBook({ tracker, onSelectOrder }: Props) {
   // 활성 오더만 표시 (만료 안 된 + 비종료 상태), 만료 임박순
   const activeOrders = Object.values(orders)
     .filter((o: Order) =>
-      !TERMINAL_STATES.has(o.state)
+      !isTerminalState(o.state)
       && (o.expiration === 0 || o.expiration > now),
     )
     .sort((a: Order, b: Order) => {

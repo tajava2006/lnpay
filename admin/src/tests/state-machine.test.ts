@@ -6,7 +6,7 @@
  * 그 공격이 다시 열린다는 뜻이다.
  */
 import { describe, it, expect } from 'vitest';
-import type { OrderState } from '@sajwo-tracker/shared';
+import { TERMINAL_STATES, type OrderState } from '@sajwo-tracker/shared';
 import {
   canTransition, computePayoutSat, computeEscrowSat, isPayoutAmountExact,
 } from '../state-machine';
@@ -185,5 +185,29 @@ describe('어드민 강제 종결 (admin_closed)', () => {
   it('일방 취소 경로는 여전히 닫혀 있다', () => {
     expect(canTransition('escrowed', 'cancelled')).toBe(false);
     expect(canTransition('invoiced', 'cancelled')).toBe(false);
+  });
+});
+
+describe('TERMINAL_STATES가 FSM과 일치한다', () => {
+  /**
+   * 이 목록이 **다섯 군데에 복붙돼 있었다** — 오더북 둘, 스토어 둘, 발행 하나.
+   * `admin_closed`를 추가하면서 두 곳만 고쳤고, 그래서 종결된 의뢰가 오더북에
+   * 계속 떠 있었다(2026-09-19 관측). 이제 shared 한 곳이 진실이다.
+   *
+   * 그런데 단일화만으로는 부족하다. 목록과 전이 맵이 **다른 파일**이라 여전히
+   * 갈라질 수 있다. "나가는 전이가 없는 상태 = 종결"이라는 정의로 둘을 묶는다.
+   */
+  it('나가는 전이가 없는 상태는 전부 종결로 표시된다', () => {
+    const dead = ALL.filter(s => ALL.every(to => !canTransition(s, to)));
+
+    expect(new Set(dead)).toEqual(new Set([...TERMINAL_STATES]));
+  });
+
+  it('종결로 표시된 상태는 전부 나가는 전이가 없다', () => {
+    for (const state of TERMINAL_STATES) {
+      for (const to of ALL) {
+        expect(canTransition(state, to), `${state} → ${to}`).toBe(false);
+      }
+    }
   });
 });

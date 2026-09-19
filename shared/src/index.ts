@@ -17,6 +17,8 @@ export {
   NOSTR_SINCE,
   REQUEST_ACTIONS,
   ORDER_STATES,
+  TERMINAL_STATES,
+  isTerminalState,
 } from './constants';
 export type { RequestAction, OrderState } from './constants';
 

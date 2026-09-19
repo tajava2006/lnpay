@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { isTerminalState } from '@sajwo-tracker/shared';
 import {
   subscribe as requestSubscribe,
   getSnapshot as requestSnapshot,
@@ -21,7 +22,6 @@ interface Props {
   tracker: PriceTracker;
 }
 
-const TERMINAL_STATES = new Set(['paid', 'cancelled', 'sponsor_wins', 'customer_wins']);
 
 const stateLabel: Record<string, string> = {
   requested: '요청됨',
@@ -70,21 +70,18 @@ export function OrderQueue({ onSelectOrder, tracker }: Props) {
     requestCountMap.set(req.orderId, (requestCountMap.get(req.orderId) ?? 0) + 1);
   }
 
-  // OrderSummary 생성 + 정렬 (활성 주문 먼저, 그 안에서 최신순)
+  // 종결된 주문은 오더북에서 뺀다. 예전엔 뒤로 밀어두기만 했는데, 끝난 거래가
+  // 목록에 남아 있으면 "지금 뭘 해야 하나"가 안 보인다. 기록은 주문 히스토리에
+  // 전부 있으므로 잃는 것도 없다.
   const summaries: OrderSummary[] = Object.values(orders)
+    .filter(order => !isTerminalState(order.state))
     .map((order) => ({
       order,
       requestCount: requestCountMap.get(order.orderId) ?? 0,
     }))
-    .sort((a, b) => {
-      const aTerminal = TERMINAL_STATES.has(a.order.state);
-      const bTerminal = TERMINAL_STATES.has(b.order.state);
-      if (!aTerminal && bTerminal) return -1;
-      if (aTerminal && !bTerminal) return 1;
-      return b.order.updatedAt - a.order.updatedAt;
-    });
+    .sort((a, b) => b.order.updatedAt - a.order.updatedAt);
 
-  const activeCount = summaries.filter(s => !TERMINAL_STATES.has(s.order.state)).length;
+  const activeCount = summaries.length;
 
   if (summaries.length === 0 && !synced) {
     return <div style={styles.message}>릴레이에서 오더를 불러오는 중...</div>;

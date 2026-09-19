@@ -88,6 +88,27 @@ export const ORDER_STATES = {
 } as const;
 export type OrderState = typeof ORDER_STATES[keyof typeof ORDER_STATES];
 
+/**
+ * 더 이상 진행하지 않는 상태.
+ *
+ * **다섯 군데에 복붙돼 있었다** — 오더북 둘, 스토어 둘, 발행 하나. `admin_closed`를
+ * 추가하면서 두 곳만 고쳤고, 그래서 종결된 의뢰가 오더북에 계속 떠 있었다
+ * (2026-09-19). 같은 목록을 여러 벌 두면 반드시 갈라진다.
+ *
+ * FSM의 "나가는 전이가 없는 상태"와 항상 일치해야 한다. 테스트로 묶어뒀다.
+ */
+export const TERMINAL_STATES: ReadonlySet<OrderState> = new Set<OrderState>([
+  ORDER_STATES.PAID,
+  ORDER_STATES.CANCELLED,
+  ORDER_STATES.SPONSOR_WINS,
+  ORDER_STATES.CUSTOMER_WINS,
+  ORDER_STATES.ADMIN_CLOSED,
+]);
+
+export function isTerminalState(state: OrderState | undefined): boolean {
+  return state !== undefined && TERMINAL_STATES.has(state);
+}
+
 /** NIP-65 디스커버리용 well-known 릴레이 */
 export const DISCOVERY_RELAYS = [
   'wss://purplepag.es',

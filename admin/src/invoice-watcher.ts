@@ -29,7 +29,7 @@ import { isAutoApproveEnabled, shouldAutoApprove } from './auto-approve';
 import { getSponsorDepositPercent } from './deposit-config';
 import { notifyTransition } from './nostr/notify-triggers';
 import { escrowDeadline } from './escrow-window';
-import { idbMigrateOrderWithRequests } from '@sajwo-tracker/shared';
+import { idbMigrateOrderWithRequests, isTerminalState } from '@sajwo-tracker/shared';
 import { getAllPendingDeposits, deletePendingDeposit } from './pending-deposit-store';
 import { handleDepositOnTransition } from './deposit-lifecycle';
 
@@ -38,10 +38,6 @@ const approving = new Set<string>();
 
 const POLL_INTERVAL = 15_000; // 15초
 const SETTLE_SAFETY_MARGIN = 10 * 60; // 10분
-
-const TERMINAL_STATES: ReadonlySet<string> = new Set([
-  'paid', 'cancelled', 'sponsor_wins', 'customer_wins', 'admin_closed',
-]);
 
 let adapter: LightningAdapter | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -254,7 +250,7 @@ async function transitionOrder(
   const updatedOrder: Order = {
     ...order,
     state: to,
-    ...(TERMINAL_STATES.has(to) ? { status: 'sold' as const } : {}),
+    ...(isTerminalState(to) ? { status: 'sold' as const } : {}),
     updatedAt: Math.floor(Date.now() / 1000),
   };
 

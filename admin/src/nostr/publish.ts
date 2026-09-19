@@ -18,8 +18,7 @@ import {
   type OrderState,
   type DisputeMessagePayload,
   type PreparedChatMessage,
-  storage,
-} from '@sajwo-tracker/shared';
+  storage, isTerminalState } from '@sajwo-tracker/shared';
 import { getSigner } from './nip46';
 
 /**
@@ -106,12 +105,8 @@ export async function publishOrder(order: Order): Promise<object> {
  * 터미널 상태(paid, cancelled, sponsor_wins, customer_wins, admin_closed)는 'sold',
  * 나머지는 'active'. 빠뜨리면 종료된 거래가 오더북에 계속 떠 있는다.
  */
-const TERMINAL: ReadonlySet<OrderState> = new Set([
-  'paid', 'cancelled', 'sponsor_wins', 'customer_wins', 'admin_closed',
-]);
-
 function toListingStatus(state: OrderState): 'active' | 'sold' {
-  return TERMINAL.has(state) ? 'sold' : 'active';
+  return isTerminalState(state) ? 'sold' : 'active';
 }
 
 /**
@@ -137,7 +132,7 @@ export function publishExpiration(
   order: Pick<Order, 'state' | 'expiration'>,
   now: number,
 ): number {
-  if (!TERMINAL.has(order.state)) return order.expiration;
+  if (!isTerminalState(order.state)) return order.expiration;
   return order.expiration > now ? order.expiration : now + TERMINAL_GRACE_SEC;
 }
 

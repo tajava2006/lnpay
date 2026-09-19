@@ -5,6 +5,7 @@
  * UI → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
 import type { Order, OrderState } from '@sajwo-tracker/shared';
+import { isTerminalState } from '@sajwo-tracker/shared';
 import { canTransition } from './state-machine';
 
 type OrderMap = Record<string, Order>;
@@ -72,10 +73,7 @@ export function updateOrderState(
   }
 
   const now = Math.floor(Date.now() / 1000);
-  const TERMINAL_STATES: ReadonlySet<OrderState> = new Set([
-    'paid', 'cancelled', 'sponsor_wins', 'customer_wins',
-  ]);
-  const status = TERMINAL_STATES.has(to) ? 'sold' as const : 'active' as const;
+  const status = isTerminalState(to) ? 'sold' as const : 'active' as const;
 
   orders = {
     ...orders,

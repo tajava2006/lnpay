@@ -97,9 +97,11 @@ describe('resolveProgress', () => {
     expect(steps[steps.length - 1]!.status).toBe('current');
   });
 
-  it('보증금 항목은 조건부로 표시된다', () => {
-    const claimed = resolveProgress('sponsor', 'claimed').steps[idx('claimed')]!;
-    expect(claimed.actions.some(a => a.optional)).toBe(true);
+  it('보증금 안내는 클레임하는 자리(requested)에 조건부로 붙는다', () => {
+    // 보증금을 내는 시점이 "사줄게"를 누를 때라 안내도 거기 있어야 한다.
+    // claimed는 어드민이 금액을 확정하는 대기 구간이라 후원자가 할 일이 없다.
+    const requested = resolveProgress('sponsor', 'requested').steps[idx('requested')]!;
+    expect(requested.actions.some(a => a.optional)).toBe(true);
   });
 });
 

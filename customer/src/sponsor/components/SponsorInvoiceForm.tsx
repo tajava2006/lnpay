@@ -101,7 +101,7 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
       {payoutSat === null ? (
         <div style={styles.missingAmount}>
           <b>받을 금액을 아직 받아오지 못했습니다.</b> 잠시 후 새로고침해 보시고,
-          계속 이 상태면 이 의뢰는 진행할 수 없습니다 — 에스크로에 문의해 주세요.
+          계속 이 상태면 이 의뢰는 진행할 수 없습니다 — 어드민에 문의해 주세요.
         </div>
       ) : (
         <div style={styles.amountRow}>
@@ -137,7 +137,7 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
 
       {waiting && (
         <p style={styles.waiting}>
-          등록했습니다. 에스크로가 확인하면 고객이 계좌 정보를 보냅니다 —
+          등록했습니다. 어드민이 확인하면 고객이 계좌 정보를 보냅니다 —
           잠시 기다려 주세요. 다시 보내지 않으셔도 됩니다.
         </p>
       )}

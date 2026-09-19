@@ -53,8 +53,9 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
       { text: '후원자가 의뢰를 가져갈 때까지 기다립니다.' },
     ],
     sponsor: [
-      { text: '의뢰 금액과 같은 금액의 Lightning 인보이스를 본인 지갑에서 만듭니다.' },
-      { text: "인보이스를 붙여넣고 '사줄게'를 누릅니다. 유동성 검증용이라 이 시점에 실제 결제는 일어나지 않습니다." },
+      { text: "'사줄게'를 누르면 이 의뢰를 맡게 됩니다. 먼저 누른 분에게 배정됩니다." },
+      { text: 'BTC 받을 인보이스는 지금이 아니라, 고객이 결제를 마친 뒤에 등록합니다.' },
+      { text: '장난 의뢰를 막기 위해 보증금이 요구될 수 있습니다. 지금은 보증금 없이 운영 중입니다.', optional: true },
     ],
   },
   {
@@ -62,11 +63,10 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     title: '후원자 확정',
     actor: 'admin',
     customer: [
-      { text: '에스크로가 후원자의 Lightning 경로를 검증합니다. 기다리면 됩니다.' },
+      { text: '어드민이 거래 금액을 확정합니다. 기다리면 됩니다.' },
     ],
     sponsor: [
-      { text: '보증금 인보이스가 오면 결제합니다.', optional: true },
-      { text: '에스크로의 경로 검증을 기다립니다.' },
+      { text: '어드민이 거래 금액을 확정할 때까지 기다립니다. 보통 몇 초면 끝납니다.' },
     ],
   },
   {
@@ -75,10 +75,11 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     actor: 'customer',
     customer: [
       { text: "'결제하기'를 눌러 Lightning 인보이스를 결제합니다." },
-      { text: '결제한 금액은 거래가 끝날 때까지 에스크로가 붙들고 있습니다.' },
+      { text: '결제한 BTC는 거래가 끝날 때까지 어드민이 맡아둡니다. 원화가 오지 않으면 돌려받습니다.' },
+      { text: '지갑에서 "대기 중"으로 남아 있는 것이 정상입니다. 다시 보내지 마세요.' },
     ],
     sponsor: [
-      { text: '고객이 결제하기를 기다립니다.' },
+      { text: '고객이 어드민에게 에스크로 금액을 맡길 때까지 기다리세요.' },
     ],
   },
   {
@@ -86,12 +87,12 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     title: '후원자 인보이스 등록',
     actor: 'sponsor',
     customer: [
-      { text: '후원자가 BTC를 받을 인보이스를 등록하기를 기다립니다.' },
+      { text: '후원자가 BTC 받을 인보이스를 등록하기를 기다립니다.' },
       { text: '등록되면 계좌 정보를 보낼 수 있게 됩니다.' },
     ],
     sponsor: [
-      { text: '표시된 금액 그대로 인보이스를 만들어 등록합니다.' },
-      { text: '등록해야 고객의 계좌 정보를 받을 수 있습니다.' },
+      { text: '화면에 표시된 금액 그대로 인보이스를 만들어 등록합니다.' },
+      { text: '등록해야 고객의 계좌 정보를 받을 수 있습니다. 그 전에는 원화를 보내지 마세요.' },
     ],
   },
   {
@@ -127,7 +128,7 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
       { text: '거래가 끝났습니다.' },
     ],
     sponsor: [
-      { text: '등록한 인보이스로 BTC를 보냅니다.' },
+      { text: '등록한 인보이스로 어드민이 BTC를 보내줍니다.' },
     ],
   },
 ] as const;

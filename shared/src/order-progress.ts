@@ -217,9 +217,14 @@ export function resolveProgress(
       ? { state, ...TERMINALS[state] }
       : null;
 
-  // 이탈 종료일 때 완료로 볼 수 있는 마지막 단계
+  // 이탈 종료일 때 완료로 볼 수 있는 마지막 단계.
+  //
+  // 분쟁 판정(sponsor_wins/customer_wins)은 FSM상 remitted에서만 오므로 거기까지
+  // 확정적으로 완료다. 반면 **취소와 강제 종결은 어디서 끊겼는지 알 수 없다** —
+  // 강제 종결은 escrowed일 수도 invoiced일 수도 있고, 상태만으로는 구분되지 않는다.
+  // 모르면 추측하지 않는다. 안 일어난 단계를 완료로 그리면 화면이 거짓말을 한다.
   const doneThrough = terminal
-    ? terminal.state === 'cancelled'
+    ? (terminal.state === 'cancelled' || terminal.state === 'admin_closed')
       ? -1
       : STEP_INDEX.get('remitted')!
     : STEP_INDEX.get(state) ?? -1;

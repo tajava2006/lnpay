@@ -18,6 +18,7 @@ import {
   getReadRelays,
   APP_PUBKEY,
   idbUpsertOrder,
+  idbGetOrder,
   idbUpsertRequest,
   idbGetRequestsByOrderId,
   idbMigrateOrderWithRequests,
@@ -425,7 +426,12 @@ export async function approveOrder(
 export async function forceCloseOrder(
   orderId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const order = getOrder(orderId);
+  // 라이브 스토어에 없으면 IDB를 본다.
+  //
+  // cleanup이 만료된 오더를 스토어에서 지우는데(보존은 IDB 몫), **만료된 의뢰야말로
+  // 정리가 제일 필요한 것**이다 — 방치돼서 만료된 것이니까. 스토어만 보면
+  // 정리해야 할 대상이 정확히 정리 불가능해진다.
+  const order = getOrder(orderId) ?? await idbGetOrder(orderId);
   if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
 
   if (!canTransition(order.state, 'admin_closed')) {

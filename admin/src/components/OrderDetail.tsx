@@ -230,9 +230,14 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
     try {
       const result = await forceCloseOrder(orderId);
       if (!result.success) {
-        alert(result.error === 'ALREADY_SETTLED'
-          ? '이미 정산된 거래라 자동 종결할 수 없습니다. 환불은 별도 결제로 처리해야 합니다.'
-          : `종결 실패: ${result.error}`);
+        const message: Record<string, string> = {
+          ALREADY_SETTLED: '이미 정산된 거래라 자동 종결할 수 없습니다. 환불은 별도 결제로 처리해야 합니다.',
+          ORDER_NOT_FOUND: '이 주문을 찾지 못했습니다. 릴레이와 로컬 기록 어디에도 없습니다.',
+          CANCEL_FAILED: '홀드 인보이스 취소에 실패했습니다. LN 노드 연결을 확인해 주세요.',
+          // 돈은 이미 돌아갔다. 상태 발행만 실패한 것이라 구분해서 알린다.
+          PUBLISH_FAILED: '에스크로는 환불됐지만 상태 발행에 실패했습니다. 새로고침 후 다시 시도해 주세요.',
+        };
+        alert(message[result.error ?? ''] ?? `종결 실패: ${result.error}`);
       }
     } finally {
       setResolving(false);

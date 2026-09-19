@@ -151,3 +151,32 @@ describe('sponsorRelation', () => {
     expect(sponsorRelation({ state: 'verified', customerPubkey: OTHER }, ME)).toBe('taken');
   });
 });
+
+describe('강제 종결 (admin_closed)', () => {
+  /**
+   * 분쟁 판정은 FSM상 remitted에서만 오므로 거기까지 완료로 확정할 수 있다.
+   * 강제 종결은 escrowed일 수도 invoiced일 수도 있어 **상태만으로 구분되지 않는다.**
+   *
+   * 처음엔 분쟁과 같은 분기를 타게 해서, escrowed에서 끊은 거래에 "입금 확인"까지
+   * 초록 체크가 찍혔다(2026-09-19 관측). 안 일어난 일을 완료로 그리는 화면이었다.
+   */
+  it('어떤 단계도 완료로 추측하지 않는다', () => {
+    const { steps, terminal, currentIndex } = resolveProgress('customer', 'admin_closed');
+
+    expect(terminal?.state).toBe('admin_closed');
+    expect(currentIndex).toBe(-1);
+    expect(steps.every(s => s.status === 'upcoming')).toBe(true);
+  });
+
+  it('분쟁 종료와 달리 remitted를 완료로 치지 않는다', () => {
+    const closed = resolveProgress('customer', 'admin_closed');
+    const dispute = resolveProgress('customer', 'customer_wins');
+
+    expect(closed.steps[idx('remitted')]!.status).toBe('upcoming');
+    expect(dispute.steps[idx('remitted')]!.status).toBe('done');
+  });
+
+  it('환불된다는 설명이 붙는다', () => {
+    expect(resolveProgress('customer', 'admin_closed').terminal?.description).toContain('환불');
+  });
+});

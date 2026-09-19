@@ -52,7 +52,7 @@ export async function publishOrder(order: Order): Promise<object> {
     ['state', order.state],
     ['price', String(order.price), 'KRW'],
     ['customer', order.customerPubkey],
-    ['expiration', String(order.expiration)],
+    ['expiration', String(publishExpiration(order, now))],
   ];
   if (order.sponsorPubkey) {
     tags.push(['sponsor', order.sponsorPubkey]);
@@ -106,11 +106,39 @@ export async function publishOrder(order: Order): Promise<object> {
  * 터미널 상태(paid, cancelled, sponsor_wins, customer_wins, admin_closed)는 'sold',
  * 나머지는 'active'. 빠뜨리면 종료된 거래가 오더북에 계속 떠 있는다.
  */
+const TERMINAL: ReadonlySet<OrderState> = new Set([
+  'paid', 'cancelled', 'sponsor_wins', 'customer_wins', 'admin_closed',
+]);
+
 function toListingStatus(state: OrderState): 'active' | 'sold' {
-  const TERMINAL: ReadonlySet<OrderState> = new Set([
-    'paid', 'cancelled', 'sponsor_wins', 'customer_wins', 'admin_closed',
-  ]);
   return TERMINAL.has(state) ? 'sold' : 'active';
+}
+
+/**
+ * 종결 이벤트가 만료된 오더 위에 실릴 때 줄 유예.
+ *
+ * 릴레이는 NIP-40에 따라 **이미 지난 `expiration`을 가진 이벤트를 거절한다**
+ * (실측: nos.lol·relay.wisp.talk 모두 `invalid: event expired`). 그래서 만료된
+ * 오더를 종결하면 상태 발행이 전부 실패했다 — 정리는 됐는데 양쪽은 왜 끝났는지
+ * 영영 모르는 상태가 됐다.
+ *
+ * 종결 이벤트는 "왜 끝났는지"를 알리려고 내는 것이라 도달해야 의미가 있다.
+ * 일주일이면 양쪽이 한 번은 앱을 연다.
+ */
+const TERMINAL_GRACE_SEC = 7 * 24 * 60 * 60;
+
+/**
+ * 이 이벤트에 실을 만료 시각.
+ *
+ * 종결 상태이면서 이미 만료된 오더만 유예를 준다. 진행 중인 오더의 만료를
+ * 늘리면 끝난 줄 알았던 거래가 되살아난 것처럼 보이므로 건드리지 않는다.
+ */
+export function publishExpiration(
+  order: Pick<Order, 'state' | 'expiration'>,
+  now: number,
+): number {
+  if (!TERMINAL.has(order.state)) return order.expiration;
+  return order.expiration > now ? order.expiration : now + TERMINAL_GRACE_SEC;
 }
 
 /**

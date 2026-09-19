@@ -124,6 +124,14 @@ Admin이 유일한 발행자이므로 모든 오더의 주소에 Admin pubkey가
 | `customer` | pubkey | 주문 요청자(Customer)의 pubkey |
 | `price` | 금액 (string), `KRW` | NIP-99 가격 태그. 입금해야 할 금액과 통화 |
 | `expiration` | unix timestamp (seconds) | NIP-40: 무통장입금 기한. 이 시각 이후 릴레이가 이벤트를 삭제할 수 있음 |
+
+> ⚠️ **이미 지난 `expiration`을 실으면 릴레이가 발행 자체를 거절한다.**
+> 실측(2026-09-19): nos.lol·relay.wisp.talk 모두 `invalid: event expired`.
+>
+> 그래서 만료된 오더를 종결(취소·분쟁 판정·강제 종결)할 때는 유예를 준다
+> (`publishExpiration`, 7일). 종결 이벤트는 "왜 끝났는지"를 알리려고 내는 것이라
+> 도달하지 못하면 의미가 없다. 진행 중인 오더의 만료는 늘리지 않는다 — 끝난 줄
+> 알았던 거래가 되살아난 것처럼 보인다.
 | `t` | `sajwo-tracker` | 클라이언트 식별. 다른 30402 이벤트와 구분하기 위한 필수 태그 |
 
 ### 상태 머신 (Admin 단일 FSM)

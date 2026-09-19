@@ -54,6 +54,14 @@ async function handleCustomerDeposit(
     const status = await lnAdapter.lookupHoldInvoice(entry.paymentHash);
     if (status !== 'accepted') return;
 
+    // 강제 종결: 고객은 잘못한 게 없다(대개 결제까지 마쳤다). 전액 환불.
+    if (newState === 'admin_closed') {
+      await lnAdapter.cancelInvoice(entry.paymentHash);
+      void publishDepositStatus(order.orderId, order.customerPubkey, 'cancelled');
+      console.log('[Deposit] 강제 종결 — 고객 보증금 환불:', order.orderId);
+      return;
+    }
+
     if (newState === 'escrowed') {
       await lnAdapter.cancelInvoice(entry.paymentHash);
       void publishDepositStatus(order.orderId, order.customerPubkey, 'cancelled');
@@ -89,6 +97,17 @@ async function handleSponsorDeposit(
   try {
     const status = await lnAdapter.lookupHoldInvoice(entry.paymentHash);
     if (status !== 'accepted') return;
+
+    // 강제 종결: 후원자가 방치한 건 맞지만 몰수는 별도 판단이다.
+    // 자동으로 남의 돈을 가져가는 기본값을 두지 않는다.
+    if (newState === 'admin_closed') {
+      await lnAdapter.cancelInvoice(entry.paymentHash);
+      if (order.sponsorPubkey) {
+        void publishDepositStatus(order.orderId, order.sponsorPubkey, 'cancelled');
+      }
+      console.log('[Deposit] 강제 종결 — 후원자 보증금 환불:', order.orderId);
+      return;
+    }
 
     if (newState === 'paid' || newState === 'sponsor_wins') {
       // 정상 완료 또는 스폰서 승리 → 보증금 환불

@@ -62,6 +62,12 @@ export const ORDER_STATE_META: Record<OrderState, OrderStateMeta> = {
     textColor: '#6B7280',
     isFinal: true,
   },
+  admin_closed: {
+    label: '강제 종결',
+    bgColor: '#F3F4F6',
+    textColor: '#6B7280',
+    isFinal: true,
+  },
   sponsor_wins: {
     label: '후원자 승리',
     bgColor: '#CCFBF1',

@@ -76,6 +76,15 @@ export const ORDER_STATES = {
   CANCELLED: 'cancelled',
   SPONSOR_WINS: 'sponsor_wins',
   CUSTOMER_WINS: 'customer_wins',
+  /**
+   * 어드민 강제 종결. 방치된 거래를 정리하고 에스크로를 환불한다.
+   *
+   * `cancelled`와 따로 두는 이유: 취소는 거래가 시작되기 전의 정상적인 이탈이고
+   * 고객이 스스로 할 수 있다. 이건 **에스크로가 잡힌 뒤** 아무도 움직이지 않아
+   * 어드민이 손으로 끊는 것이라 성격이 다르다. 같은 상태로 뭉치면 나중에
+   * "왜 취소됐지"를 구분할 수 없다.
+   */
+  ADMIN_CLOSED: 'admin_closed',
 } as const;
 export type OrderState = typeof ORDER_STATES[keyof typeof ORDER_STATES];
 

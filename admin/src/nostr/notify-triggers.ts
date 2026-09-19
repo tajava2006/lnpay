@@ -71,6 +71,12 @@ export function notifyTransition(order: Order): void {
       toSponsor(NOTIFY.cancelled());
       break;
 
+    // 어드민이 끊었다 — 양쪽 다 왜 끝났는지 알아야 한다.
+    case 'admin_closed':
+      toCustomer(NOTIFY.adminClosed());
+      toSponsor(NOTIFY.adminClosed());
+      break;
+
     // 분쟁 판정 — 양쪽에 결과를 알린다
     case 'sponsor_wins':
       toCustomer(NOTIFY.disputeResolved(false));

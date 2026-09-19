@@ -138,7 +138,7 @@ const STEP_INDEX: ReadonlyMap<OrderState, number> = new Map(
 );
 
 export interface TerminalInfo {
-  state: 'cancelled' | 'sponsor_wins' | 'customer_wins';
+  state: 'cancelled' | 'sponsor_wins' | 'customer_wins' | 'admin_closed';
   label: string;
   description: string;
 }
@@ -155,6 +155,10 @@ const TERMINALS: Record<TerminalInfo['state'], Omit<TerminalInfo, 'state'>> = {
   customer_wins: {
     label: '고객 승리',
     description: '분쟁 판정 결과 송금이 확인되지 않아 고객에게 환불되었습니다.',
+  },
+  admin_closed: {
+    label: '강제 종결',
+    description: '거래가 오래 멈춰 있어 에스크로가 정리했습니다. 결제한 금액은 환불됩니다.',
   },
 };
 
@@ -208,7 +212,8 @@ export function resolveProgress(
   ctx: ProgressContext = {},
 ): Progress {
   const terminal: TerminalInfo | null =
-    state === 'cancelled' || state === 'sponsor_wins' || state === 'customer_wins'
+    state === 'cancelled' || state === 'sponsor_wins'
+    || state === 'customer_wins' || state === 'admin_closed'
       ? { state, ...TERMINALS[state] }
       : null;
 

@@ -111,6 +111,10 @@ export const NOTIFY = {
   cancelled: (): Notice =>
     ({ body: '거래가 취소되었습니다.', tab: 'history' }),
 
+  /** 어드민이 방치된 거래를 끊었다. */
+  adminClosed: (): Notice =>
+    ({ body: '거래가 오래 멈춰 있어 종료되었습니다. 결제한 금액은 환불됩니다.', tab: 'history' }),
+
   /** 분쟁 판정 결과. */
   disputeResolved: (won: boolean): Notice => ({
     body: won

@@ -14,7 +14,8 @@ import type { HoldInvoiceStatus } from '../lightning/types';
 import { subscribeChatMessages } from '../nostr/chat-subscribe';
 import { prepareDisputeMessage, publishDepositStatus, publishDepositRequired, publishRevealRequest } from '../nostr/publish';
 import { getPendingDeposit } from '../pending-deposit-store';
-import { resolveDisputeSponsorWins, resolveDisputeCustomerWins } from '../nostr/service';
+import { resolveDisputeSponsorWins, resolveDisputeCustomerWins, forceCloseOrder } from '../nostr/service';
+import { FundStatus } from './FundStatus';
 import { getEscrowEntry, getPreimage } from '../escrow-store';
 import { CommitmentBadge } from './CommitmentBadge';
 import { SatsAmount } from './SatsAmount';
@@ -30,6 +31,7 @@ const stateLabel: Record<string, string> = {
   requested: '요청됨', claimed: '클레임됨', verified: '검증됨',
   escrowed: '에스크로', remitted: '송금 주장', paid: '완료',
   cancelled: '취소', sponsor_wins: '후원자 승리', customer_wins: '고객 승리',
+  invoiced: '계좌 전달 대기', admin_closed: '강제 종결',
 };
 
 const stateColor: Record<string, string> = {
@@ -202,6 +204,40 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
       setRequestingReveal(false);
     }
   }, [order]);
+
+  /**
+   * 방치된 거래를 끊는다. 홀드 인보이스를 취소해 유동성을 풀어준다.
+   *
+   * `invoiced`에서는 계좌가 이미 나간 뒤라 후원자가 송금해놓고 버튼만 안 눌렀을
+   * 수 있다. 코드로 막지는 않는다 — 안 누른 건 후원자의 불성실이고, 그걸 코드가
+   * 대신 배려하면 정작 필요한 정리를 못 한다. 대신 경고는 한다.
+   */
+  const handleForceClose = useCallback(async () => {
+    const risky = order?.state === 'invoiced';
+    const warn = risky
+      ? '⚠️ 이 거래는 계좌 정보가 이미 전달된 상태입니다.\n'
+        + '후원자가 원화를 보내놓고 버튼만 안 눌렀을 수 있습니다.\n'
+        + '확인하지 않고 종결하면 후원자가 손해를 봅니다.\n\n'
+      : '';
+    if (!confirm(
+      warn
+      + '이 거래를 강제 종결하시겠습니까?\n'
+      + '에스크로된 BTC가 고객에게 환불되고 거래가 종료됩니다.\n'
+      + '되돌릴 수 없습니다.',
+    )) return;
+
+    setResolving(true);
+    try {
+      const result = await forceCloseOrder(orderId);
+      if (!result.success) {
+        alert(result.error === 'ALREADY_SETTLED'
+          ? '이미 정산된 거래라 자동 종결할 수 없습니다. 환불은 별도 결제로 처리해야 합니다.'
+          : `종결 실패: ${result.error}`);
+      }
+    } finally {
+      setResolving(false);
+    }
+  }, [order?.state, orderId]);
 
   // Dispute resolution
   const handleSponsorWins = useCallback(async () => {
@@ -564,6 +600,8 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
             </div>
           )}
 
+          <FundStatus order={order} lnAdapter={lnAdapter} />
+
           <div style={styles.disputeButtons}>
             <button
               style={styles.sponsorWinsBtn}
@@ -580,6 +618,26 @@ export function OrderDetail({ orderId, onBack, tracker, lnAdapter }: Props) {
               {resolving ? '처리 중...' : '고객 승리'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/*
+        강제 종결 — 에스크로가 잡힌 채 멈춘 거래에만. 그대로 두면 홀드 인보이스가
+        CLTV 타임아웃까지 유동성을 붙들고 다른 결제까지 막는다.
+      */}
+      {order && (order.state === 'escrowed' || order.state === 'invoiced') && (
+        <div style={styles.forceCloseSection}>
+          <FundStatus order={order} lnAdapter={lnAdapter} />
+          <button
+            style={styles.forceCloseBtn}
+            onClick={() => void handleForceClose()}
+            disabled={resolving}
+          >
+            {resolving ? '처리 중...' : '강제 종결 (에스크로 환불)'}
+          </button>
+          <span style={styles.forceCloseHint}>
+            거래가 멈춰 방치되면 홀드 인보이스가 유동성을 계속 붙들고 있습니다.
+          </span>
         </div>
       )}
 
@@ -833,6 +891,30 @@ const styles = {
   },
   revealRequestHint: {
     fontSize: 11,
+    color: '#92400E',
+  },
+  forceCloseSection: {
+    margin: '0 0 16px',
+    padding: 12,
+    background: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    borderRadius: 8,
+  },
+  forceCloseBtn: {
+    padding: '8px 16px',
+    background: '#B45309',
+    color: 'white',
+    border: 'none',
+    borderRadius: 6,
+    fontSize: 13,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  forceCloseHint: {
+    display: 'block',
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 1.6,
     color: '#92400E',
   },
   disputeButtons: {

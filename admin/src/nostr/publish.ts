@@ -103,11 +103,12 @@ export async function publishOrder(order: Order): Promise<object> {
 
 /**
  * FSM 상태 → NIP-99 listing status 매핑
- * 터미널 상태(paid, cancelled, sponsor_wins, customer_wins)는 'sold', 나머지는 'active'.
+ * 터미널 상태(paid, cancelled, sponsor_wins, customer_wins, admin_closed)는 'sold',
+ * 나머지는 'active'. 빠뜨리면 종료된 거래가 오더북에 계속 떠 있는다.
  */
 function toListingStatus(state: OrderState): 'active' | 'sold' {
   const TERMINAL: ReadonlySet<OrderState> = new Set([
-    'paid', 'cancelled', 'sponsor_wins', 'customer_wins',
+    'paid', 'cancelled', 'sponsor_wins', 'customer_wins', 'admin_closed',
   ]);
   return TERMINAL.has(state) ? 'sold' : 'active';
 }

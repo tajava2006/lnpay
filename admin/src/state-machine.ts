@@ -20,7 +20,17 @@ import type { OrderState } from '@sajwo-tracker/shared';
  *   (escrowed 이후는 상대방이 행동할 수 있는 상태이므로 일방 취소 불가)
  *   (remitted는 반드시 분쟁 판정 경로로 종결: paid / sponsor_wins / customer_wins)
  *
- * 터미널: paid, cancelled, sponsor_wins, customer_wins
+ * 터미널: paid, cancelled, sponsor_wins, customer_wins, admin_closed
+ *
+ * ── `admin_closed` (2026-09-19)
+ *
+ * 에스크로가 잡힌 뒤 아무도 움직이지 않는 거래를 어드민이 끊는 자리다. 그대로
+ * 두면 홀드 인보이스가 CLTV 타임아웃까지 유동성을 붙들고, 그 채널로 나가는
+ * 다른 결제까지 막는다(2026-09-19 실측).
+ *
+ * `escrowed → cancelled`를 여는 대신 새 상태를 만든 이유: 취소는 고객이 스스로
+ * 하는 정상 이탈이고, 그 경로를 열면 T-003(선취적 취소)이 부활한다. 전이 맵에
+ * 예외를 내는 것보다 "어드민만 갈 수 있는 종결"을 따로 두는 쪽이 안전하다.
  *
  * ── `escrowed → paid` 지름길을 뺀 이유 (2026-09-18)
  *
@@ -40,13 +50,14 @@ const TRANSITIONS: Record<OrderState, readonly OrderState[]> = {
   requested: ['claimed', 'cancelled'],
   claimed: ['requested', 'verified', 'cancelled'],
   verified: ['escrowed', 'cancelled'],
-  escrowed: ['invoiced'],
-  invoiced: ['remitted', 'paid'],
+  escrowed: ['invoiced', 'admin_closed'],
+  invoiced: ['remitted', 'paid', 'admin_closed'],
   remitted: ['paid', 'sponsor_wins', 'customer_wins'],
   paid: [],
   cancelled: [],
   sponsor_wins: [],
   customer_wins: [],
+  admin_closed: [],
 };
 
 export function canTransition(from: OrderState, to: OrderState): boolean {

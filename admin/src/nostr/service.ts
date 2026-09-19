@@ -403,6 +403,82 @@ export async function approveOrder(
 }
 
 /**
+ * 방치된 거래를 어드민이 강제 종결한다 (`escrowed`/`invoiced` → `admin_closed`).
+ *
+ * ── 왜 필요한가
+ *
+ * 에스크로가 잡힌 뒤 아무도 움직이지 않으면 홀드 인보이스가 CLTV 타임아웃까지
+ * 유동성을 붙들고 있는다. 그 채널로 나가는 **다른 결제까지 막는다** —
+ * 2026-09-19에 CLN askrene이 채널을 통째로 막아 다른 의뢰 결제가 실패했다.
+ * 그때는 `lncli cancelinvoice`로 손으로 내려가야 했다.
+ *
+ * ── 에스크로를 취소(환불)한다
+ *
+ * settle이 아니라 cancel이다. 원화가 오갔다는 주장조차 없는 상태이므로 고객
+ * 돈을 가져갈 근거가 없다. 원화가 실제로 오갔다면 그건 분쟁이고
+ * `sponsor_wins`/`customer_wins`로 가야 한다.
+ *
+ * ⚠️ `invoiced`에서 부르면 계좌가 이미 나간 뒤다. 후원자가 송금해놓고 버튼만
+ * 안 눌렀을 수 있다. 그건 후원자의 불성실이지만 돈은 진짜로 나갔을 수 있으므로,
+ * **호출자가 경고를 띄우고 어드민이 판단**한다. 코드가 대신 막지는 않는다.
+ */
+export async function forceCloseOrder(
+  orderId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const order = getOrder(orderId);
+  if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
+
+  if (!canTransition(order.state, 'admin_closed')) {
+    return { success: false, error: `INVALID_TRANSITION: ${order.state} → admin_closed` };
+  }
+
+  // 홀드 인보이스를 먼저 취소한다. 상태만 바꾸고 인보이스를 남기면 정리하려던
+  // 유동성이 그대로 묶인 채 화면만 깨끗해진다 — 제일 나쁜 결과다.
+  const entry = getEscrowEntry(orderId);
+  if (entry && lnAdapterRef) {
+    try {
+      const status = await lnAdapterRef.lookupHoldInvoice(entry.paymentHash);
+      if (status === 'settled') {
+        // 이미 정산됐다면 BTC는 어드민에게 있다. 환불은 별도 결제로 해야 하므로
+        // 자동으로 종결하지 않는다 — 조용히 닫으면 고객 돈이 증발한 것처럼 된다.
+        return { success: false, error: 'ALREADY_SETTLED' };
+      }
+      if (status === 'accepted' || status === 'open') {
+        await lnAdapterRef.cancelInvoice(entry.paymentHash);
+        console.log('[Admin] 강제 종결 — 에스크로 취소:', orderId);
+      }
+    } catch (e) {
+      console.error('[Admin] 강제 종결 중 에스크로 취소 실패:', orderId, e);
+      return { success: false, error: 'CANCEL_FAILED' };
+    }
+  }
+
+  const updatedOrder: Order = {
+    ...order,
+    state: 'admin_closed',
+    status: 'sold',
+    updatedAt: Math.floor(Date.now() / 1000),
+  };
+
+  try {
+    await publishOrder(updatedOrder);
+    console.log('[Admin] Order', orderId, 'force-closed by admin');
+    notifyTransition(updatedOrder);
+  } catch (e) {
+    console.error('[Admin] Failed to publish admin_closed for', orderId, e);
+    return { success: false, error: 'PUBLISH_FAILED' };
+  }
+
+  // 보증금은 양쪽 다 환불한다. 후원자가 방치한 건 맞지만 몰수는 별도 판단이고,
+  // 자동으로 남의 돈을 가져가는 기본값을 두지 않는다.
+  void handleDepositOnTransition(updatedOrder, 'admin_closed', lnAdapterRef).catch(err =>
+    console.warn('[Admin] Deposit lifecycle failed on admin_closed:', orderId, err),
+  );
+
+  return { success: true };
+}
+
+/**
  * 유동성 검증 실패 등으로 클레임을 철회하여 claimed → requested로 되돌린다.
  * sponsorPubkey를 제거하여 다른 후원자가 클레임할 수 있도록 한다.
  * 로컬 스토어는 릴레이 에코 수신 시 onOrder 콜백에서 갱신된다.

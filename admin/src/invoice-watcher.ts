@@ -40,7 +40,7 @@ const POLL_INTERVAL = 15_000; // 15초
 const SETTLE_SAFETY_MARGIN = 10 * 60; // 10분
 
 const TERMINAL_STATES: ReadonlySet<string> = new Set([
-  'paid', 'cancelled', 'sponsor_wins', 'customer_wins',
+  'paid', 'cancelled', 'sponsor_wins', 'customer_wins', 'admin_closed',
 ]);
 
 let adapter: LightningAdapter | null = null;

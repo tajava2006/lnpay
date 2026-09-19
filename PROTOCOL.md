@@ -135,7 +135,9 @@ requested → claimed → verified → escrowed → invoiced ─→ remitted ─
 
 cancelled: requested, claimed, verified에서만 전이 가능
   (escrowed 이후는 상대방이 행동할 수 있으므로 일방 취소 불가)
-터미널: paid, cancelled, sponsor_wins, customer_wins
+터미널: paid, cancelled, sponsor_wins, customer_wins, admin_closed
+
+admin_closed: escrowed, invoiced에서만. 어드민 전용
 ```
 
 > `escrowed → paid` 지름길은 **2026-09-18에 제거**했다. 후원자 인보이스를 에스크로
@@ -156,6 +158,7 @@ cancelled: requested, claimed, verified에서만 전이 가능
 | `cancelled` | 취소 — 거래 불발 (최종) | `sold` |
 | `sponsor_wins` | 분쟁: 후원자 승리 — Admin이 송금 증거 확인, hold invoice settle (최종) | `sold` |
 | `customer_wins` | 분쟁: 고객 승리 — 송금 증거 불충분, hold invoice 환불 (최종) | `sold` |
+| `admin_closed` | **어드민 강제 종결** — 방치된 거래를 끊고 에스크로 환불 (최종) | `sold` |
 
 상태 전이 규칙:
 
@@ -173,6 +176,15 @@ cancelled: requested, claimed, verified에서만 전이 가능
 | remitted | paid | Customer가 입금 컨펌 |
 | remitted | sponsor_wins | 분쟁: Admin이 송금 증거 확인 → hold invoice settle → Sponsor에게 BTC 전달 |
 | remitted | customer_wins | 분쟁: 증거 불충분 → hold invoice 환불 → Customer BTC 반환 |
+| escrowed \| invoiced | admin_closed | 어드민이 방치된 거래를 끊음 → hold invoice 취소(환불) |
+
+> `admin_closed`를 `cancelled`와 따로 둔 이유: 취소는 거래 시작 전의 정상 이탈이고
+> 고객이 스스로 한다. 이건 **에스크로가 잡힌 뒤** 아무도 움직이지 않아 어드민이
+> 손으로 끊는 것이라 성격이 다르다. 그리고 `escrowed → cancelled`를 여는 순간
+> T-003(선취적 취소)이 부활하므로, 전이 맵에 예외를 내는 대신 별도 상태를 만들었다.
+>
+> 그대로 두면 hold invoice가 CLTV 타임아웃까지 유동성을 붙들고 **같은 채널의 다른
+> 결제까지 막는다**(2026-09-19 실측).
 
 > `escrowed` 이후 상태에서는 `cancelled`로 전이할 수 없다.
 > 에스크로가 잡힌 시점부터 Sponsor가 행동할 수 있으므로, Customer 일방의 취소를 허용하면

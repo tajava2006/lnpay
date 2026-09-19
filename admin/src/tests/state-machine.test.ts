@@ -13,7 +13,7 @@ import {
 
 const ALL: OrderState[] = [
   'requested', 'claimed', 'verified', 'escrowed', 'invoiced',
-  'remitted', 'paid', 'cancelled', 'sponsor_wins', 'customer_wins',
+  'remitted', 'paid', 'cancelled', 'sponsor_wins', 'customer_wins', 'admin_closed',
 ];
 
 describe('정상 경로', () => {
@@ -150,5 +150,40 @@ describe('인보이스 금액 정확 일치 (불변조건 I-011)', () => {
   it('payout이 정해지지 않았으면 무조건 거절', () => {
     expect(isPayoutAmountExact(undefined, 1171)).toBe(false);
     expect(isPayoutAmountExact(0, 0)).toBe(false);
+  });
+});
+
+describe('어드민 강제 종결 (admin_closed)', () => {
+  /**
+   * 방치된 거래의 홀드 인보이스가 CLTV 타임아웃까지 유동성을 붙들고, 그 채널로
+   * 나가는 **다른 결제까지 막는다**(2026-09-19 실측). 끊을 길이 필요했다.
+   */
+  it('에스크로가 잡힌 두 상태에서만 갈 수 있다', () => {
+    expect(canTransition('escrowed', 'admin_closed')).toBe(true);
+    expect(canTransition('invoiced', 'admin_closed')).toBe(true);
+  });
+
+  /**
+   * 그 앞은 `cancelled`가 이미 담당하고, `remitted`는 분쟁 경로가 있다.
+   * 여기를 넓히면 "어드민이 아무 때나 끊을 수 있는" 상태가 되어 FSM이 의미를 잃는다.
+   */
+  it.each(['requested', 'claimed', 'verified', 'remitted'] as const)(
+    '%s에서는 못 간다',
+    from => {
+      expect(canTransition(from, 'admin_closed')).toBe(false);
+    },
+  );
+
+  it('터미널이다 — 어디로도 못 나간다', () => {
+    for (const to of ALL) expect(canTransition('admin_closed', to)).toBe(false);
+  });
+
+  /**
+   * `escrowed → cancelled`를 여는 대신 새 상태를 만든 이유가 이것이다.
+   * 그 경로를 열면 고객이 후원자의 송금 직전에 선취적으로 취소할 수 있다(T-003).
+   */
+  it('일방 취소 경로는 여전히 닫혀 있다', () => {
+    expect(canTransition('escrowed', 'cancelled')).toBe(false);
+    expect(canTransition('invoiced', 'cancelled')).toBe(false);
   });
 });

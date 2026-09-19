@@ -12,6 +12,25 @@ function extractVersion(raw: string): string | null {
   return /^\/\/\s*@version\s+(\S+)/m.exec(raw)?.[1] ?? null;
 }
 
+/**
+ * 유저스크립트를 설치할 수 있는 환경인가.
+ *
+ * Tampermonkey류는 **데스크톱 브라우저 확장**이다. 폰에서는 기본 브라우저에
+ * 확장이 없어서 설치 자체가 불가능한데, 설치 안내를 띄우면 유저는 자기가 뭘
+ * 잘못하고 있다고 생각한다. 쿠팡 쇼핑은 대개 폰에서 하므로 이 화면을 보는
+ * 다수가 그 상태였다.
+ *
+ * UA 판별은 원래 신뢰할 게 못 되지만, 여기서 거는 건 보안이 아니라 **선택적
+ * 편의 기능의 노출 여부**다. 틀려도 안내가 하나 더/덜 보일 뿐이고, 기능은
+ * 수동 입력으로 온전히 동작한다.
+ *
+ * (폰에서도 확장을 지원하는 브라우저가 있긴 하다 — 안드로이드 Firefox·Kiwi,
+ * iOS Orion 등. 그 경우 안내가 안 보이지만, 그걸 쓰는 사람은 이미 설치법을 안다.)
+ */
+export function canInstallUserscript(): boolean {
+  return !/Android|iPhone|iPod|Mobile/i.test(navigator.userAgent);
+}
+
 export function UserscriptGuide() {
   const [expanded, setExpanded] = useState(false);
   const [scriptContent, setScriptContent] = useState<string | null>(null);

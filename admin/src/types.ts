@@ -140,6 +140,17 @@ export function parseOrderEvent(event: Event): Order | null {
   const depositPaymentHash = event.tags.find(t => t[0] === 'customer-deposit-payment-hash')?.[1];
   const sponsorDepositPaymentHash = event.tags.find(t => t[0] === 'sponsor-deposit-payment-hash')?.[1];
 
+  // payout / sponsor-invoice
+  //
+  // **발행만 하고 읽지 않으면 없는 것과 같다.** 어드민은 전이 때 payoutSat을
+  // 오더에 담아 발행하는데, 릴레이 에코가 돌아오면 upsertOrder가 파싱본으로
+  // 통째로 갈아끼운다 — 여기서 안 읽으면 그 순간 값이 증발한다.
+  // 그러면 후원자 화면엔 "0 sats"가 뜨고 인보이스는 전부 AMOUNT_MISMATCH로
+  // 거절된다(2026-09-19 prd에서 실제로 발생).
+  const payoutTag = event.tags.find(t => t[0] === 'payout')?.[1];
+  const payoutSat = payoutTag ? Number(payoutTag) : undefined;
+  const sponsorInvoice = event.tags.find(t => t[0] === 'sponsor-invoice')?.[1];
+
   const priceTag = event.tags.find(t => t[0] === 'price');
   const price = priceTag?.[1] ? Number(priceTag[1]) : 0;
 
@@ -156,6 +167,8 @@ export function parseOrderEvent(event: Event): Order | null {
     ...(disbursed ? { disbursed } : {}),
     ...(depositPaymentHash ? { depositPaymentHash } : {}),
     ...(sponsorDepositPaymentHash ? { sponsorDepositPaymentHash } : {}),
+    ...(payoutSat && payoutSat > 0 ? { payoutSat } : {}),
+    ...(sponsorInvoice ? { sponsorInvoice } : {}),
     price,
     createdAt: event.created_at,
     updatedAt: event.created_at,

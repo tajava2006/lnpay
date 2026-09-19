@@ -40,11 +40,14 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
     setText(data.trim());
   }, []);
 
-  const payoutSat = order.payoutSat ?? 0;
+  // payout이 없으면 **금액을 모르는 것**이다. 0으로 표시하면 화면이 거짓말을
+  // 하게 되고, 유저는 0 sats짜리를 만들려다 시간을 버린다(실제로 그랬다).
+  const payoutSat = order.payoutSat ?? null;
   const decoded = text.trim() ? decodeBolt11(text.trim()) : null;
 
   // 제출 전 자가 검증. 어드민의 판정과 같은 기준이라 여기서 통과하면 대개 통과한다.
   const problem = (() => {
+    if (payoutSat === null) return null;
     if (!text.trim()) return null;
     if (!decoded?.valid) return '인보이스를 읽을 수 없습니다.';
     // 금액 없는(zero-amount) 인보이스는 받지 않는다 — 얼마를 보낼지가 애매해진다.
@@ -62,7 +65,7 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
     return null;
   })();
 
-  const canSubmit = !!text.trim() && !problem && !sending && payoutSat > 0;
+  const canSubmit = !!text.trim() && !problem && !sending && payoutSat !== null;
 
   async function handleSubmit() {
     setSending(true);
@@ -88,10 +91,17 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
         등록해야 고객이 계좌 정보를 보냅니다. 그 전에는 원화를 보내지 마세요.
       </p>
 
-      <div style={styles.amountRow}>
-        <span style={styles.amountLabel}>정확히 이 금액으로</span>
-        <b style={styles.amount}>{payoutSat.toLocaleString()} sats</b>
-      </div>
+      {payoutSat === null ? (
+        <div style={styles.missingAmount}>
+          <b>받을 금액을 아직 받아오지 못했습니다.</b> 잠시 후 새로고침해 보시고,
+          계속 이 상태면 이 의뢰는 진행할 수 없습니다 — 에스크로에 문의해 주세요.
+        </div>
+      ) : (
+        <div style={styles.amountRow}>
+          <span style={styles.amountLabel}>정확히 이 금액으로</span>
+          <b style={styles.amount}>{payoutSat.toLocaleString()} sats</b>
+        </div>
+      )}
 
       <div style={styles.inputRow}>
         <textarea
@@ -150,6 +160,16 @@ const styles = {
     marginBottom: 8,
   },
   amountLabel: { fontSize: 12, color: '#6B7280' },
+  missingAmount: {
+    padding: 10,
+    marginBottom: 8,
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: 6,
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#991B1B',
+  },
   amount: { fontSize: 15, color: '#111827', fontFamily: 'monospace' },
   inputRow: { display: 'flex', gap: 6, alignItems: 'stretch' },
   qrBtn: {

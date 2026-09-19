@@ -33,6 +33,18 @@ export async function publishOrder(order: Order): Promise<object> {
   const status = toListingStatus(order.state);
   const now = Math.floor(Date.now() / 1000);
 
+  // verified 이후인데 payout이 비어 있으면 **되돌릴 수 없는 상태**를 만드는 중이다.
+  // kind 30402는 addressable이라 이 발행이 이전 이벤트를 덮어쓰고, 한 번 빠진
+  // 태그는 영영 복구되지 않는다(2026-09-19 주문 두 건을 그렇게 잃었다).
+  // 막지는 않는다 — 발행을 멈추면 거래가 더 크게 망가진다. 대신 크게 남긴다.
+  if (order.payoutSat === undefined && order.state !== 'requested'
+      && order.state !== 'claimed' && order.state !== 'cancelled') {
+    console.error(
+      '[Admin] 불변조건 위반: payoutSat 없이 %s 발행 — 이 주문은 후원자가 인보이스를 낼 수 없게 된다:',
+      order.state, order.orderId,
+    );
+  }
+
   const tags: string[][] = [
     ['d', order.orderId],
     ['t', CLIENT_TAG],

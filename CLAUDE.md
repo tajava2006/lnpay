@@ -110,4 +110,5 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 | [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) | ~200 | S-001 보증금(Fidelity Bond) 구현 시 설계 참조 |
 | [SECURITY-ROADMAP.md](SECURITY-ROADMAP.md) | ~250 | 보안/아키텍처 개선 항목 추적, 우선순위별 해결 계획 |
 | [TODO.md](TODO.md) | ~80 | 미구현 기능 목록 확인 시 |
+| [PLAN-ONCHAIN-TRACK.md](docs/PLAN-ONCHAIN-TRACK.md) | ~480 | **온체인 2-of-3 taproot 트랙 구현 플랜.** 별도 FSM·별도 CLIENT_TAG. 착수 전 §12 리뷰 질문이 닫혀야 한다 |
 | [AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md) | ~230 | **미처리 보안·문서·공학 개선 항목의 작업 목록.** 개선 작업을 집을 때 여기부터 |

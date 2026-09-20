@@ -33,7 +33,7 @@ export type BtcNetworkName = 'mainnet' | 'signet' | 'testnet' | 'regtest';
  */
 const REGTEST = { bech32: 'bcrt', pubKeyHash: 0x6f, scriptHash: 0xc4, wif: 0xef } as const;
 
-function networkParams(network: BtcNetworkName) {
+export function networkParamsFor(network: BtcNetworkName) {
   switch (network) {
     case 'mainnet': return NETWORK;
     case 'signet':
@@ -53,7 +53,7 @@ export interface EscrowAddressParams {
 function p2trWithTree(
   internalKey: Uint8Array,
   tree: TaprootScriptTree,
-  network: ReturnType<typeof networkParams>,
+  network: ReturnType<typeof networkParamsFor>,
 ) {
   // allowUnknownOutputs: 우리 리프는 표준 패턴(p2tr_pk 등)이 아니라서 켜야 한다.
   return p2tr(internalKey, tree, network, true);
@@ -93,7 +93,7 @@ export function deriveEscrowAddress(params: EscrowAddressParams): EscrowDescript
   const payment = p2trWithTree(
     numsInternalKey(),
     buildEscrowTree(leaves),
-    networkParams(params.network),
+    networkParamsFor(params.network),
   );
 
   if (!payment.address) {

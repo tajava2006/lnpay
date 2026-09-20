@@ -99,6 +99,9 @@ importers:
 
   shared:
     dependencies:
+      '@noble/curves':
+        specifier: 2.4.0
+        version: 2.4.0
       '@scure/btc-signer':
         specifier: ^2.4.1
         version: 2.4.1

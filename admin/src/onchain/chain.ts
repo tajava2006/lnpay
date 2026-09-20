@@ -23,6 +23,8 @@
  * 쓰는 코드를 타입으로 못 쓰게** 만든 것이다.
  */
 
+import type { Outpoint } from '@sajwo-tracker/shared/onchain';
+
 // ─── 결과 타입 ───────────────────────────────────────────────
 
 /**
@@ -35,10 +37,11 @@ export type ChainQuery<T> =
   | { known: true; value: T }
   | { known: false; reason: string };
 
-export interface ChainOutpoint {
-  txid: string;
-  vout: number;
-}
+/**
+ * outpoint 정의는 **shared가 진실**이다 — 종결 tx 빌더가 같은 모양을 먹는다.
+ * 여기서 따로 정의하면 둘이 갈릴 자리가 생긴다.
+ */
+export type ChainOutpoint = Outpoint;
 
 export interface ChainUtxo extends ChainOutpoint {
   valueSat: number;

@@ -32,6 +32,8 @@
  * 덮어야 할 것을 덮는 선에서 멈춘다 — 많을수록 좋은 게 아니다.
  */
 
+import { MAX_TRADE_DURATION_SEC } from '@sajwo-tracker/shared/onchain';
+
 /** 후원자 — 50분 옵션 창의 하락 꼬리를 덮는다 */
 export const SPONSOR_DEPOSIT_PERCENT = 3;
 
@@ -85,14 +87,32 @@ export function minTradeSat(floorSat: number): number {
 /**
  * 보증금 홀드 인보이스의 CLTV(블록).
  *
- * **의뢰 수명 전체를 덮어야** 무담보 구간이 안 생긴다(§2.2). 온체인 의뢰 만료를
- * 7일로 묶은 이유가 이것이다 — 채널 상한(보통 2016블록)에 여유 있게 들어간다.
+ * **의뢰 수명 + 거래 최악 소요를 둘 다 덮어야 한다.**
  *
- * ⚠️ 상한은 **런타임에 채널에서 읽어 유도**하는 게 맞다. 여기서는 계산만 하고,
- * 호출부가 상한을 넘는지 확인한다(라이트닝 F1이 그 확인을 빠뜨린 버그다).
+ * ⚠️ 여유를 24시간으로 두면 **막바지에 클레임된 주문에서 구멍이 난다**
+ * (온체인 만료 전수조사 O-F1). 의뢰 만료 1시간 전에 클레임이 붙으면 보증금은
+ * 하루 남짓 사는데 거래는 **최대 55시간**이 걸릴 수 있다. 그 사이 HTLC가
+ * 타임아웃으로 환불되면 **몰수라는 억제 장치가 통째로 사라진다** —
+ * 후원자가 버려도 잃을 게 없어진다.
+ *
+ * ```
+ * CLTV ≥ (남은 의뢰 수명) + (거래 최악 소요 55h) + 여유
+ * ```
+ *
+ * 7일 상한 덕에 이 합이 채널 천장(보통 2016블록 ≈ 14일) 안에 들어간다 —
+ * 7일 + 55h + 6h ≈ 9.5일 ≈ 1370블록. §2.2가 만료를 7일로 묶은 이유가 이것이다.
+ *
+ * ⚠️ 천장은 **런타임에 채널에서 읽어 유도**하는 게 맞다. 여기서는 계산만 하고,
+ * 호출부가 넘는지 확인한다(라이트닝 F1이 그 확인을 빠뜨린 버그다).
  */
-export function depositCltvBlocks(expiration: number, now: number, graceSec = 86_400): number {
-  const span = expiration - now + graceSec;
-  if (span <= 0) throw new Error('의뢰 만료가 이미 지났다');
-  return Math.ceil(span / 600);
+const CLTV_SAFETY_MARGIN_SEC = 6 * 3600;
+
+export function depositCltvBlocks(
+  expiration: number,
+  now: number,
+  tradeDurationSec = MAX_TRADE_DURATION_SEC,
+): number {
+  const remaining = expiration - now;
+  if (remaining <= 0) throw new Error('의뢰 만료가 이미 지났다');
+  return Math.ceil((remaining + tradeDurationSec + CLTV_SAFETY_MARGIN_SEC) / 600);
 }

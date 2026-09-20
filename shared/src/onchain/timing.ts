@@ -63,6 +63,22 @@ export const DISPUTE_ESCALATION_SEC = [7 * DAY, 14 * DAY] as const;
 export const MAX_OPTION_WINDOW_SEC = PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + KRW_WINDOW_SEC;
 
 /**
+ * **클레임이 성립한 뒤 거래가 끝나기까지의 최악 소요** (§6.0 최악 소요 시간).
+ *
+ * ```
+ * bonded 6h + 옵션 창 50m + cosign 24h + settling 24h ≈ 55시간
+ * ```
+ *
+ * ⚠️ **보증금 HTLC가 이 구간을 덮어야 한다.** 안 덮으면 거래 도중에 보증금이
+ * LN 만료로 환불되고, 그 순간 **몰수라는 억제 장치가 통째로 사라진다.**
+ * 의뢰 만료(최대 7일)만 보고 CLTV를 잡으면 **막바지에 클레임된 주문이 정확히
+ * 그 상태가 된다** — 만료 1시간 전에 클레임하면 보증금은 하루 남짓 사는데
+ * 거래는 55시간이 걸릴 수 있다.
+ */
+export const MAX_TRADE_DURATION_SEC =
+  FUNDING_WINDOW_SEC + MAX_OPTION_WINDOW_SEC + COSIGN_WINDOW_SEC + SETTLING_WARN_SEC;
+
+/**
  * 펀딩 마감을 찍는다.
  *
  * ⚠️ **리오그로 `bonded`에 돌아올 때도 이걸 다시 부른다.** 그대로 두면 마감이

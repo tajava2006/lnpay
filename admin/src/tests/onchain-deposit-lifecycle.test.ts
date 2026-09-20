@@ -138,3 +138,35 @@ describe('상대에게 결과를 알린다', () => {
     expect(published).toContain('o-1:spon:cancelled');
   });
 });
+
+// ─── 보증금 CLTV (온체인 만료 전수조사 O-F1) ────────────────
+
+describe('보증금 CLTV가 거래 전체를 덮는가', () => {
+  /**
+   * ⚠️ 여유를 24시간으로 두면 **막바지에 클레임된 주문에서 구멍이 난다.**
+   * 의뢰 만료 1시간 전에 클레임이 붙으면 보증금은 하루 남짓 사는데
+   * 거래는 최대 55시간이 걸릴 수 있다 — 그 사이 HTLC가 타임아웃으로 환불되면
+   * **몰수라는 억제 장치가 통째로 사라진다.**
+   */
+  it('만료 직전에 클레임돼도 거래 최악 소요를 덮는다', async () => {
+    const { depositCltvBlocks } = await import('../onchain/deposit');
+    const { MAX_TRADE_DURATION_SEC } = await import('@sajwo-tracker/shared/onchain');
+
+    const now = 1_700_000_000;
+    const blocks = depositCltvBlocks(now + 3600, now); // 만료 1시간 전
+    expect(blocks * 600).toBeGreaterThan(MAX_TRADE_DURATION_SEC + 3600);
+  });
+
+  /** 7일 상한 덕에 채널 천장(2016블록) 안에 들어간다 — §2.2가 7일로 묶은 이유다. */
+  it('최장 의뢰(7일)에서도 채널 천장 안이다', async () => {
+    const { depositCltvBlocks } = await import('../onchain/deposit');
+    const now = 1_700_000_000;
+    expect(depositCltvBlocks(now + 7 * 86_400, now)).toBeLessThan(2016);
+  });
+
+  it('이미 만료된 의뢰는 거부한다', async () => {
+    const { depositCltvBlocks } = await import('../onchain/deposit');
+    const now = 1_700_000_000;
+    expect(() => depositCltvBlocks(now, now)).toThrow();
+  });
+});

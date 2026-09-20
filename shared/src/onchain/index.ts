@@ -44,7 +44,7 @@ export type { OnchainOrder, OnchainOrderEvent } from './order';
 export {
   MAX_ORDER_EXPIRY_SEC, FUNDING_WINDOW_SEC, PRESIGN_WINDOW_SEC, ACCOUNT_WINDOW_SEC,
   KRW_WINDOW_SEC, COSIGN_WINDOW_SEC, COSIGN_GRACE_WARNING_SEC, SETTLING_WARN_SEC,
-  DISPUTE_ESCALATION_SEC, MAX_OPTION_WINDOW_SEC,
+  DISPUTE_ESCALATION_SEC, MAX_OPTION_WINDOW_SEC, MAX_TRADE_DURATION_SEC,
   fundingDeadlineFrom, presignDeadlineFrom, accountDeadlineFrom, krwDeadlineFrom,
   cosignDeadlineFrom, isOrderExpiryAllowed,
 } from './timing';

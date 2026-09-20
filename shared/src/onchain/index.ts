@@ -33,6 +33,21 @@
 export { bytesToHex, hexToBytes, isXonlyHex } from './hex';
 
 export {
+  onchainOrderTags,
+  parseOnchainOrder,
+  onchainOrderIssues,
+  formatOutpoint,
+  parseOutpoint,
+} from './order';
+export type { OnchainOrder, OnchainOrderEvent } from './order';
+
+export { isOnchainClaimPayload, isOnchainPsbtPayload } from './requests';
+export type {
+  OnchainRequest, OnchainOrderRequestMsg, OnchainClaimMsg, OnchainPresigMsg,
+  OnchainCosignMsg, OnchainDisputeMsg, OnchainClaimPayload, OnchainPsbtPayload,
+} from './requests';
+
+export {
   ORDER_KEY_PREFIX,
   isValidScalar,
   xonlyFromPrivkey,

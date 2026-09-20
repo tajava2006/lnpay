@@ -124,8 +124,13 @@ export interface SponsorInvoiceRequest extends RequestBase {
   bolt11: string;
 }
 
+/**
+ * 온체인 트랙 요청은 **모양이 달라 따로 정의**돼 있다 (`./onchain/requests`).
+ * 유니온은 하나로 둔다 — 파서가 한 함수라, 둘로 가르면 한쪽을 빠뜨린다.
+ */
 export type Request =
-  | OrderRequest | ClaimRequest | AccountInfoRequest | SponsorInvoiceRequest | SimpleRequest;
+  | OrderRequest | ClaimRequest | AccountInfoRequest | SponsorInvoiceRequest | SimpleRequest
+  | import('./onchain/requests').OnchainRequest;
 
 /** 계좌정보 (Customer → Sponsor 암호화 전달) */
 export interface AccountInfo {

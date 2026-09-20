@@ -77,6 +77,20 @@ export const REQUEST_ACTIONS = {
   PUSH_SUBSCRIPTION: 'push-subscription',
   /** 후원자 → Admin: 지급받을 인보이스 제출 (escrowed 이후) */
   SPONSOR_INVOICE: 'sponsor-invoice',
+
+  // ── 온체인 트랙 (PLAN-ONCHAIN-TRACK §5.2) ──
+  // 라이트닝과 같은 kind·같은 배관을 쓰고 action 값만 다르다.
+  // ⚠️ 액션을 추가하면 `parse-request.test.ts`의 전수 census가 먼저 깨진다. 그게 정상이다.
+  /** 고객 → Admin: 온체인 의뢰 등록 */
+  ONCHAIN_ORDER_REQUEST: 'onchain-order-request',
+  /** 후원자 → Admin: 클레임 (받을 주소·feerate는 암호문) */
+  ONCHAIN_CLAIM: 'onchain-claim',
+  /** 후원자 → Admin: 사전서명된 릴리스 PSBT (암호문) */
+  ONCHAIN_PRESIG: 'onchain-presig',
+  /** 고객 → Admin: 최종 서명 — 릴리스·환불·고객승 분쟁 공용 (암호문) */
+  ONCHAIN_COSIGN: 'onchain-cosign',
+  /** 양쪽 → Admin: 분쟁 제기 / 계좌 이의 증거 */
+  ONCHAIN_DISPUTE: 'onchain-dispute',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 

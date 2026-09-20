@@ -109,6 +109,11 @@ describe('parseRequestEvent', () => {
     /** 액션별로 파싱에 필요한 최소 태그 */
     const EXTRA_TAGS: Record<string, string[][]> = {
       'sponsor-invoice': [['bolt11', 'lnbc1...']],
+      // 온체인: 없으면 주소를 만들 수 없거나(의뢰·클레임), 어느 tx에 붙일지
+      // 모르는(cosign) 값들이다. 파서가 일부러 거른다.
+      'onchain-order-request': [['amount-sat', '50000'], ['customer-xonly', 'aa'.repeat(32)]],
+      'onchain-claim': [['sponsor-xonly', 'bb'.repeat(32)]],
+      'onchain-cosign': [['purpose', 'release']],
     };
 
     it.each(Object.values(REQUEST_ACTIONS))('%s', action => {

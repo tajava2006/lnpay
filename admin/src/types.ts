@@ -102,6 +102,46 @@ export function parseRequestEvent(event: Event): Request | null {
     }
     case 'account-info':
       return { ...base, action };
+
+    // ── 온체인 트랙 (PLAN-ONCHAIN-TRACK §5.2) ──
+    //
+    // ⚠️ PSBT와 후원자의 받을 주소는 **암호문(content)에** 있다. 여기서 풀지
+    // 않는다 — 복호화는 핸들러 몫이고, 파서는 `raw`로 넘긴다(account-info와 같은 규약).
+    case 'onchain-order-request': {
+      const amountSat = Number(event.tags.find(t => t[0] === 'amount-sat')?.[1]);
+      const customerXonly = event.tags.find(t => t[0] === 'customer-xonly')?.[1];
+      // 둘 중 하나라도 없으면 주소를 만들 수 없다. 받아봐야 어드민 화면에
+      // "처리 못 하는 요청"만 쌓인다.
+      if (!Number.isInteger(amountSat) || amountSat <= 0 || !customerXonly) return null;
+      const reserveRaw = event.tags.find(t => t[0] === 'reserve-krw')?.[1];
+      const reserveKrw = reserveRaw === undefined ? undefined : Number(reserveRaw);
+      return {
+        ...base, action, amountSat, customerXonly,
+        ...(reserveKrw !== undefined && Number.isFinite(reserveKrw) ? { reserveKrw } : {}),
+      };
+    }
+    case 'onchain-claim': {
+      const sponsorXonly = event.tags.find(t => t[0] === 'sponsor-xonly')?.[1];
+      if (!sponsorXonly) return null;
+      return { ...base, action, sponsorXonly };
+    }
+    case 'onchain-presig':
+      return { ...base, action };
+    case 'onchain-cosign': {
+      const purpose = event.tags.find(t => t[0] === 'purpose')?.[1];
+      // 무엇에 대한 서명인지 모르면 어느 tx에 붙일지 알 수 없다.
+      if (purpose !== 'release' && purpose !== 'refund' && purpose !== 'dispute-customer') {
+        return null;
+      }
+      return { ...base, action, purpose };
+    }
+    case 'onchain-dispute': {
+      const stage = event.tags.find(t => t[0] === 'stage')?.[1];
+      return {
+        ...base, action,
+        ...(stage === 'account-unusable' || stage === 'remitted' ? { stage } : {}),
+      };
+    }
     case 'sponsor-invoice': {
       // bolt11이 없으면 의미가 없다 — 지급처가 본문이다.
       const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];

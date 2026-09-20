@@ -27,7 +27,7 @@ import {
   type SettlementPath,
 } from '@sajwo-tracker/shared/onchain';
 import { getSigner } from '../nostr/nip46';
-import type { ChainAdapter } from './chain';
+import type { ChainAdapter } from '@sajwo-tracker/shared/onchain';
 import {
   CUSTOMER_DEPOSIT_PERCENT, SPONSOR_DEPOSIT_PERCENT,
   depositCltvBlocks, depositFloorSat, depositSat, minTradeSat,

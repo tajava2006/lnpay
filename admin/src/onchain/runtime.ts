@@ -19,7 +19,7 @@ import {
 import { parseOnchainOrder } from '@sajwo-tracker/shared/onchain';
 import type { LightningAdapter } from '../lightning';
 import { parseRequestEvent } from '../types';
-import { MempoolChainAdapter, type ChainNetwork } from './chain';
+import { MempoolChainAdapter, type ChainNetwork } from '@sajwo-tracker/shared/onchain';
 import {
   accountInfoSent, checkOnchainDeposits, commitOnchainOrder, configureOnchainService,
   handleOnchainClaim, handleOnchainCosign, handleOnchainDispute, handleOnchainOrderRequest,

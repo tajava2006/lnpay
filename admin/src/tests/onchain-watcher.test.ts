@@ -11,7 +11,7 @@ import {
 } from '@sajwo-tracker/shared/onchain';
 import type {
   AddressFunds, ChainAdapter, ChainQuery, ChainUtxo, FeeEstimates, TxStatus,
-} from '../onchain/chain';
+} from '@sajwo-tracker/shared/onchain';
 import { executeOnchainAction, tickOnchainOrder, type OnchainWatcherDeps } from '../onchain/watcher';
 import {
   _resetForTesting, getPendingSettlement, putPendingSettlement,

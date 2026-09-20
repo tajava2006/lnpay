@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { canCancelOnchain } from '@sajwo-tracker/shared/onchain';
-import type { AddressFunds, ChainQuery, ChainUtxo } from '../onchain/chain';
+import type { AddressFunds, ChainQuery, ChainUtxo } from '@sajwo-tracker/shared/onchain';
 import {
   escrowUnfundedFor, judgeFunding, judgePinnedFunding, requiredConfirmations,
   type FundingVerdict,

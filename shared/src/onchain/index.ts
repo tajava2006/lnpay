@@ -129,6 +129,12 @@ export {
 export type { Outpoint, SettlementPath, BuildSettlementParams } from './tx';
 
 export { verifyPresignature, leafHashOf, outputGoesTo } from './verify';
+
+export { MempoolChainAdapter, DEFAULT_MEMPOOL_API } from './chain';
+export type {
+  ChainAdapter, ChainQuery, ChainNetwork, ChainAdapterConfig,
+  ChainOutpoint, ChainUtxo, AddressFunds, TxStatus, FeeEstimates,
+} from './chain';
 export type { PresigVerdict, VerifyPresignatureParams } from './verify';
 
 export {

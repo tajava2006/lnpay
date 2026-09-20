@@ -19,7 +19,7 @@ import {
   parseOutpoint,
   type OnchainOrder, type Outpoint, type SettlementKind,
 } from '@sajwo-tracker/shared/onchain';
-import type { AddressFunds, ChainQuery, TxStatus } from './chain';
+import type { AddressFunds, ChainQuery, TxStatus } from '@sajwo-tracker/shared/onchain';
 import { judgeFunding, judgePinnedFunding, requiredConfirmations } from './funding';
 
 export type OnchainAction =

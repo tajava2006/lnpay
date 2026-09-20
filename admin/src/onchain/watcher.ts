@@ -19,7 +19,7 @@ import {
   FUNDING_WINDOW_SEC, isOnchainTerminal, OUTCOME_RULES,
   type OnchainOrder, type OnchainOutcome, type SettlementKind,
 } from '@sajwo-tracker/shared/onchain';
-import type { AddressFunds, ChainAdapter, ChainQuery } from './chain';
+import type { AddressFunds, ChainAdapter, ChainQuery } from '@sajwo-tracker/shared/onchain';
 import { decideOnchainAction, type OnchainAction } from './decide';
 import type { OnchainPatch } from './order-store';
 import { getPendingSettlement } from './pending-settlement-store';

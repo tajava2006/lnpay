@@ -11,7 +11,7 @@ import {
   MAX_OPTION_WINDOW_SEC, PRESIGN_WINDOW_SEC, SETTLING_WARN_SEC,
   formatOutpoint, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
-import type { AddressFunds, ChainQuery, ChainUtxo } from '../onchain/chain';
+import type { AddressFunds, ChainQuery, ChainUtxo } from '@sajwo-tracker/shared/onchain';
 import { decideOnchainAction, needsSettlementTx, type OnchainWatchContext } from '../onchain/decide';
 
 const NOW = 1_700_000_000;

@@ -14,7 +14,7 @@
  * `funding` 상태를 두지 않았다. `pending`을 돌려주긴 하지만 그건 **화면 힌트**
  * 전용이고 어떤 결정도 그 값으로 갈리지 않는다.
  */
-import type { AddressFunds, ChainOutpoint, ChainQuery } from './chain';
+import type { AddressFunds, ChainOutpoint, ChainQuery } from '@sajwo-tracker/shared/onchain';
 
 /**
  * 금액별 요구 컨펌 수 (§12 Q1).

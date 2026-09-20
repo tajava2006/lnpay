@@ -991,7 +991,7 @@ swept:     전이가 아니라 **체인에서 관측**한다
 | `customer_win` | **몰수** | 환불 |
 | `cancel:customer` / `cancel:expired` | — | 환불 |
 | `cancel:no-funding` (6h 내 펀딩 없음) | 환불 | **몰수** |
-| `cancel:funding-gone` (tx 부재 확인) | 환불 | 환불 |
+| `cancel:funding-gone` (멤풀에 있다 사라짐) | 환불 | **몰수** |
 | `swept` | LN 만료 환불 | LN 만료 환불 |
 
 몰수금의 쓰임이 갈린다: **분쟁이면 전액 중재료**, 타임아웃이면 50%를 피해자에게

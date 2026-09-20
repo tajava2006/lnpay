@@ -246,10 +246,26 @@ export const OUTCOME_RULES: Record<OnchainOutcome, OutcomeRule> = {
   },
   'cancel:funding-gone': {
     // 펀딩 tx가 멤풀에도 없고 컨펌도 안 된 것이 확인된 경우에만 온다(O-014).
-    // 자금이 움직이지 않았으므로 누구의 과실도 아니다.
+    //
+    // ⚠️ **"자금이 안 움직였으니 무과실"이 아니다.** `funding`에 들어갔다는 건
+    // 고객이 서명해서 쏜 tx가 멤풀에 있었다는 뜻이고, **그 입력을 통제하는 건
+    // 고객뿐**이다. 사라지는 길은 셋인데 전부 고객 쪽이다:
+    //   ① 고객이 RBF로 자기 주소에 보내는 tx로 교체 — 의도적 회수
+    //   ② 같은 입력을 쓰는 충돌 tx가 컨펌 — 결국 같은 얘기
+    //   ③ 수수료가 낮아 멤풀에서 축출(~2주) — 고객의 수수료 선택이고
+    //      그동안 RBF·CPFP가 열려 있었다
+    //
+    // ①②는 **후원자가 멤풀을 보고 기다리게 만든 뒤 빼간 것**이라 아예 안 쏜
+    // 것(`cancel:no-funding`)보다 나쁘다. ③도 2주면 고객 보증금 HTLC가 이미
+    // 만료돼(의뢰 만료 7일 + 24h) 몰수할 게 남지 않는다 — 실제로 이 사유가
+    // 발동하는 건 사실상 ①②다.
+    //
+    // 사유를 `cancel:no-funding`과 **합치지는 않는다.** "안 왔다"와 "왔다가
+    // 뺐다"는 다른 사건이고, 반복범 신호이기도 하다(`admin_closed`를
+    // `cancelled`와 따로 둔 것과 같은 이유).
     terminal: 'cancelled',
-    sponsorBond: 'refund', customerBond: 'refund',
-    arbitrated: false, label: '펀딩 tx 부재 확인 — 자금이 움직이지 않았다',
+    sponsorBond: 'refund', customerBond: 'forfeit',
+    arbitrated: false, label: '고객이 펀딩을 되돌림 — 멤풀에 있다 사라졌다',
   },
   'swept': {
     // 어드민이 죽은 상황이라 홀드 인보이스를 settle도 cancel도 못 한다.
@@ -273,22 +289,27 @@ export function forfeitUse(outcome: OnchainOutcome): 'arbitration-fee' | 'compen
 
 /**
  * **O-001 · O-014.** `bonded` 이후 `cancelled`로 가려면 **"주소에 컨펌 UTXO 없음 +
- * 펀딩 tx 멤풀에 없음"** 을 확인해야 한다.
+ * 그 주소로 가는 tx가 멤풀에도 없음"** 을 확인해야 한다.
  *
  * 멤풀 tx는 몇 시간 뒤에도 컨펌된다. "12시간 지났으니 취소"로 보내면 그 뒤
  * 펀딩이 컨펌됐을 때 **아무도 안 보는 2-of-3 주소에 자금이 갇힌다.**
  *
- * `chainSaysAbsent`가 `undefined`인 건 **"모른다"** 다(조회 실패). 모르면 막는다 —
- * 조회 실패를 '없음'으로 뭉개는 게 정확히 `FundStatus`에서 겪은 사고다.
+ * ⚠️ **판정 기준은 txid가 아니라 주소다.** 고객 지갑이 수수료를 올리면(RBF)
+ * txid가 바뀌는데, txid를 쫓으면 그게 "사라졌다"로 보인다. 그대로 취소하면
+ * **정직하게 수수료만 올린 고객의 보증금을 몰수하고**, 곧 컨펌될 자금을 버려진
+ * 주소로 보내는 셈이 된다. 교체본도 같은 주소로 가므로 주소로 보면 안 놓친다.
+ *
+ * `chainSaysEscrowUnfunded`가 `undefined`인 건 **"모른다"** 다(조회 실패).
+ * 모르면 막는다 — 조회 실패를 '없음'으로 뭉개는 게 정확히 `FundStatus`에서 겪은 사고다.
  */
 export function canCancelOnchain(
   from: OnchainState,
-  chainSaysFundingAbsent?: boolean,
+  chainSaysEscrowUnfunded?: boolean,
 ): boolean {
   if (!canOnchainTransition(from, 'cancelled')) return false;
   // listed 단계엔 주소 자체가 없다 — 확인할 대상이 없으므로 그냥 간다.
   if (from === 'listed') return true;
-  return chainSaysFundingAbsent === true;
+  return chainSaysEscrowUnfunded === true;
 }
 
 /**

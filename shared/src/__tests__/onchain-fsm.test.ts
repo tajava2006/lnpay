@@ -106,6 +106,17 @@ describe('O-001 · O-014 — 자금이 확정된 뒤에는 tx 없이 취소할 �
     }
   });
 
+  /**
+   * ⚠️ 이 인자는 **주소 기준**이어야 한다. 고객이 수수료를 올리면(RBF) txid가
+   * 바뀌는데, txid를 쫓으면 "사라졌다"로 보인다. 그대로 취소하면 정직한 고객의
+   * 보증금을 몰수하고 곧 컨펌될 자금을 버려진 주소로 보내는 셈이 된다.
+   * 교체본도 같은 주소로 가므로 주소로 보면 안 놓친다. (P2 체인 어댑터 계약)
+   */
+  it('판정 기준은 "이 주소가 아직 비었는가"다', () => {
+    // 같은 주소로 가는 교체 tx가 멤풀에 있으면 = 비지 않았다 = 취소 불가
+    expect(canCancelOnchain('funding', false)).toBe(false);
+  });
+
   /** 조회 실패를 '없음'으로 뭉개면 위험한 판단을 부른다 (`FundStatus`에서 겪은 것). */
   it('체인 조회 결과를 모르면(undefined) 취소하지 않는다', () => {
     expect(canCancelOnchain('funding', undefined)).toBe(false);
@@ -256,7 +267,7 @@ describe('사유 → 보증금 처리 (§4.1 · §4.1b)', () => {
     ['cancel:customer',         'none',    'refund'],
     ['cancel:expired',          'none',    'refund'],
     ['cancel:no-funding',       'refund',  'forfeit'],
-    ['cancel:funding-gone',     'refund',  'refund'],
+    ['cancel:funding-gone',     'refund',  'forfeit'],
     ['swept',                   'expired', 'expired'],
   ] as const)('%s → 후원자 %s / 고객 %s', (outcome, sponsor, customer) => {
     expect(OUTCOME_RULES[outcome].sponsorBond).toBe(sponsor);
@@ -279,6 +290,19 @@ describe('사유 → 보증금 처리 (§4.1 · §4.1b)', () => {
     expect(forfeitUse('customer_win')).toBe('arbitration-fee');
     expect(forfeitUse('refund:sponsor-timeout')).toBe('compensation');
     expect(forfeitUse('cancel:no-funding')).toBe('compensation');
+  });
+
+  /**
+   * `funding`에 들어갔다는 건 고객이 쏜 tx가 멤풀에 있었다는 뜻이고, 그 입력을
+   * 통제하는 건 고객뿐이다. 사라졌다면 고객이 되돌린 것이다 — **후원자를
+   * 기다리게 만든 뒤 빼간 것**이라 아예 안 쏜 것보다 나쁘다.
+   */
+  it('펀딩을 되돌린 것도 몰수다 (안 쏜 것보다 나쁘다)', () => {
+    expect(OUTCOME_RULES['cancel:funding-gone'].customerBond).toBe('forfeit');
+    expect(OUTCOME_RULES['cancel:no-funding'].customerBond).toBe('forfeit');
+    // 다만 사유는 갈라 둔다 — "안 왔다"와 "왔다가 뺐다"는 다른 사건이다
+    expect(OUTCOME_RULES['cancel:funding-gone'].label)
+      .not.toBe(OUTCOME_RULES['cancel:no-funding'].label);
   });
 
   it('몰수가 없으면 쓸 곳도 없다', () => {

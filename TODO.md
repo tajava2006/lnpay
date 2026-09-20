@@ -97,8 +97,10 @@
 
 ## 온체인 트랙 (2-of-3 taproot)
 
-플랜 v12 — `docs/PLAN-ONCHAIN-TRACK.md`가 진실. 리뷰 7라운드 종료, **구현 착수**
-(브랜치 `feat/onchain-track`). P0(키·스크립트·주소) ✅ / P1(FSM·표시 5종) ✅.
+플랜 v16 — `docs/PLAN-ONCHAIN-TRACK.md`가 진실. 리뷰 7라운드 종료 후 구현
+(브랜치 `feat/onchain-track`). **P0~P5 완료, P6는 코드 몫까지 완료.**
+
+남은 것은 **실제 signet 드릴** — 런북은 `docs/ONCHAIN-SIGNET-DRILL.md`.
 전제 하나: 라이트닝 보증금(S-001)이 켜져 있어야 한다 (아래 F1을 먼저 고칠 것).
 
 ### ⬜ 타임락 회수 UI (8주 경로)

@@ -113,3 +113,4 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 | [PLAN-ONCHAIN-TRACK.md](docs/PLAN-ONCHAIN-TRACK.md) | ~3900 | **온체인 2-of-3 taproot 트랙 구현 플랜 + 리뷰 기록(§14).** 별도 FSM·별도 CLIENT_TAG. 본문 §1~§13이 현행이고 §11에 단계별 진행이 기록된다. 온체인 코드를 만질 때 **여기부터** |
 | [AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md) | ~230 | **미처리 보안·문서·공학 개선 항목의 작업 목록.** 개선 작업을 집을 때 여기부터 |
 | [AUDIT-ONCHAIN-EXPIRY.md](docs/AUDIT-ONCHAIN-EXPIRY.md) | ~130 | **온체인 트랙 만료 전수조사.** 시간 값·부등식·발견(O-F1~O-F4). 온체인 마감을 만질 때 |
+| [ONCHAIN-SIGNET-DRILL.md](docs/ONCHAIN-SIGNET-DRILL.md) | ~130 | **온체인 signet 드릴 런북.** 실코인으로만 확인되는 것 4종 + 함정표. 드릴 돌릴 때 **먼저 읽기** |

@@ -43,6 +43,10 @@ export interface OnchainWatcherDeps {
   onOutcome: (order: OnchainOrder, outcome: OnchainOutcome) => void;
   /** 사람을 부른다 */
   raise: (order: OnchainOrder, level: 'anomaly' | 'warn', why: string) => void;
+  /** 이번 틱에 돌 오더들 */
+  listOrders: () => OnchainOrder[];
+  /** 보증금 결제 감시 (phase 0) — 여기서 오더가 생기고 클레임이 성립한다 */
+  checkDeposits: () => Promise<void>;
 }
 
 /**
@@ -227,16 +231,20 @@ let polling = false;
  * 30초마다 돈다. 라이트닝 워처(15초)보다 느긋한 이유: 체인은 블록 단위로
  * 움직이고, 공개 mempool.space를 두드리는 빈도이기도 하다.
  */
-export function startOnchainWatcher(
-  listOrders: () => OnchainOrder[],
-  deps: OnchainWatcherDeps,
-): void {
+export function startOnchainWatcher(deps: OnchainWatcherDeps): void {
   if (timer) return;
   const tick = async () => {
     if (polling) return;
     polling = true;
     try {
-      for (const order of listOrders()) {
+      // phase 0 — 보증금 결제. 오더가 생기고 클레임이 성립하는 자리라 먼저 돈다.
+      try {
+        await deps.checkDeposits();
+      } catch (e) {
+        console.warn('[OnchainWatcher] 보증금 감시 실패', e);
+      }
+
+      for (const order of deps.listOrders()) {
         try {
           await tickOnchainOrder(order, deps);
         } catch (e) {

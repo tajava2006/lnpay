@@ -15,7 +15,7 @@
  */
 import { NETWORK, TEST_NETWORK, p2tr } from '@scure/btc-signer';
 import type { TaprootScriptTree } from '@scure/btc-signer/payment.js';
-import { bytesToHex } from './hex';
+import { bytesToHex, hexToBytes, isXonlyHex } from './hex';
 import type { EscrowXonlyKeys } from './keys';
 import type { EscrowLeaf } from './script';
 import {
@@ -114,6 +114,30 @@ export function deriveEscrowAddress(params: EscrowAddressParams): EscrowDescript
     payment,
     tapLeafScripts,
   };
+}
+
+/**
+ * 주문별 키 하나로 만드는 단일키 taproot 주소 (키패스).
+ *
+ * ── 왜 필요한가: **환불은 고객이 없을 때 일어난다**
+ *
+ * `refund:*`와 `customer_win`은 에스크로를 고객에게 돌려주는데, **어느 주소로**
+ * 보낼지를 플랜이 정해두지 않았다. 고객에게 물어보는 건 최악이다 — 환불이
+ * 발동하는 순간이 바로 **고객이 응답하지 않는** 순간이기 때문이다(마감 초과,
+ * 분쟁 무응답). 물어볼 수 없을 때 물어봐야 하는 설계가 된다.
+ *
+ * → **고객의 주문별 x-only 키로 주소를 만든다.** 추가 왕복이 0이고, 고객은
+ *   nostr 키에서 그 키를 **언제든 다시 파생**할 수 있어 잃을 수가 없다.
+ *   주문마다 다르므로 주소 재사용도 없다.
+ *
+ * 후원자는 반대다 — 클레임할 때 **직접 깨어 있으므로** 받을 주소를 자기가 낸다
+ * (§6.1b). 활동 중인 쪽은 지정하고, 부재할 수 있는 쪽은 결정론으로 받는다.
+ */
+export function deriveSingleKeyAddress(xonly: string, network: BtcNetworkName): string {
+  if (!isXonlyHex(xonly)) throw new Error('단일키 주소: x-only 형식이 아니다');
+  const out = p2tr(hexToBytes(xonly), undefined, networkParamsFor(network));
+  if (!out.address) throw new Error('단일키 주소를 만들지 못했다');
+  return out.address;
 }
 
 export type EscrowAddressCheck =

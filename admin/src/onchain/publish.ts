@@ -12,7 +12,8 @@
 import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
-  APP_PUBKEY, CLIENT_TAG_ONCHAIN, SAJWO_REQUEST_KIND, getReadRelays, storage,
+  APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
+  SAJWO_REQUEST_KIND, getReadRelays, storage,
 } from '@sajwo-tracker/shared';
 import {
   isOnchainTerminal, onchainOrderIssues, onchainOrderTags, type OnchainOrder,
@@ -77,4 +78,89 @@ export async function publishOnchainOrder(order: OnchainOrder): Promise<object> 
 /** 오더에 묶인 kind 1111을 상대에게 보낼 때 쓰는 `a` 태그 */
 export function onchainOrderRef(orderId: string): string {
   return `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`;
+}
+
+async function publishRequest(
+  orderId: string,
+  recipientPubkey: string,
+  action: string,
+  extraTags: string[][],
+  content: string,
+): Promise<void> {
+  const signer = getSigner();
+  if (!signer) throw new Error('로그인되지 않음: signer 없음');
+
+  const template: EventTemplate = {
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['a', onchainOrderRef(orderId)],
+      ['action', action],
+      ['t', CLIENT_TAG_ONCHAIN],
+      ['p', recipientPubkey],
+      ['p', APP_PUBKEY],
+      ...extraTags,
+    ],
+    content,
+  };
+  const signed = await signer.signEvent(template);
+
+  const relays = await getReadRelays(storage);
+  const pool = new SimplePool();
+  try {
+    const results = await Promise.allSettled(pool.publish(relays, signed));
+    if (!results.some(r => r.status === 'fulfilled')) {
+      throw new Error('모든 릴레이에 발행 실패');
+    }
+  } finally {
+    pool.destroy();
+  }
+}
+
+/** 보증금 인보이스를 상대에게 보낸다 (평문 — bolt11은 받는 사람만 결제할 수 있다) */
+export async function publishOnchainDepositRequired(
+  orderId: string,
+  recipientPubkey: string,
+  bolt11: string,
+  expiration: number,
+): Promise<void> {
+  await publishRequest(
+    orderId, recipientPubkey, REQUEST_ACTIONS.DEPOSIT_REQUIRED,
+    [['bolt11', bolt11], ['expiration', String(expiration)]], '',
+  );
+}
+
+/** 보증금 처리 결과 (accepted/cancelled/settled) */
+export async function publishOnchainDepositStatus(
+  orderId: string,
+  recipientPubkey: string,
+  status: 'accepted' | 'cancelled' | 'settled',
+  expiration: number,
+): Promise<void> {
+  const action = status === 'accepted' ? REQUEST_ACTIONS.DEPOSIT_ACCEPTED
+    : status === 'cancelled' ? REQUEST_ACTIONS.DEPOSIT_CANCELLED
+    : REQUEST_ACTIONS.DEPOSIT_SETTLED;
+  await publishRequest(orderId, recipientPubkey, action, [['expiration', String(expiration)]], '');
+}
+
+/**
+ * 서명 요청 — **암호문으로 보낸다.**
+ *
+ * PSBT 안에 받는 주소가 들어 있다. 평문으로 뿌리면 후원자의 실제 지갑 주소가
+ * 공개된다(§5.2 표).
+ */
+export async function publishOnchainSignRequest(
+  orderId: string,
+  recipientPubkey: string,
+  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor',
+  psbt: string,
+  expiration: number,
+): Promise<void> {
+  const signer = getSigner();
+  if (!signer) throw new Error('로그인되지 않음: signer 없음');
+  const content = await signer.nip44Encrypt(recipientPubkey, JSON.stringify({ psbt }));
+  await publishRequest(
+    orderId, recipientPubkey, REQUEST_ACTIONS.ONCHAIN_COSIGN,
+    [['purpose', purpose], ['expiration', String(expiration)]], content,
+  );
 }

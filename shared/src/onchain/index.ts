@@ -112,6 +112,7 @@ export type {
 } from './progress';
 
 export {
+  TYPICAL_SETTLEMENT_VSIZE,
   buildSettlementTx,
   settlementLeafFor,
   estimateSettlementVsize,
@@ -134,6 +135,7 @@ export {
   deriveEscrowAddress,
   verifyEscrowAddress,
   assertEscrowAddress,
+  deriveSingleKeyAddress,
 } from './address';
 export { networkParamsFor } from './address';
 export type {

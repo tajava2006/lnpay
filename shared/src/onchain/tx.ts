@@ -127,6 +127,15 @@ export function settlementFeeSat(
   return Math.ceil(estimateSettlementVsize(path, descriptor, destination) * feerateSatPerVb);
 }
 
+/**
+ * 에스크로가 아직 없을 때 쓰는 **표준 종결 tx 크기**(vB).
+ *
+ * 2서명 리프 + P2TR 출력 기준이다. 보증금 하한을 잡으려면 주소가 생기기
+ * **전에** 종결 수수료를 알아야 해서 필요하다(§6.0). 실제 tx를 만들 때는
+ * 언제나 `estimateSettlementVsize()`로 다시 센다.
+ */
+export const TYPICAL_SETTLEMENT_VSIZE = 169;
+
 export interface BuildSettlementParams {
   descriptor: EscrowDescriptor;
   /** 에스크로 UTXO — `funded`에서 박아둔 것 */

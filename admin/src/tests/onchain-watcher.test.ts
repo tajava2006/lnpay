@@ -80,6 +80,8 @@ function harness(over: Partial<OnchainWatcherDeps> = {}): Harness {
     prepareSettlement: async (o, kind) => { prepared.push(`${o.orderId}:${kind}`); },
     onOutcome: (_o, outcome) => outcomes.push(outcome),
     raise: (_o, level, why) => raised.push({ level, why }),
+    listOrders: () => [],
+    checkDeposits: async () => {},
     ...over,
   };
   return { deps, committed, outcomes, raised, prepared };

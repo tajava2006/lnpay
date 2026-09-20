@@ -52,14 +52,19 @@ export interface OnchainPresigMsg extends RequestBase {
 }
 
 /**
- * 고객 → 어드민: 최종 서명 (암호문).
+ * 유저 → 어드민: 최종 서명 (암호문).
  *
  * **릴리스 전용이 아니다**(리뷰 R1-M4). `{A,C}`를 쓰는 종결은 전부 고객 서명이
  * 필요하다 — 환불과 고객승 분쟁까지. 즉 **어드민 혼자서는 환불도 못 한다.**
+ *
+ * ⚠️ **고객 전용도 아니다.** `sponsor_win`은 `{A,S}`라 **후원자**가 서명한다
+ * (§5.2는 "고객 → 어드민"으로만 적었는데, 그러면 후원자승 분쟁을 집행할 수
+ * 없다 — P4에서 `dispute-sponsor`를 더했다). 누가 보냈는지는 핸들러가
+ * 오더의 pubkey와 대조해 확인한다.
  */
 export interface OnchainCosignMsg extends RequestBase {
   action: 'onchain-cosign';
-  purpose: 'release' | 'refund' | 'dispute-customer';
+  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor';
 }
 
 /**

@@ -23,7 +23,8 @@ import { MempoolChainAdapter, type ChainNetwork } from '@sajwo-tracker/shared/on
 import {
   accountInfoSent, checkOnchainDeposits, commitOnchainOrder, configureOnchainService,
   handleOnchainClaim, handleOnchainCosign, handleOnchainDispute, handleOnchainOrderRequest,
-  handleOnchainPresig, listOnchainOrders, onchainReleaseFeeSat, prepareOnchainSettlement,
+  handleOnchainPresig, handleOnchainRemit, listOnchainOrders, noteAccountInfoSent,
+  onchainReleaseFeeSat, prepareOnchainSettlement,
 } from './service';
 import { upsertOnchainOrder } from './order-store';
 import { startOnchainWatcher, stopOnchainWatcher, type OnchainWatcherDeps } from './watcher';
@@ -149,6 +150,12 @@ export function dispatchOnchainRequest(event: Event): void {
     case 'onchain-presig': void handleOnchainPresig(request); return;
     case 'onchain-cosign': void handleOnchainCosign(request); return;
     case 'onchain-dispute': void handleOnchainDispute(request); return;
+
+    // 라이트닝과 **같은 액션을 공유**하는 둘 — 뜻과 모양이 같아 새로 만들지
+    // 않았다. 트랙은 `t` 태그로 갈리므로 이 구독에는 온체인 것만 들어온다.
+    case 'remit-request': void handleOnchainRemit(request); return;
+    case 'account-info': void noteAccountInfoSent(request.orderId); return;
+
     default: return;
   }
 }

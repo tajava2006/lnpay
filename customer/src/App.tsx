@@ -8,6 +8,8 @@ import { OrderBook } from './sponsor/components/OrderBook';
 import { OrderDetail } from './sponsor/components/OrderDetail';
 import { startCleanup as startSponsorCleanup, stopCleanup as stopSponsorCleanup } from './sponsor/order-store';
 import { HistoryPage } from './history/HistoryPage';
+import { OnchainPage } from './onchain/components/OnchainPage';
+import { startOnchainSubscriptions, stopOnchainSubscriptions } from './onchain/nostr/service';
 import { NotifySetup } from './components/NotifySetup';
 
 /**
@@ -21,7 +23,7 @@ import { NotifySetup } from './components/NotifySetup';
  * 구매를 '주문'으로 여겨 엉뚱한 탭을 찾는다(실제 혼동 사례). 각 탭이
  * "여기서 당신이 무엇을 하는가"를 말하면 그 오해가 구조적으로 사라진다.
  */
-type Tab = 'request' | 'fulfill' | 'history';
+type Tab = 'request' | 'fulfill' | 'onchain' | 'history';
 
 /** 첫 화면. 신규 유입 대부분이 후원자 입장이라 오더북을 먼저 보여준다. */
 const DEFAULT_TAB: Tab = 'fulfill';
@@ -29,12 +31,16 @@ const DEFAULT_TAB: Tab = 'fulfill';
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'request', label: '의뢰하기' },
   { key: 'fulfill', label: '사주기' },
+  // 온체인은 **별도 탭**이다(PLAN-ONCHAIN-TRACK §1.2) — 플로우가 완전히 다르고,
+  // 라이트닝 트랙을 안 건드리고 붙였다 뗐다 할 수 있어야 한다.
+  { key: 'onchain', label: '온체인' },
   { key: 'history', label: '내 거래' },
 ];
 
 function readTabFromUrl(): Tab {
   const p = new URLSearchParams(window.location.search).get('tab');
-  return p === 'request' || p === 'fulfill' || p === 'history' ? p : DEFAULT_TAB;
+  return p === 'request' || p === 'fulfill' || p === 'onchain' || p === 'history'
+    ? p : DEFAULT_TAB;
 }
 
 /** 기본 탭은 쿼리 없이 루트로 둔다. */
@@ -111,6 +117,9 @@ function AppContent() {
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);
     startSubscriptions();
+    // 온체인은 `t` 태그가 달라 **소켓을 따로 연다**(§1.3). 섞으면 구버전
+    // 클라이언트가 온체인 오더를 라이트닝으로 렌더링하는 사고가 재현된다.
+    void startOnchainSubscriptions();
     startBuyerCleanup();
     startSponsorCleanup();
     tracker.start();
@@ -119,6 +128,8 @@ function AppContent() {
       if (document.visibilityState === 'visible') {
         stopSubscriptions();
         startSubscriptions();
+        stopOnchainSubscriptions();
+        void startOnchainSubscriptions();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -127,6 +138,7 @@ function AppContent() {
       document.removeEventListener('visibilitychange', handleVisibility);
       stopRelaySubscription();
       stopSubscriptions();
+      stopOnchainSubscriptions();
       stopBuyerCleanup();
       stopSponsorCleanup();
       tracker.stop();
@@ -171,6 +183,8 @@ function AppContent() {
           <Dashboard tracker={tracker} />
         ) : tab === 'fulfill' ? (
           <OrderBook tracker={tracker} onSelectOrder={openFromBook} />
+        ) : tab === 'onchain' ? (
+          <OnchainPage />
         ) : (
           <HistoryPage onSelectOrder={openFromHistory} tracker={tracker} />
         )}

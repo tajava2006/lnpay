@@ -592,6 +592,32 @@ function expectedSettlement(
   };
 }
 
+// ─── ⑤b 원화 송금 주장 ───────────────────────────────────────
+
+/**
+ * 후원자가 "원화 보냈다" → `presigned → remitted`.
+ *
+ * ⚠️ 액션은 라이트닝의 `remit-request`를 **그대로 쓴다.** §5.2의 새 액션
+ * 목록에 이게 빠져 있었는데(P4에서 발견), 뜻과 모양이 완전히 같아 새로 만들
+ * 이유가 없다. 트랙은 `t` 태그로 갈린다.
+ *
+ * ⚠️ **이건 후원자의 일방적 주장이다**(O-007). 여기서 릴리스가 나가지 않는다 —
+ * 고객이 은행을 확인하고 서명해야만 BTC가 움직인다.
+ */
+export async function handleOnchainRemit(req: { orderId: string; pubkey: string }): Promise<void> {
+  const order = getOnchainOrder(req.orderId);
+  if (!order || order.state !== 'presigned') return;
+  if (req.pubkey !== order.sponsorPubkey) {
+    return console.warn('[Onchain] 후원자가 아닌 쪽의 송금 주장', req.orderId);
+  }
+  // 계좌가 나가기 전에 "보냈다"는 성립할 수 없다.
+  if (!order.accountSentAt) {
+    return console.warn('[Onchain] 계좌가 아직 안 나갔다', req.orderId);
+  }
+
+  await commitOnchainOrder(req.orderId, { state: 'remitted', remittedAt: now() });
+}
+
 // ─── ⑥ 분쟁 ──────────────────────────────────────────────────
 
 export async function handleOnchainDispute(req: OnchainDisputeMsg): Promise<void> {

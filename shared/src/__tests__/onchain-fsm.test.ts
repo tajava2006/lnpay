@@ -49,8 +49,7 @@ describe('전이표 정합', () => {
 describe('정상 경로', () => {
   it.each([
     ['listed', 'bonded'],
-    ['bonded', 'funding'],
-    ['funding', 'funded'],
+    ['bonded', 'funded'],
     ['funded', 'presigned'],
     ['presigned', 'remitted'],
     ['remitted', 'settling'],
@@ -62,14 +61,8 @@ describe('정상 경로', () => {
 
 describe('순서 건너뛰기 차단', () => {
   /** 후원자를 모르면 주소 자체가 없다(§2.1). 펀딩이 클레임을 앞지를 수 없다. */
-  it('listed → funding·funded 불가', () => {
-    expect(canOnchainTransition('listed', 'funding')).toBe(false);
+  it('listed → funded 불가', () => {
     expect(canOnchainTransition('listed', 'funded')).toBe(false);
-  });
-
-  /** 공격 D — 0-conf 펀딩 위에 가격을 고정하면 RBF로 되돌릴 수 있다. */
-  it('bonded → funded 불가 (컨펌 없이 가격 고정 금지)', () => {
-    expect(canOnchainTransition('bonded', 'funded')).toBe(false);
   });
 
   /** O-003 — 사전서명 없이 계좌가 나가면 후원자가 계좌만 받고 튄다. */
@@ -99,11 +92,9 @@ describe('O-001 · O-014 — 자금이 확정된 뒤에는 tx 없이 취소할 �
    * 멤풀 tx는 몇 시간 뒤에도 컨펌된다. "시간이 지났으니 취소"로 보내면 그 뒤
    * 펀딩이 컨펌됐을 때 **아무도 안 보는 주소에 자금이 갇힌다.**
    */
-  it('bonded·funding에서는 펀딩 부재가 확인돼야만 취소된다', () => {
-    for (const from of ['bonded', 'funding'] as const) {
-      expect(canCancelOnchain(from, true)).toBe(true);
-      expect(canCancelOnchain(from, false)).toBe(false);
-    }
+  it('bonded에서는 "주소가 비었다"가 확인돼야만 취소된다', () => {
+    expect(canCancelOnchain('bonded', true)).toBe(true);
+    expect(canCancelOnchain('bonded', false)).toBe(false);
   });
 
   /**
@@ -112,14 +103,15 @@ describe('O-001 · O-014 — 자금이 확정된 뒤에는 tx 없이 취소할 �
    * 보증금을 몰수하고 곧 컨펌될 자금을 버려진 주소로 보내는 셈이 된다.
    * 교체본도 같은 주소로 가므로 주소로 보면 안 놓친다. (P2 체인 어댑터 계약)
    */
-  it('판정 기준은 "이 주소가 아직 비었는가"다', () => {
-    // 같은 주소로 가는 교체 tx가 멤풀에 있으면 = 비지 않았다 = 취소 불가
-    expect(canCancelOnchain('funding', false)).toBe(false);
+  it('판정 기준은 "이 주소에 컨펌된 UTXO가 있는가"다', () => {
+    // 마감 직전에 들어온 펀딩이 컨펌됐으면 취소로 밀면 안 된다 —
+    // 아무도 안 보는 2-of-3 주소에 자금이 남는다.
+    expect(canCancelOnchain('bonded', false)).toBe(false);
   });
 
   /** 조회 실패를 '없음'으로 뭉개면 위험한 판단을 부른다 (`FundStatus`에서 겪은 것). */
   it('체인 조회 결과를 모르면(undefined) 취소하지 않는다', () => {
-    expect(canCancelOnchain('funding', undefined)).toBe(false);
+    expect(canCancelOnchain('bonded', undefined)).toBe(false);
     expect(canCancelOnchain('bonded')).toBe(false);
   });
 });
@@ -130,7 +122,7 @@ describe('O-005 — settling은 되돌아가지 않는다', () => {
       .toEqual(['customer_wins', 'refunded', 'released', 'sponsor_wins']);
   });
 
-  it.each(['remitted', 'disputed', 'presigned', 'funded', 'funding'] as const)(
+  it.each(['remitted', 'disputed', 'presigned', 'funded', 'bonded'] as const)(
     'settling → %s 불가 (멤풀 이탈은 재브로드캐스트로 대응한다)',
     to => { expect(canOnchainTransition('settling', to)).toBe(false); },
   );
@@ -149,13 +141,19 @@ describe('O-006 — swept은 관측이지 전이가 아니다', () => {
 });
 
 describe('O-008 — 리오그 복귀', () => {
-  it('funded·presigned에서 funding으로 돌아갈 수 있다', () => {
-    expect(canOnchainTransition('funded', 'funding')).toBe(true);
-    expect(canOnchainTransition('presigned', 'funding')).toBe(true);
+  /**
+   * 컨펌이 N 아래로 내려가면 `funded` 판정과 **가격 고정을 함께** 폐기한다.
+   * 돌아가는 곳은 `bonded`(= 펀딩 대기)이고, 호출부는 **마감 시각을 다시 찍어야**
+   * 한다 — 안 그러면 체인 사고로 정직한 고객이 몰수당한다.
+   */
+  it('funded·presigned에서 bonded로 돌아갈 수 있다', () => {
+    expect(canOnchainTransition('funded', 'bonded')).toBe(true);
+    expect(canOnchainTransition('presigned', 'bonded')).toBe(true);
   });
 
-  it('펀딩 tx가 사라지면 bonded로 돌아간다', () => {
-    expect(canOnchainTransition('funding', 'bonded')).toBe(true);
+  /** 되돌아가는 길은 그 하나뿐이다 — 중간 단계를 만들지 않았다. */
+  it('멤풀 관측용 중간 상태가 없다', () => {
+    expect(Object.keys(ONCHAIN_TRANSITIONS)).not.toContain('funding');
   });
 });
 
@@ -170,7 +168,7 @@ describe('§7.6 — presigned에서 분쟁으로 못 간다', () => {
 
   it('분쟁은 remitted에서만 열린다', () => {
     expect(canOnchainTransition('remitted', 'disputed')).toBe(true);
-    for (const from of ['listed', 'bonded', 'funding', 'funded'] as const) {
+    for (const from of ['listed', 'bonded', 'funded'] as const) {
       expect(canOnchainTransition(from, 'disputed')).toBe(false);
     }
   });
@@ -267,7 +265,6 @@ describe('사유 → 보증금 처리 (§4.1 · §4.1b)', () => {
     ['cancel:customer',         'none',    'refund'],
     ['cancel:expired',          'none',    'refund'],
     ['cancel:no-funding',       'refund',  'forfeit'],
-    ['cancel:funding-gone',     'refund',  'forfeit'],
     ['swept',                   'expired', 'expired'],
   ] as const)('%s → 후원자 %s / 고객 %s', (outcome, sponsor, customer) => {
     expect(OUTCOME_RULES[outcome].sponsorBond).toBe(sponsor);
@@ -293,16 +290,13 @@ describe('사유 → 보증금 처리 (§4.1 · §4.1b)', () => {
   });
 
   /**
-   * `funding`에 들어갔다는 건 고객이 쏜 tx가 멤풀에 있었다는 뜻이고, 그 입력을
-   * 통제하는 건 고객뿐이다. 사라졌다면 고객이 되돌린 것이다 — **후원자를
-   * 기다리게 만든 뒤 빼간 것**이라 아예 안 쏜 것보다 나쁘다.
+   * 안 쐈든, 쐈다가 RBF로 되돌렸든, 수수료가 낮아 안 잡혔든 **전부 한 사유**다.
+   * 우리가 보는 건 "마감 안에 컨펌됐는가"뿐이고 셋 다 고객이 통제하는 일이다.
    */
-  it('펀딩을 되돌린 것도 몰수다 (안 쏜 것보다 나쁘다)', () => {
-    expect(OUTCOME_RULES['cancel:funding-gone'].customerBond).toBe('forfeit');
+  it('펀딩 실패는 사유가 하나다 (중간 과정을 안 본다)', () => {
     expect(OUTCOME_RULES['cancel:no-funding'].customerBond).toBe('forfeit');
-    // 다만 사유는 갈라 둔다 — "안 왔다"와 "왔다가 뺐다"는 다른 사건이다
-    expect(OUTCOME_RULES['cancel:funding-gone'].label)
-      .not.toBe(OUTCOME_RULES['cancel:no-funding'].label);
+    expect(Object.keys(OUTCOME_RULES).filter(k => k.startsWith('cancel:')).sort())
+      .toEqual(['cancel:customer', 'cancel:expired', 'cancel:no-funding']);
   });
 
   it('몰수가 없으면 쓸 곳도 없다', () => {
@@ -326,6 +320,6 @@ describe('사유 → 보증금 처리 (§4.1 · §4.1b)', () => {
 describe('타입 경계', () => {
   it('상태 상수와 문자열 리터럴이 일치한다', () => {
     const states: OnchainState[] = [...ALL];
-    expect(states).toHaveLength(14);
+    expect(states).toHaveLength(13);
   });
 });

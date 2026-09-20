@@ -23,9 +23,9 @@ describe('표가 상태를 전부 덮는다', () => {
   });
 
   /** `null`은 "빠뜨렸다"가 아니라 "보낼 게 없다"를 명시한 것이다. */
-  it('알림이 없는 상태는 넷뿐이고, 각각 이유가 있다', () => {
+  it('알림이 없는 상태는 셋뿐이고, 각각 이유가 있다', () => {
     const silent = ALL.filter(s => ONCHAIN_TRANSITION_NOTICES[s] === null).sort();
-    expect(silent).toEqual(['funding', 'listed', 'settling', 'swept']);
+    expect(silent).toEqual(['listed', 'settling', 'swept']);
   });
 });
 
@@ -172,6 +172,6 @@ describe('사다리 밖 상태', () => {
 
   it('타입이 상태 집합과 묶여 있다', () => {
     const states: OnchainState[] = [...ALL];
-    expect(states).toHaveLength(14);
+    expect(states).toHaveLength(13);
   });
 });

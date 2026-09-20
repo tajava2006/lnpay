@@ -24,10 +24,11 @@
 export const ONCHAIN_STATES = {
   /** 의뢰 등록됨 (고객 LN 보증금 결제 완료). 오더북 노출 */
   LISTED: 'listed',
-  /** 후원자 보증금 accepted = **클레임 성립**. 세 키 확정 → 에스크로 주소 발행 */
+  /**
+   * 후원자 보증금 accepted = **클레임 성립**. 세 키 확정 → 에스크로 주소 발행.
+   * 고객이 마감 안에 펀딩을 **컨펌시켜야** 하는 구간이기도 하다.
+   */
   BONDED: 'bonded',
-  /** 고객 펀딩 tx가 멤풀에 있음 (컨펌 대기) */
-  FUNDING: 'funding',
   /** 펀딩 N컨펌. **KRW 가격 확정(T0)**. 후원자의 주소+사전서명 대기 */
   FUNDED: 'funded',
   /** 후원자 사전서명 검증됨. 고객이 5분 내 계좌 공개 → 그때부터 원화 송금 창 30분 */
@@ -60,16 +61,37 @@ export type OnchainState = typeof ONCHAIN_STATES[keyof typeof ONCHAIN_STATES];
  * 허용된 전이.
  *
  * ```
- * listed → bonded → funding → funded → presigned → remitted → settling → released
- *                                                      └──→ disputed ──┘
+ * listed → bonded → funded → presigned → remitted → settling → released
+ *                                            └──→ disputed ──┘
  * ```
  *
- * 몇 군데가 직관과 다른데 전부 이유가 있다:
+ * ── ⚠️ `funding` 상태는 **의도적으로 없다** (P2 착수 전 결정)
  *
- * - **`funding → bonded`** — 펀딩 tx가 RBF로 교체되거나 충돌 tx가 컨펌돼 **사라진**
- *   경우. 주문은 살아 있고 고객이 다시 쏘면 된다.
- * - **`funded|presigned → funding`** — 리오그로 컨펌이 N 아래로 내려간 경우.
+ * v11까지 "펀딩 tx가 멤풀에 있음" 상태가 있었다. 지웠다. 이유:
+ *
+ * **① 그 상태의 정보 내용은 "0-conf를 봤다" 하나뿐인데, 우리는 0-conf로 아무
+ * 결정도 내리지 않는다**(공격 D — 그래서 `funded`는 N컨펌 필수다). 아무 결정도
+ * 안 내리는 상태를 FSM에 들고 있으면 전이·알림·배지·진행도만 늘어난다.
+ *
+ * **② 펀딩 판정은 오직 "마감 안에 이 주소로 약정 금액이 N컨펌 됐는가"다.**
+ * 그 사이 고객이 멤풀에 넣었다 뺐다 하든, RBF로 수수료를 올리든, 아예 자기
+ * 주소로 빼가든 **우리가 볼 이유가 없다.** 되돌린 것도 결국 "마감 안에 못
+ * 맞췄다"로 같은 결론이고, 수수료를 낮게 잡아 못 맞춘 건 고객 책임이다.
+ *
+ * **③ txid를 쫓으면 오히려 틀린다.** 고객이 수수료를 올리면 txid가 바뀌는데,
+ * 그걸 "사라졌다"로 읽으면 **정직한 고객의 보증금을 몰수**하게 된다.
+ * txid가 필요한 건 그 UTXO를 **소모할 때**뿐이고, 그때는 컨펌된 UTXO에서 나온다.
+ *
+ * 멤풀 관측은 **화면 힌트로만** 남긴다("멤풀에서 보임 · 컨펌 대기") — 후원자
+ * 불안을 덜어주는 값은 그대로고 FSM은 안 건드린다.
+ *
+ * ── 나머지 전이의 이유
+ *
+ * - **`funded|presigned → bonded`** — 리오그로 컨펌이 N 아래로 내려간 경우.
  *   **가격 고정도 같이 폐기**된다(O-008). 안 그러면 사라진 펀딩 위에 가격만 남는다.
+ *   돌아가면서 **마감 시각을 다시 찍는다** — 안 그러면 체인 사고로 정직한 고객이
+ *   몰수당한다. (양성 리오그면 같은 tx가 다시 캐져 outpoint도 그대로라, 후원자
+ *   앱이 자동으로 다시 서명하면 그만이다.)
  * - **`presigned`에서 분쟁 진입이 없다** — 후원자의 "계좌를 못 쓴다"는 주장은
  *   상태가 아니라 **증거**다(§5.2b). 상태로 받으면 원화 마감 시계가 멈추고
  *   그 순간 무한 옵션이 열린다(§7.6 R4-H1).
@@ -80,10 +102,9 @@ export type OnchainState = typeof ONCHAIN_STATES[keyof typeof ONCHAIN_STATES];
  */
 export const ONCHAIN_TRANSITIONS: Record<OnchainState, readonly OnchainState[]> = {
   listed: ['bonded', 'cancelled'],
-  bonded: ['funding', 'cancelled'],
-  funding: ['funded', 'bonded', 'cancelled'],
-  funded: ['presigned', 'settling', 'funding'],
-  presigned: ['remitted', 'settling', 'funding'],
+  bonded: ['funded', 'cancelled'],
+  funded: ['presigned', 'settling', 'bonded'],
+  presigned: ['remitted', 'settling', 'bonded'],
   remitted: ['settling', 'disputed'],
   disputed: ['settling'],
   settling: ['released', 'refunded', 'sponsor_wins', 'customer_wins'],
@@ -151,10 +172,14 @@ export const NON_TX_OUTCOMES = {
   CANCEL_BY_CUSTOMER: 'cancel:customer',
   /** `listed → cancelled` — 의뢰 만료 (후원자가 안 붙음) */
   CANCEL_EXPIRED: 'cancel:expired',
-  /** `bonded → cancelled` — 고객이 6h 내 펀딩 안 함 */
+  /**
+   * `bonded → cancelled` — 마감까지 약정 금액이 컨펌되지 않음.
+   *
+   * 고객이 아예 안 쐈든, 쐈다가 RBF로 되돌렸든, 수수료가 낮아 안 잡혔든
+   * **전부 여기 하나로 모인다.** 우리가 보는 건 "마감 안에 컨펌됐는가"뿐이고,
+   * 셋 다 고객이 통제하는 일이다.
+   */
   CANCEL_NO_FUNDING: 'cancel:no-funding',
-  /** `funding → cancelled` — 펀딩 tx 부재가 확인됨 (O-014) */
-  CANCEL_FUNDING_GONE: 'cancel:funding-gone',
   /** 타임락 회수 — 어드민이 죽어서 고객이 혼자 뺐다 */
   SWEPT: 'swept',
 } as const;
@@ -240,32 +265,11 @@ export const OUTCOME_RULES: Record<OnchainOutcome, OutcomeRule> = {
     arbitrated: false, label: '의뢰 만료 — 후원자가 붙지 않음',
   },
   'cancel:no-funding': {
+    // 되돌린 경우도 여기다. 후원자를 기다리게 만든 뒤 빼간 것이라 더 나쁘지
+    // 않을 이유가 없고, 판정 기준("마감 안에 컨펌됐는가")도 같다.
     terminal: 'cancelled',
     sponsorBond: 'refund', customerBond: 'forfeit',
-    arbitrated: false, label: '고객이 6시간 내 펀딩하지 않음',
-  },
-  'cancel:funding-gone': {
-    // 펀딩 tx가 멤풀에도 없고 컨펌도 안 된 것이 확인된 경우에만 온다(O-014).
-    //
-    // ⚠️ **"자금이 안 움직였으니 무과실"이 아니다.** `funding`에 들어갔다는 건
-    // 고객이 서명해서 쏜 tx가 멤풀에 있었다는 뜻이고, **그 입력을 통제하는 건
-    // 고객뿐**이다. 사라지는 길은 셋인데 전부 고객 쪽이다:
-    //   ① 고객이 RBF로 자기 주소에 보내는 tx로 교체 — 의도적 회수
-    //   ② 같은 입력을 쓰는 충돌 tx가 컨펌 — 결국 같은 얘기
-    //   ③ 수수료가 낮아 멤풀에서 축출(~2주) — 고객의 수수료 선택이고
-    //      그동안 RBF·CPFP가 열려 있었다
-    //
-    // ①②는 **후원자가 멤풀을 보고 기다리게 만든 뒤 빼간 것**이라 아예 안 쏜
-    // 것(`cancel:no-funding`)보다 나쁘다. ③도 2주면 고객 보증금 HTLC가 이미
-    // 만료돼(의뢰 만료 7일 + 24h) 몰수할 게 남지 않는다 — 실제로 이 사유가
-    // 발동하는 건 사실상 ①②다.
-    //
-    // 사유를 `cancel:no-funding`과 **합치지는 않는다.** "안 왔다"와 "왔다가
-    // 뺐다"는 다른 사건이고, 반복범 신호이기도 하다(`admin_closed`를
-    // `cancelled`와 따로 둔 것과 같은 이유).
-    terminal: 'cancelled',
-    sponsorBond: 'refund', customerBond: 'forfeit',
-    arbitrated: false, label: '고객이 펀딩을 되돌림 — 멤풀에 있다 사라졌다',
+    arbitrated: false, label: '마감까지 펀딩이 컨펌되지 않음',
   },
   'swept': {
     // 어드민이 죽은 상황이라 홀드 인보이스를 settle도 cancel도 못 한다.
@@ -288,28 +292,33 @@ export function forfeitUse(outcome: OnchainOutcome): 'arbitration-fee' | 'compen
 // ────────────────────────────────────────────────────────────────────────
 
 /**
- * **O-001 · O-014.** `bonded` 이후 `cancelled`로 가려면 **"주소에 컨펌 UTXO 없음 +
- * 그 주소로 가는 tx가 멤풀에도 없음"** 을 확인해야 한다.
+ * **O-001 · O-014.** `bonded` 이후 `cancelled`로 가려면 **"이 주소에 컨펌된 UTXO가
+ * 없다"** 를 체인에서 확인해야 한다.
  *
- * 멤풀 tx는 몇 시간 뒤에도 컨펌된다. "12시간 지났으니 취소"로 보내면 그 뒤
- * 펀딩이 컨펌됐을 때 **아무도 안 보는 2-of-3 주소에 자금이 갇힌다.**
+ * 멤풀은 보지 않는다 — 판정 기준이 "마감 안에 컨펌됐는가"뿐이라 볼 이유가 없다.
+ * 대신 **컨펌 여부는 반드시 본다**: 마감 직전에 들어온 펀딩이 컨펌됐는데 취소로
+ * 밀어버리면, 아무도 안 보는 2-of-3 주소에 자금이 남는다.
  *
- * ⚠️ **판정 기준은 txid가 아니라 주소다.** 고객 지갑이 수수료를 올리면(RBF)
- * txid가 바뀌는데, txid를 쫓으면 그게 "사라졌다"로 보인다. 그대로 취소하면
- * **정직하게 수수료만 올린 고객의 보증금을 몰수하고**, 곧 컨펌될 자금을 버려진
- * 주소로 보내는 셈이 된다. 교체본도 같은 주소로 가므로 주소로 보면 안 놓친다.
+ * ⚠️ **판정은 주소 기준이다. txid가 아니다.** 고객이 수수료를 올리면 txid가
+ * 바뀌므로, txid를 쫓으면 정직한 고객이 "사라진" 것으로 보인다. 교체본도 같은
+ * 주소로 가므로 주소로 보면 안 놓친다. txid가 필요한 건 그 UTXO를 **소모할 때**뿐이다.
  *
- * `chainSaysEscrowUnfunded`가 `undefined`인 건 **"모른다"** 다(조회 실패).
- * 모르면 막는다 — 조회 실패를 '없음'으로 뭉개는 게 정확히 `FundStatus`에서 겪은 사고다.
+ * `escrowUnfunded`가 `undefined`인 건 **"모른다"** 다(조회 실패). 모르면 막는다 —
+ * 조회 실패를 '없음'으로 뭉개는 게 정확히 `FundStatus`에서 겪은 사고다.
+ *
+ * ⚠️ 마감 직후 늦게 컨펌되는 경우가 남는다. 그때 자금은 **갇히지 않는다** —
+ * 고객 키는 nostr 키에서 결정론적으로 파생되고, `{A,C}`로 협조 환불이 되며,
+ * 최후에는 타임락 리프가 받는다. 그게 그 리프가 존재하는 이유다.
+ * 워처는 취소된 주문의 주소도 한동안 계속 봐야 한다(P4).
  */
 export function canCancelOnchain(
   from: OnchainState,
-  chainSaysEscrowUnfunded?: boolean,
+  escrowUnfunded?: boolean,
 ): boolean {
   if (!canOnchainTransition(from, 'cancelled')) return false;
   // listed 단계엔 주소 자체가 없다 — 확인할 대상이 없으므로 그냥 간다.
   if (from === 'listed') return true;
-  return chainSaysEscrowUnfunded === true;
+  return escrowUnfunded === true;
 }
 
 /**

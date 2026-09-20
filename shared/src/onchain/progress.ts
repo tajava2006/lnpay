@@ -3,10 +3,15 @@
  *
  * 단계는 FSM의 정상 경로를 그대로 따른다:
  *
- *   listed → bonded → funding → funded → presigned → remitted → settling → released
+ *   listed → bonded → funded → presigned → remitted → settling → released
  *
  * 라이트닝판(`order-progress.ts`)과 **모양을 일부러 맞췄다** — 리뷰할 때 두 트랙을
  * 나란히 놓고 볼 수 있어야 한다. 다른 건 내용뿐이다.
+ *
+ * ⚠️ `bonded` 한 단계가 **"보내기 + 컨펌"을 둘 다** 덮는다. 멤풀 관측은 상태가
+ * 아니라 화면 힌트라서(§4.2) 단계를 쪼갤 이유가 없다 — 판정은 "마감 안에 약정
+ * 금액이 N컨펌 됐는가" 하나다. 화면은 그 단계 안에서 "멤풀에서 보임 · 컨펌 대기"를
+ * 덧붙이면 된다.
  *
  * ── 문구에 무엇을 넣나
  *
@@ -75,31 +80,19 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
   },
   {
     state: 'bonded',
-    title: '고객 펀딩',
+    title: '고객 펀딩 (컨펌까지)',
     actor: 'customer',
     customer: [
       { text: '화면의 에스크로 주소로 **정확한 수량**을 보냅니다. 금액이 다르면 처리되지 않습니다.' },
       { text: '앱이 그 주소를 내 키로 직접 다시 만들어 대조합니다. **경고가 뜨면 절대 보내지 마세요.**' },
-      { text: '**6시간 안에** 보내지 않으면 거래가 취소되고 **보증금을 잃습니다.**' },
+      { text: '**6시간 안에 컨펌까지** 끝나야 합니다. 보내는 것만으로는 부족하니 수수료를 넉넉히 잡으세요.' },
+      { text: '늦으면 거래가 취소되고 **보증금을 잃습니다.** 안 잡히면 RBF·CPFP로 수수료를 올릴 수 있습니다.' },
       { text: '펀딩 트랜잭션 수수료는 내 지갑이 정하고 내가 냅니다.' },
     ],
     sponsor: [
-      { text: '고객이 펀딩할 때까지 기다립니다. 보통 몇 분입니다.' },
-      { text: '**아직 원화를 보내지 마세요.** 컨펌 전에는 되돌릴 수 있습니다.' },
-    ],
-  },
-  {
-    state: 'funding',
-    title: '컨펌 대기',
-    actor: 'chain',
-    customer: [
-      { text: '블록에 들어가기를 기다립니다. 보통 10~60분입니다.' },
+      { text: '고객이 펀딩을 컨펌시킬 때까지 기다립니다. 보통 10~60분입니다.' },
+      { text: '**컨펌될 때까지 원화를 보내지 마세요.** 멤풀에 보이는 것은 되돌려질 수 있습니다.' },
       { text: '**가격은 아직 정해지지 않았습니다** — 컨펌되는 시점의 시세로 정해집니다.' },
-      { text: '수수료가 낮아 오래 걸리면 지갑에서 수수료를 올리거나(RBF/CPFP) 취소할 수 있습니다.', optional: true },
-    ],
-    sponsor: [
-      { text: '**컨펌될 때까지 원화를 보내지 마세요.** 0-conf는 되돌려질 수 있습니다.' },
-      { text: '펀딩이 오래 걸려도 보증금은 자체 만료로 환불되므로 영구히 묶이지 않습니다.' },
     ],
   },
   {
@@ -266,9 +259,9 @@ export interface OnchainProgress {
  * - `sponsor_wins`/`customer_wins`는 FSM상 `remitted` 유래 분쟁에서만 오므로
  *   `remitted`까지는 완료로 확정할 수 있다.
  * - `refunded`는 `funded`·`presigned`·`disputed` 어디서든 올 수 있다. 다만
- *   **펀딩은 확실히 컨펌됐다**(환불 tx가 에스크로를 소모하므로) → `funding`까지 완료.
- * - `cancelled`는 펀딩 전이라 아무것도 확정할 수 없다 → 전부 미진행.
- * - `swept`도 펀딩 컨펌 이후 어느 상태에서든 관측될 수 있다 → `funding`까지 완료.
+ *   **펀딩은 확실히 컨펌됐다**(환불 tx가 에스크로를 소모하므로) → `bonded`까지 완료.
+ * - `cancelled`는 펀딩이 컨펌되기 전이라 아무것도 확정할 수 없다 → 전부 미진행.
+ * - `swept`도 펀딩 컨펌 이후 어느 상태에서든 관측될 수 있다 → `bonded`까지 완료.
  */
 export function resolveOnchainProgress(
   role: OnchainRole,
@@ -318,7 +311,7 @@ function terminalDoneThrough(state: OnchainTerminalInfo['state']): number {
     case 'cancelled': return -1;
     // 에스크로를 소모하는 종결이므로 펀딩 컨펌까지는 확실하다
     case 'refunded':
-    case 'swept': return STEP_INDEX.get('funding')!;
+    case 'swept': return STEP_INDEX.get('bonded')!;
     // 분쟁 판정은 remitted 유래다
     case 'sponsor_wins':
     case 'customer_wins': return STEP_INDEX.get('remitted')!;

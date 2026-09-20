@@ -9,6 +9,10 @@
  * 문제였다. 여기서는 `ONCHAIN_STATES`에 상태를 하나 넣으면 이 파일이
  * **컴파일 에러**를 낸다.
  *
+ * 멤풀에서 tx를 봤다는 것은 **상태가 아니라 화면 힌트**다(§4.2). `bonded` 배지
+ * 옆에 "멤풀에서 보임 · 컨펌 대기"를 덧붙이는 식으로 쓴다 — 배지 자체를 바꾸지
+ * 않는다. 0-conf는 아무 결정도 못 내리므로 상태가 될 수 없다.
+ *
  * 색은 라이트닝 표와 같은 팔레트를 쓰되, 같은 뜻이면 같은 색으로 맞췄다 —
  * `내 거래` 탭이 두 트랙을 한 목록에 섞어 보여주므로(§5.4) 색이 어긋나면
  * 유저가 상태를 색으로 읽는 습관이 깨진다.
@@ -18,8 +22,7 @@ import type { OnchainState } from './state-machine';
 
 export const ONCHAIN_STATE_DISPLAY: Record<OnchainState, StateDisplay> = {
   listed:     { label: '오더북 등록',     color: '#D97706', bg: '#FEF3C7' },
-  bonded:     { label: '후원자 확정',     color: '#2563EB', bg: '#DBEAFE' },
-  funding:    { label: '펀딩 확인 중',    color: '#4F46E5', bg: '#E0E7FF' },
+  bonded:     { label: '펀딩 대기',       color: '#2563EB', bg: '#DBEAFE' },
   funded:     { label: '에스크로 확정',   color: '#7C3AED', bg: '#EDE9FE' },
   presigned:  { label: '계좌 전달 대기',  color: '#9333EA', bg: '#F3E8FF' },
   remitted:   { label: '송금 주장',       color: '#BE185D', bg: '#FCE7F3' },

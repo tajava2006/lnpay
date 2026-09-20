@@ -28,7 +28,7 @@ export const ONCHAIN_NOTIFY = {
 
   /** 후원자 보증금이 잡혔다 = 클레임 성립. 고객이 6시간 안에 펀딩해야 한다. */
   customerShouldFund: (): Notice => ({
-    body: '후원자가 확정되었습니다. 6시간 안에 에스크로 주소로 보내주세요. 늦으면 보증금을 잃습니다.',
+    body: '후원자가 확정되었습니다. 6시간 안에 에스크로 주소로 보내고 컨펌까지 마쳐주세요. 늦으면 보증금을 잃습니다.',
     tab: 'onchain',
   }),
 
@@ -128,7 +128,6 @@ export interface StateNotices {
  *
  * `null`은 "보낼 게 없다"를 **명시**한 것이다:
  * - `listed` — 등록한 본인만 아는 상태. 후원자에게는 오더북이 알림이다
- * - `funding` — 체인을 기다리는 구간. 아무도 할 일이 없다
  * - `settling` — 종결 tx를 기다리는 구간. 결과는 터미널에서 알린다
  * - `swept` — **어드민이 죽어야 일어나는 종결**이다. 그 상황에서는 이 코드가
  *   돌지 않으므로 알림을 정의해봐야 거짓말이다
@@ -136,7 +135,6 @@ export interface StateNotices {
 export const ONCHAIN_TRANSITION_NOTICES: Record<OnchainState, StateNotices | null> = {
   listed: null,
   bonded: { customer: ONCHAIN_NOTIFY.customerShouldFund() },
-  funding: null,
   funded: { sponsor: ONCHAIN_NOTIFY.sponsorShouldPresign() },
   presigned: { customer: ONCHAIN_NOTIFY.customerShouldSendAccount() },
   remitted: { customer: ONCHAIN_NOTIFY.customerShouldConfirm() },

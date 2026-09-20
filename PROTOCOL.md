@@ -932,22 +932,28 @@ CLIENT_TAG_ONCHAIN = import.meta.env.DEV
 ### 상태 머신 (라이트닝과 별도)
 
 ```
-listed → bonded → funding → funded → presigned → remitted → settling → released
-                     ↑         │          │          │          │
-                     └─────────┴──────────┘          ↓          ├→ refunded
-                     (리오그 복귀)              disputed ───────→├→ sponsor_wins
-                                                                 └→ customer_wins
+listed → bonded → funded → presigned → remitted → settling → released
+            ↑        │          │          │          │
+            └────────┴──────────┘          ↓          ├→ refunded
+            (리오그 복귀)             disputed ───────→├→ sponsor_wins
+                                                       └→ customer_wins
 
-cancelled: listed, bonded, funding에서만 (funded 이후 불가)
+cancelled: listed, bonded에서만 (funded 이후 불가)
 swept:     전이가 아니라 **체인에서 관측**한다
 터미널:    released, refunded, sponsor_wins, customer_wins, cancelled, swept
 ```
 
+**멤풀 관측은 상태가 아니다.** "펀딩 tx가 멤풀에 있음"을 상태로 뒀다가 없앴다 —
+그 상태의 정보 내용은 "0-conf를 봤다" 하나뿐인데 우리는 0-conf로 아무 결정도
+내리지 않는다. 펀딩 판정은 **"마감 안에 이 주소로 약정 금액이 N컨펌 됐는가"**
+한 줄이고, 중간에 고객이 RBF로 수수료를 올리든 자기 주소로 빼가든 보지 않는다.
+화면에는 "멤풀에서 보임 · 컨펌 대기"를 힌트로만 띄운다.
+(근거: [PLAN §4.1c](docs/PLAN-ONCHAIN-TRACK.md))
+
 | 상태 | 의미 |
 |------|------|
 | `listed` | 의뢰 등록됨 (고객 LN 보증금 결제 완료). 오더북 노출 |
-| `bonded` | 후원자 보증금 accepted = **클레임 성립**. 세 키 확정 → 에스크로 주소 발행 |
-| `funding` | 고객 펀딩 tx가 멤풀에 있음 (컨펌 대기) |
+| `bonded` | 후원자 보증금 accepted = **클레임 성립**. 세 키 확정 → 에스크로 주소 발행. **고객이 마감 안에 펀딩을 컨펌시켜야 하는 구간** |
 | `funded` | 펀딩 N컨펌. **KRW 가격 확정(T0)**. 후원자 사전서명 대기 |
 | `presigned` | 사전서명 검증됨. 고객이 5분 내 계좌 공개 → 그때부터 송금 창 30분 |
 | `remitted` | 후원자가 원화 송금 주장. 고객이 은행 확인 후 cosign해야 한다 |
@@ -990,8 +996,7 @@ swept:     전이가 아니라 **체인에서 관측**한다
 | `sponsor_win` | 환불 | **몰수** |
 | `customer_win` | **몰수** | 환불 |
 | `cancel:customer` / `cancel:expired` | — | 환불 |
-| `cancel:no-funding` (6h 내 펀딩 없음) | 환불 | **몰수** |
-| `cancel:funding-gone` (멤풀에 있다 사라짐) | 환불 | **몰수** |
+| `cancel:no-funding` (마감까지 미컨펌) | 환불 | **몰수** |
 | `swept` | LN 만료 환불 | LN 만료 환불 |
 
 몰수금의 쓰임이 갈린다: **분쟁이면 전액 중재료**, 타임아웃이면 50%를 피해자에게
@@ -1002,8 +1007,7 @@ swept:     전이가 아니라 **체인에서 관측**한다
 | 상태 | 마감 | 초과 시 |
 |---|---|---|
 | `listed` | 의뢰 만료 (**최대 7일**) | `cancelled` |
-| `bonded` | 6시간 | `cancelled`, 고객 보증금 몰수 |
-| `funding` | **하드 마감 없음** (12h는 경고 시점) | 멤풀 tx는 나중에 컨펌된다 |
+| `bonded` | **6시간 (컨펌까지)** | `cancelled`, 고객 보증금 몰수 |
 | `funded` | T0+15분 | `refund:sponsor-timeout` |
 | `presigned` (고객) | 계좌 공개 = +5분 | `refund:customer-late` |
 | `presigned` (후원자) | 송금 = **계좌 공개 +30분** | `refund:sponsor-timeout` |
@@ -1023,7 +1027,7 @@ swept:     전이가 아니라 **체인에서 관측**한다
 |---|---|
 | 계좌 정보는 `presigned`·`remitted`에서만 발행 | `canSendAccountInfoOnchain()` |
 | **릴리스는 절대 자동화하지 않는다** — 고객 수동 확인만 | `canAutoRelease()` (타입까지 `false`) |
-| `bonded` 이후 취소는 **펀딩 tx 부재 확인** 필수 (모르면 거부) | `canCancelOnchain()` |
+| `bonded` 이후 취소는 **"주소에 컨펌 UTXO 없음" 확인** 필수 (모르면 거부) | `canCancelOnchain()` |
 | 가격 유효창 = `remitted` + 24시간. 넘기면 경고 + 명시적 우회만 | `isPriceStale()` |
 | 주소는 클라이언트가 **직접 파생해 대조** | `verifyEscrowAddress()` |
 | 세 키가 하나라도 겹치면 주소를 만들지 않는다 | `assertEscrowKeys()` |

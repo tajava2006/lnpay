@@ -51,10 +51,18 @@ describe('배지 전수', () => {
 });
 
 describe('진행도 사다리', () => {
-  it('정상 경로 8단계', () => {
+  it('정상 경로 7단계', () => {
     expect(ONCHAIN_PROGRESS_STEPS.map(s => s.state)).toEqual([
-      'listed', 'bonded', 'funding', 'funded', 'presigned', 'remitted', 'settling', 'released',
+      'listed', 'bonded', 'funded', 'presigned', 'remitted', 'settling', 'released',
     ]);
+  });
+
+  /**
+   * 멤풀 관측은 상태가 아니라 화면 힌트다(§4.2). `bonded` 한 단계가 "보내기 +
+   * 컨펌"을 둘 다 덮는다 — 판정이 "마감 안에 N컨펌 됐는가" 하나뿐이라 쪼갤 게 없다.
+   */
+  it('멤풀 대기용 단계가 따로 없다', () => {
+    expect(ONCHAIN_PROGRESS_STEPS.map(s => s.state)).not.toContain('funding');
   });
 
   /**
@@ -103,8 +111,13 @@ describe('단계별 주체', () => {
   });
 
   it('컨펌 대기 구간은 아무의 차례도 아니다', () => {
-    expect(onchainStepActor('funding')).toBe('chain');
     expect(onchainStepActor('settling')).toBe('chain');
+    expect(onchainStepActor('released')).toBe('chain');
+  });
+
+  /** 펀딩은 보내는 것도 컨펌시키는 것도 고객 책임이라 한 단계 내내 고객 차례다. */
+  it('펀딩 단계는 컨펌까지 고객 차례다', () => {
+    expect(onchainStepActor('bonded')).toBe('customer');
   });
 
   it('사다리 밖 상태는 admin (판정 대기)', () => {
@@ -115,10 +128,10 @@ describe('단계별 주체', () => {
 describe('진행도 해석', () => {
   it('정상 진행 중에는 현재 단계가 잡힌다', () => {
     const p = resolveOnchainProgress('customer', 'funded');
-    expect(p.currentIndex).toBe(3);
-    expect(p.steps[3]!.status).toBe('current');
-    expect(p.steps[2]!.status).toBe('done');
-    expect(p.steps[4]!.status).toBe('upcoming');
+    expect(p.currentIndex).toBe(2);
+    expect(p.steps[2]!.status).toBe('current');
+    expect(p.steps[1]!.status).toBe('done');
+    expect(p.steps[3]!.status).toBe('upcoming');
     expect(p.terminal).toBeNull();
     expect(p.disputed).toBe(false);
   });
@@ -126,7 +139,7 @@ describe('진행도 해석', () => {
   it('내 차례 판정이 역할을 탄다', () => {
     expect(resolveOnchainProgress('customer', 'bonded').steps[1]!.isMyTurn).toBe(true);
     expect(resolveOnchainProgress('sponsor', 'bonded').steps[1]!.isMyTurn).toBe(false);
-    expect(resolveOnchainProgress('sponsor', 'funded').steps[3]!.isMyTurn).toBe(true);
+    expect(resolveOnchainProgress('sponsor', 'funded').steps[2]!.isMyTurn).toBe(true);
   });
 
   it('역할에 따라 다른 문구를 준다', () => {
@@ -158,7 +171,7 @@ describe('진행도 해석', () => {
     for (const state of ['refunded', 'swept'] as const) {
       const p = resolveOnchainProgress('customer', state);
       expect(p.terminal?.state, state).toBe(state);
-      expect(p.steps.find(s => s.state === 'funding')!.status, state).toBe('done');
+      expect(p.steps.find(s => s.state === 'bonded')!.status, state).toBe('done');
       expect(p.steps.find(s => s.state === 'presigned')!.status, state).toBe('upcoming');
     }
   });

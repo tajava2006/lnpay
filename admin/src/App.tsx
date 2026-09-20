@@ -14,6 +14,9 @@ import { LnConfigPage } from './components/LnConfigPage';
 import { getVapidPrivateKey, restoreVapidPrivateKey, discardVapidKeyIfMismatched } from './web-push/vapid-store';
 import { OrderQueue } from './components/OrderQueue';
 import { OnchainPanel } from './components/OnchainPanel';
+import { OnchainConfig } from './components/OnchainConfig';
+import { startOnchainTrack, stopOnchainTrack } from './onchain/runtime';
+import { getOnchainBaseUrl, getOnchainNetwork, isOnchainEnabled } from './onchain/config';
 import { OrderClaimList } from './components/OrderClaimList';
 import { HistoryPage } from './components/HistoryPage';
 import { OrderDetail } from './components/OrderDetail';
@@ -69,6 +72,9 @@ export function App() {
 
   // ─── LN 어댑터 + 노드 트래커 (lnConfig 의존) ─────
 
+  // 설정이 바뀌면 트랙을 다시 띄운다 (네트워크·엔드포인트가 생성자 인자라서)
+  const [onchainEpoch, setOnchainEpoch] = useState(0);
+
   const lnAdapter: LightningAdapter | null = useMemo(() => {
     if (!lnConfig) return null;
     return createLightningAdapter(lnConfig);
@@ -100,6 +106,27 @@ export function App() {
       stopInvoiceWatcher();
     };
   }, [lnAdapter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * 온체인 트랙 — **켜져 있을 때만** 돈다 (PLAN-ONCHAIN-TRACK §1.2).
+   *
+   * 라이트닝 트랙은 지금 실제 돈이 돌고 있으므로, 온체인이 켜지든 꺼지든
+   * 거기에 영향이 없어야 한다. 로그인·LN 어댑터가 둘 다 준비돼야 시작한다 —
+   * 서명(NIP-46)과 보증금 인보이스가 없으면 아무 단계도 못 지나간다.
+   */
+  useEffect(() => {
+    if (authState !== 'logged-in' || !lnAdapter || !isOnchainEnabled()) {
+      stopOnchainTrack();
+      return;
+    }
+    void startOnchainTrack({
+      lnAdapter,
+      btcPriceKrw: () => tracker.getSnapshot().price ?? undefined,
+      network: getOnchainNetwork(),
+      chainBaseUrl: getOnchainBaseUrl(),
+    });
+    return () => stopOnchainTrack();
+  }, [authState, lnAdapter, onchainEpoch, tracker]);
 
   // 로그인 상태 변경 시 기존 tracker 시작/중지
   useEffect(() => {
@@ -437,6 +464,7 @@ export function App() {
         ) : (
           <>
             <OrderQueue onSelectOrder={selectOrder} tracker={tracker} />
+            <OnchainConfig onChanged={() => setOnchainEpoch(n => n + 1)} />
             {/*
               온체인 트랙은 **별도 FSM·별도 구독**이라 오더북에 섞지 않는다
               (PLAN-ONCHAIN-TRACK §1). 대신 사람이 봐야 하는 것(경보·분쟁)은

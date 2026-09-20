@@ -1,6 +1,6 @@
 # 온체인 트랙 구현 플랜
 
-> 상태: **플랜 v9 — 유저 이해 점검에서 나온 4건 반영. 착수 게이트 통과.** 2026-09-20.
+> 상태: **플랜 v10 — P0 구현 완료. 거기서 확정된 것을 본문에 반영.** 2026-09-20.
 >
 > 이 문서만 보고 구현을 처음부터 끝까지 진행할 수 있게 쓴다. 배경과 "왜"는
 > [IDEA-ONCHAIN-TRACK.md](IDEA-ONCHAIN-TRACK.md)에 있고, 여기는 **무엇을 어떤 순서로**다.
@@ -264,6 +264,35 @@ leaf 4  타임락      <N> OP_CSV OP_DROP <C> OP_CHECKSIG
 > **상대 타임락(CSV)** 인 이유: 절대(CLTV)는 펀딩이 늦어지면 창이 짧아진다.
 > CSV는 펀딩 컨펌부터 세므로 항상 같은 길이가 보장된다.
 
+### §3.1b 트리 모양 — 균형 이진 트리로 못박는다 (P0에서 확정)
+
+리프 넷을 **어떤 모양으로 묶는지가 곧 주소**다. 플랜 v9까지 그걸 안 정해놔서
+P0에서 확정했다:
+
+```
+              root
+           /        \
+      branch          branch
+     /      \        /      \
+release  cust-win  spon-win  timelock
+```
+
+= `[[release, customer-win], [sponsor-win, timelock]]`. 리프 배열 순서가 규약이다.
+
+**① 라이브러리의 자동 배치(`taprootListToTree`)를 쓰지 않는다.** 그건 가중치
+기반(허프만) 배치라 **라이브러리 버전이 올라가면서 배치 규칙이 바뀌면 같은 키에서
+다른 주소**가 나올 수 있다. 주소가 흔들리는 건 곧 자금 유실이므로 모양을 우리가
+직접 짠다.
+
+**② 깊이를 균일하게(전부 2) 둔다.** 자주 쓰는 `release`를 위로 올리면 control
+block이 97→65바이트로 줄어 happy path에서 ~8 vB를 아낀다. 그 대신 **경로마다
+종결 tx 크기가 달라진다.** 이 트랙은 `releaseFeeSat`을 미리 고정하고(§6.1)
+환불·분쟁 수수료를 따로 추정하므로, **모든 종결이 같은 크기**인 쪽이 수수료
+계산을 한 줄로 만든다. 8 vB와 그 단순함을 바꿨다.
+
+⚠️ 이 배치를 바꾸면 **기존 주문의 주소가 전부 달라진다.** 파생 접두사
+(`pairbuy-onchain/v1/`)와 같은 등급의 규약이다.
+
 ## §3.2 키 파생
 
 **고객·후원자** (로컬에 nostr 개인키가 있음):
@@ -314,6 +343,24 @@ orderKey = HMAC-SHA256(key = nostrPrivkey, msg = "pairbuy-onchain/v1/" + orderId
 
 ⚠️ `update-deps.sh`가 latest를 따라가므로, **서명 경로 라이브러리가 조용히 갈리지
 않게** `pnpm why`로 단일 인스턴스를 확인한다 (ark SDK crypto 3종에서 겪은 그 문제).
+
+**P0 실측 결과 — 두 벌이고, 그대로 둔다:**
+
+```
+@noble/curves 2.0.1  ← nostr-tools        (nostr 서명)
+@noble/curves 2.4.0  ← @scure/btc-signer  (비트코인 서명)
+```
+
+합칠 수 없다. noble/scure 계열은 공급망 이유로 의존성을 **정확 버전**으로 핀하므로
+override로 맞추면 상류의 의도를 깨는 것이다. 그리고 ark SDK에서 위험했던 건
+*같은 서명 경로*가 두 인스턴스를 섞어 쓴 경우였다. 여기는 경로가 완전히 갈리고
+**원시 바이트만** 주고받는다(키 객체를 넘기지 않는다).
+
+→ 대신 규칙을 코드에 박았다: **`shared/src/onchain/`에서는 `@noble/*`·`@scure/base`를
+직접 import하지 않는다.** `@scure/btc-signer`가 재수출하는 것(`utils.pubSchnorr` 등)
+또는 WebCrypto만 쓴다. 직접 의존을 다는 순간 **비트코인 경로에 두 번째 인스턴스가
+생긴다** — 그게 진짜 막아야 할 것이다. hex 변환을 `@scure/base` 대신 직접 짠 이유도
+이것이다.
 
 ---
 
@@ -1405,12 +1452,23 @@ customer/src/onchain/
 
 각 단계는 **독립적으로 커밋 가능**하고, 앞 단계가 깨지면 뒤가 진행되지 않는다.
 
-### P0 — 암호 기반 (UI 없음)
-- `shared/src/onchain/{keys,script,address}.ts`
-- `@scure/btc-signer` 추가 + 단일 인스턴스 확인
-- **테스트**: BIP-341 테스트 벡터로 주소 파생 검증, 키 파생 결정론성,
-  세 키 상이 검사, NUMS 점 상수 확인
-- ✅ **완료 조건**: 알려진 입력 → 알려진 taproot 주소가 재현된다
+### P0 — 암호 기반 (UI 없음) — ✅ **완료** (2026-09-20, `2870403`)
+- `shared/src/onchain/{hex,keys,script,address,index}.ts`
+  (`@sajwo-tracker/shared/onchain` 서브패스로 내보낸다 — 메인 index를 안 건드려야
+   트랙을 붙였다 뗐다 할 수 있다, §1.2)
+- `@scure/btc-signer` 추가 + 단일 인스턴스 확인 → **두 벌이고 그대로 둔다**(§3.5)
+- **테스트 55개** (shared 전체 131 green):
+  - BIP-341 공식 wallet test vectors 7케이스를 픽스처로 박아 대조
+    (`shared/src/__tests__/fixtures/bip341-scriptpubkey.json`)
+  - **우리 4리프 트리의 머클 루트는 테스트가 태그드 해시로 직접 계산**해 대조 —
+    트리 모양은 우리 결정이라(§3.1b) BIP 벡터가 못 잡아준다
+  - 리프 스크립트는 opcode 바이트를 손으로 적은 기댓값과 비교
+    (인코더가 자기 출력을 자기가 증명하지 않게)
+  - 고정 키 → 고정 주소 골든 (mainnet/signet/regtest), 키·타임락·네트워크
+    변조 시 독립 검증이 막는지 (공격 G·H)
+- ✅ **완료 조건 충족**: 알려진 입력 → 알려진 taproot 주소가 재현된다
+- 확정/정정된 것: 트리 모양(§3.1b), NUMS 상수 일치, control block 97 B,
+  종결 tx 169 vB(§12 Q8)
 
 ### P1 — FSM + 표시 5종
 - `state-machine.ts`, `display.ts`, `progress.ts` + 알림 문구 + 문서
@@ -1510,8 +1568,9 @@ CSV는 **펀딩 컨펌**부터 세고 원화는 항상 `T0+50분` 안에 흐르�
 **근거**: 하한이 비율(3%)을 이기는 구간에서는 실효 보증금이 3%를 넘는다. 그 지점을
 최소 거래액으로 잡으면 **어떤 거래도 실효 보증금이 3%를 안 넘는다.**
 
-2-of-3 script-path 종결 tx ≈ **170 vB**
-(비증인 94 B + 증인 ≈300 wu: 서명 2×65 + 스크립트 ~71 + control block 98):
+2-of-3 script-path 종결 tx ≈ **169 vB** (P0에서 실측 정정 — 아래 표의 결론은 그대로)
+(비증인 94 B + 증인 300 wu: 스택 개수 1 + 서명 2×65 + 스크립트 69 + control block 98
+ + segwit marker/flag 2. **실제 control block은 97 B**이고 길이 접두사 1 B가 붙어 98):
 
 | feerate | 종결 수수료 | 보증금 하한 | **최소 거래액** |
 |---|---|---|---|
@@ -1523,8 +1582,13 @@ CSV는 **펀딩 컨펌**부터 세고 원화는 항상 `T0+50분` 안에 흐르�
 수수료가 비쌀 땐 소액이 아예 불가능하고, 그건 **라이트닝 트랙이 할 일**이다.
 UI에서 "지금은 최소 N sats" 를 실시간으로 보여준다.
 
-> 리뷰어는 종결 tx를 250~400 vB로 봤는데 **170 vB가 맞다**(taproot script-path는
-> 4-leaf 트리라 control block이 98 B). 결론과 공식은 그대로 유효하다.
+> 리뷰어는 종결 tx를 250~400 vB로 봤는데 **169 vB가 맞다**(taproot script-path는
+> 4-leaf **균형** 트리라 control block이 97 B = 33 + 32×깊이2). 결론과 공식은
+> 그대로 유효하다 — 위 표의 최소 거래액도 반올림 안에서 같다.
+>
+> P0 실측: 리프 스크립트 68 B(플랜 추정 ~71), control block 97 B(추정 98).
+> 서명은 SIGHASH_DEFAULT라 64 B(+길이 1). 트리를 불균형으로 짰다면 경로마다
+> 달랐겠지만 §3.1b에서 균형으로 못박아 **모든 종결이 같은 크기**다.
 
 ---
 

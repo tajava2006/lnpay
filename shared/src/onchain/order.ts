@@ -77,6 +77,8 @@ export interface OnchainOrder {
   // ── settling 이후 ──
   settlementKind?: SettlementKind;
   settlementTxid?: string;
+  /** 종결 tx를 뿌린 시각. 24시간 넘게 안 잡히면 CPFP 안내를 띄운다 (§6.2) */
+  settlingAt?: number;
 
   // ── 보증금 (LN 홀드 인보이스) ──
   customerDepositHash?: string;
@@ -136,6 +138,7 @@ export function onchainOrderTags(order: OnchainOrder, clientTag: string): TagLis
 
   str(tags, 'settlement-kind', order.settlementKind);
   str(tags, 'settlement-txid', order.settlementTxid);
+  num(tags, 'settling-at', order.settlingAt);
 
   str(tags, 'customer-deposit-payment-hash', order.customerDepositHash);
   str(tags, 'sponsor-deposit-payment-hash', order.sponsorDepositHash);
@@ -231,6 +234,7 @@ export function parseOnchainOrder(
 
     settlementKind: tagValue(tags, 'settlement-kind') as SettlementKind | undefined,
     settlementTxid: tagValue(tags, 'settlement-txid'),
+    settlingAt: readNum(tags, 'settling-at'),
 
     customerDepositHash: tagValue(tags, 'customer-deposit-payment-hash'),
     sponsorDepositHash: tagValue(tags, 'sponsor-deposit-payment-hash'),

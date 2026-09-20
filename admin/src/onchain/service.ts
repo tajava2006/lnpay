@@ -188,9 +188,11 @@ export async function handleOnchainOrderRequest(req: OnchainOrderRequestMsg): Pr
   }
 
   const bondSat = depositSat(req.amountSat, CUSTOMER_DEPOSIT_PERCENT, floor);
+  const escrowKey = `onchain:${req.orderId}`;
   const invoice = await lnAdapter.createHoldInvoice(
-    `onchain:${req.orderId}`, bondSat, req.expiration - now(), cltv,
+    escrowKey, bondSat, req.expiration - now(), cltv,
   );
+  mergeEscrowMeta(req.orderId, { customerDepositKey: escrowKey });
 
   putOnchainDeposit({
     orderId: req.orderId,
@@ -255,8 +257,9 @@ export async function handleOnchainClaim(req: OnchainClaimMsg): Promise<void> {
   const cltv = depositCltvBlocks(order.expiration, now());
   if (cltv > CLTV_CEILING_BLOCKS) return console.error('[Onchain] 보증금 CLTV 초과:', cltv);
 
+  const escrowKey = `onchain:${req.orderId}:${req.pubkey}`;
   const invoice = await lnAdapter.createHoldInvoice(
-    `onchain:${req.orderId}:${req.pubkey.slice(0, 8)}`, bondSat, order.expiration - now(), cltv,
+    escrowKey, bondSat, order.expiration - now(), cltv,
   );
 
   putOnchainDeposit({
@@ -271,6 +274,7 @@ export async function handleOnchainClaim(req: OnchainClaimMsg): Promise<void> {
     sponsorXonly: req.sponsorXonly,
     payoutAddress: payload.payoutAddress,
     feerateSatPerVb: payload.feerateSatPerVb,
+    escrowKey,
   });
 
   await publishOnchainDepositRequired(req.orderId, req.pubkey, invoice.bolt11, order.expiration);
@@ -378,6 +382,7 @@ async function onDepositAccepted(deposit: OnchainPendingDeposit): Promise<void> 
   mergeEscrowMeta(deposit.orderId, {
     payoutAddress: deposit.payoutAddress,
     feerateSatPerVb: deposit.feerateSatPerVb,
+    sponsorDepositKey: deposit.escrowKey,
   });
 
   const updated = await commitOnchainOrder(deposit.orderId, {

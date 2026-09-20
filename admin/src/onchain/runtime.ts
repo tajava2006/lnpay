@@ -29,6 +29,8 @@ import {
 import { upsertOnchainOrder } from './order-store';
 import { startOnchainWatcher, stopOnchainWatcher, type OnchainWatcherDeps } from './watcher';
 import { notifyOnchainDisputeSoon } from './notify';
+import { handleOnchainOutcome } from './deposit-lifecycle';
+import { raiseOnchainAlert } from './alert-store';
 
 export interface OnchainTrackConfig {
   lnAdapter: LightningAdapter;
@@ -73,11 +75,12 @@ export async function startOnchainTrack(config: OnchainTrackConfig): Promise<voi
     commit: commitOnchainOrder,
     prepareSettlement: prepareOnchainSettlement,
     onOutcome: (order, outcome) => {
-      // 보증금 처리는 **사유가 곧 처리**다(§4.1). 실제 settle/cancel 배선은
-      // 라이트닝 쪽 deposit-lifecycle과 같은 자리로 붙인다(P5).
-      console.log('[Onchain] 종결', order.orderId, outcome);
+      // 보증금 처리는 **사유가 곧 처리**다(§4.1). 표를 그대로 집행한다.
+      void handleOnchainOutcome(order, outcome, config.lnAdapter);
     },
     raise: (order, level, why) => {
+      // **콘솔에만 남기면 아무도 안 본다.** 대시보드가 집도록 스토어에 올린다.
+      raiseOnchainAlert(order, level, why);
       if (level === 'anomaly') {
         console.error('[Onchain] 사람이 봐야 한다:', order.orderId, why);
       } else {

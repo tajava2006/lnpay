@@ -13,6 +13,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { LnConfigPage } from './components/LnConfigPage';
 import { getVapidPrivateKey, restoreVapidPrivateKey, discardVapidKeyIfMismatched } from './web-push/vapid-store';
 import { OrderQueue } from './components/OrderQueue';
+import { OnchainPanel } from './components/OnchainPanel';
 import { OrderClaimList } from './components/OrderClaimList';
 import { HistoryPage } from './components/HistoryPage';
 import { OrderDetail } from './components/OrderDetail';
@@ -434,7 +435,15 @@ export function App() {
             tracker={tracker}
           />
         ) : (
-          <OrderQueue onSelectOrder={selectOrder} tracker={tracker} />
+          <>
+            <OrderQueue onSelectOrder={selectOrder} tracker={tracker} />
+            {/*
+              온체인 트랙은 **별도 FSM·별도 구독**이라 오더북에 섞지 않는다
+              (PLAN-ONCHAIN-TRACK §1). 대신 사람이 봐야 하는 것(경보·분쟁)은
+              같은 화면에 있어야 놓치지 않는다.
+            */}
+            <OnchainPanel />
+          </>
         )}
       </main>
       <p style={styles.version}>{__COMMIT_HASH__}</p>

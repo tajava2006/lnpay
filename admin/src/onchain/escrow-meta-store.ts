@@ -23,6 +23,15 @@ export interface OnchainEscrowMeta {
   feerateSatPerVb?: number;
   /** 후원자 사전서명이 든 PSBT (base64) */
   presigPsbt?: string;
+  /**
+   * 보증금 홀드 인보이스의 **프리이미지 저장 키**.
+   *
+   * 몰수하려면 프리이미지가 필요한데, 그건 `escrow-store`에 인보이스를 만들 때
+   * 쓴 id로 들어가 있다. 그 id를 규칙으로 다시 만들려 하면(`slice(0,8)` 같은)
+   * 규칙이 바뀌는 순간 **몰수를 못 하게 된다.** 만들 때 그대로 적어둔다.
+   */
+  customerDepositKey?: string;
+  sponsorDepositKey?: string;
 }
 
 type MetaMap = Record<string, OnchainEscrowMeta>;

@@ -33,6 +33,8 @@ export interface OnchainPendingDeposit {
 
   // ── 후원자 클레임(type='sponsor')이 `bonded`로 갈 때 필요한 것 ──
   sponsorXonly?: string;
+  /** 프리이미지 저장 키 (몰수할 때 필요하다) */
+  escrowKey?: string;
   /** 복호화해 둔 받을 주소 — **공개 이벤트에 싣지 않는다** */
   payoutAddress?: string;
   feerateSatPerVb?: number;

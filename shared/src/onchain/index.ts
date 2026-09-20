@@ -48,6 +48,39 @@ export {
 export type { EscrowLeaf, EscrowLeafName } from './script';
 
 export {
+  ONCHAIN_STATES,
+  ONCHAIN_TRANSITIONS,
+  ONCHAIN_TERMINAL_STATES,
+  SETTLEMENT_KINDS,
+  NON_TX_OUTCOMES,
+  OUTCOME_RULES,
+  PRICE_VALIDITY_MS,
+  canOnchainTransition,
+  isOnchainTerminal,
+  forfeitUse,
+  canCancelOnchain,
+  canSendAccountInfoOnchain,
+  canAutoRelease,
+  isPriceStale,
+} from './state-machine';
+export type {
+  OnchainState, SettlementKind, NonTxOutcome, OnchainOutcome,
+  BondDisposition, OutcomeRule,
+} from './state-machine';
+
+export { ONCHAIN_STATE_DISPLAY, onchainStateDisplay } from './display';
+
+export {
+  ONCHAIN_PROGRESS_STEPS,
+  onchainStepActor,
+  resolveOnchainProgress,
+} from './progress';
+export type {
+  OnchainRole, StepStatus, OnchainStepActor, StepAction, OnchainProgressStep,
+  OnchainProgressContext, ResolvedOnchainStep, OnchainProgress, OnchainTerminalInfo,
+} from './progress';
+
+export {
   deriveEscrowAddress,
   verifyEscrowAddress,
   assertEscrowAddress,

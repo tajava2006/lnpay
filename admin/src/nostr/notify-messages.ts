@@ -34,9 +34,13 @@
 /** 앱으로 돌아오는 경로. 알림만 보고 뭘 해야 할지 모르면 소용이 없다. */
 const APP_URL = 'https://customer.hoppe-relay.it.com';
 
-type Tab = 'request' | 'fulfill' | 'history';
+/**
+ * 앱 탭. `onchain`은 온체인 트랙 전용 탭이다 — 라이트닝과 플로우가 완전히
+ * 달라 한 목록에 섞지 않는다(PLAN-ONCHAIN-TRACK §1.2).
+ */
+export type Tab = 'request' | 'fulfill' | 'history' | 'onchain';
 
-/** 통로와 무관한 알림 한 건. */
+/** 통로와 무관한 알림 한 건. 온체인 트랙도 이 형식을 그대로 쓴다. */
 export interface Notice {
   body: string;
   tab: Tab;

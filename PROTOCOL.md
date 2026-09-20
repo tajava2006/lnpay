@@ -903,6 +903,131 @@ seal/wrap의 `created_at`은 NIP-59 요구대로 최대 이틀 전으로 흩뿌�
 어디에 로그인해 뒀는지는 알 수 없다. "무슨 일이 생겼고 어디로 가면 되는지"만
 싣고 나머지는 앱에서 보게 한다.
 
+## 온체인 트랙 (2-of-3 taproot) — 별도 FSM
+
+> 라이트닝 트랙과 **완전히 분리된 트랙**이다. 설계 근거와 공격 분석은
+> [docs/PLAN-ONCHAIN-TRACK.md](docs/PLAN-ONCHAIN-TRACK.md)가 진실이고, 여기에는
+> **프로토콜로 굳은 것**만 적는다.
+>
+> 구현 진행: P0(키·스크립트·주소) ✅ / P1(FSM·표시) ✅ / 이벤트 규약(태그·action)은
+> **P4에서 확정**된다. 아래 태그 표가 아직 없는 이유다.
+
+### 태그 분리 — `sajwo-tracker-onchain`
+
+```ts
+CLIENT_TAG_ONCHAIN = import.meta.env.DEV
+  ? 'sajwo-tracker-onchain-dev' : 'sajwo-tracker-onchain'
+```
+
+**같은 `CLIENT_TAG`를 쓰면 배포 사고가 난다.** 이미 배포된 클라이언트가
+`{ kinds:[30402], authors:[APP_PUBKEY], '#t':[CLIENT_TAG] }`로 돌고 있어서, 온체인
+오더를 같은 태그로 발행하면 구버전 앱이 그걸 라이트닝 오더로 렌더링한다
+(`payoutSat`이 없어 "0 sat을 등록하세요"가 뜬다 — 2026-09-19 실측).
+
+`track` 태그로 클라이언트에서 거르는 방법은 **모든 클라이언트가 업데이트된 뒤에야**
+첫 오더를 발행할 수 있다. 정적 PWA라 캐시된 구버전이 언제까지 남는지 알 수 없다.
+
+`내 거래` 탭은 두 태그를 **동시에 구독**하고 `track` 필드로 가른다.
+
+### 상태 머신 (라이트닝과 별도)
+
+```
+listed → bonded → funding → funded → presigned → remitted → settling → released
+                     ↑         │          │          │          │
+                     └─────────┴──────────┘          ↓          ├→ refunded
+                     (리오그 복귀)              disputed ───────→├→ sponsor_wins
+                                                                 └→ customer_wins
+
+cancelled: listed, bonded, funding에서만 (funded 이후 불가)
+swept:     전이가 아니라 **체인에서 관측**한다
+터미널:    released, refunded, sponsor_wins, customer_wins, cancelled, swept
+```
+
+| 상태 | 의미 |
+|------|------|
+| `listed` | 의뢰 등록됨 (고객 LN 보증금 결제 완료). 오더북 노출 |
+| `bonded` | 후원자 보증금 accepted = **클레임 성립**. 세 키 확정 → 에스크로 주소 발행 |
+| `funding` | 고객 펀딩 tx가 멤풀에 있음 (컨펌 대기) |
+| `funded` | 펀딩 N컨펌. **KRW 가격 확정(T0)**. 후원자 사전서명 대기 |
+| `presigned` | 사전서명 검증됨. 고객이 5분 내 계좌 공개 → 그때부터 송금 창 30분 |
+| `remitted` | 후원자가 원화 송금 주장. 고객이 은행 확인 후 cosign해야 한다 |
+| `disputed` | 어드민 판정 대기. **고객 동의 없이 진입한다** |
+| `settling` | 종결 tx 브로드캐스트됨. `settlementKind`가 어느 종결인지 지정 |
+| `released` | `{C,S}` 릴리스 컨펌 — 정상 완료 (최종) |
+| `refunded` | `{A,C}` 환불 컨펌 — 분쟁 아닌 사유 (최종) |
+| `sponsor_wins` / `customer_wins` | 분쟁 판정 (최종) |
+| `cancelled` | 펀딩 전 취소 — 온체인 tx 없음 (최종) |
+| `swept` | 타임락으로 고객이 일방 회수 (어드민 고장). 어드민은 관측만 (최종) |
+
+**클레임은 상태가 아니다.** 보증금 결제가 곧 클레임이다 — 인보이스 발행~결제
+대기는 사이드 스토어에 둔다. 무료 예약 상태를 만들면 **한 푼도 안 내고 오더를
+묶어두는 그리핑**이 열린다(라이트닝 트랙에는 그 구멍이 남아 있다).
+
+### 이 트랙에서만 다른 것
+
+| | 라이트닝 | 온체인 |
+|---|---|---|
+| 어드민 역할 | **수탁자** (hold invoice settle/cancel) | **공동 서명자** — 자금을 만지지 않는다 |
+| 순서 | 후원자 매칭 → 고객 에스크로 | 후원자 매칭 → **주소 생성** → 고객 펀딩 |
+| 종결 | 상태 발행 한 번 | **tx 브로드캐스트 + 컨펌** (그래서 `settling`이 있다) |
+| 취소 | `escrowed` 전까지 자유 | **펀딩 tx 부재를 확인해야** 취소된다 |
+| 환불 | 어드민 단독 (hold invoice cancel) | `{A,C}` — **고객 서명이 있어야 한다** |
+| 수수료 | 고객이 `payout × 1.005`로 전부 | **한 쪽에 하나씩** (고객=펀딩 tx, 후원자=릴리스 tx) |
+
+### 종결 사유 → 보증금 처리
+
+**전이만 보고 판단하면 어드민이 돈을 정반대로 처리한다.** `refunded` 하나에
+보증금 처리가 반대인 사례가 섞여 있어서, 사유(`settlementKind`)가 진실이다.
+코드에서는 `OUTCOME_RULES`가 이 표이고 `Record`로 못박혀 있다.
+
+| 사유 | 후원자 보증금 | 고객 보증금 |
+|---|---|---|
+| `release` | 환불 | 환불 |
+| `refund:reserve` (시세 < 최저가) | 환불 | 환불 |
+| `refund:sponsor-timeout` | **몰수** | 환불 |
+| `refund:customer-late` (계좌 미공개) | 환불 | **몰수** |
+| `refund:bond-expired` | (LN 만료로 이미 환불) | 환불 |
+| `sponsor_win` | 환불 | **몰수** |
+| `customer_win` | **몰수** | 환불 |
+| `cancel:customer` / `cancel:expired` | — | 환불 |
+| `cancel:no-funding` (6h 내 펀딩 없음) | 환불 | **몰수** |
+| `cancel:funding-gone` (tx 부재 확인) | 환불 | 환불 |
+| `swept` | LN 만료 환불 | LN 만료 환불 |
+
+몰수금의 쓰임이 갈린다: **분쟁이면 전액 중재료**, 타임아웃이면 50%를 피해자에게
+수동 충당(운영 재량 — 권리가 아니므로 UI에서 약속하지 않는다).
+
+### 마감
+
+| 상태 | 마감 | 초과 시 |
+|---|---|---|
+| `listed` | 의뢰 만료 (**최대 7일**) | `cancelled` |
+| `bonded` | 6시간 | `cancelled`, 고객 보증금 몰수 |
+| `funding` | **하드 마감 없음** (12h는 경고 시점) | 멤풀 tx는 나중에 컨펌된다 |
+| `funded` | T0+15분 | `refund:sponsor-timeout` |
+| `presigned` (고객) | 계좌 공개 = +5분 | `refund:customer-late` |
+| `presigned` (후원자) | 송금 = **계좌 공개 +30분** | `refund:sponsor-timeout` |
+| `remitted` | 24시간 | **`disputed` 강제 전이** (동의 불필요) |
+| `disputed` | **하드 마감 없음** (에스컬레이션만) | 자동 해소는 어느 방향이든 탈취다 |
+| `settling` | 24시간 | CPFP 안내 |
+
+총 옵션 창은 **T0+50분을 넘지 않는다** — 앞 두 마감이 T0에 묶여 있고, 후원자
+마감만 계좌 공개를 기준으로 센다(고객 지연이 후원자를 치지 않게).
+
+타임락은 **8064블록(≈8주)** 상대 타임락(CSV)이다. 펀딩 컨펌부터 세므로 원화가
+흐르는 시점에는 언제나 만기 전량이 남아 있다.
+
+### 게이트 (코드에 단언으로 박힌 것)
+
+| 규칙 | 코드 |
+|---|---|
+| 계좌 정보는 `presigned`·`remitted`에서만 발행 | `canSendAccountInfoOnchain()` |
+| **릴리스는 절대 자동화하지 않는다** — 고객 수동 확인만 | `canAutoRelease()` (타입까지 `false`) |
+| `bonded` 이후 취소는 **펀딩 tx 부재 확인** 필수 (모르면 거부) | `canCancelOnchain()` |
+| 가격 유효창 = `remitted` + 24시간. 넘기면 경고 + 명시적 우회만 | `isPriceStale()` |
+| 주소는 클라이언트가 **직접 파생해 대조** | `verifyEscrowAddress()` |
+| 세 키가 하나라도 겹치면 주소를 만들지 않는다 | `assertEscrowKeys()` |
+
 ## 참조 NIP
 
 | NIP | 용도 |

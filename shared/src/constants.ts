@@ -10,6 +10,23 @@ export const SAJWO_REQUEST_EVENT_KIND = 1111;
 /** 클라이언트 식별 태그 (다른 30402 이벤트와 구분, dev/prod 데이터 격리) */
 export const CLIENT_TAG = import.meta.env.DEV ? 'sajwo-tracker-dev' : 'sajwo-tracker';
 
+/**
+ * 온체인 트랙 전용 태그 — **라이트닝과 반드시 분리한다** (PLAN-ONCHAIN-TRACK §1.3).
+ *
+ * 이미 배포된 클라이언트가 `{ kinds:[30402], authors:[APP_PUBKEY], '#t':[CLIENT_TAG] }`
+ * 로 돌고 있다. 온체인 오더를 같은 태그로 발행하면 **구버전 앱이 그걸 라이트닝
+ * 오더로 렌더링한다.** 그 결과는 이미 봤다 — `payoutSat`이 없으면 후원자 화면에
+ * "0 sat을 등록하세요"가 뜬다(2026-09-19 실측). 클레임까지 하면 어드민 FSM이
+ * 모르는 오더에 요청이 쌓인다.
+ *
+ * `track` 태그를 달고 클라이언트에서 거르는 방법도 있지만, **모든 클라이언트가
+ * 업데이트된 뒤에야** 첫 오더를 발행할 수 있다. 정적 PWA라 캐시된 구버전이
+ * 언제까지 남는지 알 수 없다. 태그 분리가 유일하게 순서에 의존하지 않는 방법이다.
+ */
+export const CLIENT_TAG_ONCHAIN = import.meta.env.DEV
+  ? 'sajwo-tracker-onchain-dev'
+  : 'sajwo-tracker-onchain';
+
 /** 영구저장소 키 (키페어, 릴레이 캐시) */
 export const STORAGE_KEYS = {
   KEYPAIR: 'nostr:keys',

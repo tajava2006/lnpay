@@ -1,6 +1,6 @@
 # 온체인 트랙 구현 플랜
 
-> 상태: **플랜 v10 — P0 구현 완료. 거기서 확정된 것을 본문에 반영.** 2026-09-20.
+> 상태: **플랜 v11 — P0·P1 구현 완료. 거기서 확정된 것을 본문에 반영.** 2026-09-20.
 >
 > 이 문서만 보고 구현을 처음부터 끝까지 진행할 수 있게 쓴다. 배경과 "왜"는
 > [IDEA-ONCHAIN-TRACK.md](IDEA-ONCHAIN-TRACK.md)에 있고, 여기는 **무엇을 어떤 순서로**다.
@@ -1470,10 +1470,33 @@ customer/src/onchain/
 - 확정/정정된 것: 트리 모양(§3.1b), NUMS 상수 일치, control block 97 B,
   종결 tx 169 vB(§12 Q8)
 
-### P1 — FSM + 표시 5종
-- `state-machine.ts`, `display.ts`, `progress.ts` + 알림 문구 + 문서
-- **테스트**: 전이표 전수, 불변조건 O-001~O-006, 터미널 유도, 배지 전수
-- ✅ 라이트닝 FSM 테스트와 **같은 구조**로 작성 (리뷰 용이)
+### P1 — FSM + 표시 5종 — ✅ **완료** (2026-09-20)
+- `shared/src/onchain/{state-machine,display,progress}.ts`
+- `shared/src/constants.ts`에 **`CLIENT_TAG_ONCHAIN`** (§1.3 배포 사고 방지)
+- 알림 문구 = `admin/src/onchain/notify-messages.ts`
+  (§8 파일 배치에 없던 자리다 — 라이트닝 문구가 admin에 있어 대칭을 맞췄다.
+   `Notice`·`asPush`·`asDirectMessage`는 라이트닝판을 그대로 공유하고 `Tab`에
+   `onchain`만 추가했다)
+- 문서 = `PROTOCOL.md`에 "온체인 트랙(2-of-3 taproot) — 별도 FSM" 절.
+  이벤트 태그·action 규약은 P4에서 확정되므로 비워뒀다
+- **테스트 113개** (shared 216 / admin 273 전체 green):
+  - 전이표 전수 + 정상 경로 + 순서 건너뛰기 차단
+  - 불변조건 O-001·O-002·O-003·O-005·O-006·O-007·O-008·O-014·O-016
+  - **터미널을 전이 맵에서 유도**한 결과와 대조 (§10 #4)
+  - 배지 전수 (모든 상태에 한국어 라벨 — 영어 누출 차단)
+  - **사다리 ↔ FSM 대조**: 진행도의 인접 두 단계가 실제 전이로 이어지는지
+  - **사다리 ↔ 알림 대조**: "이 단계는 누구 차례"라고 말한 쪽에게 알림이 있는지
+  - 사유 × 보증금 처리 표 전수 (§4.1 · §4.1b)
+- 코드로 굳은 결정:
+  - `OUTCOME_RULES` — **사유가 곧 보증금 처리**. `settlementKind`뿐 아니라
+    tx 없는 종결(`cancel:*`)과 `swept`까지 한 표에 넣었다. §4.1은 settlementKind만,
+    §4.1b는 cancelled만 덮어서 둘이 갈라질 자리였다
+  - `cancel:funding-gone` 신설 — O-014의 "부재 확인 후 취소"는 **자금이 움직이지
+    않은 것**이라 `cancel:no-funding`(고객 몰수)과 보증금 처리가 다르다.
+    v9 문서에는 이 구분이 없었다
+  - 진행도 사다리에 `settling`을 단계로 넣었다 — 모든 종결이 거기를 지난다
+  - `refundSignatureNeeded` 문맥 — "마감 초과 → 자동 환불"이 진짜 자동이 아니라서
+    (§5.2 R1-M4) 그 구간의 공은 **고객**에게 있다. 화면·알림이 그걸 말해야 한다
 
 ### P2 — 체인 어댑터
 - `admin/src/onchain/chain.ts` — mempool.space REST

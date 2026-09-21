@@ -20,6 +20,8 @@ import {
 import {
   forgetPendingRequest, getPendingRequestsSnapshot, subscribePendingRequests,
 } from '../pending-request-store';
+import { getOnchainAccountsSnapshot, subscribeOnchainAccounts } from '../account-store';
+import { depositAmountText } from '../deposit-amount';
 import { cosignSettlement, timelockStatus } from '../actions';
 import { inspectSettlementPsbt, releaseNeedsPriceOverride } from '../verify';
 import {
@@ -99,8 +101,8 @@ export function OnchainMyOrders({ myPubkey }: Props) {
             <span style={styles.meta}>{inv.orderId}</span>
           </div>
           <p style={styles.warnText}>
-            <strong>이 인보이스를 결제해야 의뢰가 오더북에 올라갑니다.</strong>
-            거래가 정상적으로 끝나면 돌려받습니다.
+            <strong>보증금 {depositAmountText(inv.bolt11)}을 결제해야</strong> 의뢰가
+            오더북에 올라갑니다. 거래가 정상적으로 끝나면 그대로 돌려받습니다.
           </p>
           <InvoicePayBlock bolt11={inv.bolt11} />
         </div>
@@ -187,8 +189,10 @@ function AccountInfoForm({ order }: { order: OnchainOrder }) {
     if (!order.sponsorPubkey || !bank || !number || !holder) return;
     setBusy(true);
     try {
+      // ⚠️ 필드명은 `AccountInfo`와 **정확히** 같아야 한다 — 다르면 후원자 쪽에서
+      // 파싱이 실패해 계좌가 통째로 안 뜬다(2026-09-21에 `accountHolder`로 보내 그랬다).
       await publishOnchainAccountInfo(order.orderId, order.sponsorPubkey, {
-        bankName: bank, accountNumber: number, accountHolder: holder,
+        bankName: bank, accountNumber: number, holderName: holder,
       });
     } finally {
       setBusy(false);
@@ -223,6 +227,8 @@ function RemitPanel({ order }: { order: OnchainOrder }) {
   const [confs, setConfs] = useState<number | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const accounts = useSyncExternalStore(subscribeOnchainAccounts, getOnchainAccountsSnapshot);
+  const account = accounts[order.orderId];
 
   useEffect(() => {
     let alive = true;
@@ -242,14 +248,31 @@ function RemitPanel({ order }: { order: OnchainOrder }) {
   return (
     <div style={styles.section}>
       <p style={styles.sectionTitle}>원화 송금</p>
+
+      {account ? (
+        <div style={styles.account}>
+          <p style={styles.accountLine}>
+            <strong>{account.bankName}</strong> {account.accountNumber}
+          </p>
+          <p style={styles.accountLine}>예금주 {account.holderName}</p>
+          {order.priceKrw !== undefined && (
+            <p style={styles.accountAmount}>
+              보낼 금액 <strong>{order.priceKrw.toLocaleString()}원</strong>
+            </p>
+          )}
+        </div>
+      ) : (
+        <p style={styles.warnText}>고객이 계좌를 보내기를 기다리는 중입니다.</p>
+      )}
+
       <p style={status.safeToRemit ? styles.okText : styles.warnText}>{status.reason}</p>
       <p style={styles.warnText}>
         <strong>즉시 이체만 사용하세요.</strong> 지연 이체는 시간 안에 도착하지 않아
         보증금을 잃습니다.
       </p>
       <button
-        style={status.safeToRemit ? styles.primary : styles.disabled}
-        disabled={!status.safeToRemit || busy || sent}
+        style={status.safeToRemit && account ? styles.primary : styles.disabled}
+        disabled={!status.safeToRemit || !account || busy || sent}
         onClick={() => {
           setBusy(true);
           void publishRemitRequestOnchain(order.orderId)
@@ -386,4 +409,7 @@ const styles = {
   dangerText: { margin: 0, fontSize: 13, color: '#991B1B', lineHeight: 1.6 },
   danger: { background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column' as const, gap: 6, color: '#991B1B' },
   checkbox: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 },
+  account: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px' },
+  accountLine: { margin: 0, fontSize: 14, color: '#111827', lineHeight: 1.7 },
+  accountAmount: { margin: '6px 0 0', fontSize: 14, color: '#2563EB' },
 };

@@ -19,6 +19,7 @@ import {
   SAJWO_REQUEST_KIND, createSubscriptionPool, createSubscriptionGuard,
   getReadRelays, getSecretKey, getUserPubkey, nip44Decrypt, storage,
 } from '@sajwo-tracker/shared';
+import { parseAccountInfoEnvelope } from '@sajwo-tracker/shared';
 import {
   isOnchainPsbtPayload, parseOnchainOrder, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
@@ -28,6 +29,7 @@ import { publishOnchainPresig } from './publish';
 import { putSignRequest } from '../sign-request-store';
 import { putDepositInvoice } from '../deposit-store';
 import { forgetPendingRequest, markRequestRejected } from '../pending-request-store';
+import { putOnchainAccount } from '../account-store';
 
 const guard = createSubscriptionGuard('온체인구독');
 
@@ -127,6 +129,22 @@ export async function handleInboxEvent(event: Event): Promise<void> {
       putDepositInvoice({ orderId, bolt11, receivedAt: event.created_at });
       // 답이 왔다 — 더 기다릴 게 없다
       forgetPendingRequest(orderId);
+    }
+    return;
+  }
+
+  if (action === 'account-info') {
+    /**
+     * 고객이 **나에게 직접** 보낸 계좌다(어드민도 못 본다). 이걸 안 다루면
+     * 후원자는 **어디로 보낼지 모른 채** 마감 시계만 흐른다.
+     * 보낸 사람 키로 푼다 — 어드민 키가 아니다.
+     */
+    try {
+      const sk = await getSecretKey(storage);
+      const envelope = parseAccountInfoEnvelope(nip44Decrypt(event.content, sk, event.pubkey));
+      if (envelope?.accountInfo) putOnchainAccount(orderId, envelope.accountInfo);
+    } catch (e) {
+      console.warn('[온체인] 계좌 정보를 못 열었다', orderId, e);
     }
     return;
   }

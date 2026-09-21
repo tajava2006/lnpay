@@ -374,3 +374,48 @@ describe('보낸 등록 요청은 답이 올 때까지 남는다', () => {
     expect(pending.getPendingRequestsSnapshot()).toEqual({});
   });
 });
+
+/**
+ * ⚠️ 계좌는 **고객이 후원자에게 직접** 보낸다(어드민도 못 본다). 필드 이름이
+ * `AccountInfo`와 어긋나면 파싱이 실패해 **계좌가 통째로 안 뜨고**, 후원자는
+ * 어디로 보낼지 모른 채 마감 시계만 흐른다(2026-09-21 실측).
+ */
+describe('계좌 정보 (후원자 수신)', () => {
+  it('AccountInfo 모양 그대로 저장된다', async () => {
+    const { parseAccountInfoEnvelope } = await import('@sajwo-tracker/shared');
+    const store = await import('../onchain/account-store');
+    store._resetForTesting();
+
+    // 고객 앱이 실제로 보내는 모양
+    const sent = JSON.stringify({
+      bankName: '국민', accountNumber: '123-456', holderName: '홍길동',
+    });
+    const envelope = parseAccountInfoEnvelope(sent);
+    expect(envelope?.accountInfo.holderName).toBe('홍길동');
+
+    store.putOnchainAccount('oc-1', envelope!.accountInfo);
+    expect(store.getOnchainAccount('oc-1')?.accountNumber).toBe('123-456');
+  });
+
+  /** 계좌가 나간 뒤 바뀌면 후원자가 이미 본 계좌와 달라진다. */
+  it('먼저 온 것을 유지한다', async () => {
+    const store = await import('../onchain/account-store');
+    store._resetForTesting();
+    store.putOnchainAccount('oc-1', { bankName: 'A', accountNumber: '1', holderName: '갑' });
+    store.putOnchainAccount('oc-1', { bankName: 'B', accountNumber: '2', holderName: '을' });
+    expect(store.getOnchainAccount('oc-1')?.bankName).toBe('A');
+  });
+
+  it('스냅샷 참조가 안정하다', async () => {
+    const store = await import('../onchain/account-store');
+    expect(store.getOnchainAccountsSnapshot()).toBe(store.getOnchainAccountsSnapshot());
+  });
+});
+
+describe('보증금 금액 표시', () => {
+  it('디코딩 실패는 화면을 깨뜨리지 않는다', async () => {
+    const { depositAmountText, depositAmountSat } = await import('../onchain/deposit-amount');
+    expect(depositAmountText('not-an-invoice')).toBe('');
+    expect(depositAmountSat('not-an-invoice')).toBeNull();
+  });
+});

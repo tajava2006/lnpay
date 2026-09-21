@@ -12,6 +12,7 @@ import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit
 import { myOrderXonly } from '../keys';
 import { rememberMyClaim } from '../claim-store';
 import { publishOnchainClaim } from '../nostr/publish';
+import { depositAmountText } from '../deposit-amount';
 
 interface Props {
   myPubkey: string | null;
@@ -44,8 +45,13 @@ export function OnchainOrderBook({ myPubkey }: Props) {
             {invoice && !invoice.done ? (
               <div style={styles.invoiceBox}>
                 <p style={styles.invoiceNote}>
-                  <strong>먼저 결제한 분이 가져갑니다.</strong> 다른 분도 같은 의뢰에
-                  보증금을 내고 있을 수 있습니다.
+                  <strong>보증금 {depositAmountText(invoice.bolt11)}</strong>을 결제하면
+                  이 의뢰를 맡게 됩니다. 거래가 정상적으로 끝나면 <strong>그대로 돌려받습니다.</strong>
+                </p>
+                <p style={styles.invoiceNote}>
+                  ⚠️ 같은 의뢰에 다른 분도 보증금을 내고 있을 수 있습니다 —
+                  <strong> 보증금을 먼저 낸 쪽이 맡습니다.</strong> 늦은 쪽은 결제가
+                  실패 처리되어 아무것도 잃지 않습니다.
                 </p>
                 <InvoicePayBlock bolt11={invoice.bolt11} />
               </div>
@@ -103,9 +109,6 @@ function ClaimForm({ orderId }: { orderId: string }) {
           onChange={e => setAddress(e.target.value)}
           placeholder="bc1p… / tb1p…"
         />
-        <span style={styles.hint}>
-          이 주소는 <strong>운영자에게만 암호화되어</strong> 갑니다. 공개되지 않습니다.
-        </span>
       </label>
 
       <label style={styles.label}>

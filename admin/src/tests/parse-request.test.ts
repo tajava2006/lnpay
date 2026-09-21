@@ -114,6 +114,7 @@ describe('parseRequestEvent', () => {
       'onchain-order-request': [['amount-sat', '50000'], ['customer-xonly', 'aa'.repeat(32)]],
       'onchain-claim': [['sponsor-xonly', 'bb'.repeat(32)]],
       'onchain-cosign': [['purpose', 'release']],
+      'onchain-rejected': [['reason', '최소 거래액 미만']],
     };
 
     it.each(Object.values(REQUEST_ACTIONS))('%s', action => {

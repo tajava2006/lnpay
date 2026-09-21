@@ -27,6 +27,7 @@ import { buildPresignature } from '../actions';
 import { publishOnchainPresig } from './publish';
 import { putSignRequest } from '../sign-request-store';
 import { putDepositInvoice } from '../deposit-store';
+import { forgetPendingRequest, markRequestRejected } from '../pending-request-store';
 
 const guard = createSubscriptionGuard('온체인구독');
 
@@ -84,6 +85,9 @@ export async function handleOrderEvent(event: Event, myPubkey: string): Promise<
   if (!order) return;
   if (!upsertOnchainOrder(order)) return;
 
+  // 오더가 생겼으면 "등록 요청 대기"는 끝났다
+  forgetPendingRequest(order.orderId);
+
   // 후원자 사전서명 — 여기가 자동인 유일한 자리다.
   if (order.state === 'funded' && roleIn(order, myPubkey) === 'sponsor') {
     void autoPresign(order);
@@ -119,7 +123,18 @@ export async function handleInboxEvent(event: Event): Promise<void> {
 
   if (action === 'deposit-required') {
     const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
-    if (bolt11) putDepositInvoice({ orderId, bolt11, receivedAt: event.created_at });
+    if (bolt11) {
+      putDepositInvoice({ orderId, bolt11, receivedAt: event.created_at });
+      // 답이 왔다 — 더 기다릴 게 없다
+      forgetPendingRequest(orderId);
+    }
+    return;
+  }
+
+  if (action === 'onchain-rejected') {
+    // **조용히 사라지지 않게 한다.** 사유가 화면에 남아야 유저가 다음을 정한다.
+    const reason = event.tags.find(t => t[0] === 'reason')?.[1] ?? '알 수 없는 사유';
+    markRequestRejected(orderId, reason);
     return;
   }
 

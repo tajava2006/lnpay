@@ -52,7 +52,8 @@ export {
 export { isOnchainClaimPayload, isOnchainPsbtPayload } from './requests';
 export type {
   OnchainRequest, OnchainOrderRequestMsg, OnchainClaimMsg, OnchainPresigMsg,
-  OnchainCosignMsg, OnchainDisputeMsg, OnchainClaimPayload, OnchainPsbtPayload,
+  OnchainCosignMsg, OnchainDisputeMsg, OnchainRejectedMsg,
+  OnchainClaimPayload, OnchainPsbtPayload,
 } from './requests';
 
 export {

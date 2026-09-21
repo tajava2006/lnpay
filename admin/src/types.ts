@@ -136,6 +136,10 @@ export function parseRequestEvent(event: Event): Request | null {
       }
       return { ...base, action, purpose };
     }
+    case 'onchain-rejected': {
+      const reason = event.tags.find(t => t[0] === 'reason')?.[1] ?? '';
+      return { ...base, action, reason };
+    }
     case 'onchain-dispute': {
       const stage = event.tags.find(t => t[0] === 'stage')?.[1];
       return {

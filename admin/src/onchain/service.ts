@@ -47,7 +47,7 @@ import {
 import { getEscrowMeta, mergeEscrowMeta } from './escrow-meta-store';
 import {
   publishOnchainDepositRequired, publishOnchainDepositStatus, publishOnchainOrder,
-  publishOnchainSignRequest,
+  publishOnchainRejected, publishOnchainSignRequest,
 } from './publish';
 import { notifyOnchainAccountArrived, notifyOnchainTransition } from './notify';
 
@@ -161,30 +161,47 @@ async function currentSettlementFeeSat(): Promise<number | null> {
 // ─── ① 의뢰 등록 ─────────────────────────────────────────────
 
 export async function handleOnchainOrderRequest(req: OnchainOrderRequestMsg): Promise<void> {
-  if (!lnAdapter) return console.warn('[Onchain] LN 어댑터 없음 — 의뢰를 받을 수 없다');
+  /**
+   * ⚠️ **거절은 반드시 유저에게 도달해야 한다.** 콘솔 로그로 끝내면
+   * "등록했는데 아무 일도 안 일어난다"가 되고, 유저 쪽에는 흔적이 하나도 없다
+   * (2026-09-21 — 의뢰 두 건 중 하나가 그렇게 사라졌다).
+   */
+  const reject = async (reason: string): Promise<void> => {
+    console.warn('[Onchain] 의뢰 거절:', req.orderId, reason);
+    try {
+      await publishOnchainRejected(req.orderId, req.pubkey, reason, now() + 86_400);
+    } catch (e) {
+      console.error('[Onchain] 거절 통지 실패', req.orderId, e);
+    }
+  };
+
+  if (!lnAdapter) return reject('운영자 라이트닝 노드가 연결돼 있지 않습니다');
   if (getOnchainOrder(req.orderId)) return;                      // 이미 오더가 있다
   if (getOnchainDepositsFor(req.orderId).length > 0) return;      // 이미 인보이스를 냈다
 
   // 만료 상한을 넘으면 보증금 CLTV가 채널 상한을 넘어 **인보이스를 못 만든다**(§2.2).
   if (!isOrderExpiryAllowed(req.expiration, now())) {
-    return console.warn('[Onchain] 의뢰 만료가 허용 범위 밖이다:', req.orderId, req.expiration);
+    return reject('유효 기간이 허용 범위(최대 7일)를 벗어났습니다');
   }
 
   const settlementFee = await currentSettlementFeeSat();
-  if (settlementFee === null) return;
+  if (settlementFee === null) {
+    return reject('네트워크 수수료를 조회하지 못했습니다. 잠시 후 다시 시도해 주세요');
+  }
 
   const floor = depositFloorSat(settlementFee);
   const minTrade = minTradeSat(floor);
   if (req.amountSat < minTrade) {
     // 이 아래로는 보증금이 거래액의 3%를 넘어 억제가 아니라 허들이 된다(§12 Q8).
-    return console.warn(
-      '[Onchain] 최소 거래액 미만:', req.orderId, req.amountSat, '<', minTrade,
+    return reject(
+      `지금 수수료 기준 최소 거래액은 ${minTrade.toLocaleString()} sats입니다 `
+      + `(요청: ${req.amountSat.toLocaleString()} sats)`,
     );
   }
 
   const cltv = depositCltvBlocks(req.expiration, now());
   if (cltv > CLTV_CEILING_BLOCKS) {
-    return console.error('[Onchain] 보증금 CLTV가 채널 상한을 넘는다:', cltv);
+    return reject('유효 기간이 길어 보증금 인보이스를 만들 수 없습니다');
   }
 
   const bondSat = depositSat(req.amountSat, CUSTOMER_DEPOSIT_PERCENT, floor);
@@ -231,6 +248,7 @@ export async function handleOnchainClaim(req: OnchainClaimMsg): Promise<void> {
   } catch (e) {
     return console.warn('[Onchain] 클레임 암호문을 못 열었다', req.orderId, e);
   }
+
   if (!isOnchainClaimPayload(payload)) {
     return console.warn('[Onchain] 클레임 페이로드가 이상하다', req.orderId);
   }

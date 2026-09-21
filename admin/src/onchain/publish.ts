@@ -144,6 +144,25 @@ export async function publishOnchainDepositStatus(
 }
 
 /**
+ * 요청을 처리할 수 없다고 알린다.
+ *
+ * ⚠️ **콘솔 로그로 끝내면 안 된다.** 유저 쪽에서는 "등록했는데 아무 일도 안
+ * 일어난다"로 보이고, 그게 진짜로 일어났다(2026-09-21 — 의뢰 두 건 중 하나가
+ * 조용히 사라졌다).
+ */
+export async function publishOnchainRejected(
+  orderId: string,
+  recipientPubkey: string,
+  reason: string,
+  expiration: number,
+): Promise<void> {
+  await publishRequest(
+    orderId, recipientPubkey, REQUEST_ACTIONS.ONCHAIN_REJECTED,
+    [['reason', reason], ['expiration', String(expiration)]], '',
+  );
+}
+
+/**
  * 서명 요청 — **암호문으로 보낸다.**
  *
  * PSBT 안에 받는 주소가 들어 있다. 평문으로 뿌리면 후원자의 실제 지갑 주소가

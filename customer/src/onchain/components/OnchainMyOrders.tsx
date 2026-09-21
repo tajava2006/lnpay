@@ -17,6 +17,9 @@ import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit
 import {
   clearSignRequest, getSignRequestsSnapshot, subscribeSignRequests, type SignRequest,
 } from '../sign-request-store';
+import {
+  forgetPendingRequest, getPendingRequestsSnapshot, subscribePendingRequests,
+} from '../pending-request-store';
 import { cosignSettlement, timelockStatus } from '../actions';
 import { inspectSettlementPsbt, releaseNeedsPriceOverride } from '../verify';
 import {
@@ -34,6 +37,9 @@ export function OnchainMyOrders({ myPubkey }: Props) {
   useSyncExternalStore(subscribeOnchainOrders, getOnchainOrdersSnapshot);
   const invoices = useSyncExternalStore(subscribeDepositInvoices, getDepositInvoicesSnapshot);
   const signRequests = useSyncExternalStore(subscribeSignRequests, getSignRequestsSnapshot);
+  const pendingRequests = useSyncExternalStore(
+    subscribePendingRequests, getPendingRequestsSnapshot,
+  );
 
   if (!myPubkey) return <p style={styles.empty}>키를 준비하는 중…</p>;
   const orders = myOnchainOrders(myPubkey);
@@ -49,12 +55,41 @@ export function OnchainMyOrders({ myPubkey }: Props) {
     inv => inv.bolt11 && !inv.done && !orders.some(o => o.orderId === inv.orderId),
   );
 
-  if (orders.length === 0 && orphanInvoices.length === 0) {
+  const waiting = Object.values(pendingRequests);
+
+  if (orders.length === 0 && orphanInvoices.length === 0 && waiting.length === 0) {
     return <p style={styles.empty}>아직 온체인 거래가 없습니다.</p>;
   }
 
   return (
     <div style={styles.list}>
+      {waiting.map(req => (
+        <div key={req.orderId} style={styles.card}>
+          <div style={styles.head}>
+            <span style={{
+              ...styles.badge,
+              ...(req.rejectedReason
+                ? { color: '#991B1B', background: '#FEE2E2' }
+                : { color: '#6B7280', background: '#F3F4F6' }),
+            }}>
+              {req.rejectedReason ? '등록 거절됨' : '등록 요청 보냄'}
+            </span>
+            <span style={styles.meta}>{req.amountSat.toLocaleString()} sats</span>
+          </div>
+          {req.rejectedReason ? (
+            <p style={styles.dangerText}>{req.rejectedReason}</p>
+          ) : (
+            <p style={styles.warnText}>
+              운영자가 보증금 인보이스를 보내기를 기다리는 중입니다.
+              몇 분이 지나도 안 오면 운영자에게 문의하세요.
+            </p>
+          )}
+          <button style={styles.ghost} onClick={() => forgetPendingRequest(req.orderId)}>
+            이 기록 지우기
+          </button>
+        </div>
+      ))}
+
       {orphanInvoices.map(inv => (
         <div key={inv.orderId} style={styles.card}>
           <div style={styles.head}>

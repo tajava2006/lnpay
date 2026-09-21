@@ -91,6 +91,13 @@ export const REQUEST_ACTIONS = {
   ONCHAIN_COSIGN: 'onchain-cosign',
   /** 양쪽 → Admin: 분쟁 제기 / 계좌 이의 증거 */
   ONCHAIN_DISPUTE: 'onchain-dispute',
+  /**
+   * Admin → 유저: 요청을 처리할 수 없다 (사유 포함).
+   *
+   * 없으면 거절이 **콘솔 로그로만** 남아 유저 쪽에는 아무 일도 안 일어난 것처럼
+   * 보인다 — 의뢰가 조용히 사라진다(2026-09-21 실측).
+   */
+  ONCHAIN_REJECTED: 'onchain-rejected',
 } as const;
 export type RequestAction = typeof REQUEST_ACTIONS[keyof typeof REQUEST_ACTIONS];
 

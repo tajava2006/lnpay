@@ -79,12 +79,24 @@ export interface OnchainDisputeMsg extends RequestBase {
   stage?: 'account-unusable' | 'remitted';
 }
 
+/**
+ * 어드민 → 유저: 요청을 처리할 수 없다.
+ *
+ * 최소 거래액 미달, 의뢰 만료 초과, 수수료·시세 조회 실패 같은 것들이다.
+ * **유저에게 도달해야 한다** — 안 그러면 "등록했는데 아무 일도 안 일어난다".
+ */
+export interface OnchainRejectedMsg extends RequestBase {
+  action: 'onchain-rejected';
+  reason: string;
+}
+
 export type OnchainRequest =
   | OnchainOrderRequestMsg
   | OnchainClaimMsg
   | OnchainPresigMsg
   | OnchainCosignMsg
-  | OnchainDisputeMsg;
+  | OnchainDisputeMsg
+  | OnchainRejectedMsg;
 
 /** 클레임 암호문의 모양 — 후원자 앱이 만들고 어드민이 푼다 */
 export interface OnchainClaimPayload {

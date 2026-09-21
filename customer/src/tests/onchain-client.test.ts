@@ -322,12 +322,55 @@ describe('스토어 스냅샷은 참조가 안정해야 한다', () => {
     const signReq = await import('../onchain/sign-request-store');
     const deposit = await import('../onchain/deposit-store');
 
+    const pending = await import('../onchain/pending-request-store');
+
     for (const get of [
       store.getOnchainOrdersSnapshot,
       signReq.getSignRequestsSnapshot,
       deposit.getDepositInvoicesSnapshot,
+      pending.getPendingRequestsSnapshot,
     ]) {
       expect(get()).toBe(get());
     }
+  });
+});
+
+/**
+ * ⚠️ 의뢰 등록은 kind 1111을 쏘는 것으로 끝나고 **오더는 보증금을 결제해야**
+ * 생긴다(§4.1b). 그 사이에 거절되거나 실패하면 유저 쪽에 흔적이 하나도 없다 —
+ * 실제로 의뢰 두 건 중 하나가 그렇게 사라졌다(2026-09-21).
+ */
+describe('보낸 등록 요청은 답이 올 때까지 남는다', () => {
+  it('기억했다가 인보이스·오더가 오면 지운다', async () => {
+    const pending = await import('../onchain/pending-request-store');
+    pending._resetForTesting();
+
+    pending.rememberPendingRequest({
+      orderId: 'oc-1', amountSat: 50_000, expiration: 2_000_000_000, submittedAt: 1,
+    });
+    expect(Object.keys(pending.getPendingRequestsSnapshot())).toEqual(['oc-1']);
+
+    pending.forgetPendingRequest('oc-1');
+    expect(pending.getPendingRequestsSnapshot()).toEqual({});
+  });
+
+  it('거절 사유가 남는다 (조용히 사라지지 않는다)', async () => {
+    const pending = await import('../onchain/pending-request-store');
+    pending._resetForTesting();
+
+    pending.rememberPendingRequest({
+      orderId: 'oc-2', amountSat: 1000, expiration: 2_000_000_000, submittedAt: 1,
+    });
+    pending.markRequestRejected('oc-2', '최소 거래액 미만');
+
+    expect(pending.getPendingRequestsSnapshot()['oc-2']?.rejectedReason)
+      .toBe('최소 거래액 미만');
+  });
+
+  it('모르는 주문의 거절은 무시한다', async () => {
+    const pending = await import('../onchain/pending-request-store');
+    pending._resetForTesting();
+    pending.markRequestRejected('없는주문', '사유');
+    expect(pending.getPendingRequestsSnapshot()).toEqual({});
   });
 });

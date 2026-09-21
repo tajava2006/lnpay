@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { MAX_ORDER_EXPIRY_SEC } from '@sajwo-tracker/shared/onchain';
 import { myOrderXonly } from '../keys';
 import { publishOnchainOrderRequest } from '../nostr/publish';
+import { rememberPendingRequest } from '../pending-request-store';
 
 const DAY = 86_400;
 
@@ -43,17 +44,20 @@ export function OnchainOrderForm({ onDone }: { onDone?: () => void }) {
     try {
       const orderId = newOrderId();
       const customerXonly = await myOrderXonly(orderId);
+      const expiration = Math.floor(Date.now() / 1000) + days * DAY;
       const result = await publishOnchainOrderRequest({
-        orderId,
-        amountSat: sats,
-        reserveKrw: reserve,
-        customerXonly,
-        expiration: Math.floor(Date.now() / 1000) + days * DAY,
+        orderId, amountSat: sats, reserveKrw: reserve, customerXonly, expiration,
       });
       if (!result.success) {
         setError('발행에 실패했습니다. 잠시 후 다시 시도하세요.');
         return;
       }
+      // ⚠️ **보낸 요청을 적어둔다.** 오더는 보증금을 결제해야 생기므로, 그 전에
+      // 어드민이 거절하거나 실패하면 유저 쪽에 흔적이 하나도 안 남는다.
+      rememberPendingRequest({
+        orderId, amountSat: sats, reserveKrw: reserve, expiration,
+        submittedAt: Math.floor(Date.now() / 1000),
+      });
       setAmountSat('');
       setReserveKrw('');
       onDone?.();

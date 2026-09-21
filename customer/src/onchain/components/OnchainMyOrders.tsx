@@ -37,10 +37,40 @@ export function OnchainMyOrders({ myPubkey }: Props) {
 
   if (!myPubkey) return <p style={styles.empty}>키를 준비하는 중…</p>;
   const orders = myOnchainOrders(myPubkey);
-  if (orders.length === 0) return <p style={styles.empty}>아직 온체인 거래가 없습니다.</p>;
+
+  /**
+   * ⚠️ **오더가 아직 없는 보증금 인보이스**가 따로 있다.
+   *
+   * 의뢰 등록은 §4.1b대로 **보증금 결제가 곧 등록**이라, 결제 전에는 오더 자체가
+   * 존재하지 않는다. 그래서 이걸 오더 카드 안에서만 그리면 **결제할 화면이
+   * 영영 안 나오고 흐름이 멈춘다**(2026-09-21 실제로 그랬다).
+   */
+  const orphanInvoices = Object.values(invoices).filter(
+    inv => inv.bolt11 && !inv.done && !orders.some(o => o.orderId === inv.orderId),
+  );
+
+  if (orders.length === 0 && orphanInvoices.length === 0) {
+    return <p style={styles.empty}>아직 온체인 거래가 없습니다.</p>;
+  }
 
   return (
     <div style={styles.list}>
+      {orphanInvoices.map(inv => (
+        <div key={inv.orderId} style={styles.card}>
+          <div style={styles.head}>
+            <span style={{ ...styles.badge, color: '#D97706', background: '#FEF3C7' }}>
+              보증금 결제 대기
+            </span>
+            <span style={styles.meta}>{inv.orderId}</span>
+          </div>
+          <p style={styles.warnText}>
+            <strong>이 인보이스를 결제해야 의뢰가 오더북에 올라갑니다.</strong>
+            거래가 정상적으로 끝나면 돌려받습니다.
+          </p>
+          <InvoicePayBlock bolt11={inv.bolt11} />
+        </div>
+      ))}
+
       {orders.map(order => (
         <OrderCard
           key={order.orderId}
@@ -309,6 +339,7 @@ const styles = {
   amount: { marginLeft: 'auto', fontSize: 16, color: '#111827' },
   price: { margin: 0, fontSize: 14, color: '#374151' },
   sub: { color: '#6B7280', fontSize: 13 },
+  meta: { fontSize: 12, color: '#6B7280' },
   section: { display: 'flex', flexDirection: 'column' as const, gap: 8, borderTop: '1px solid #F3F4F6', paddingTop: 12 },
   sectionTitle: { margin: 0, fontSize: 13, fontWeight: 600 as const, color: '#374151' },
   input: { padding: '9px 11px', fontSize: 14, border: '1px solid #D1D5DB', borderRadius: 8 },

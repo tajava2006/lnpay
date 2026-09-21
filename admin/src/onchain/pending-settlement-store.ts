@@ -62,6 +62,18 @@ export function subscribePendingSettlements(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
+/**
+ * `useSyncExternalStore`가 읽는 스냅샷.
+ *
+ * ⚠️ **맵 참조를 그대로 돌려준다.** `Object.values()`처럼 호출마다 새 객체를
+ * 만들면 React가 "바뀌었다"로 읽어 **무한 렌더 루프**에 빠진다
+ * (실제로 그래서 어드민 화면이 안 떴다 — 2026-09-21). 목록이 필요하면
+ * 호출부가 렌더 안에서 `Object.values()`를 하면 된다.
+ */
+export function getPendingSettlementsSnapshot(): Readonly<PendingMap> {
+  return pending;
+}
+
 export function getPendingSettlements(): PendingSettlement[] {
   return Object.values(pending);
 }

@@ -308,3 +308,26 @@ describe('타임락 안전망 (T-106 · §7.1)', () => {
     expect(timelockStatus(order({ timelockBlocks: undefined }), 10).safeToRemit).toBe(false);
   });
 });
+
+// ─── 스냅샷 안정성 ───────────────────────────────────────────
+
+/**
+ * ⚠️ `useSyncExternalStore`의 스냅샷이 호출마다 새 객체면 **무한 렌더 루프**다.
+ * 어드민 화면이 그래서 통째로 안 떴다(2026-09-21). 타입·빌드·테스트가 다
+ * 통과하고 화면을 열어야만 드러나는 종류라, 스토어별로 못박는다.
+ */
+describe('스토어 스냅샷은 참조가 안정해야 한다', () => {
+  it('오더·서명요청·보증금 인보이스', async () => {
+    const store = await import('../onchain/store');
+    const signReq = await import('../onchain/sign-request-store');
+    const deposit = await import('../onchain/deposit-store');
+
+    for (const get of [
+      store.getOnchainOrdersSnapshot,
+      signReq.getSignRequestsSnapshot,
+      deposit.getDepositInvoicesSnapshot,
+    ]) {
+      expect(get()).toBe(get());
+    }
+  });
+});

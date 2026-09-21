@@ -16,15 +16,20 @@ import {
 } from '../onchain/alert-store';
 import { getSnapshot, subscribe } from '../onchain/order-store';
 import {
-  getPendingSettlements, subscribePendingSettlements,
+  getPendingSettlementsSnapshot, subscribePendingSettlements,
 } from '../onchain/pending-settlement-store';
 import { prepareOnchainSettlement } from '../onchain/service';
 
 export function OnchainPanel() {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
   const alerts = useSyncExternalStore(subscribeOnchainAlerts, getOnchainAlertsSnapshot);
-  const pending = useSyncExternalStore(subscribePendingSettlements, () => getPendingSettlements());
+  // ⚠️ 스냅샷은 **참조가 안정해야 한다.** `Object.values()`를 여기서 부르면
+  // 매 렌더마다 새 배열이라 React가 무한 루프를 돈다. 목록은 아래에서 만든다.
+  const pendingMap = useSyncExternalStore(
+    subscribePendingSettlements, getPendingSettlementsSnapshot,
+  );
 
+  const pending = Object.values(pendingMap);
   const list = Object.values(orders).filter(o => o.status === 'active');
   const disputes = list.filter(o => o.state === 'disputed');
   const alertList = Object.values(alerts).sort((a, b) =>

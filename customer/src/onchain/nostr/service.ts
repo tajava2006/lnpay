@@ -84,8 +84,12 @@ export function stopOnchainSubscriptions(): void {
 
 export async function handleOrderEvent(event: Event, myPubkey: string): Promise<void> {
   const order = parseOnchainOrder(event, CLIENT_TAG_ONCHAIN);
-  if (!order) return;
+  if (!order) {
+    console.log('[온체인] 오더 이벤트를 못 읽었다 (태그 불일치이거나 모르는 상태)');
+    return;
+  }
   if (!upsertOnchainOrder(order)) return;
+  console.log('[온체인] 오더', order.orderId, '→', order.state);
 
   // 오더가 생겼으면 "등록 요청 대기"는 끝났다
   forgetPendingRequest(order.orderId);
@@ -121,6 +125,15 @@ async function autoPresign(order: OnchainOrder): Promise<void> {
 export async function handleInboxEvent(event: Event): Promise<void> {
   const action = event.tags.find(t => t[0] === 'action')?.[1];
   const orderId = event.tags.find(t => t[0] === 'a')?.[1]?.split(':')[2];
+
+  /**
+   * ⚠️ **받은 것을 전부 남긴다.** 이 핸들러가 모르는 action을 조용히 버리는 바람에
+   * 계좌 정보가 통째로 사라진 적이 있다(2026-09-21). "안 온 것"과 "왔는데 못 쓴 것"은
+   * 대응이 완전히 다른데, 로그가 없으면 구분할 방법이 없다.
+   */
+  console.log('[온체인] 수신', action ?? '(action 없음)', orderId ?? '(orderId 없음)',
+    'from', event.pubkey.slice(0, 8));
+
   if (!action || !orderId) return;
 
   if (action === 'deposit-required') {

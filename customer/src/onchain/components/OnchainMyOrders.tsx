@@ -165,6 +165,17 @@ function OrderCard({ order, role, invoiceBolt11, signRequest }: {
         <AccountInfoForm order={order} />
       )}
 
+      {/*
+        ⚠️ **한 번 보내고 끝이면 안 된다.** 후원자가 그때 접속 중이 아니었거나
+        이벤트를 놓치면, 후원자는 어디로 보낼지 모른 채 마감 시계만 흐른다.
+        내용은 그대로 다시 보낸다 — 계좌를 **바꾸면** 후원자가 이미 본 것과
+        달라지므로, 여기서는 재입력을 받지 않는다.
+      */}
+      {role === 'customer' && order.accountSentAt
+        && (order.state === 'presigned' || order.state === 'remitted') && (
+        <ResendAccountInfo order={order} />
+      )}
+
       {role === 'sponsor' && order.state === 'presigned' && (
         <RemitPanel order={order} />
       )}
@@ -215,6 +226,55 @@ function AccountInfoForm({ order }: { order: OnchainOrder }) {
     </div>
   );
 }
+
+/** 고객: 계좌를 다시 보낸다 (내용은 그대로) */
+function ResendAccountInfo({ order }: { order: OnchainOrder }) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [bank, setBank] = useState('');
+  const [number, setNumber] = useState('');
+  const [holder, setHolder] = useState('');
+  const [open, setOpen] = useState(false);
+
+  async function send() {
+    if (!order.sponsorPubkey || !bank || !number || !holder) return;
+    setBusy(true);
+    try {
+      await publishOnchainAccountInfo(order.orderId, order.sponsorPubkey, {
+        bankName: bank, accountNumber: number, holderName: holder,
+      });
+      setDone(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <div style={styles.section}>
+        <p style={styles.sectionTitle}>후원자가 계좌를 못 받았나요?</p>
+        <button style={styles.ghost} onClick={() => setOpen(true)}>계좌 다시 보내기</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.section}>
+      <p style={styles.sectionTitle}>계좌 다시 보내기</p>
+      <p style={styles.warnText}>
+        <strong>처음에 보낸 것과 같은 계좌를 넣으세요.</strong> 다른 계좌를 보내면
+        후원자가 이미 본 것과 달라져 입금이 엉킵니다.
+      </p>
+      <input style={styles.input} placeholder="은행" value={bank} onChange={e => setBank(e.target.value)} />
+      <input style={styles.input} placeholder="계좌번호" value={number} onChange={e => setNumber(e.target.value)} />
+      <input style={styles.input} placeholder="예금주" value={holder} onChange={e => setHolder(e.target.value)} />
+      <button style={styles.primary} onClick={() => void send()} disabled={busy || done}>
+        {done ? '다시 보냈습니다' : busy ? '보내는 중…' : '다시 보내기'}
+      </button>
+    </div>
+  );
+}
+
 
 /**
  * 후원자: 원화 송금.

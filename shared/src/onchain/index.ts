@@ -46,8 +46,9 @@ export {
   KRW_WINDOW_SEC, COSIGN_WINDOW_SEC, COSIGN_GRACE_WARNING_SEC, SETTLING_WARN_SEC,
   DISPUTE_ESCALATION_SEC, MAX_OPTION_WINDOW_SEC, MAX_TRADE_DURATION_SEC,
   fundingDeadlineFrom, presignDeadlineFrom, accountDeadlineFrom, krwDeadlineFrom,
-  cosignDeadlineFrom, isOrderExpiryAllowed,
+  cosignDeadlineFrom, isOrderExpiryAllowed, currentOnchainDeadline,
 } from './timing';
+export type { OnchainDeadline } from './timing';
 
 export { isOnchainClaimPayload, isOnchainPsbtPayload } from './requests';
 export type {

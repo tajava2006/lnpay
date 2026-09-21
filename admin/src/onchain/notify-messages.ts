@@ -32,9 +32,9 @@ export const ONCHAIN_NOTIFY = {
     tab: 'onchain',
   }),
 
-  /** 후원자 사전서명이 검증됐다. 고객이 5분 안에 계좌를 공개해야 한다. */
+  /** 후원자 사전서명이 검증됐다. 고객이 15분 안에 계좌를 공개해야 한다. */
   customerShouldSendAccount: (): Notice => ({
-    body: '후원자가 서명을 마쳤습니다. 5분 안에 입금받을 계좌 정보를 보내주세요.',
+    body: '후원자가 서명을 마쳤습니다. 15분 안에 입금받을 계좌 정보를 보내주세요.',
     tab: 'onchain',
   }),
 

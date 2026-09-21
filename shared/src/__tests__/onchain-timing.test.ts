@@ -23,7 +23,7 @@ describe('값', () => {
     ['의뢰 만료 상한', MAX_ORDER_EXPIRY_SEC, 7 * DAY],
     ['펀딩(컨펌까지)', FUNDING_WINDOW_SEC, 6 * HOUR],
     ['사전서명', PRESIGN_WINDOW_SEC, 15 * 60],
-    ['계좌 공개', ACCOUNT_WINDOW_SEC, 5 * 60],
+    ['계좌 공개', ACCOUNT_WINDOW_SEC, 15 * 60],
     ['원화 송금', KRW_WINDOW_SEC, 30 * 60],
     ['cosign', COSIGN_WINDOW_SEC, 24 * HOUR],
     ['종결 정체 경고', SETTLING_WARN_SEC, 24 * HOUR],
@@ -37,8 +37,8 @@ describe('지켜야 할 부등식 (§6.3)', () => {
    * 보증금은 이 창의 변동폭을 덮어야 한다. 창이 무한하면 어떤 고정 프리미엄도
    * 언젠가 추월당한다 — 그래서 **유한해야** 보증금이 의미를 갖는다(§2.4).
    */
-  it('총 옵션 창 = T0+50분, 그리고 앞 두 마감이 T0에 묶여 있다', () => {
-    expect(MAX_OPTION_WINDOW_SEC).toBe(50 * 60);
+  it('총 옵션 창 = T0+60분, 그리고 앞 두 마감이 T0에 묶여 있다', () => {
+    expect(MAX_OPTION_WINDOW_SEC).toBe(60 * 60);
     expect(PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + KRW_WINDOW_SEC).toBe(MAX_OPTION_WINDOW_SEC);
   });
 
@@ -99,5 +99,78 @@ describe('의뢰 만료 상한 (§2.2)', () => {
   it('이미 지난 만료는 거부', () => {
     expect(isOrderExpiryAllowed(NOW, NOW)).toBe(false);
     expect(isOrderExpiryAllowed(NOW - 1, NOW)).toBe(false);
+  });
+});
+
+// ─── 지금 걸린 마감 ──────────────────────────────────────────
+
+/**
+ * 화면이 "몇 분 남았는지"를 보여주려면 **어느 시계가 도는지** 한 곳에서 알아야
+ * 한다. 특히 `presigned`는 한 상태 안에서 주인이 바뀌므로(O-013) 화면이 스스로
+ * 판단하게 두면 갈린다.
+ */
+describe('currentOnchainDeadline', () => {
+  const T = 1_700_000_000;
+  const base = { expiration: T + 86_400, updatedAt: T };
+
+  it('listed → 의뢰 만료', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    expect(currentOnchainDeadline({ ...base, state: 'listed' })?.at).toBe(T + 86_400);
+  });
+
+  it('bonded → 펀딩 컨펌 마감 (몰수 경고 포함)', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    const d = currentOnchainDeadline({ ...base, state: 'bonded', fundingDeadline: T + 100 });
+    expect(d?.at).toBe(T + 100);
+    expect(d?.penalty).toMatch(/몰수/);
+  });
+
+  it('funded → T0+15분', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    expect(currentOnchainDeadline({ ...base, state: 'funded', fundedAt: T })?.at)
+      .toBe(T + PRESIGN_WINDOW_SEC);
+  });
+
+  /** ⚠️ 한 상태 안에서 시계 주인이 바뀐다 (O-013). */
+  it('presigned → 계좌 공개 전엔 고객 시계, 그 뒤엔 후원자 시계', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+
+    const beforeSend = currentOnchainDeadline({ ...base, state: 'presigned', presignedAt: T });
+    expect(beforeSend?.label).toBe('계좌 공개 마감');
+    expect(beforeSend?.at).toBe(T + ACCOUNT_WINDOW_SEC);
+
+    const afterSend = currentOnchainDeadline({
+      ...base, state: 'presigned', presignedAt: T, accountSentAt: T + 60,
+      krwDeadline: T + 60 + KRW_WINDOW_SEC,
+    });
+    expect(afterSend?.label).toBe('원화 송금 마감');
+    expect(afterSend?.at).toBe(T + 60 + KRW_WINDOW_SEC);
+  });
+
+  it('remitted → 24시간, 넘기면 분쟁', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    const d = currentOnchainDeadline({ ...base, state: 'remitted', remittedAt: T });
+    expect(d?.at).toBe(T + COSIGN_WINDOW_SEC);
+    expect(d?.penalty).toMatch(/분쟁/);
+  });
+
+  /** 자동 해소가 어느 방향이든 탈취라 마감이 없다(§7.5). */
+  it('disputed에는 마감이 없다', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    expect(currentOnchainDeadline({ ...base, state: 'disputed' })).toBeNull();
+  });
+
+  /** 넘겨도 잃는 게 없다 — CPFP 안내일 뿐이라 penalty를 안 붙인다. */
+  it('settling은 경고성 마감이라 벌칙이 없다', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    const d = currentOnchainDeadline({ ...base, state: 'settling', settlingAt: T });
+    expect(d?.at).toBe(T + SETTLING_WARN_SEC);
+    expect(d?.penalty).toBeUndefined();
+  });
+
+  it('기준 시각이 없으면 마감을 지어내지 않는다', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    expect(currentOnchainDeadline({ ...base, state: 'funded' })).toBeNull();
+    expect(currentOnchainDeadline({ ...base, state: 'remitted' })).toBeNull();
   });
 });

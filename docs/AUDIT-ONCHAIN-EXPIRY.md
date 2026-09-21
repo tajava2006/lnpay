@@ -16,7 +16,7 @@
 | **보증금 CLTV** | 어드민 | `(남은 만료 + 55h + 6h) / 600` 블록 | `depositCltvBlocks` |
 | 펀딩 마감 (컨펌까지) | 어드민 | 6시간 | `FUNDING_WINDOW_SEC` |
 | 사전서명 마감 | 어드민 | T0+15분 | `PRESIGN_WINDOW_SEC` |
-| 계좌 공개 마감 | 어드민 | `presigned`+5분 | `ACCOUNT_WINDOW_SEC` |
+| 계좌 공개 마감 | 어드민 | `presigned`+15분 | `ACCOUNT_WINDOW_SEC` |
 | 원화 송금 마감 | 어드민 | **계좌 공개**+30분 | `KRW_WINDOW_SEC` (O-013) |
 | cosign 마감 = 가격 유효창 | 어드민 | 24시간 | `COSIGN_WINDOW_SEC` = `PRICE_VALIDITY_MS` |
 | 종결 정체 경고 | 어드민 | 24시간 | `SETTLING_WARN_SEC` |
@@ -35,7 +35,7 @@
 보증금 CLTV      <  채널 상한 (보통 2016블록)                ← 7일 상한이 보장
 타임락 잔여      >  분쟁 최장 소요                           ← §7 F
 cosign 마감      =  가격 유효창                              ← 노브 하나 (§7.6 ③)
-옵션 창 총합     ≤  T0+50분                                 ← 앞 두 마감이 T0에 묶임
+옵션 창 총합     ≤  T0+60분                                 ← 앞 두 마감이 T0에 묶임
 payoutSat        >  dust(330)
 ```
 

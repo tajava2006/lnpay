@@ -115,7 +115,7 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     actor: 'customer',
     customer: [
       { text: "'계좌 정보 전달'로 입금받을 은행·계좌번호·예금주를 보냅니다." },
-      { text: '**5분 안에** 보내야 합니다. 넘기면 거래가 취소되고 **보증금을 잃습니다.**' },
+      { text: '**15분 안에** 보내야 합니다. 넘기면 거래가 취소되고 **보증금을 잃습니다.**' },
       { text: '후원자가 원화를 보낼 때까지 기다립니다(계좌 전달 후 30분).' },
     ],
     sponsor: [

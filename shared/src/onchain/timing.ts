@@ -8,7 +8,7 @@
  * listed ──의뢰 만료(최대 7일)──→ cancelled
  * bonded ──6시간(컨펌까지)──────→ cancelled + 고객 몰수
  * funded ──15분──────────────────→ refund:sponsor-timeout
- *            └ presigned ──5분(계좌 공개)──→ refund:customer-late
+ *            └ presigned ──15분(계좌 공개)──→ refund:customer-late
  *                          └ 계좌공개+30분──→ refund:sponsor-timeout
  * remitted ──24시간──────────────→ disputed (고객 동의 불필요)
  * settling ──24시간──────────────→ 경고 + CPFP 안내
@@ -19,7 +19,7 @@
  * 앞의 두 마감은 **T0(펀딩 컨펌)** 에 묶여 있고, 후원자의 송금 마감만
  * **계좌 공개 시점**을 기준으로 센다. 그래야
  *   ① 고객이 늦게 공개해도 **후원자 창이 깎이지 않고**
- *   ② 그런데도 총합이 **T0+50분을 못 넘는다**
+ *   ② 그런데도 총합이 **T0+60분을 못 넘는다**
  * 마감을 앞 단계에 상대적으로 걸면 후원자가 14:59에 사전서명을 내는 식으로
  * **총 창을 늘릴 수 있다** — 그래서 각 마감을 자기가 통제 못 하는 지점에 앵커한다.
  */
@@ -38,8 +38,15 @@ export const FUNDING_WINDOW_SEC = 6 * HOUR;
 /** T0 → 후원자 사전서명. 앱이 깨어나는 시간이지 고민할 시간이 아니다 */
 export const PRESIGN_WINDOW_SEC = 15 * MINUTE;
 
-/** `presigned` → 고객이 계좌 공개. 발행 버튼 한 번 */
-export const ACCOUNT_WINDOW_SEC = 5 * MINUTE;
+/**
+ * `presigned` → 고객이 계좌 공개.
+ *
+ * ⚠️ 5분이었다가 **15분으로 늘렸다**(2026-09-21, 실제로 돌려보고). 플랜은
+ * "발행 버튼 한 번"이라 5분이면 된다고 봤는데, 그건 **고객이 이미 그 화면을
+ * 보고 있다는 전제**였다. 실제로는 알림을 받고 앱을 열어 은행·계좌번호·예금주를
+ * 입력해야 한다 — 후원자 사전서명에 15분을 준 것과 **같은 이유**가 그대로 적용된다.
+ */
+export const ACCOUNT_WINDOW_SEC = 15 * MINUTE;
 
 /** 계좌 공개 → 후원자 원화 송금. 한국 실시간 이체면 넉넉하다 */
 export const KRW_WINDOW_SEC = 30 * MINUTE;
@@ -93,7 +100,7 @@ export function presignDeadlineFrom(fundedAt: number): number {
   return fundedAt + PRESIGN_WINDOW_SEC;
 }
 
-/** `presigned` + 5분 — 고객 계좌 공개 마감 */
+/** `presigned` + 15분 — 고객 계좌 공개 마감 */
 export function accountDeadlineFrom(presignedAt: number): number {
   return presignedAt + ACCOUNT_WINDOW_SEC;
 }
@@ -106,6 +113,97 @@ export function krwDeadlineFrom(accountSentAt: number): number {
 /** `remitted` + 24시간 — 고객 cosign 마감. 넘기면 `disputed` 강제 전이 (O-010) */
 export function cosignDeadlineFrom(remittedAt: number): number {
   return remittedAt + COSIGN_WINDOW_SEC;
+}
+
+export interface OnchainDeadline {
+  /** 마감 시각 (unix초) */
+  at: number;
+  /** 화면에 쓰는 이름 */
+  label: string;
+  /** 넘기면 무엇을 잃는가. 없으면 손실이 아니다(경고성 마감) */
+  penalty?: string;
+}
+
+/**
+ * **지금 이 주문에 걸려 있는 마감.**
+ *
+ * 화면이 "몇 분 남았는지"를 보여주려면 어느 시계가 도는지 한 곳에서 알아야 한다.
+ * 상태마다 시계가 다르고, `presigned`는 **한 상태 안에서 주인이 바뀐다**(O-013).
+ *
+ * `null`이면 마감이 없는 구간이다 — `disputed`가 유일하고, 그건 자동 해소가
+ * 어느 방향이든 탈취라서다(§7.5).
+ */
+export function currentOnchainDeadline(
+  order: {
+    state: string;
+    expiration: number;
+    fundingDeadline?: number;
+    fundedAt?: number;
+    presignedAt?: number;
+    accountSentAt?: number;
+    krwDeadline?: number;
+    remittedAt?: number;
+    settlingAt?: number;
+    updatedAt: number;
+  },
+): OnchainDeadline | null {
+  switch (order.state) {
+    case 'listed':
+      return order.expiration > 0
+        ? { at: order.expiration, label: '의뢰 만료' }
+        : null;
+
+    case 'bonded':
+      return order.fundingDeadline
+        ? {
+            at: order.fundingDeadline,
+            label: '펀딩 컨펌 마감',
+            penalty: '넘기면 거래가 취소되고 고객 보증금이 몰수됩니다',
+          }
+        : null;
+
+    case 'funded':
+      return order.fundedAt
+        ? {
+            at: presignDeadlineFrom(order.fundedAt),
+            label: '후원자 서명 마감',
+            penalty: '넘기면 환불되고 후원자 보증금이 몰수됩니다',
+          }
+        : null;
+
+    case 'presigned':
+      // 한 상태 안에서 주인이 바뀐다 — 계좌가 나가기 전엔 고객, 그 뒤엔 후원자.
+      if (!order.accountSentAt) {
+        return order.presignedAt
+          ? {
+              at: accountDeadlineFrom(order.presignedAt),
+              label: '계좌 공개 마감',
+              penalty: '넘기면 거래가 취소되고 고객 보증금이 몰수됩니다',
+            }
+          : null;
+      }
+      return {
+        at: order.krwDeadline ?? krwDeadlineFrom(order.accountSentAt),
+        label: '원화 송금 마감',
+        penalty: '넘기면 환불되고 후원자 보증금이 몰수됩니다',
+      };
+
+    case 'remitted':
+      return order.remittedAt
+        ? {
+            at: cosignDeadlineFrom(order.remittedAt),
+            label: '입금 확인 마감',
+            penalty: '넘기면 분쟁으로 넘어갑니다 (동의를 묻지 않습니다)',
+          }
+        : null;
+
+    case 'settling':
+      // 하드 마감이 아니다 — 넘겨도 잃는 게 없고 CPFP 안내만 뜬다.
+      return { at: (order.settlingAt ?? order.updatedAt) + SETTLING_WARN_SEC, label: '컨펌 대기' };
+
+    default:
+      return null;
+  }
 }
 
 /** 의뢰 만료가 상한 안인지 — 넘으면 보증금 인보이스를 만들 수 없다(§2.2) */

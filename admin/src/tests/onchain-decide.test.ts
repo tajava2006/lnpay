@@ -232,8 +232,8 @@ describe('presigned — 두 사람의 마감이 순서대로 (O-013)', () => {
     });
   });
 
-  it('총 옵션 창이 T0+50분을 못 넘는다', () => {
-    expect(MAX_OPTION_WINDOW_SEC).toBe(50 * 60);
+  it('총 옵션 창이 T0+60분을 못 넘는다', () => {
+    expect(MAX_OPTION_WINDOW_SEC).toBe(60 * 60);
     expect(PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + KRW_WINDOW_SEC).toBe(MAX_OPTION_WINDOW_SEC);
   });
 

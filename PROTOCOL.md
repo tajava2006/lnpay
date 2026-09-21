@@ -1009,13 +1009,13 @@ swept:     전이가 아니라 **체인에서 관측**한다
 | `listed` | 의뢰 만료 (**최대 7일**) | `cancelled` |
 | `bonded` | **6시간 (컨펌까지)** | `cancelled`, 고객 보증금 몰수 |
 | `funded` | T0+15분 | `refund:sponsor-timeout` |
-| `presigned` (고객) | 계좌 공개 = +5분 | `refund:customer-late` |
+| `presigned` (고객) | 계좌 공개 = +15분 | `refund:customer-late` |
 | `presigned` (후원자) | 송금 = **계좌 공개 +30분** | `refund:sponsor-timeout` |
 | `remitted` | 24시간 | **`disputed` 강제 전이** (동의 불필요) |
 | `disputed` | **하드 마감 없음** (에스컬레이션만) | 자동 해소는 어느 방향이든 탈취다 |
 | `settling` | 24시간 | CPFP 안내 |
 
-총 옵션 창은 **T0+50분을 넘지 않는다** — 앞 두 마감이 T0에 묶여 있고, 후원자
+총 옵션 창은 **T0+60분을 넘지 않는다** — 앞 두 마감이 T0에 묶여 있고, 후원자
 마감만 계좌 공개를 기준으로 센다(고객 지연이 후원자를 치지 않게).
 
 타임락은 **8064블록(≈8주)** 상대 타임락(CSV)이다. 펀딩 컨펌부터 세므로 원화가

@@ -31,7 +31,7 @@ export const ONCHAIN_STATES = {
   BONDED: 'bonded',
   /** 펀딩 N컨펌. **KRW 가격 확정(T0)**. 후원자의 주소+사전서명 대기 */
   FUNDED: 'funded',
-  /** 후원자 사전서명 검증됨. 고객이 5분 내 계좌 공개 → 그때부터 원화 송금 창 30분 */
+  /** 후원자 사전서명 검증됨. 고객이 15분 내 계좌 공개 → 그때부터 원화 송금 창 30분 */
   PRESIGNED: 'presigned',
   /** 후원자가 원화 송금을 주장. 고객이 은행을 확인하고 cosign해야 한다 */
   REMITTED: 'remitted',
@@ -153,7 +153,7 @@ export const SETTLEMENT_KINDS = {
   REFUND_RESERVE: 'refund:reserve',
   /** 후원자가 사전서명·원화송금 마감을 넘김 */
   REFUND_SPONSOR_TIMEOUT: 'refund:sponsor-timeout',
-  /** 고객이 5분 내 계좌를 공개하지 않음 */
+  /** 고객이 15분 내 계좌를 공개하지 않음 */
   REFUND_CUSTOMER_LATE: 'refund:customer-late',
   /** `funded` 진입 시 후원자 보증금이 이미 만료 (O-015) */
   REFUND_BOND_EXPIRED: 'refund:bond-expired',

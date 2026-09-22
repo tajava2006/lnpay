@@ -50,6 +50,7 @@ import {
   publishOnchainRejected, publishOnchainSignRequest,
 } from './publish';
 import { notifyOnchainAccountArrived, notifyOnchainTransition } from './notify';
+import { handleOnchainOutcome } from './deposit-lifecycle';
 
 // ─── 설정 ────────────────────────────────────────────────────
 
@@ -639,6 +640,45 @@ export async function handleOnchainRemit(req: { orderId: string; pubkey: string 
   }
 
   await commitOnchainOrder(req.orderId, { state: 'remitted', remittedAt: now() });
+}
+
+// ─── ⑤c 고객이 의뢰를 접는다 ─────────────────────────────────
+
+/**
+ * 고객이 스스로 의뢰를 내린다 → `listed → cancelled`, **보증금 환불**.
+ *
+ * ⚠️ **`listed`에서만** 받는다. 후원자 보증금이 잡힌 뒤(`bonded`)에는 일방
+ * 취소가 없다 — 상대가 이미 돈을 걸었고, 그때부터는 마감과 체인이 판정한다
+ * (§4.2 · O-001). 라이트닝 트랙이 `escrowed` 이후 취소를 닫아둔 것과 같은 이유다.
+ *
+ * 액션은 라이트닝의 `cancel-request`를 **그대로 쓴다** — 뜻이 같고 트랙은
+ * `t` 태그로 갈린다(`remit-request`·`account-info`와 같은 판단).
+ */
+export async function handleOnchainCancelRequest(
+  req: { orderId: string; pubkey: string },
+): Promise<void> {
+  const order = getOnchainOrder(req.orderId);
+  if (!order) return;
+  if (req.pubkey !== order.customerPubkey) {
+    return console.warn('[Onchain] 의뢰자가 아닌 쪽의 취소 요청', req.orderId);
+  }
+  if (order.state !== 'listed') {
+    // 후원자가 붙는 것과 겹치면 먼저 반영된 쪽이 이긴다. 조용히 거절한다.
+    return console.warn('[Onchain] 이 상태에서는 접을 수 없다:', req.orderId, order.state);
+  }
+
+  const updated = await commitOnchainOrder(req.orderId, { state: 'cancelled' });
+  if (!updated) return;
+
+  // 사유가 곧 보증금 처리다 — 후원자가 없었으니 고객 보증금은 **환불**이다(§4.1b).
+  void handleOnchainOutcome(updated, 'cancel:customer', lnAdapter);
+
+  // 아직 결제 안 된 후원자 인보이스를 먼저 치운다. 안 그러면 취소된 뒤에 결제해
+  // "냈는데 늦었다"를 겪는다 — HTLC는 실패라 잃는 건 없지만 헛걸음이다.
+  for (const deposit of getOnchainDepositsFor(req.orderId)) {
+    if (deposit.type === 'sponsor') await cancelDeposit(deposit);
+  }
+  console.log('[Onchain] 고객이 의뢰를 접었다', req.orderId);
 }
 
 // ─── ⑥ 분쟁 ──────────────────────────────────────────────────

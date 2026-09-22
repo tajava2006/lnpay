@@ -28,9 +28,9 @@ import { parseRoute, urlFor, type Tab, type Track } from './routing';
  * 그래서 **트랙을 위에 두고 탭 구조를 양쪽이 공유한다.** 이름만 트랙에 맞게 바꾼다.
  * 주소 규칙은 `routing.ts`가 진실이다.
  */
-const TRACKS: Array<{ key: Track; label: string; hint: string }> = [
-  { key: 'ln', label: '라이트닝', hint: '원화로 물건을 대신 사주는 거래' },
-  { key: 'onchain', label: '온체인', hint: '원화와 비트코인을 직접 맞바꾸는 거래' },
+const TRACKS: Array<{ key: Track; label: string }> = [
+  { key: 'ln', label: '라이트닝' },
+  { key: 'onchain', label: '온체인' },
 ];
 
 /**
@@ -193,16 +193,11 @@ function AppContent() {
             key={t.key}
             onClick={() => goTrack(t.key)}
             style={track === t.key ? { ...styles.track, ...styles.trackOn } : styles.track}
-            title={t.hint}
           >
             {t.label}
           </button>
         ))}
       </nav>
-
-      <p style={styles.trackHint}>
-        {TRACKS.find(t => t.key === track)?.hint}
-      </p>
 
       <nav style={styles.tabs}>
         {TAB_ORDER.map(key => (
@@ -266,7 +261,6 @@ const styles = {
     borderRadius: 8, cursor: 'pointer',
   },
   trackOn: { background: '#fff', color: '#111827', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' },
-  trackHint: { margin: '0 0 10px', fontSize: 12, color: '#6B7280', textAlign: 'center' as const },
   headerRight: {
     display: 'flex',
     alignItems: 'center',

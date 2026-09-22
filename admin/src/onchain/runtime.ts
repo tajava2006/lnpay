@@ -23,7 +23,8 @@ import { MempoolChainAdapter, type ChainNetwork } from '@sajwo-tracker/shared/on
 import {
   accountInfoSent, checkOnchainDeposits, commitOnchainOrder, configureOnchainService,
   handleOnchainClaim, handleOnchainCosign, handleOnchainDispute, handleOnchainOrderRequest,
-  handleOnchainPresig, handleOnchainRemit, listOnchainOrders, noteAccountInfoSent,
+  handleOnchainCancelRequest, handleOnchainPresig, handleOnchainRemit,
+  listOnchainOrders, noteAccountInfoSent,
   onchainReleaseFeeSat, prepareOnchainSettlement,
 } from './service';
 import { upsertOnchainOrder } from './order-store';
@@ -158,6 +159,7 @@ export function dispatchOnchainRequest(event: Event): void {
     // 않았다. 트랙은 `t` 태그로 갈리므로 이 구독에는 온체인 것만 들어온다.
     case 'remit-request': void handleOnchainRemit(request); return;
     case 'account-info': void noteAccountInfoSent(request.orderId); return;
+    case 'cancel-request': void handleOnchainCancelRequest(request); return;
 
     default: return;
   }

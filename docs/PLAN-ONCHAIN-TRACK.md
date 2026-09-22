@@ -1833,7 +1833,13 @@ admin/src/components/{OnchainPanel,OnchainConfig}.tsx
 #### §5.2에 빠져 있던 것 (P5에서 발견)
 
 `presigned → remitted`를 발행할 액션이 없었다. 라이트닝의 `remit-request`를
-그대로 쓴다 — 뜻과 모양이 같고 트랙은 `t` 태그로 갈린다. `account-info`도 같다.
+그대로 쓴다 — 뜻과 모양이 같고 트랙은 `t` 태그로 갈린다. `account-info`와
+`cancel-request`(고객이 의뢰를 내리는 길, §4.1b의 `cancel:customer`)도 같다.
+
+⚠️ `cancel:customer`는 **표에만 있고 도달 경로가 없던** 사유였다 — 발행할
+액션이 없어 죽은 코드였고, 고객은 만료를 기다릴 수밖에 없었다.
+`listed`에서만 받는다: 후원자 보증금이 잡힌 뒤에는 상대가 이미 돈을 걸었으므로
+일방 취소가 없다(라이트닝이 `escrowed` 이후를 닫아둔 것과 같은 이유 — T-003).
 
 ### P6 — signet e2e 드릴 + 만료 전수조사 — ⬜ **절반** (2026-09-21)
 

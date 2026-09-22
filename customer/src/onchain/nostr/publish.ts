@@ -141,6 +141,23 @@ export async function publishOnchainDispute(
   });
 }
 
+/**
+ * 고객: 의뢰를 접는다.
+ *
+ * **후원자가 붙기 전에만** 받아들여진다(§4.2). 붙은 뒤에는 상대가 이미 돈을
+ * 걸었으므로 일방 취소가 없고, 마감과 체인이 판정한다.
+ *
+ * 액션은 라이트닝의 `cancel-request`를 그대로 쓴다 — 뜻이 같고 트랙은 `t` 태그로 갈린다.
+ */
+export async function publishOnchainCancelRequest(orderId: string): Promise<PublishResult> {
+  return publish({
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: baseTags(orderId, REQUEST_ACTIONS.CANCEL_REQUEST),
+    content: '',
+  });
+}
+
 /** 고객: 계좌 정보 (NIP-44로 **후원자에게** — 어드민도 못 본다) */
 export async function publishOnchainAccountInfo(
   orderId: string,

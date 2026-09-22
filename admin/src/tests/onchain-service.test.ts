@@ -557,3 +557,52 @@ describe('계좌 공개 (O-013)', () => {
     expect(store.getOnchainOrder('o-1')!.accountSentAt).toBe(first);
   });
 });
+
+// ── ⑨ 고객이 의뢰를 접는다 ──────────────────────────────────
+
+describe('의뢰 내리기', () => {
+  const cancel = (pubkey = CUST) => ({ orderId: 'o-1', pubkey });
+
+  beforeEach(() => {
+    store.upsertOnchainOrder(order({ customerDepositHash: 'hash-c' }));
+    ln.lookupHoldInvoice.mockResolvedValue('accepted');
+  });
+
+  it('listed에서 접으면 취소되고 보증금이 환불된다', async () => {
+    await svc.handleOnchainCancelRequest(cancel());
+    expect(store.getOnchainOrder('o-1')?.state).toBe('cancelled');
+    // 후원자가 없었으니 몰수가 아니라 **환불**이다 (§4.1b)
+    expect(ln.cancelInvoice).toHaveBeenCalled();
+    expect(ln.settleInvoice).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 후원자가 붙은 뒤에는 상대가 이미 돈을 걸었다. 일방 취소를 열면
+   * 라이트닝에서 닫아둔 선취적 취소(T-003)가 여기서 부활한다.
+   */
+  it.each(['bonded', 'funded', 'presigned', 'remitted'] as const)(
+    '%s에서는 접을 수 없다',
+    async state => {
+      store.upsertOnchainOrder(fundedOrder({ state, updatedAt: 99, remittedAt: 1 }));
+      await svc.handleOnchainCancelRequest(cancel());
+      expect(store.getOnchainOrder('o-1')?.state).toBe(state);
+    },
+  );
+
+  it('의뢰자가 아니면 거부한다', async () => {
+    await svc.handleOnchainCancelRequest(cancel('stranger'));
+    expect(store.getOnchainOrder('o-1')?.state).toBe('listed');
+  });
+
+  /** 취소된 뒤 결제해 "냈는데 늦었다"를 겪지 않게, 열린 인보이스를 먼저 치운다. */
+  it('결제 안 된 후원자 인보이스를 치운다', async () => {
+    deposits.putOnchainDeposit({
+      orderId: 'o-1', type: 'sponsor', sponsorPubkey: SPON, customerPubkey: CUST,
+      depositPaymentHash: 'h-s', depositBolt11: 'lnbc', amountSat: 15_000, createdAt: 1,
+      sponsorXonly: XS, payoutAddress: PAYOUT, feerateSatPerVb: 2,
+    });
+
+    await svc.handleOnchainCancelRequest(cancel());
+    expect(deposits.getOnchainDepositsFor('o-1')).toHaveLength(0);
+  });
+});

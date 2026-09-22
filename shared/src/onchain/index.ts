@@ -95,10 +95,11 @@ export {
   canSendAccountInfoOnchain,
   canAutoRelease,
   isPriceStale,
+  canActOnSignRequest,
 } from './state-machine';
 export type {
   OnchainState, SettlementKind, NonTxOutcome, OnchainOutcome,
-  BondDisposition, OutcomeRule,
+  BondDisposition, OutcomeRule, SignPurpose,
 } from './state-machine';
 
 export { ONCHAIN_STATE_DISPLAY, onchainStateDisplay } from './display';

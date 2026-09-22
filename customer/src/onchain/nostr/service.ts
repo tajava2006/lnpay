@@ -21,12 +21,12 @@ import {
 } from '@sajwo-tracker/shared';
 import { parseAccountInfoEnvelope } from '@sajwo-tracker/shared';
 import {
-  isOnchainPsbtPayload, parseOnchainOrder, type OnchainOrder,
+  isOnchainPsbtPayload, isOnchainTerminal, parseOnchainOrder, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrder, roleIn, upsertOnchainOrder } from '../store';
 import { buildPresignature } from '../actions';
 import { publishOnchainPresig } from './publish';
-import { putSignRequest } from '../sign-request-store';
+import { clearSignRequest, putSignRequest } from '../sign-request-store';
 import { putDepositInvoice } from '../deposit-store';
 import { forgetPendingRequest, markRequestRejected } from '../pending-request-store';
 import { putOnchainAccount } from '../account-store';
@@ -93,6 +93,12 @@ export async function handleOrderEvent(event: Event, myPubkey: string): Promise<
 
   // 오더가 생겼으면 "등록 요청 대기"는 끝났다
   forgetPendingRequest(order.orderId);
+
+  // 브로드캐스트됐거나 끝난 주문의 서명 요청은 쓸 데가 없다. 화면은 FSM으로
+  // 이미 막지만(`canActOnSignRequest`), 스토어에 남겨두면 다음에 또 헷갈린다.
+  if (order.state === 'settling' || isOnchainTerminal(order.state)) {
+    clearSignRequest(order.orderId);
+  }
 
   // 후원자 사전서명 — 여기가 자동인 유일한 자리다.
   if (order.state === 'funded' && roleIn(order, myPubkey) === 'sponsor') {

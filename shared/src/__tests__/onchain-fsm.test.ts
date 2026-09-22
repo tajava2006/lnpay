@@ -15,6 +15,7 @@ import {
   OUTCOME_RULES,
   PRICE_VALIDITY_MS,
   SETTLEMENT_KINDS,
+  canActOnSignRequest,
   canAutoRelease,
   canCancelOnchain,
   canOnchainTransition,
@@ -321,5 +322,56 @@ describe('타입 경계', () => {
   it('상태 상수와 문자열 리터럴이 일치한다', () => {
     const states: OnchainState[] = [...ALL];
     expect(states).toHaveLength(13);
+  });
+});
+
+describe('서명 요청이 아직 쓸모 있는가 (화면 게이트)', () => {
+  /**
+   * ⚠️ kind 1111은 릴레이에 남아 **새로고침마다 다시 배달된다.** 화면이
+   * "스토어에 있다"만 보고 버튼을 띄우면 로컬에서 지워도 되살아난다 —
+   * 실제로 **종결된 주문에 "서명하고 보내기"가 계속 떠 있었다**(2026-09-23).
+   * 진실은 FSM이다.
+   */
+  it.each(['released', 'refunded', 'sponsor_wins', 'customer_wins', 'cancelled', 'swept'] as const)(
+    '터미널(%s)에서는 어떤 서명도 받지 않는다',
+    state => {
+      for (const purpose of ['release', 'refund', 'dispute-customer', 'dispute-sponsor'] as const) {
+        expect(canActOnSignRequest(state, purpose), purpose).toBe(false);
+      }
+    },
+  );
+
+  /** 이미 브로드캐스트됐다. 되돌아가지도 않는다(O-005). */
+  it('settling에서도 받지 않는다', () => {
+    expect(canActOnSignRequest('settling', 'release')).toBe(false);
+    expect(canActOnSignRequest('settling', 'refund')).toBe(false);
+  });
+
+  /**
+   * `presigned`에서는 **원화가 아직 안 왔다.** O-007이 "고객이 수령을 확인해야
+   * 릴리스"인데, 확인할 게 없는 시점에 버튼을 열면 그 원칙이 화면에서 새어나간다.
+   */
+  it('릴리스는 remitted·disputed에서만', () => {
+    expect(canActOnSignRequest('remitted', 'release')).toBe(true);
+    expect(canActOnSignRequest('disputed', 'release')).toBe(true);   // O-011 합의 릴리스
+    expect(canActOnSignRequest('presigned', 'release')).toBe(false);
+    expect(canActOnSignRequest('funded', 'release')).toBe(false);
+    expect(canActOnSignRequest('bonded', 'release')).toBe(false);
+  });
+
+  /** 마감 초과로 접는 경로 — 그 두 상태에서만 환불 tx가 만들어진다. */
+  it('환불은 funded·presigned에서만', () => {
+    expect(canActOnSignRequest('funded', 'refund')).toBe(true);
+    expect(canActOnSignRequest('presigned', 'refund')).toBe(true);
+    expect(canActOnSignRequest('remitted', 'refund')).toBe(false);
+    expect(canActOnSignRequest('disputed', 'refund')).toBe(false);
+  });
+
+  it('분쟁 판정 집행은 disputed에서만', () => {
+    for (const purpose of ['dispute-customer', 'dispute-sponsor'] as const) {
+      expect(canActOnSignRequest('disputed', purpose)).toBe(true);
+      expect(canActOnSignRequest('remitted', purpose)).toBe(false);
+      expect(canActOnSignRequest('presigned', purpose)).toBe(false);
+    }
   });
 });

@@ -10,7 +10,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { InvoicePayBlock } from '@sajwo-tracker/shared';
 import {
-  MempoolChainAdapter, onchainStateDisplay, type OnchainOrder,
+  canActOnSignRequest, MempoolChainAdapter, onchainStateDisplay, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrdersSnapshot, myOnchainOrders, roleIn, subscribeOnchainOrders } from '../store';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
@@ -184,7 +184,15 @@ export function OnchainOrderCard({ order, role, invoiceBolt11, signRequest, onSe
         <RemitPanel order={order} />
       )}
 
-      {signRequest && <SignPanel order={order} request={signRequest} />}
+      {/*
+        ⚠️ **스토어에 있다는 것만으로 띄우면 안 된다.** kind 1111은 릴레이에
+        남아 새로고침마다 다시 배달되므로 로컬에서 지워도 되살아난다 —
+        종결된 주문에 "서명하고 보내기"가 계속 떠 있던 게 그 탓이다(2026-09-23).
+        진실은 FSM이라 상태에 물어본다.
+      */}
+      {signRequest && canActOnSignRequest(order.state, signRequest.purpose) && (
+        <SignPanel order={order} request={signRequest} />
+      )}
 
       {(order.state === 'remitted' || order.state === 'presigned') && (
         <DisputeButton order={order} role={role} />

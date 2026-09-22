@@ -360,3 +360,38 @@ export const PRICE_VALIDITY_MS = 24 * 60 * 60 * 1000;
 export function isPriceStale(remittedAtMs: number, nowMs: number): boolean {
   return nowMs - remittedAtMs > PRICE_VALIDITY_MS;
 }
+
+/** 서명 요청이 가리키는 종결 (kind 1111 `purpose` 태그) */
+export type SignPurpose = 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor';
+
+/**
+ * 이 서명 요청이 **아직 쓸모 있는가.**
+ *
+ * ⚠️ 화면이 "서명 요청이 스토어에 있다"만 보고 버튼을 띄우면 안 된다.
+ * kind 1111은 릴레이에 남아 있어 **새로고침할 때마다 다시 배달되므로**,
+ * 로컬에서 지워도 되살아난다. 실제로 **종결된 주문에 "서명하고 보내기"가
+ * 계속 떠 있었다**(2026-09-23). 에스크로 주소가 주문마다 유일해서 두 번 나갈
+ * 일은 없지만, 끝난 거래에 살아 있는 버튼이 남아 있는 건 그 자체로 잘못이다.
+ *
+ * **진실은 FSM이다.** 상태가 답을 갖고 있으니 상태에 물어본다:
+ *
+ * - `settling`·터미널 → **무조건 아니다.** 이미 브로드캐스트됐거나 끝났다
+ * - `release` → `remitted`(고객이 입금을 확인할 수 있는 시점)이거나
+ *   `disputed`(양쪽 합의 릴리스로 빠져나가는 길, O-011)일 때만
+ * - `refund` → `funded`·`presigned` — 마감 초과로 접는 경로다
+ * - 분쟁 판정 집행 → `disputed`일 때만
+ *
+ * `release`를 `presigned`에서 막는 이유: 그때는 **원화가 아직 안 왔다.**
+ * O-007이 "고객이 수령을 확인해야 릴리스"인데, 확인할 게 없는 시점에 버튼을
+ * 열어두면 그 원칙이 화면에서 새어나간다.
+ */
+export function canActOnSignRequest(state: OnchainState, purpose: SignPurpose): boolean {
+  if (isOnchainTerminal(state) || state === 'settling') return false;
+
+  switch (purpose) {
+    case 'release': return state === 'remitted' || state === 'disputed';
+    case 'refund': return state === 'funded' || state === 'presigned';
+    case 'dispute-customer':
+    case 'dispute-sponsor': return state === 'disputed';
+  }
+}

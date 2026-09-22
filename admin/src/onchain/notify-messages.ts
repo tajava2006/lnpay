@@ -29,19 +29,19 @@ export const ONCHAIN_NOTIFY = {
   /** 후원자 보증금이 잡혔다 = 클레임 성립. 고객이 6시간 안에 펀딩해야 한다. */
   customerShouldFund: (): Notice => ({
     body: '후원자가 확정되었습니다. 6시간 안에 에스크로 주소로 보내고 컨펌까지 마쳐주세요. 늦으면 보증금을 잃습니다.',
-    tab: 'onchain',
+    tab: 'history', track: 'onchain',
   }),
 
   /** 후원자 사전서명이 검증됐다. 고객이 15분 안에 계좌를 공개해야 한다. */
   customerShouldSendAccount: (): Notice => ({
     body: '후원자가 서명을 마쳤습니다. 15분 안에 입금받을 계좌 정보를 보내주세요.',
-    tab: 'onchain',
+    tab: 'history', track: 'onchain',
   }),
 
   /** 후원자가 송금을 주장했다. **가장 급한 알림** — 상대는 이미 돈을 보내놓고 기다린다. */
   customerShouldConfirm: (): Notice => ({
     body: '후원자가 원화를 보냈다고 알려왔습니다. 입금을 확인하고 서명해 주세요.',
-    tab: 'onchain',
+    tab: 'history', track: 'onchain',
   }),
 
   /**
@@ -50,7 +50,7 @@ export const ONCHAIN_NOTIFY = {
    */
   customerDisputeSoon: (): Notice => ({
     body: '곧 분쟁으로 넘어갑니다. 입금을 확인하고 서명해 주세요.',
-    tab: 'onchain',
+    tab: 'history', track: 'onchain',
   }),
 
   /**
@@ -59,7 +59,7 @@ export const ONCHAIN_NOTIFY = {
    */
   customerShouldSignRefund: (): Notice => ({
     body: '환불 서명이 필요합니다. 서명해야 에스크로가 돌아옵니다.',
-    tab: 'onchain',
+    tab: 'history', track: 'onchain',
   }),
 
   // ── 후원자 차례 ──
@@ -70,13 +70,13 @@ export const ONCHAIN_NOTIFY = {
    */
   sponsorShouldPresign: (): Notice => ({
     body: '펀딩이 확인되어 금액이 확정됐습니다. 앱을 열어 15분 안에 서명을 마쳐주세요.',
-    tab: 'onchain',
+    tab: 'history', track: 'onchain',
   }),
 
   /** 계좌가 도착했다. 여기서부터 30분 (O-013 — 고객 지연이 이 창을 깎지 않는다). */
   sponsorShouldRemit: (): Notice => ({
     body: '계좌 정보가 도착했습니다. 30분 안에 원화를 보내고 송금 완료를 눌러주세요.',
-    tab: 'onchain',
+    tab: 'history', track: 'onchain',
   }),
 
   // ── 양쪽 ──
@@ -84,14 +84,14 @@ export const ONCHAIN_NOTIFY = {
   /** 분쟁이 열렸다. 증거를 올려야 판정이 된다 (§7.7 입증책임). */
   disputeOpened: (): Notice => ({
     body: '분쟁이 열렸습니다. 이체 내역·계좌 내역 등 증거를 채팅에 올려주세요.',
-    tab: 'onchain',
+    tab: 'history', track: 'onchain',
   }),
 
   disputeResolved: (won: boolean): Notice => ({
     body: won
       ? '분쟁 판정이 끝났습니다. 회원님께 유리하게 결정되었습니다.'
       : '분쟁 판정이 끝났습니다. 자세한 내용은 앱에서 확인해 주세요.',
-    tab: 'history',
+    tab: 'history', track: 'onchain',
   }),
 
   /** 종결 tx가 컨펌됐다. */
@@ -99,7 +99,7 @@ export const ONCHAIN_NOTIFY = {
     body: role === 'customer'
       ? '거래가 완료되었습니다.'
       : '거래가 완료되었습니다. 비트코인이 등록한 주소로 들어왔습니다.',
-    tab: 'history',
+    tab: 'history', track: 'onchain',
   }),
 
   /**
@@ -108,12 +108,12 @@ export const ONCHAIN_NOTIFY = {
    */
   refunded: (): Notice => ({
     body: '에스크로가 환불되었습니다. 자세한 내용은 앱에서 확인해 주세요.',
-    tab: 'history',
+    tab: 'history', track: 'onchain',
   }),
 
   cancelled: (): Notice => ({
     body: '거래가 취소되었습니다.',
-    tab: 'history',
+    tab: 'history', track: 'onchain',
   }),
 } as const;
 

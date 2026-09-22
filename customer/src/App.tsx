@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyInit, BtcPrice, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
+import {
+  KeyInit, BtcPrice, createPriceTracker, getUserPubkey, subscribeRelayLists, storage,
+} from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { startSubscriptions, stopSubscriptions } from './nostr/service';
 import { Dashboard } from './buyer/components/Dashboard';
@@ -8,9 +10,28 @@ import { OrderBook } from './sponsor/components/OrderBook';
 import { OrderDetail } from './sponsor/components/OrderDetail';
 import { startCleanup as startSponsorCleanup, stopCleanup as stopSponsorCleanup } from './sponsor/order-store';
 import { HistoryPage } from './history/HistoryPage';
-import { OnchainPage } from './onchain/components/OnchainPage';
+import { OnchainOrderBook } from './onchain/components/OnchainOrderBook';
+import { OnchainOrderForm } from './onchain/components/OnchainOrderForm';
+import { OnchainMyOrders } from './onchain/components/OnchainMyOrders';
+import { OnchainOrderDetail } from './onchain/components/OnchainOrderDetail';
 import { startOnchainSubscriptions, stopOnchainSubscriptions } from './onchain/nostr/service';
 import { NotifySetup } from './components/NotifySetup';
+import { parseRoute, urlFor, type Tab, type Track } from './routing';
+
+/**
+ * 거래 방법 = 최상위 선택.
+ *
+ * 라이트닝과 온체인은 **동등한 거래 방법**이다. 한쪽을 다른 쪽의 탭 하나로
+ * 넣으면 층위가 어긋나고(온체인이 라이트닝의 하위처럼 보인다), 무엇보다
+ * 두 트랙의 화면 구조가 달라져 옮겨 다닐 때마다 다시 배워야 한다.
+ *
+ * 그래서 **트랙을 위에 두고 탭 구조를 양쪽이 공유한다.** 이름만 트랙에 맞게 바꾼다.
+ * 주소 규칙은 `routing.ts`가 진실이다.
+ */
+const TRACKS: Array<{ key: Track; label: string; hint: string }> = [
+  { key: 'ln', label: '라이트닝', hint: '원화로 물건을 대신 사주는 거래' },
+  { key: 'onchain', label: '온체인', hint: '원화와 비트코인을 직접 맞바꾸는 거래' },
+];
 
 /**
  * 탭 = 역할 구분.
@@ -23,34 +44,16 @@ import { NotifySetup } from './components/NotifySetup';
  * 구매를 '주문'으로 여겨 엉뚱한 탭을 찾는다(실제 혼동 사례). 각 탭이
  * "여기서 당신이 무엇을 하는가"를 말하면 그 오해가 구조적으로 사라진다.
  */
-type Tab = 'request' | 'fulfill' | 'onchain' | 'history';
+const TAB_LABELS: Record<Track, Record<Tab, string>> = {
+  ln: { request: '의뢰하기', fulfill: '사주기', history: '내 거래' },
+  onchain: { request: '팔기', fulfill: '사기', history: '내 거래' },
+};
 
-/** 첫 화면. 신규 유입 대부분이 후원자 입장이라 오더북을 먼저 보여준다. */
-const DEFAULT_TAB: Tab = 'fulfill';
+const TAB_ORDER: Tab[] = ['request', 'fulfill', 'history'];
 
-const TABS: Array<{ key: Tab; label: string }> = [
-  { key: 'request', label: '의뢰하기' },
-  { key: 'fulfill', label: '사주기' },
-  // 온체인은 **별도 탭**이다(PLAN-ONCHAIN-TRACK §1.2) — 플로우가 완전히 다르고,
-  // 라이트닝 트랙을 안 건드리고 붙였다 뗐다 할 수 있어야 한다.
-  { key: 'onchain', label: '온체인' },
-  { key: 'history', label: '내 거래' },
-];
-
-function readTabFromUrl(): Tab {
-  const p = new URLSearchParams(window.location.search).get('tab');
-  return p === 'request' || p === 'fulfill' || p === 'onchain' || p === 'history'
-    ? p : DEFAULT_TAB;
-}
-
-/** 기본 탭은 쿼리 없이 루트로 둔다. */
-function urlForTab(tab: Tab): string {
-  return tab === DEFAULT_TAB ? '/' : `?tab=${tab}`;
-}
-
-function readOrderFromUrl(): string | null {
-  return new URLSearchParams(window.location.search).get('order');
-}
+const readTrackFromUrl = () => parseRoute(window.location.search).track;
+const readTabFromUrl = () => parseRoute(window.location.search).tab;
+const readOrderFromUrl = () => parseRoute(window.location.search).orderId;
 
 function AppContent() {
   const trackerRef = useRef<PriceTracker | null>(null);
@@ -59,12 +62,15 @@ function AppContent() {
   }
   const tracker = trackerRef.current;
 
+  const [track, setTrack] = useState<Track>(readTrackFromUrl);
   const [tab, setTab] = useState<Tab>(readTabFromUrl);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(readOrderFromUrl);
+  const [myPubkey, setMyPubkey] = useState<string | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
 
   useEffect(() => {
     const onPop = () => {
+      setTrack(readTrackFromUrl());
       setTab(readTabFromUrl());
       setDetailOrderId(readOrderFromUrl());
     };
@@ -85,6 +91,7 @@ function AppContent() {
       if (data?.type !== 'pairbuy-navigate' || typeof data.url !== 'string') return;
 
       history.pushState(null, '', data.url);
+      setTrack(readTrackFromUrl());
       setTab(readTabFromUrl());
       setDetailOrderId(readOrderFromUrl());
     };
@@ -94,25 +101,41 @@ function AppContent() {
   }, []);
 
   const goTab = useCallback((next: Tab) => {
-    history.pushState(null, '', urlForTab(next));
+    history.pushState(null, '', urlFor(track, next));
     setTab(next);
     setDetailOrderId(null);
-  }, []);
+  }, [track]);
 
-  // 상세는 어느 탭에서 들어왔는지 URL에 남긴다 — 뒤로가기 목적지가 갈린다.
-  const openDetail = useCallback((orderId: string, from: Tab) => {
-    history.pushState(null, '', `?tab=${from}&order=${orderId}`);
-    setTab(from);
-    setDetailOrderId(orderId);
-  }, []);
-
-  const closeDetail = useCallback(() => {
-    history.pushState(null, '', urlForTab(tab));
+  /**
+   * 트랙을 바꿔도 **보던 탭은 유지한다** — 두 트랙이 같은 탭 구조라
+   * "팔던 자리에서 팔던 자리로" 넘어가는 게 자연스럽다.
+   */
+  const goTrack = useCallback((next: Track) => {
+    history.pushState(null, '', urlFor(next, tab));
+    setTrack(next);
     setDetailOrderId(null);
   }, [tab]);
 
+  // 상세는 어느 트랙·탭에서 들어왔는지 URL에 남긴다 — 새로고침해도 그 자리고,
+  // 뒤로가기 목적지도 갈린다.
+  const openDetail = useCallback((orderId: string, from: Tab) => {
+    history.pushState(null, '', urlFor(track, from, orderId));
+    setTab(from);
+    setDetailOrderId(orderId);
+  }, [track]);
+
+  const closeDetail = useCallback(() => {
+    history.pushState(null, '', urlFor(track, tab));
+    setDetailOrderId(null);
+  }, [track, tab]);
+
   const openFromBook = useCallback((orderId: string) => openDetail(orderId, 'fulfill'), [openDetail]);
   const openFromHistory = useCallback((orderId: string) => openDetail(orderId, 'history'), [openDetail]);
+
+  // 내 pubkey — 온체인 카드의 역할 판정에 쓴다. 로딩 전엔 null로 둔다.
+  useEffect(() => {
+    void getUserPubkey(storage).then(setMyPubkey);
+  }, []);
 
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);
@@ -164,27 +187,56 @@ function AppContent() {
 
       {notifyOpen && <NotifySetup onClose={() => setNotifyOpen(false)} />}
 
-      <nav style={styles.tabs}>
-        {TABS.map(t => (
+      <nav style={styles.tracks}>
+        {TRACKS.map(t => (
           <button
             key={t.key}
-            onClick={() => goTab(t.key)}
-            style={tab === t.key ? { ...styles.tab, ...styles.tabOn } : styles.tab}
+            onClick={() => goTrack(t.key)}
+            style={track === t.key ? { ...styles.track, ...styles.trackOn } : styles.track}
+            title={t.hint}
           >
             {t.label}
           </button>
         ))}
       </nav>
 
+      <p style={styles.trackHint}>
+        {TRACKS.find(t => t.key === track)?.hint}
+      </p>
+
+      <nav style={styles.tabs}>
+        {TAB_ORDER.map(key => (
+          <button
+            key={key}
+            onClick={() => goTab(key)}
+            style={tab === key ? { ...styles.tab, ...styles.tabOn } : styles.tab}
+          >
+            {TAB_LABELS[track][key]}
+          </button>
+        ))}
+      </nav>
+
       <main>
-        {detailOrderId ? (
+        {track === 'onchain' ? (
+          detailOrderId ? (
+            <OnchainOrderDetail
+              orderId={detailOrderId}
+              myPubkey={myPubkey}
+              onBack={closeDetail}
+            />
+          ) : tab === 'request' ? (
+            <OnchainOrderForm onDone={() => goTab('history')} />
+          ) : tab === 'fulfill' ? (
+            <OnchainOrderBook myPubkey={myPubkey} />
+          ) : (
+            <OnchainMyOrders myPubkey={myPubkey} onSelectOrder={openFromHistory} />
+          )
+        ) : detailOrderId ? (
           <OrderDetail orderId={detailOrderId} onBack={closeDetail} tracker={tracker} />
         ) : tab === 'request' ? (
           <Dashboard tracker={tracker} />
         ) : tab === 'fulfill' ? (
           <OrderBook tracker={tracker} onSelectOrder={openFromBook} />
-        ) : tab === 'onchain' ? (
-          <OnchainPage />
         ) : (
           <HistoryPage onSelectOrder={openFromHistory} tracker={tracker} />
         )}
@@ -204,6 +256,17 @@ export function App() {
 }
 
 const styles = {
+  tracks: {
+    display: 'flex', gap: 6, marginBottom: 8,
+    background: '#F3F4F6', borderRadius: 10, padding: 4,
+  },
+  track: {
+    flex: 1, padding: '9px 0', fontSize: 14, fontWeight: 600 as const,
+    background: 'transparent', color: '#6B7280', border: 'none',
+    borderRadius: 8, cursor: 'pointer',
+  },
+  trackOn: { background: '#fff', color: '#111827', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' },
+  trackHint: { margin: '0 0 10px', fontSize: 12, color: '#6B7280', textAlign: 'center' as const },
   headerRight: {
     display: 'flex',
     alignItems: 'center',

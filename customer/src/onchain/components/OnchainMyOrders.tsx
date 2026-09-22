@@ -34,9 +34,11 @@ import { OnchainProgressBar } from './OnchainProgressBar';
 
 interface Props {
   myPubkey: string | null;
+  /** 카드를 누르면 그 주문만 보는 화면으로 간다 (URL에 주문이 남는다) */
+  onSelectOrder?: (orderId: string) => void;
 }
 
-export function OnchainMyOrders({ myPubkey }: Props) {
+export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
   useSyncExternalStore(subscribeOnchainOrders, getOnchainOrdersSnapshot);
   const invoices = useSyncExternalStore(subscribeDepositInvoices, getDepositInvoicesSnapshot);
   const signRequests = useSyncExternalStore(subscribeSignRequests, getSignRequestsSnapshot);
@@ -110,34 +112,44 @@ export function OnchainMyOrders({ myPubkey }: Props) {
       ))}
 
       {orders.map(order => (
-        <OrderCard
+        <OnchainOrderCard
           key={order.orderId}
           order={order}
           role={roleIn(order, myPubkey)!}
           invoiceBolt11={invoices[order.orderId]?.done ? undefined : invoices[order.orderId]?.bolt11}
           signRequest={signRequests[order.orderId]}
+          onSelect={onSelectOrder}
         />
       ))}
     </div>
   );
 }
 
-function OrderCard({ order, role, invoiceBolt11, signRequest }: {
+/**
+ * 주문 하나. 목록과 상세가 **같은 카드를 쓴다** — 둘이 갈리면 한쪽에만 있는
+ * 버튼이 생기고, 그게 "왜 여기선 안 보이지"가 된다.
+ */
+export function OnchainOrderCard({ order, role, invoiceBolt11, signRequest, onSelect }: {
   order: OnchainOrder;
   role: 'customer' | 'sponsor';
   invoiceBolt11?: string;
   signRequest?: SignRequest;
+  onSelect?: (orderId: string) => void;
 }) {
   const badge = onchainStateDisplay(order.state);
 
   return (
     <div style={styles.card}>
-      <div style={styles.head}>
+      <div
+        style={{ ...styles.head, ...(onSelect ? styles.clickable : {}) }}
+        onClick={onSelect ? () => onSelect(order.orderId) : undefined}
+      >
         <span style={{ ...styles.badge, color: badge.color, background: badge.bg }}>
           {badge.label}
         </span>
         <span style={styles.role}>{role === 'customer' ? '판매' : '구매'}</span>
         <strong style={styles.amount}>{order.amountSat.toLocaleString()} sats</strong>
+        {onSelect && <span style={styles.chevron}>›</span>}
       </div>
 
       {order.priceKrw !== undefined && (
@@ -395,6 +407,8 @@ const styles = {
   empty: { fontSize: 14, color: '#6B7280', textAlign: 'center' as const, padding: '32px 0' },
   card: { border: '1px solid #E5E7EB', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 12 },
   head: { display: 'flex', alignItems: 'center', gap: 8 },
+  clickable: { cursor: 'pointer' },
+  chevron: { color: '#9CA3AF', fontSize: 18, lineHeight: 1 },
   badge: { fontSize: 12, fontWeight: 600 as const, padding: '3px 8px', borderRadius: 6 },
   role: { fontSize: 11, color: '#6B7280', background: '#F3F4F6', padding: '2px 6px', borderRadius: 4 },
   amount: { marginLeft: 'auto', fontSize: 16, color: '#111827' },

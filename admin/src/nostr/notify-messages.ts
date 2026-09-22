@@ -35,29 +35,43 @@
 const APP_URL = 'https://customer.hoppe-relay.it.com';
 
 /**
- * 앱 탭. `onchain`은 온체인 트랙 전용 탭이다 — 라이트닝과 플로우가 완전히
- * 달라 한 목록에 섞지 않는다(PLAN-ONCHAIN-TRACK §1.2).
+ * 앱 탭. **두 트랙이 같은 탭 구조를 공유한다** — 온체인과 라이트닝은 동등한
+ * 거래 방법이라 한쪽을 다른 쪽 밑에 넣지 않는다(PLAN-ONCHAIN-TRACK §1.2).
  */
-export type Tab = 'request' | 'fulfill' | 'history' | 'onchain';
+export type Tab = 'request' | 'fulfill' | 'history';
+
+/** 어느 거래 방법인가. 생략하면 라이트닝 */
+export type Track = 'ln' | 'onchain';
 
 /** 통로와 무관한 알림 한 건. 온체인 트랙도 이 형식을 그대로 쓴다. */
 export interface Notice {
   body: string;
   tab: Tab;
+  track?: Track;
 }
 
-function path(tab: Tab): string {
-  return tab === 'fulfill' ? '/' : `/?tab=${tab}`;
+/**
+ * 앱 안의 목적지.
+ *
+ * 기본값(라이트닝 + 사주기)은 쿼리 없이 루트다 — 주소가 짧을수록 알림에서
+ * 돌아왔을 때 덜 낯설다.
+ */
+function path(notice: Notice): string {
+  const params = new URLSearchParams();
+  if (notice.track === 'onchain') params.set('track', 'onchain');
+  if (notice.tab !== 'fulfill') params.set('tab', notice.tab);
+  const query = params.toString();
+  return query ? `/?${query}` : '/';
 }
 
 /** NIP-17 DM 본문 — 링크를 글로 붙인다. */
 export function asDirectMessage(n: Notice): string {
-  return `[페어바이] ${n.body}\n${APP_URL}${path(n.tab)}`;
+  return `[페어바이] ${n.body}\n${APP_URL}${path(n)}`;
 }
 
 /** Web Push 페이로드 — 제목·본문이 나뉘고 링크는 클릭 대상이 된다. */
 export function asPush(n: Notice, tag?: string): { title: string; body: string; url: string; tag?: string } {
-  return { title: '페어바이', body: n.body, url: path(n.tab), ...(tag ? { tag } : {}) };
+  return { title: '페어바이', body: n.body, url: path(n), ...(tag ? { tag } : {}) };
 }
 
 /**

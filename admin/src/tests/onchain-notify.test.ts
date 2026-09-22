@@ -131,23 +131,33 @@ describe('문구 정책', () => {
     }
   });
 
-  it('행동이 필요하면 온체인 탭, 결과면 히스토리 탭', () => {
-    expect(ONCHAIN_NOTIFY.customerShouldFund().tab).toBe('onchain');
-    expect(ONCHAIN_NOTIFY.sponsorShouldRemit().tab).toBe('onchain');
-    expect(ONCHAIN_NOTIFY.released('customer').tab).toBe('history');
-    expect(ONCHAIN_NOTIFY.cancelled().tab).toBe('history');
+  /**
+   * 온체인은 행동도 결과도 전부 `내 거래`에서 처리된다 — 오더북은 남의 의뢰를
+   * 고르는 자리일 뿐이라 알림이 갈 곳이 아니다.
+   */
+  it('전부 온체인 트랙의 내 거래로 보낸다', () => {
+    for (const notice of [
+      ONCHAIN_NOTIFY.customerShouldFund(),
+      ONCHAIN_NOTIFY.sponsorShouldRemit(),
+      ONCHAIN_NOTIFY.released('customer'),
+      ONCHAIN_NOTIFY.cancelled(),
+    ]) {
+      expect(notice.tab).toBe('history');
+      expect(notice.track).toBe('onchain');
+    }
   });
 });
 
 describe('통로 형식은 라이트닝과 공유한다', () => {
-  it('푸시 URL이 온체인 탭을 가리킨다', () => {
-    expect(asPush(ONCHAIN_NOTIFY.customerShouldFund()).url).toBe('/?tab=onchain');
+  it('푸시 URL이 온체인 트랙을 가리킨다', () => {
+    expect(asPush(ONCHAIN_NOTIFY.customerShouldFund()).url)
+      .toBe('/?track=onchain&tab=history');
   });
 
   it('DM에는 링크가 글로 붙는다', () => {
     const dm = asDirectMessage(ONCHAIN_NOTIFY.customerShouldFund());
     expect(dm).toMatch(/^\[페어바이\] /);
-    expect(dm).toMatch(/\?tab=onchain$/);
+    expect(dm).toMatch(/\?track=onchain&tab=history$/);
   });
 
   it('푸시 태그로 주문별 묶음이 된다', () => {

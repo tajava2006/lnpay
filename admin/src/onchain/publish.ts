@@ -15,23 +15,25 @@ import {
   APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
   SAJWO_REQUEST_KIND, getReadRelays, storage,
 } from '@sajwo-tracker/shared';
+import type { PreparedChatMessage } from '@sajwo-tracker/shared';
+import type { DisputeMessagePayload } from '@sajwo-tracker/shared';
 import {
-  isOnchainTerminal, onchainOrderIssues, onchainOrderTags, type OnchainOrder,
+  isOnchainTerminal, onchainMessageExpiration, onchainOrderEventExpiration,
+  onchainOrderIssues, onchainOrderTags, type OnchainOrder, type SignPurpose,
 } from '@sajwo-tracker/shared/onchain';
 import { getSigner } from '../nostr/nip46';
 
 /**
- * 종결 이벤트가 만료된 오더 위에 실릴 때 줄 유예.
+ * 오더 이벤트의 `expiration`.
  *
- * 릴레이는 NIP-40에 따라 **이미 지난 `expiration`을 가진 이벤트를 거절한다.**
- * 종결 이벤트는 "왜 끝났는지"를 알리려고 내는 것이라 도달해야 의미가 있다.
- * (라이트닝 `publishExpiration`과 같은 규칙 — 거기서 실측으로 얻은 것이다.)
+ * 릴레이는 NIP-40에 따라 **이미 지난 `expiration`을 가진 이벤트를 거절한다**(라이트닝
+ * `publishExpiration`에서 실측). 전에는 거래 중인 상태에도 **의뢰 만료**를 그대로
+ * 실었다 — 의뢰 만료는 "후원자를 찾는 창"이라 거래는 그 뒤로도 간다. 막바지에
+ * 클레임된 주문은 그 순간부터 `funded`·`settling` 발행이 전부 거절돼 **거래가
+ * 멈췄다**(리뷰 #8). 규칙은 `onchainOrderEventExpiration` 한 곳에 있다.
  */
-const TERMINAL_GRACE_SEC = 7 * 24 * 60 * 60;
-
 export function onchainPublishExpiration(order: OnchainOrder, now: number): number {
-  if (!isOnchainTerminal(order.state)) return order.expiration;
-  return order.expiration > now ? order.expiration : now + TERMINAL_GRACE_SEC;
+  return onchainOrderEventExpiration(order.state, order.expiration, now, isOnchainTerminal(order.state));
 }
 
 export async function publishOnchainOrder(order: OnchainOrder): Promise<object> {
@@ -53,7 +55,10 @@ export async function publishOnchainOrder(order: OnchainOrder): Promise<object> 
 
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_KIND,
-    created_at: now,
+    // ⚠️ `updatedAt`을 쓴다 — 스토어가 같은 초의 두 갱신을 +1로 벌려 두는데(order-store),
+    // 발행을 `now`로 하면 그 간격이 사라진다. addressable 이벤트는 created_at이 같으면
+    // **id가 작은 쪽이 남는다**(NIP-01) — 나중 상태가 버려질 수 있다(리뷰 #8).
+    created_at: order.updatedAt,
     tags,
     content: '',
   };
@@ -171,9 +176,9 @@ export async function publishOnchainRejected(
 export async function publishOnchainSignRequest(
   orderId: string,
   recipientPubkey: string,
-  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor',
+  purpose: SignPurpose,
   psbt: string,
-  expiration: number,
+  expiration: number = onchainMessageExpiration(Math.floor(Date.now() / 1000)),
 ): Promise<void> {
   const signer = getSigner();
   if (!signer) throw new Error('로그인되지 않음: signer 없음');
@@ -182,4 +187,56 @@ export async function publishOnchainSignRequest(
     orderId, recipientPubkey, REQUEST_ACTIONS.ONCHAIN_COSIGN,
     [['purpose', purpose], ['expiration', String(expiration)]], content,
   );
+}
+
+/**
+ * 온체인 분쟁 채팅 메시지를 서명까지만 끝낸다. 발행은 호출부가 돌린다(shared/chat-send).
+ *
+ * 라이트닝판(`../nostr/publish.ts`)과 같고 **`t` 태그만 온체인 것**이다. 전에는 온체인
+ * 분쟁 채팅이 아예 없었는데 알림은 "증거를 채팅에 올려주세요"라고 보냈다(리뷰 #8).
+ * 분쟁 증거는 보존해야 하므로 `expiration`을 달지 않는다(CLAUDE.md 예외 1번).
+ */
+export async function prepareOnchainDisputeMessage(
+  orderId: string,
+  recipientPubkey: string,
+  payload: DisputeMessagePayload,
+): Promise<PreparedChatMessage> {
+  const signer = getSigner();
+  if (!signer) throw new Error('로그인되지 않음: signer 없음');
+
+  const encrypted = await signer.nip44Encrypt(recipientPubkey, JSON.stringify(payload));
+  const createdAt = Math.floor(Date.now() / 1000);
+  const signed = await signer.signEvent({
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: createdAt,
+    tags: [
+      ['a', onchainOrderRef(orderId)],
+      ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
+      ['t', CLIENT_TAG_ONCHAIN],
+      ['p', recipientPubkey],
+      ['p', APP_PUBKEY],
+    ],
+    content: encrypted,
+  });
+
+  return {
+    message: {
+      eventId: signed.id,
+      orderId,
+      senderPubkey: APP_PUBKEY,
+      recipientPubkey,
+      payload,
+      createdAt,
+    },
+    publish: async () => {
+      const relays = await getReadRelays(storage);
+      const pool = new SimplePool();
+      try {
+        const results = await Promise.allSettled(pool.publish(relays, signed));
+        return results.some(r => r.status === 'fulfilled');
+      } finally {
+        pool.destroy();
+      }
+    },
+  };
 }

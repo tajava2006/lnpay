@@ -142,7 +142,9 @@ describe('tx 상태 조회 (우리가 뿌린 종결 tx용)', () => {
       [`/tx/${TXID}`]: { body: JSON.stringify({ status: { confirmed: true, block_height: 899_991 } }) },
     });
     const res = await chain.getTxStatus(TXID);
-    expect(res).toEqual({ known: true, value: { confirmed: true, confirmations: 10, blockHeight: 899_991 } });
+    expect(res).toEqual({
+      known: true, value: { seen: true, confirmed: true, confirmations: 10, blockHeight: 899_991 },
+    });
   });
 
   it('멤풀이면 confirmed=false', async () => {
@@ -151,17 +153,72 @@ describe('tx 상태 조회 (우리가 뿌린 종결 tx용)', () => {
       [`/tx/${TXID}`]: { body: JSON.stringify({ status: { confirmed: false } }) },
     });
     const res = await chain.getTxStatus(TXID);
-    expect(res).toEqual({ known: true, value: { confirmed: false, confirmations: 0 } });
+    expect(res).toEqual({ known: true, value: { seen: true, confirmed: false, confirmations: 0 } });
   });
 
-  /** 404는 "그런 tx 없다"로 읽고 싶어지지만, 릴레이·프록시 오류도 404로 온다. */
-  it('404도 "모름"이다', async () => {
+  /**
+   * esplora가 **"Transaction not found"라고 말한** 404는 사실이다 — 노드가 이 tx를
+   * 모른다(멤풀에서 쫓겨났다). 이걸 '모름'으로 두면 쫓겨난 종결 tx가 영원히 `hold`로
+   * 조용히 멈춘다(리뷰 #8 — O-005의 재브로드캐스트가 한 번도 안 돌았다).
+   */
+  it('esplora의 "Transaction not found"는 seen=false (사실)', async () => {
     const { chain } = adapter({
       '/blocks/tip/height': TIP,
       [`/tx/${TXID}`]: { body: 'Transaction not found', status: 404 },
     });
     const res = await chain.getTxStatus(TXID);
+    expect(res).toEqual({ known: true, value: { seen: false, confirmed: false, confirmations: 0 } });
+  });
+
+  /** 그냥 404는 여전히 "모름"이다 — 프록시·릴레이 오류도 404로 온다. */
+  it('본문이 다른 404는 "모름"이다', async () => {
+    const { chain } = adapter({
+      '/blocks/tip/height': TIP,
+      [`/tx/${TXID}`]: { body: '<html>Not Found</html>', status: 404 },
+    });
+    const res = await chain.getTxStatus(TXID);
     expect(res.known).toBe(false);
+  });
+});
+
+describe('outpoint 소모 조회 (리뷰 #8 — "UTXO가 없다"를 리오그로 오인하지 않기)', () => {
+  const SPENDER = 'c'.repeat(64);
+
+  it('안 쓰였으면 spent=false', async () => {
+    const { chain } = adapter({ [`/tx/${TXID}/outspend/0`]: { body: JSON.stringify({ spent: false }) } });
+    expect(await chain.getSpend({ txid: TXID, vout: 0 })).toEqual({ known: true, value: { spent: false } });
+  });
+
+  it('쓰였으면 누가 썼는지와 그 입력의 증인을 준다', async () => {
+    const { chain } = adapter({
+      [`/tx/${TXID}/outspend/0`]: {
+        body: JSON.stringify({ spent: true, txid: SPENDER, vin: 0, status: { confirmed: true } }),
+      },
+      [`/tx/${SPENDER}`]: {
+        body: JSON.stringify({
+          status: { confirmed: true, block_height: 1 },
+          vin: [{ txid: TXID, vout: 0, witness: ['aa', 'bb', 'c0cc'] }],
+        }),
+      },
+    });
+    expect(await chain.getSpend({ txid: TXID, vout: 0 })).toEqual({
+      known: true,
+      value: { spent: true, txid: SPENDER, confirmed: true, witness: ['aa', 'bb', 'c0cc'] },
+    });
+  });
+
+  it('증인을 못 읽어도 "썼다"는 사실은 준다', async () => {
+    const { chain } = adapter({
+      [`/tx/${TXID}/outspend/0`]: { body: JSON.stringify({ spent: true, txid: SPENDER }) },
+      [`/tx/${SPENDER}`]: new Error('network down'),
+    });
+    const res = await chain.getSpend({ txid: TXID, vout: 0 });
+    expect(res).toEqual({ known: true, value: { spent: true, txid: SPENDER, confirmed: false, witness: null } });
+  });
+
+  it('조회 실패는 "모름"이다', async () => {
+    const { chain } = adapter({ [`/tx/${TXID}/outspend/0`]: new Error('timeout') });
+    expect((await chain.getSpend({ txid: TXID, vout: 0 })).known).toBe(false);
   });
 });
 

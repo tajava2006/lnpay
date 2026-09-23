@@ -220,9 +220,9 @@ function AppContent() {
               onBack={closeDetail}
             />
           ) : tab === 'request' ? (
-            <OnchainOrderForm onDone={() => goTab('history')} />
+            <OnchainOrderForm onDone={() => goTab('history')} tracker={tracker} myPubkey={myPubkey} />
           ) : tab === 'fulfill' ? (
-            <OnchainOrderBook myPubkey={myPubkey} />
+            <OnchainOrderBook myPubkey={myPubkey} tracker={tracker} />
           ) : (
             <OnchainMyOrders myPubkey={myPubkey} onSelectOrder={openFromHistory} />
           )

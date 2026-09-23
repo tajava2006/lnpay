@@ -6,13 +6,23 @@
  * 쥐지 않는다.
  *
  * 대신 **최저가(reserve)** 로 아래쪽을 막는다. 한 달 방치된 시장가 주문은
- * 플래시 크래시에 그대로 노출되기 때문이다.
+ * 플래시 크래시에 그대로 노출되기 때문이다. 다만 시세 바로 아래에 걸면 컨펌을
+ * 기다리는 동안의 공짜 옵션이 되므로 **시세보다 3% 이상 낮아야** 한다(리뷰 #8).
+ *
+ * **환불 받을 주소**를 여기서 받는다(리뷰 #8). 환불은 고객이 응답하지 않을 때도
+ * 나가므로 미리 받아둬야 하는데, 전에는 이 앱만 쓸 수 있는 주소로 보냈고 꺼낼
+ * 화면이 없었다.
  */
-import { useState } from 'react';
-import { MAX_ORDER_EXPIRY_SEC } from '@sajwo-tracker/shared/onchain';
+import { useState, useSyncExternalStore } from 'react';
+import { freshPrice, type PriceTracker } from '@sajwo-tracker/shared';
+import {
+  MAX_ORDER_EXPIRY_SEC, RESERVE_MIN_GAP_PERCENT, addressProblem, reserveProblem,
+} from '@sajwo-tracker/shared/onchain';
 import { myOrderXonly } from '../keys';
 import { publishOnchainOrderRequest } from '../nostr/publish';
 import { rememberPendingRequest } from '../pending-request-store';
+import { rememberRefundAddress } from '../refund-address-store';
+import { KeyBackup } from './KeyBackup';
 
 const DAY = 86_400;
 
@@ -20,9 +30,28 @@ function newOrderId(): string {
   return `oc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function OnchainOrderForm({ onDone }: { onDone?: () => void }) {
+const NO_SUBSCRIBE = () => () => {};
+const NO_SNAPSHOT = () => null;
+
+/** 받는 주소가 어느 네트워크 것이든 비트코인 주소인지 (어드민이 네트워크를 다시 본다) */
+function refundAddressProblem(address: string): string | null {
+  if (!address.trim()) return '환불 받을 주소를 입력하세요.';
+  const ok = (['mainnet', 'signet', 'regtest'] as const).some(n => addressProblem(address, n) === null);
+  return ok ? null : '비트코인 주소가 아닙니다.';
+}
+
+export function OnchainOrderForm({ onDone, tracker, myPubkey }: {
+  onDone?: () => void;
+  tracker?: PriceTracker;
+  myPubkey?: string | null;
+}) {
+  const priceSnapshot = useSyncExternalStore(
+    tracker?.subscribe ?? NO_SUBSCRIBE,
+    tracker?.getSnapshot ?? NO_SNAPSHOT,
+  );
   const [amountSat, setAmountSat] = useState('');
   const [reserveKrw, setReserveKrw] = useState('');
+  const [refundAddress, setRefundAddress] = useState('');
   const [days, setDays] = useState(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,9 +65,13 @@ export function OnchainOrderForm({ onDone }: { onDone?: () => void }) {
       return setError('수량을 sats 단위 정수로 입력하세요.');
     }
     const reserve = reserveKrw ? Number(reserveKrw) : undefined;
-    if (reserve !== undefined && (!Number.isFinite(reserve) || reserve <= 0)) {
-      return setError('최저가는 원 단위 숫자여야 합니다.');
+    if (reserve !== undefined) {
+      const price = priceSnapshot ? freshPrice(priceSnapshot, Date.now(), 60_000, 1) ?? undefined : undefined;
+      const problem = reserveProblem({ reserveKrw: reserve, amountSat: sats, btcPriceKrw: price });
+      if (problem) return setError(problem);
     }
+    const addrProblem = refundAddressProblem(refundAddress);
+    if (addrProblem) return setError(addrProblem);
 
     setBusy(true);
     try {
@@ -47,11 +80,14 @@ export function OnchainOrderForm({ onDone }: { onDone?: () => void }) {
       const expiration = Math.floor(Date.now() / 1000) + days * DAY;
       const result = await publishOnchainOrderRequest({
         orderId, amountSat: sats, reserveKrw: reserve, customerXonly, expiration,
+        refundAddress: refundAddress.trim(),
       });
       if (!result.success) {
         setError('발행에 실패했습니다. 잠시 후 다시 시도하세요.');
         return;
       }
+      // 환불 PSBT에 서명하기 전에 **받는 주소가 이것인지** 대조하는 데 쓴다.
+      rememberRefundAddress(orderId, refundAddress.trim());
       // ⚠️ **보낸 요청을 적어둔다.** 오더는 보증금을 결제해야 생기므로, 그 전에
       // 어드민이 거절하거나 실패하면 유저 쪽에 흔적이 하나도 안 남는다.
       rememberPendingRequest({
@@ -60,6 +96,7 @@ export function OnchainOrderForm({ onDone }: { onDone?: () => void }) {
       });
       setAmountSat('');
       setReserveKrw('');
+      setRefundAddress('');
       onDone?.();
     } finally {
       setBusy(false);
@@ -90,6 +127,20 @@ export function OnchainOrderForm({ onDone }: { onDone?: () => void }) {
         />
         <span style={styles.hint}>
           펀딩이 컨펌되는 시점 시세가 이보다 낮으면 거래가 취소되고 에스크로가 돌아옵니다.
+          지금 시세보다 {RESERVE_MIN_GAP_PERCENT}% 이상 낮게만 걸 수 있습니다.
+        </span>
+      </label>
+
+      <label style={styles.label}>
+        환불 받을 주소
+        <input
+          style={styles.input}
+          value={refundAddress}
+          onChange={e => setRefundAddress(e.target.value)}
+          placeholder="bc1… (내 지갑 주소)"
+        />
+        <span style={styles.hint}>
+          거래가 성사되지 않으면 에스크로가 이 주소로 돌아옵니다. 운영자에게만 암호화되어 전달됩니다.
         </span>
       </label>
 
@@ -112,6 +163,8 @@ export function OnchainOrderForm({ onDone }: { onDone?: () => void }) {
         거래가 정상적으로 끝나면 돌려받고, <strong>후원자가 붙은 뒤 6시간 안에 펀딩을
         컨펌시키지 못하면 잃습니다.</strong>
       </div>
+
+      <KeyBackup myPubkey={myPubkey ?? null} />
 
       {error && <p style={styles.error}>{error}</p>}
 

@@ -6,13 +6,16 @@
  * ⚠️ **PSBT와 받을 주소는 암호문으로 나간다.** kind 1111은 공개 이벤트이고,
  * PSBT 안에는 후원자의 실제 지갑 주소가 들어 있다(§5.2 표).
  */
-import { finalizeEvent } from 'nostr-tools/pure';
+import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
   APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
-  SAJWO_REQUEST_KIND, getReadRelays, getSecretKey, nip44Encrypt, storage,
+  SAJWO_REQUEST_KIND, computeAccountCommitment, generateCommitmentSalt, getReadRelays,
+  getSecretKey, nip44Encrypt, storage,
+  type AccountInfo, type DisputeMessagePayload, type PreparedChatMessage,
 } from '@sajwo-tracker/shared';
+import { onchainMessageExpiration, type SignPurpose } from '@sajwo-tracker/shared/onchain';
 
 export interface PublishResult {
   success: boolean;
@@ -35,12 +38,18 @@ async function publish(template: EventTemplate): Promise<PublishResult> {
   }
 }
 
+/**
+ * 요청 공통 태그. **`expiration`을 단다** — 이벤트에는 반드시 만료가 있어야 한다
+ * (CLAUDE.md). 거래가 끝날 때까지는 살아 있어야 어드민이 소유권을 옮긴 뒤 다시
+ * 받아볼 수 있으므로 거래 상한(타임락)보다 길게 잡는다.
+ */
 function baseTags(orderId: string, action: string, extra: string[][] = []): string[][] {
   return [
     ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
     ['action', action],
     ['t', CLIENT_TAG_ONCHAIN],
     ['p', APP_PUBKEY],
+    ['expiration', String(onchainMessageExpiration(Math.floor(Date.now() / 1000)))],
     ...extra,
   ];
 }
@@ -50,26 +59,37 @@ async function encryptToAdmin(payload: object): Promise<string> {
   return nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY);
 }
 
-/** 고객: 의뢰 등록 */
+/**
+ * 고객: 의뢰 등록.
+ *
+ * **환불 받을 주소는 암호문이다**(리뷰 #8) — 공개하면 제3자가 내 지갑을 따라간다.
+ * 환불·고객승·구조 tx가 이 주소로 온다.
+ *
+ * `expiration` 태그는 **의뢰 만료**다(어드민이 의뢰 수명으로 읽는다). 이 이벤트 자체도
+ * 그때 사라지면 된다 — 오더가 생기면 이 요청은 더 쓸모가 없다.
+ */
 export async function publishOnchainOrderRequest(params: {
   orderId: string;
   amountSat: number;
   reserveKrw?: number;
   customerXonly: string;
   expiration: number;
+  refundAddress: string;
 }): Promise<PublishResult> {
   const extra: string[][] = [
     ['amount-sat', String(params.amountSat)],
     ['customer-xonly', params.customerXonly],
-    ['expiration', String(params.expiration)],
   ];
   if (params.reserveKrw !== undefined) extra.push(['reserve-krw', String(params.reserveKrw)]);
+
+  const tags = baseTags(params.orderId, REQUEST_ACTIONS.ONCHAIN_ORDER_REQUEST, extra)
+    .map(t => (t[0] === 'expiration' ? ['expiration', String(params.expiration)] : t));
 
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
-    tags: baseTags(params.orderId, REQUEST_ACTIONS.ONCHAIN_ORDER_REQUEST, extra),
-    content: '',
+    tags,
+    content: await encryptToAdmin({ refundAddress: params.refundAddress.trim() }),
   });
 }
 
@@ -112,7 +132,7 @@ export async function publishOnchainPresig(orderId: string, psbt: string): Promi
 /** 양쪽: 최종 서명 */
 export async function publishOnchainCosign(
   orderId: string,
-  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor',
+  purpose: SignPurpose,
   psbt: string,
 ): Promise<PublishResult> {
   return publish({
@@ -158,13 +178,22 @@ export async function publishOnchainCancelRequest(orderId: string): Promise<Publ
   });
 }
 
-/** 고객: 계좌 정보 (NIP-44로 **후원자에게** — 어드민도 못 본다) */
+/**
+ * 고객: 계좌 정보 (NIP-44로 **후원자에게** — 어드민도 못 본다).
+ *
+ * 라이트닝과 같은 **솔티드 커밋먼트**를 공개 태그에 단다(리뷰 #8). 전에는 없어서,
+ * 분쟁 때 "고객이 준 계좌가 뭐였나"를 어드민이 확인할 길이 없었다 — 계좌 이의
+ * 판정(§5.2b)이 원리적으로 불가능했다. 후원자가 계좌와 솔트를 채팅에 공개하면
+ * 어드민이 이 태그와 대조한다.
+ */
 export async function publishOnchainAccountInfo(
   orderId: string,
   sponsorPubkey: string,
-  account: object,
+  account: AccountInfo,
 ): Promise<PublishResult> {
   const sk = await getSecretKey(storage);
+  const salt = generateCommitmentSalt();
+  const commitment = await computeAccountCommitment(account, salt);
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: Math.floor(Date.now() / 1000),
@@ -174,7 +203,57 @@ export async function publishOnchainAccountInfo(
       ['t', CLIENT_TAG_ONCHAIN],
       ['p', sponsorPubkey],
       ['p', APP_PUBKEY],
+      ['commitment', commitment],
+      ['expiration', String(onchainMessageExpiration(Math.floor(Date.now() / 1000)))],
     ],
-    content: nip44Encrypt(JSON.stringify(account), sk, sponsorPubkey),
+    content: nip44Encrypt(JSON.stringify({ accountInfo: account, salt }), sk, sponsorPubkey),
   });
+}
+
+/**
+ * 온체인 분쟁 채팅 메시지 (고객·후원자 → 어드민). 서명까지만, 발행은 shared/chat-send가.
+ *
+ * 전에는 온체인 주문에 채팅이 아예 없었다 — 알림은 "증거를 채팅에 올려주세요"라고
+ * 보냈는데(리뷰 #8). 분쟁 증거는 보존해야 하므로 `expiration`을 달지 않는다.
+ */
+export async function prepareOnchainDisputeMessage(
+  orderId: string,
+  payload: DisputeMessagePayload,
+): Promise<PreparedChatMessage> {
+  const sk = await getSecretKey(storage);
+  const myPubkey = getPublicKey(sk);
+  const createdAt = Math.floor(Date.now() / 1000);
+  const signed = finalizeEvent({
+    kind: SAJWO_REQUEST_EVENT_KIND,
+    created_at: createdAt,
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
+      ['t', CLIENT_TAG_ONCHAIN],
+      ['p', APP_PUBKEY],
+      ['p', myPubkey],
+    ],
+    content: nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY),
+  }, sk);
+
+  return {
+    message: {
+      eventId: signed.id,
+      orderId,
+      senderPubkey: myPubkey,
+      recipientPubkey: APP_PUBKEY,
+      payload,
+      createdAt,
+    },
+    publish: async () => {
+      const relays = await getReadRelays(storage);
+      const pool = new SimplePool();
+      try {
+        const results = await Promise.allSettled(pool.publish(relays, signed));
+        return results.some(r => r.status === 'fulfilled');
+      } finally {
+        pool.destroy();
+      }
+    },
+  };
 }

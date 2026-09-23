@@ -40,6 +40,42 @@ export interface OnchainEscrowMeta {
    */
   customerDepositKey?: string;
   sponsorDepositKey?: string;
+
+  /**
+   * 고객이 의뢰 때 낸 **환불 받을 주소**(리뷰 #8). 환불·고객승·구조 tx가 여기로 간다.
+   * 후원자 주소와 같은 이유로 공개 이벤트에 싣지 않는다.
+   */
+  refundAddress?: string;
+
+  /**
+   * 보증금 HTLC가 만료될 것으로 **추정**되는 시각(unix초).
+   *
+   * 몰수는 결정 시점에 집행되므로(리뷰 #8), 판정이 이 시각을 넘기면 몰수할 게 없다.
+   * 분쟁 화면에 남은 시간을 보여주는 데 쓴다. 블록 간격이 흔들리므로 추정치다.
+   */
+  customerBondExpiresAt?: number;
+  sponsorBondExpiresAt?: number;
+
+  /**
+   * 고객이 계좌를 보낼 때 공개 태그에 단 **솔티드 커밋먼트**. 분쟁 때 후원자가 받은
+   * 계좌와 솔트를 채팅에 공개하면 이것과 대조한다(계좌 이의 판정의 근거, 리뷰 #8).
+   */
+  accountCommitment?: string;
+
+  /**
+   * 브로드캐스트 직전 기록 (outbox).
+   *
+   * **발행(settling) → 브로드캐스트** 순서를 지키기 위한 칸이다. 전에는 브로드캐스트한
+   * 뒤 발행했는데, 발행이 실패하면 체인에는 tx가 떠 있고 장부에는 없어서 워처가
+   * 그걸 리오그로 읽었다(리뷰 #8). raw tx를 남겨야 멤풀에서 쫓겨났을 때 **같은 tx를
+   * 다시 뿌릴 수 있다**(O-005) — 전에는 안 남겨서 그것도 불가능했다.
+   * 받는 주소가 들어 있으므로 공개하지 않는다(이 메타는 NIP-44로 백업된다).
+   */
+  outbox?: {
+    txid: string;
+    rawHex: string;
+    kind: string;
+  };
 }
 
 type MetaMap = Record<string, OnchainEscrowMeta>;

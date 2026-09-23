@@ -12,7 +12,9 @@ import {
   formatOutpoint, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import type { AddressFunds, ChainQuery, ChainUtxo } from '@sajwo-tracker/shared/onchain';
-import { decideOnchainAction, needsSettlementTx, type OnchainWatchContext } from '../onchain/decide';
+import {
+  decideOnchainAction, needsSettlementDecision, type OnchainWatchContext, type PinnedFacts,
+} from '../onchain/decide';
 
 const NOW = 1_700_000_000;
 const TXID = 'd4'.repeat(32);
@@ -40,8 +42,14 @@ function funds(over: Partial<AddressFunds> = {}): ChainQuery<AddressFunds> {
 
 const UNKNOWN: ChainQuery<AddressFunds> = { known: false, reason: '502' };
 
+const ALIVE: PinnedFacts = { status: 'alive', confirmations: 3 };
+const GONE: PinnedFacts = { status: 'gone' };
+
+/** 기본은 "박아둔 펀딩이 살아 있다". 펀딩 이전 상태는 이 값을 안 본다. */
 function ctx(over: Partial<OnchainWatchContext> = {}): OnchainWatchContext {
-  return { now: NOW, funds: funds(), btcPriceKrw: PRICE_FEED, sponsorBondAlive: true, ...over };
+  return {
+    now: NOW, funds: funds(), pinned: ALIVE, btcPriceKrw: PRICE_FEED, sponsorBondAlive: true, ...over,
+  };
 }
 
 describe('조회 실패는 아무것도 안 한다', () => {
@@ -51,7 +59,8 @@ describe('조회 실패는 아무것도 안 한다', () => {
       state, fundingDeadline: NOW - 1, fundingOutpoint: formatOutpoint(TXID, 0),
       fundedAt: NOW - 10_000, presignedAt: NOW - 10_000,
     });
-    expect(decideOnchainAction(o, ctx({ funds: UNKNOWN })).kind).toBe('hold');
+    expect(decideOnchainAction(o, ctx({ funds: UNKNOWN, pinned: { status: 'unknown', reason: '502' } })).kind)
+      .toBe('hold');
   });
 });
 
@@ -171,21 +180,30 @@ describe('funded — 사전서명 마감 (T0+15분)', () => {
   /** 리오그 — 사라진 펀딩 위에 가격이 고정된 채로 굴러가면 안 된다(O-008). */
   it('컨펌이 N 아래로 내려가면 리오그 복귀', () => {
     const o = funded({ amountSat: 2_000_000 });
-    const action = decideOnchainAction(o, ctx({
-      funds: funds({ confirmed: [utxo({ valueSat: 2_000_000, confirmations: 1 })] }),
-    }));
+    const action = decideOnchainAction(o, ctx({ pinned: { status: 'shallow', confirmations: 1, required: 3 } }));
     expect(action).toEqual({ kind: 'reorg', why: 'shallow' });
   });
 
-  it('펀딩이 아예 사라지면 리오그(gone) — 이중지불이다', () => {
-    expect(decideOnchainAction(funded(), ctx({ funds: funds() })))
+  it('펀딩 tx 자체가 사라지면 리오그(gone) — 이중지불이다', () => {
+    expect(decideOnchainAction(funded(), ctx({ pinned: GONE })))
       .toEqual({ kind: 'reorg', why: 'gone' });
   });
 
   /** 마감보다 리오그를 먼저 본다 — 순서가 바뀌면 사라진 펀딩을 환불하려 든다. */
   it('마감이 지났어도 리오그가 우선이다', () => {
     const o = funded({ fundedAt: NOW - PRESIGN_WINDOW_SEC - 1 });
-    expect(decideOnchainAction(o, ctx({ funds: funds() })).kind).toBe('reorg');
+    expect(decideOnchainAction(o, ctx({ pinned: GONE })).kind).toBe('reorg');
+  });
+
+  /**
+   * 리뷰 #8 — **누가 썼으면 리오그가 아니다.** 전에는 UTXO가 목록에서 빠지면 전부
+   * 리오그로 읽어서, 우리가 뿌린 환불을 `bonded` 복귀로 바꾸고 마감이 차면 엉뚱한
+   * 쪽을 몰수했다.
+   */
+  it('에스크로가 소모됐으면 리오그가 아니라 소모 관측이다', () => {
+    const spent: PinnedFacts = { status: 'spent', txid: 'ee'.repeat(32), leaf: 'customer-win', confirmed: false };
+    expect(decideOnchainAction(funded(), ctx({ pinned: spent })))
+      .toEqual({ kind: 'observe-spend', txid: 'ee'.repeat(32), leaf: 'customer-win', confirmed: false });
   });
 
   it('outpoint가 없으면 사람을 부른다', () => {
@@ -202,7 +220,7 @@ describe('presigned — 두 사람의 마감이 순서대로 (O-013)', () => {
   const alive = (over: Partial<OnchainWatchContext> = {}) =>
     ctx({ funds: funds({ confirmed: [utxo()] }), ...over });
 
-  it('계좌 공개 전에는 고객 차례 — 5분', () => {
+  it('계좌 공개 전에는 고객 차례 — 15분', () => {
     expect(decideOnchainAction(presigned(), alive()).kind).toBe('idle');
     const late = presigned({ presignedAt: NOW - ACCOUNT_WINDOW_SEC });
     expect(decideOnchainAction(late, alive())).toEqual({
@@ -238,23 +256,71 @@ describe('presigned — 두 사람의 마감이 순서대로 (O-013)', () => {
   });
 
   it('여기서도 리오그가 우선이다', () => {
-    expect(decideOnchainAction(presigned(), ctx({ funds: funds() })).kind).toBe('reorg');
+    expect(decideOnchainAction(presigned(), ctx({ pinned: GONE })).kind).toBe('reorg');
+  });
+
+  /**
+   * §5.2b — 후원자가 마감 **전에** 계좌 이의를 냈다면 마감이 차도 곧장 후원자 몰수가
+   * 아니다. 잠정 사유로 보증금을 붙잡고 사람이 가른다(전에는 이의가 콘솔에만 남았다).
+   */
+  it('계좌 이의가 있으면 잠정 사유(account-disputed)로 환불한다', () => {
+    const o = presigned({
+      presignedAt: NOW - 10_000, accountSentAt: NOW - KRW_WINDOW_SEC,
+      krwDeadline: NOW, accountDisputedAt: NOW - 600,
+    });
+    expect(decideOnchainAction(o, alive({ accountInfoSent: true }))).toEqual({
+      kind: 'settle', settlementKind: 'refund:account-disputed',
+    });
+  });
+});
+
+describe('refunding — 결정은 되돌아가지 않는다 (리뷰 #8)', () => {
+  const refunding = (over: Partial<OnchainOrder> = {}) => order({
+    state: 'refunding', fundingOutpoint: formatOutpoint(TXID, 0), fundedAt: NOW - 10_000,
+    settlementKind: 'refund:sponsor-timeout', settlementFeeSat: 400, decidedAt: NOW - 100, ...over,
+  });
+
+  it('고객 서명을 기다린다 — 다시 결정하지 않는다', () => {
+    expect(decideOnchainAction(refunding(), ctx()).kind).toBe('idle');
+  });
+
+  it('얕은 리오그면 다시 캐지길 기다린다 (거래를 되살리지 않는다)', () => {
+    expect(decideOnchainAction(refunding(), ctx({
+      pinned: { status: 'shallow', confirmations: 0, required: 2 },
+    })).kind).toBe('hold');
+  });
+
+  it('펀딩이 사라지면 사람을 부른다', () => {
+    expect(decideOnchainAction(refunding(), ctx({ pinned: GONE })).kind).toBe('anomaly');
+  });
+
+  it('브로드캐스트 직전에 멈춘 게 있으면 그것부터 마무리한다', () => {
+    expect(decideOnchainAction(refunding(), ctx({ outboxPending: true })).kind).toBe('flush-outbox');
+  });
+});
+
+describe('원화가 오간 뒤에는 리오그로 되돌리지 않는다', () => {
+  it.each(['remitted', 'disputed'] as const)('%s + 펀딩 사라짐 → 사람을 부른다', state => {
+    const o = order({ state, fundingOutpoint: formatOutpoint(TXID, 0), remittedAt: NOW - 100 });
+    expect(decideOnchainAction(o, ctx({ pinned: GONE })).kind).toBe('anomaly');
   });
 });
 
 describe('remitted — 24시간 뒤 강제 분쟁 (O-010)', () => {
   const remitted = (over: Partial<OnchainOrder> = {}) =>
-    order({ state: 'remitted', remittedAt: NOW - 100, ...over });
+    order({ state: 'remitted', remittedAt: NOW - 100, fundingOutpoint: formatOutpoint(TXID, 0), ...over });
 
   it('마감 전에는 조용하다', () => {
     expect(decideOnchainAction(remitted(), ctx()).kind).toBe('idle');
   });
 
-  /** 느린 고객 대부분이 여기서 스스로 끝낸다 → 어드민이 안 불려 나온다. */
+  /**
+   * 느린 고객 대부분이 여기서 스스로 끝낸다 → 어드민이 안 불려 나온다. 전용 행동이라
+   * 워처가 **한 번만** 알린다(전에는 경고로 내서 30초마다 푸시가 나갔다 — 리뷰 #8).
+   */
   it('2시간 전에 유예 경고', () => {
     const o = remitted({ remittedAt: NOW - COSIGN_WINDOW_SEC + 2 * 3600 });
-    const action = decideOnchainAction(o, ctx());
-    expect(action.kind).toBe('warn');
+    expect(decideOnchainAction(o, ctx())).toEqual({ kind: 'dispute-soon' });
   });
 
   /** **고객 동의를 묻지 않는다.** 침묵으로 타임락까지 끄는 경로를 막는 자리다. */
@@ -267,24 +333,37 @@ describe('remitted — 24시간 뒤 강제 분쟁 (O-010)', () => {
 describe('disputed — 하드 마감이 없다 (§7.5)', () => {
   /** 자동 해소는 어느 방향이든 탈취다. 대신 사람을 더 세게 부른다. */
   it('시간이 지나도 스스로 해소하지 않는다', () => {
-    const o = order({ state: 'disputed', updatedAt: NOW - 30 * 86_400 });
+    const o = order({ state: 'disputed', updatedAt: NOW - 30 * 86_400, fundingOutpoint: formatOutpoint(TXID, 0) });
     const action = decideOnchainAction(o, ctx());
     expect(action.kind).toBe('warn');
     expect(['confirmed', 'settle', 'cancel']).not.toContain(action.kind);
   });
 
   it('7일·14일에 에스컬레이션한다', () => {
-    const week = order({ state: 'disputed', updatedAt: NOW - 7 * 86_400 });
+    const pinned = formatOutpoint(TXID, 0);
+    const week = order({ state: 'disputed', updatedAt: NOW - 7 * 86_400, fundingOutpoint: pinned });
     expect(decideOnchainAction(week, ctx())).toMatchObject({ kind: 'warn' });
-    const fresh = order({ state: 'disputed', updatedAt: NOW - 3600 });
+    const fresh = order({ state: 'disputed', updatedAt: NOW - 3600, fundingOutpoint: pinned });
     expect(decideOnchainAction(fresh, ctx()).kind).toBe('idle');
+  });
+
+  /**
+   * 리뷰 #8 — 시계는 **분쟁 진입 시각**이다. `updatedAt`은 재발행(판정 기록·필드 수정)
+   * 마다 바뀌어 에스컬레이션이 리셋됐다.
+   */
+  it('재발행으로 updatedAt이 바뀌어도 분쟁 시계는 진입 시각이다', () => {
+    const o = order({
+      state: 'disputed', disputedAt: NOW - 8 * 86_400, updatedAt: NOW - 60,
+      fundingOutpoint: formatOutpoint(TXID, 0),
+    });
+    expect(decideOnchainAction(o, ctx())).toMatchObject({ kind: 'warn' });
   });
 });
 
 describe('settling — 컨펌되면 터미널 (O-005)', () => {
   const settling = (over: Partial<OnchainOrder> = {}) => order({
     state: 'settling', settlementKind: 'release', settlementTxid: TXID,
-    settlingAt: NOW - 100, ...over,
+    fundingOutpoint: formatOutpoint('aa'.repeat(32), 0), settlingAt: NOW - 100, ...over,
   });
 
   /**
@@ -293,12 +372,12 @@ describe('settling — 컨펌되면 터미널 (O-005)', () => {
    */
   it('요구 컨펌을 채우면 종결 (500k sat = 2컨펌)', () => {
     const shallow = decideOnchainAction(settling(), ctx({
-      settlementTx: { known: true, value: { confirmed: true, confirmations: 1, blockHeight: 1 } },
+      settlementTx: { known: true, value: { seen: true, confirmed: true, confirmations: 1, blockHeight: 1 } },
     }));
     expect(shallow.kind).toBe('idle');
 
     const action = decideOnchainAction(settling(), ctx({
-      settlementTx: { known: true, value: { confirmed: true, confirmations: 2, blockHeight: 1 } },
+      settlementTx: { known: true, value: { seen: true, confirmed: true, confirmations: 2, blockHeight: 1 } },
     }));
     expect(action).toEqual({ kind: 'confirmed' });
   });
@@ -306,14 +385,14 @@ describe('settling — 컨펌되면 터미널 (O-005)', () => {
   it('소액(1컨펌 요구)은 1컨펌에 종결된다', () => {
     const o = settling({ amountSat: 50_000 });
     const action = decideOnchainAction(o, ctx({
-      settlementTx: { known: true, value: { confirmed: true, confirmations: 1, blockHeight: 1 } },
+      settlementTx: { known: true, value: { seen: true, confirmed: true, confirmations: 1, blockHeight: 1 } },
     }));
     expect(action).toEqual({ kind: 'confirmed' });
   });
 
   it('멤풀이면 기다린다', () => {
     const action = decideOnchainAction(settling(), ctx({
-      settlementTx: { known: true, value: { confirmed: false, confirmations: 0 } },
+      settlementTx: { known: true, value: { seen: true, confirmed: false, confirmations: 0 } },
     }));
     expect(action.kind).toBe('idle');
   });
@@ -322,7 +401,7 @@ describe('settling — 컨펌되면 터미널 (O-005)', () => {
   it('24시간 넘게 안 잡히면 경고 (되돌리지 않는다)', () => {
     const o = settling({ settlingAt: NOW - SETTLING_WARN_SEC });
     const action = decideOnchainAction(o, ctx({
-      settlementTx: { known: true, value: { confirmed: false, confirmations: 0 } },
+      settlementTx: { known: true, value: { seen: true, confirmed: false, confirmations: 0 } },
     }));
     expect(action.kind).toBe('warn');
   });
@@ -336,6 +415,34 @@ describe('settling — 컨펌되면 터미널 (O-005)', () => {
   it('txid가 없으면 사람을 부른다', () => {
     expect(decideOnchainAction(settling({ settlementTxid: undefined }), ctx()).kind).toBe('anomaly');
   });
+
+  /**
+   * O-005 "멤풀 이탈은 같은 tx 재브로드캐스트로" — 리뷰 #8 전에는 404를 '모름'으로
+   * 받아 영원히 hold했고, raw tx도 안 남겨 다시 뿌릴 수가 없었다.
+   */
+  it('노드가 모르면(쫓겨났으면) 같은 tx를 다시 뿌린다', () => {
+    const gone = { known: true as const, value: { seen: false, confirmed: false, confirmations: 0 } };
+    expect(decideOnchainAction(settling(), ctx({ settlementTx: gone, canRebroadcast: true })))
+      .toEqual({ kind: 'rebroadcast' });
+    expect(decideOnchainAction(settling(), ctx({ settlementTx: gone, canRebroadcast: false })).kind)
+      .toBe('anomaly');
+  });
+
+  /** 에스크로를 다른 tx가 가져갔으면 우리 tx는 무효다 — 체인을 따른다 */
+  it('에스크로가 다른 tx로 소모됐으면 소모 관측', () => {
+    const other: PinnedFacts = { status: 'spent', txid: 'ff'.repeat(32), leaf: 'timelock', confirmed: true };
+    expect(decideOnchainAction(settling(), ctx({ pinned: other }))).toMatchObject({
+      kind: 'observe-spend', leaf: 'timelock',
+    });
+  });
+
+  it('우리 tx가 소모한 것이면 평소대로 컨펌을 기다린다', () => {
+    const ours: PinnedFacts = { status: 'spent', txid: TXID, leaf: 'release', confirmed: false };
+    expect(decideOnchainAction(settling(), ctx({
+      pinned: ours,
+      settlementTx: { known: true, value: { seen: true, confirmed: false, confirmations: 0 } },
+    })).kind).toBe('idle');
+  });
 });
 
 describe('터미널은 관측만 한다', () => {
@@ -347,13 +454,13 @@ describe('터미널은 관측만 한다', () => {
 });
 
 describe('행동 분류', () => {
-  it('settle·fold는 종결 tx가 필요하다', () => {
-    expect(needsSettlementTx({ kind: 'settle', settlementKind: 'refund:reserve' })).toBe(true);
-    expect(needsSettlementTx({
+  it('settle·fold는 환불 결정이다', () => {
+    expect(needsSettlementDecision({ kind: 'settle', settlementKind: 'refund:reserve' })).toBe(true);
+    expect(needsSettlementDecision({
       kind: 'fold', outpoint: { txid: TXID, vout: 0 }, confirmations: 1,
       settlementKind: 'refund:bond-expired',
     })).toBe(true);
-    expect(needsSettlementTx({ kind: 'idle' })).toBe(false);
-    expect(needsSettlementTx({ kind: 'cancel' })).toBe(false);
+    expect(needsSettlementDecision({ kind: 'idle' })).toBe(false);
+    expect(needsSettlementDecision({ kind: 'cancel' })).toBe(false);
   });
 });

@@ -15,18 +15,16 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as orderStore from '../onchain/order-store';
-import * as pendingSettlement from '../onchain/pending-settlement-store';
 import * as alerts from '../onchain/alert-store';
 
 const SNAPSHOTS: Array<[string, () => unknown]> = [
   ['order-store', orderStore.getSnapshot],
-  ['pending-settlement-store', pendingSettlement.getPendingSettlementsSnapshot],
   ['alert-store', alerts.getOnchainAlertsSnapshot],
+  ['alert-store (구조)', alerts.getOnchainRescueAlertsSnapshot],
 ];
 
 beforeEach(() => {
   orderStore._resetForTesting();
-  pendingSettlement._resetForTesting();
   alerts._resetForTesting();
 });
 
@@ -47,14 +45,11 @@ describe('바뀌면 새 참조여야 한다 (안 그러면 화면이 안 갱신�
     expect(orderStore.getSnapshot()).toBe(orderStore.getSnapshot());
   });
 
-  it('pending-settlement-store', () => {
-    const before = pendingSettlement.getPendingSettlementsSnapshot();
-    pendingSettlement.putPendingSettlement({
-      orderId: 'o-1', settlementKind: 'refund:reserve', path: 'refund',
-      psbt: 'p', destination: 'tb1p', feeSat: 1, awaiting: 'customer',
-      createdAt: 1, lastRequestedAt: 1,
-    });
-    expect(pendingSettlement.getPendingSettlementsSnapshot()).not.toBe(before);
+  it('alert-store (구조)', () => {
+    const before = alerts.getOnchainRescueAlertsSnapshot();
+    alerts.setOnchainRescueAlert({ orderId: 'o-1' } as never, [{ txid: 'a'.repeat(64), vout: 0, valueSat: 1 }]);
+    expect(alerts.getOnchainRescueAlertsSnapshot()).not.toBe(before);
+    expect(alerts.getOnchainRescueAlertsSnapshot()).toBe(alerts.getOnchainRescueAlertsSnapshot());
   });
 
   it('alert-store', () => {

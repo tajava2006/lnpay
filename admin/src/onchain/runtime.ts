@@ -30,24 +30,29 @@ import { parseRequestEvent } from '../types';
 import { MempoolChainAdapter, type ChainNetwork } from '@sajwo-tracker/shared/onchain';
 import {
   accountInfoSent, checkOnchainDeposits, commitOnchainOrder, configureOnchainService,
-  handleOnchainClaim, handleOnchainCosign, handleOnchainDispute, handleOnchainOrderRequest,
-  handleOnchainCancelRequest, handleOnchainPresig, handleOnchainRemit,
-  listOnchainOrders, noteAccountInfoSent,
-  onchainReleaseFeeSat, prepareOnchainSettlement,
+  decideOnchainSettlement, flushOnchainOutbox, handleOnchainClaim, handleOnchainCosign,
+  handleOnchainDispute, handleOnchainOrderRequest, handleOnchainCancelRequest,
+  handleOnchainPresig, handleOnchainRemit, listOnchainOrders, noteAccountInfoSent,
+  onchainReleaseFeeSat, outboxTxidFor, rebroadcastSettlement, requestSettlementSignature,
 } from './service';
-import { upsertOnchainOrder } from './order-store';
+import { getOnchainOrder, upsertOnchainOrder } from './order-store';
 import { startOnchainWatcher, stopOnchainWatcher, type OnchainWatcherDeps } from './watcher';
 import {
   canActOnchainNow, claimWatcherLease, getLeaseSnapshot, refreshWatcherLease,
 } from './lease';
 import { restoreOnchainLocalState, startOnchainBackup, stopOnchainBackup } from './backup';
-import { notifyOnchainDisputeSoon } from './notify';
+import { notifyOnchainDisputeSoon, notifyOnchainOperator } from './notify';
 import { handleOnchainOutcome } from './deposit-lifecycle';
-import { raiseOnchainAlert } from './alert-store';
+import { raiseOnchainAlert, setOnchainRescueAlert } from './alert-store';
+import { lastSignatureRequestAt } from './sign-request-log';
+import { claimDisputeSoonNotice } from './config';
 
 export interface OnchainTrackConfig {
   lnAdapter: LightningAdapter;
-  /** 시세 스냅샷 (KRW/BTC) */
+  /**
+   * 시세 (KRW/BTC). **신선한 것만** 준다 — 끊긴 거래소의 마지막 가격은 몇 시간 전
+   * 값일 수 있다(`freshPrice`). 없으면 가격 고정을 미룬다(리뷰 #8).
+   */
   btcPriceKrw: () => number | undefined;
   network: ChainNetwork;
   /** 자체 mempool 인스턴스를 쓸 때 */
@@ -76,6 +81,7 @@ export async function startOnchainTrack(config: OnchainTrackConfig): Promise<voi
     lnAdapter: config.lnAdapter,
     chain,
     network: config.network,
+    btcPriceKrw: config.btcPriceKrw,
   });
 
   const deps: OnchainWatcherDeps = {
@@ -96,21 +102,34 @@ export async function startOnchainTrack(config: OnchainTrackConfig): Promise<voi
     accountInfoSent,
     releaseFeeSat: onchainReleaseFeeSat,
     commit: commitOnchainOrder,
-    prepareSettlement: prepareOnchainSettlement,
+    decideSettlement: decideOnchainSettlement,
+    requestSignature: requestSettlementSignature,
+    lastSignatureRequestAt,
+    outboxTxid: outboxTxidFor,
+    flushOutbox: flushOnchainOutbox,
+    rebroadcast: rebroadcastSettlement,
     onOutcome: (order, outcome) => {
-      // 보증금 처리는 **사유가 곧 처리**다(§4.1). 표를 그대로 집행한다.
+      // 보증금 처리는 **사유가 곧 처리**다(§4.1). 표를 그대로 집행한다. 멱등이다.
       void handleOnchainOutcome(order, outcome, config.lnAdapter);
     },
     raise: (order, level, why) => {
-      // **콘솔에만 남기면 아무도 안 본다.** 대시보드가 집도록 스토어에 올린다.
-      raiseOnchainAlert(order, level, why);
-      if (level === 'anomaly') {
-        console.error('[Onchain] 사람이 봐야 한다:', order.orderId, why);
-      } else {
-        console.warn('[Onchain]', order.orderId, why);
-        if (why.includes('분쟁으로 넘어간다')) notifyOnchainDisputeSoon(order);
+      // **콘솔에만 남기면 아무도 안 본다.** 대시보드가 집도록 스토어에 올리고,
+      // **새 경보일 때만** 운영자를 부른다(30초마다 울리지 않게).
+      const fresh = raiseOnchainAlert(order, level, why);
+      if (level === 'anomaly') console.error('[Onchain] 사람이 봐야 한다:', order.orderId, why);
+      else console.warn('[Onchain]', order.orderId, why);
+      if (fresh) notifyOnchainOperator(order, why);
+    },
+    raiseRescue: (order, utxos) => {
+      if (setOnchainRescueAlert(order, utxos)) {
+        const total = utxos.reduce((n, u) => n + u.valueSat, 0);
+        notifyOnchainOperator(order, `약정 밖의 자금 ${total.toLocaleString()} sats — 구조가 필요합니다`);
       }
     },
+    notifyDisputeSoon: order => {
+      if (claimDisputeSoonNotice(order.orderId)) notifyOnchainDisputeSoon(order);
+    },
+    getOrder: getOnchainOrder,
     listOrders: listOnchainOrders,
     checkDeposits: checkOnchainDeposits,
     canAct: async () => {
@@ -243,7 +262,12 @@ export function dispatchOnchainRequest(event: Event): void {
     // 라이트닝과 **같은 액션을 공유**하는 둘 — 뜻과 모양이 같아 새로 만들지
     // 않았다. 트랙은 `t` 태그로 갈리므로 이 구독에는 온체인 것만 들어온다.
     case 'remit-request': void handleOnchainRemit(request); return;
-    case 'account-info': void noteAccountInfoSent(request.orderId); return;
+    // ⚠️ **보낸 사람을 넘긴다** — 아무나 계좌 공개를 알려 후원자 시계를 시작시킬 수 있었다(리뷰 #8).
+    case 'account-info': {
+      const commitment = event.tags.find(t => t[0] === 'commitment')?.[1];
+      void noteAccountInfoSent(request.orderId, request.pubkey, commitment);
+      return;
+    }
     case 'cancel-request': void handleOnchainCancelRequest(request); return;
 
     default: return;

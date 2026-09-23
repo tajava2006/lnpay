@@ -16,8 +16,8 @@
 import { useState, useSyncExternalStore } from 'react';
 import type { ChainNetwork } from '@sajwo-tracker/shared/onchain';
 import {
-  getOnchainBaseUrl, getOnchainNetwork, isOnchainEnabled,
-  setOnchainBaseUrl, setOnchainEnabled, setOnchainNetwork,
+  getOnchainBaseUrl, getOnchainNetwork, getOnchainOperatorPubkey, isOnchainEnabled,
+  setOnchainBaseUrl, setOnchainEnabled, setOnchainNetwork, setOnchainOperatorPubkey,
 } from '../onchain/config';
 import { getSnapshot, subscribe } from '../onchain/order-store';
 import {
@@ -32,6 +32,10 @@ export function OnchainConfig({ onChanged }: { onChanged: () => void }) {
   const [enabled, setEnabled] = useState(isOnchainEnabled);
   const [network, setNetwork] = useState<ChainNetwork>(getOnchainNetwork);
   const [baseUrl, setBaseUrl] = useState(getOnchainBaseUrl() ?? '');
+  const [operator, setOperator] = useState(getOnchainOperatorPubkey() ?? '');
+  const [notifyPerm, setNotifyPerm] = useState(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+  );
 
   const live = Object.values(orders).filter(o => o.status === 'active').length;
   const locked = live > 0;
@@ -87,6 +91,29 @@ export function OnchainConfig({ onChanged }: { onChanged: () => void }) {
           )}
         </div>
       )}
+
+      {/*
+        운영자 호출 (리뷰 #8) — 분쟁 진입·경보를 운영자의 nostr 클라이언트로 보낸다.
+        §7.3 ③("침묵 공격은 어드민이 와야만 깨진다")이 실제로 작동하려면 여기가 채워져 있어야 한다.
+      */}
+      <label style={styles.row}>
+        운영자 알림
+        <input
+          style={styles.input}
+          value={operator}
+          placeholder="운영자 nostr pubkey (hex) — 분쟁·경보를 DM으로"
+          onChange={e => setOperator(e.target.value)}
+          onBlur={() => setOnchainOperatorPubkey(operator)}
+        />
+        {notifyPerm === 'default' && (
+          <button
+            style={styles.takeover}
+            onClick={() => void Notification.requestPermission().then(setNotifyPerm)}
+          >
+            브라우저 알림 허용
+          </button>
+        )}
+      </label>
 
       <label style={styles.row}>
         mempool API

@@ -81,9 +81,9 @@ describe('종결은 양쪽에 알린다', () => {
 });
 
 describe('마감이 부르는 알림', () => {
-  it('세 가지가 전이표 밖에 있다', () => {
+  it('넷이 전이표 밖에 있다', () => {
     expect(Object.keys(ONCHAIN_TIMER_NOTICES).sort())
-      .toEqual(['accountInfoArrived', 'disputeSoon', 'refundSignatureNeeded']);
+      .toEqual(['accountInfoArrived', 'disputeSoon', 'rulingDecided', 'rulingSignatureNeeded']);
   });
 
   /** 계좌 도착은 상태가 안 바뀐다 — 그런데 후원자가 움직일 수 있게 되는 순간이다. */
@@ -96,9 +96,18 @@ describe('마감이 부르는 알림', () => {
     expect(ONCHAIN_TIMER_NOTICES.disputeSoon().body).toMatch(/분쟁/);
   });
 
-  /** 환불도 고객 서명이 필요하다 — 안 오면 자기 돈이 잠긴 채로 남는다. */
-  it('환불 서명 요청이 있다', () => {
-    expect(ONCHAIN_TIMER_NOTICES.refundSignatureNeeded().body).toMatch(/서명/);
+  /**
+   * 환불도 고객 서명이 필요하다 — 안 오면 자기 돈이 잠긴 채로 남는다.
+   * 리뷰 #8 전에는 이 문구가 타이머 표에만 있고 **부르는 곳이 없어** 한 번도 안 나갔다.
+   * 이제 `refunding` **전이** 알림이라 상태가 바뀌면 반드시 나간다.
+   */
+  it('환불 결정은 고객에게 서명을, 후원자에게 "보내지 말라"를 알린다', () => {
+    expect(ONCHAIN_TRANSITION_NOTICES.refunding?.customer?.body).toMatch(/서명/);
+    expect(ONCHAIN_TRANSITION_NOTICES.refunding?.sponsor?.body).toMatch(/보내지 마세요/);
+  });
+
+  it('분쟁 판정은 이긴 쪽에게 서명을 요청한다', () => {
+    expect(ONCHAIN_TIMER_NOTICES.rulingSignatureNeeded().body).toMatch(/서명/);
   });
 });
 
@@ -182,6 +191,6 @@ describe('사다리 밖 상태', () => {
 
   it('타입이 상태 집합과 묶여 있다', () => {
     const states: OnchainState[] = [...ALL];
-    expect(states).toHaveLength(13);
+    expect(states).toHaveLength(14);
   });
 });

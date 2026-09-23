@@ -12,7 +12,7 @@ import {
   getOnchainOrdersSnapshot, roleIn, subscribeOnchainOrders,
 } from '../store';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
-import { getSignRequestsSnapshot, subscribeSignRequests } from '../sign-request-store';
+import { getSignRequestsSnapshot, signRequestsFor, subscribeSignRequests } from '../sign-request-store';
 import { OnchainOrderCard } from './OnchainMyOrders';
 
 interface Props {
@@ -36,14 +36,15 @@ export function OnchainOrderDetail({ orderId, myPubkey, onBack }: Props) {
       {!order ? (
         // 다른 기기에서 열었거나 아직 동기화 전일 수 있다 — 없다고 단정하지 않는다.
         <p style={styles.empty}>이 주문을 아직 못 받았습니다. 잠시 후 다시 보세요.</p>
-      ) : !role ? (
+      ) : !role || !myPubkey ? (
         <p style={styles.empty}>내가 참여한 주문이 아닙니다.</p>
       ) : (
         <OnchainOrderCard
           order={order}
           role={role}
+          myPubkey={myPubkey}
           invoiceBolt11={invoices[orderId]?.done ? undefined : invoices[orderId]?.bolt11}
-          signRequest={signRequests[orderId]}
+          signRequests={signRequestsFor(signRequests, orderId)}
         />
       )}
     </div>

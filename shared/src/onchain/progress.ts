@@ -51,14 +51,7 @@ export interface OnchainProgressStep {
 export interface OnchainProgressContext {
   /** `presigned`에서 고객이 계좌를 이미 보냈는지 — 공이 후원자로 넘어간다 */
   accountInfoSent?: boolean;
-  /**
-   * 마감 초과로 환불이 걸렸고 **고객 서명을 기다리는** 중인지.
-   *
-   * `{A,C}` 환불은 어드민 혼자 못 한다(§5.2 R1-M4). "마감 초과 → 자동 환불"이
-   * 진짜 자동이 아니라서, 그 사이 공은 **고객**에게 있다.
-   */
-  refundSignatureNeeded?: boolean;
-  /** `settling`에서 어느 종결인지 — 문구를 고르는 데 쓴다 */
+  /** `settling`·`refunding`에서 어느 종결인지 — 문구를 고르는 데 쓴다 */
   settlementKind?: SettlementKind;
 }
 
@@ -219,10 +212,8 @@ export function onchainStepActor(
   state: OnchainState,
   ctx: OnchainProgressContext = {},
 ): OnchainStepActor {
-  // 환불 서명 대기가 다른 모든 것보다 우선이다 — 고객이 안 오면 거래가 안 끝난다.
-  if (ctx.refundSignatureNeeded && (state === 'funded' || state === 'presigned')) {
-    return 'customer';
-  }
+  // 환불이 결정됐다 — `{A,C}`라 어드민 혼자 못 한다(§5.2 R1-M4). 고객이 안 오면 안 끝난다.
+  if (state === 'refunding') return 'customer';
   if (state === 'presigned') return ctx.accountInfoSent ? 'sponsor' : 'customer';
   const idx = STEP_INDEX.get(state);
   return idx === undefined ? 'admin' : ONCHAIN_PROGRESS_STEPS[idx]!.actor;
@@ -247,7 +238,36 @@ export interface OnchainProgress {
   terminal: OnchainTerminalInfo | null;
   /** 분쟁 중 — 종결은 아니지만 사다리도 멈춘다. 어드민 판정을 기다린다 */
   disputed: boolean;
+  /** 환불이 결정됐다 — 거래는 끝났고 고객의 환불 서명을 기다린다 */
+  refunding: OnchainRefundingInfo | null;
   total: number;
+}
+
+export interface OnchainRefundingInfo {
+  label: string;
+  description: string;
+}
+
+/**
+ * 환불 사유별 안내. **몰수의 조건은 반드시 고지한다**(§6.0) — 그런데 몰수금의
+ * 행방과 보상은 약속하지 않는다.
+ */
+function refundingInfo(role: OnchainRole, kind: SettlementKind | undefined): OnchainRefundingInfo {
+  const why: Partial<Record<SettlementKind, string>> = {
+    'refund:reserve': '컨펌 시점 시세가 최저가보다 낮아 거래가 성립하지 않았습니다. 양쪽 보증금은 돌려받습니다.',
+    'refund:bond-expired': '후원자 보증금이 먼저 만료돼 거래를 이어갈 수 없었습니다.',
+    'refund:sponsor-timeout': '후원자가 마감 안에 서명이나 원화 송금을 마치지 않았습니다. 후원자 보증금은 몰수됐습니다.',
+    'refund:customer-late': '고객이 마감 안에 계좌를 보내지 않았습니다. 고객 보증금은 몰수됐습니다.',
+    'refund:account-disputed': '후원자가 계좌를 쓸 수 없다고 이의를 냈습니다. 누구 과실인지 운영자가 판정하고, 그때 보증금이 처리됩니다.',
+  };
+  const reason = (kind && why[kind]) ?? '마감을 넘겨 거래가 환불로 넘어갔습니다.';
+  return {
+    label: '환불 진행 중',
+    description: role === 'customer'
+      ? `${reason} 에스크로를 돌려받으려면 환불 서명이 필요합니다 — 운영자 혼자서는 환불할 수 없습니다. `
+        + '되돌아가는 경로라 온체인 수수료는 두 번(펀딩·환불) 들고, 그 부담은 고객 몫입니다.'
+      : `${reason} 원화를 보내지 마세요. 이 거래는 더 진행되지 않습니다.`,
+  };
 }
 
 /**
@@ -258,7 +278,7 @@ export interface OnchainProgress {
  *
  * - `sponsor_wins`/`customer_wins`는 FSM상 `remitted` 유래 분쟁에서만 오므로
  *   `remitted`까지는 완료로 확정할 수 있다.
- * - `refunded`는 `funded`·`presigned`·`disputed` 어디서든 올 수 있다. 다만
+ * - `refunded`는 `refunding`을 거쳐서만 온다(`bonded`에서 접은 경우 포함). 다만
  *   **펀딩은 확실히 컨펌됐다**(환불 tx가 에스크로를 소모하므로) → `bonded`까지 완료.
  * - `cancelled`는 펀딩이 컨펌되기 전이라 아무것도 확정할 수 없다 → 전부 미진행.
  * - `swept`도 펀딩 컨펌 이후 어느 상태에서든 관측될 수 있다 → `bonded`까지 완료.
@@ -273,20 +293,25 @@ export function resolveOnchainProgress(
     : null;
 
   const disputed = state === 'disputed';
+  const refunding = state === 'refunding' ? refundingInfo(role, ctx.settlementKind) : null;
 
+  // 환불은 에스크로를 소모하므로 펀딩 컨펌까지는 확실하다(`bonded`에서 접은 경우 포함).
   const doneThrough = terminal
     ? terminalDoneThrough(terminal.state)
     : disputed
       ? STEP_INDEX.get('remitted')!
-      : STEP_INDEX.get(state) ?? -1;
+      : refunding
+        ? STEP_INDEX.get('bonded')!
+        : STEP_INDEX.get(state) ?? -1;
 
-  const currentIndex = terminal || disputed ? -1 : doneThrough;
+  const offLadder = Boolean(terminal || disputed || refunding);
+  const currentIndex = offLadder ? -1 : doneThrough;
 
   const steps = ONCHAIN_PROGRESS_STEPS.map((step, index): ResolvedOnchainStep => {
     const status: StepStatus =
       index < doneThrough ? 'done'
       : index === currentIndex ? 'current'
-      : (terminal || disputed) && index <= doneThrough ? 'done'
+      : offLadder && index <= doneThrough ? 'done'
       : 'upcoming';
 
     const actor = onchainStepActor(step.state, ctx);
@@ -302,7 +327,7 @@ export function resolveOnchainProgress(
     };
   });
 
-  return { steps, currentIndex, terminal, disputed, total: ONCHAIN_PROGRESS_STEPS.length };
+  return { steps, currentIndex, terminal, disputed, refunding, total: ONCHAIN_PROGRESS_STEPS.length };
 }
 
 function terminalDoneThrough(state: OnchainTerminalInfo['state']): number {

@@ -13,7 +13,10 @@ interface Props {
 }
 
 export function OnchainProgressBar({ order, role, accountInfoSent }: Props) {
-  const progress = resolveOnchainProgress(role, order.state, { accountInfoSent });
+  const progress = resolveOnchainProgress(role, order.state, {
+    accountInfoSent,
+    settlementKind: order.settlementKind,
+  });
 
   return (
     <div style={styles.wrap}>
@@ -35,6 +38,11 @@ export function OnchainProgressBar({ order, role, accountInfoSent }: Props) {
         <div style={styles.terminal}>
           <strong>{progress.terminal.label}</strong>
           <p style={styles.desc}>{progress.terminal.description}</p>
+        </div>
+      ) : progress.refunding ? (
+        <div style={styles.refunding}>
+          <strong>{progress.refunding.label}</strong>
+          <p style={styles.desc}>{progress.refunding.description}</p>
         </div>
       ) : progress.disputed ? (
         <div style={styles.dispute}>
@@ -73,5 +81,6 @@ const styles = {
   action: { fontSize: 13, color: '#4B5563', lineHeight: 1.5 },
   terminal: { background: '#F3F4F6', borderRadius: 8, padding: '10px 12px' },
   dispute: { background: '#FEE2E2', borderRadius: 8, padding: '10px 12px', color: '#991B1B' },
+  refunding: { background: '#FFEDD5', borderRadius: 8, padding: '10px 12px', color: '#9A3412' },
   desc: { margin: '4px 0 0', fontSize: 13, color: '#4B5563', lineHeight: 1.5 },
 };

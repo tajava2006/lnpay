@@ -65,6 +65,18 @@ export interface OnchainPatch extends Partial<Omit<OnchainOrder, 'orderId' | 'st
   state?: OnchainState;
 }
 
+export interface TransitionGuard {
+  /**
+   * **그 뒤로 이 오더가 안 바뀌었을 때만** 쓴다 (낙관적 동시성).
+   *
+   * 워처는 체인 조회를 기다리는 동안 들고 있던 스냅샷으로 판단하고, 요청 핸들러는
+   * 복호화·검증을 기다린다. 그 사이 다른 쪽이 오더를 바꿨으면 **옛 판단으로 새 상태를
+   * 덮으면 안 된다** — 브로드캐스트된 종결을 리오그로 오인해 `bonded`로 되돌린 게
+   * 정확히 이 경로였다(리뷰 #8). 판단할 때 본 `updatedAt`을 넘기면 된다.
+   */
+  ifUnchangedSince?: number;
+}
+
 /**
  * 상태 전이 + 필드 갱신을 **한 번에** 한다.
  *
@@ -72,14 +84,18 @@ export interface OnchainPatch extends Partial<Omit<OnchainOrder, 'orderId' | 'st
  * 생기고, 그 사이에 발행이 나가면 **태그가 빠진 채로 덮어쓴다**(kind 30402는
  * addressable이라 복구 불가 — 라이트닝에서 주문 두 건을 그렇게 잃었다).
  *
- * 전이가 규칙에 안 맞으면 **아무것도 바꾸지 않는다.**
+ * 전이가 규칙에 안 맞거나 가드가 거부하면 **아무것도 바꾸지 않는다.**
  */
 export function applyOnchainTransition(
   orderId: string,
   patch: OnchainPatch,
+  guard: TransitionGuard = {},
 ): { success: true; order: OnchainOrder } | { success: false; error: string } {
   const order = orders[orderId];
   if (!order) return { success: false, error: 'ORDER_NOT_FOUND' };
+  if (guard.ifUnchangedSince !== undefined && order.updatedAt !== guard.ifUnchangedSince) {
+    return { success: false, error: `STALE: ${guard.ifUnchangedSince} → ${order.updatedAt}` };
+  }
 
   const to = patch.state ?? order.state;
   if (to !== order.state && !canOnchainTransition(order.state, to)) {

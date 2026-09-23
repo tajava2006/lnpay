@@ -58,7 +58,28 @@ export const ONCHAIN_NOTIFY = {
    * 고객이 안 오면 자기 돈이 잠긴 채로 남는다.
    */
   customerShouldSignRefund: (): Notice => ({
-    body: '환불 서명이 필요합니다. 서명해야 에스크로가 돌아옵니다.',
+    body: '거래가 환불로 넘어갔습니다. 환불 서명이 필요합니다 — 서명해야 에스크로가 돌아옵니다.',
+    tab: 'history', track: 'onchain',
+  }),
+
+  /** 분쟁 판정이 났다 — 이긴 쪽이 서명해야 집행된다(`{A,S}`·`{A,C}`) */
+  winnerShouldSign: (): Notice => ({
+    body: '분쟁 판정이 났습니다. 앱을 열어 판정 집행에 서명해 주세요 — 서명해야 비트코인이 움직입니다.',
+    tab: 'history', track: 'onchain',
+  }),
+
+  /** 판정이 났다 — 진 쪽에게 */
+  rulingDecided: (): Notice => ({
+    body: '분쟁 판정이 났습니다. 자세한 내용은 앱에서 확인해 주세요.',
+    tab: 'history', track: 'onchain',
+  }),
+
+  /**
+   * 환불로 넘어갔다 — 후원자에게. **원화를 보내면 안 된다**는 걸 말해야 한다.
+   * 이 알림이 없으면 계좌를 이미 본 후원자가 늦게 송금할 수 있다.
+   */
+  sponsorTradeRefunded: (): Notice => ({
+    body: '마감이 지나 거래가 환불로 넘어갔습니다. 원화를 보내지 마세요.',
     tab: 'history', track: 'onchain',
   }),
 
@@ -142,6 +163,11 @@ export const ONCHAIN_TRANSITION_NOTICES: Record<OnchainState, StateNotices | nul
     customer: ONCHAIN_NOTIFY.disputeOpened(),
     sponsor: ONCHAIN_NOTIFY.disputeOpened(),
   },
+  // 환불 결정 — 고객이 서명해야 끝난다(어드민 혼자 못 한다). 후원자에게는 멈추라고 알린다.
+  refunding: {
+    customer: ONCHAIN_NOTIFY.customerShouldSignRefund(),
+    sponsor: ONCHAIN_NOTIFY.sponsorTradeRefunded(),
+  },
   settling: null,
 
   released: {
@@ -172,11 +198,16 @@ export const ONCHAIN_TRANSITION_NOTICES: Record<OnchainState, StateNotices | nul
  *
  * - `accountInfoArrived` — `presigned` 안에서 "고객이 계좌를 보냈는가"만 바뀐다.
  *   상태는 그대로인데 **후원자가 원화를 보낼 수 있게 되는 순간**이 정확히 여기다.
- * - `disputeSoon` — `remitted` 마감 2시간 전 유예 경고(§7.5)
- * - `refundSignatureNeeded` — 마감 초과로 환불이 걸렸고 고객 서명을 기다린다
+ * - `disputeSoon` — `remitted` 마감 2시간 전 유예 경고(§7.5). **주문당 한 번**
+ * - `rulingSignatureNeeded` / `rulingDecided` — 분쟁 판정. 상태(`disputed`)는 그대로인데
+ *   이긴 쪽이 서명해야 집행된다
+ *
+ * (환불 서명 요청은 이제 `refunding` **전이** 알림이다 — 전에는 이 표에만 있고
+ * 부르는 곳이 없어서 한 번도 안 나갔다. 리뷰 #8.)
  */
 export const ONCHAIN_TIMER_NOTICES = {
   accountInfoArrived: (): Notice => ONCHAIN_NOTIFY.sponsorShouldRemit(),
   disputeSoon: (): Notice => ONCHAIN_NOTIFY.customerDisputeSoon(),
-  refundSignatureNeeded: (): Notice => ONCHAIN_NOTIFY.customerShouldSignRefund(),
+  rulingSignatureNeeded: (): Notice => ONCHAIN_NOTIFY.winnerShouldSign(),
+  rulingDecided: (): Notice => ONCHAIN_NOTIFY.rulingDecided(),
 } as const;

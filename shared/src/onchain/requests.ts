@@ -21,7 +21,13 @@
  */
 import type { RequestBase } from '../types';
 
-/** 고객 → 어드민: 온체인 의뢰 등록 */
+/**
+ * 고객 → 어드민: 온체인 의뢰 등록.
+ *
+ * 암호문에 `{ refundAddress }`가 들어 있다 — 환불·고객승·구조 tx가 가는 **고객 자기
+ * 지갑 주소**다(리뷰 #8). 전에는 주문별 키로 만든 단일키 주소로 보냈는데, 그 주소는
+ * **이 앱만 쓸 수 있고** 꺼낼 화면도 없었다. 브라우저 저장소가 지워지면 그대로 소실이다.
+ */
 export interface OnchainOrderRequestMsg extends RequestBase {
   action: 'onchain-order-request';
   amountSat: number;
@@ -64,7 +70,11 @@ export interface OnchainPresigMsg extends RequestBase {
  */
 export interface OnchainCosignMsg extends RequestBase {
   action: 'onchain-cosign';
-  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor';
+  /**
+   * `rescue`는 FSM 밖이다 — 약정과 다른 모양으로 들어온 자금을 고객에게 돌려준다.
+   * 소모하는 UTXO가 PSBT 입력에 들어 있어 핸들러가 그걸로 대기 중인 구조를 찾는다.
+   */
+  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor' | 'rescue';
 }
 
 /**
@@ -104,6 +114,18 @@ export interface OnchainClaimPayload {
   payoutAddress: string;
   /** 릴리스 tx에 쓸 희망 feerate (sat/vB). **후원자가 정한다** (§6.1b) */
   feerateSatPerVb: number;
+}
+
+/** 의뢰 등록 암호문의 모양 */
+export interface OnchainOrderRequestPayload {
+  /** 환불금을 받을 고객 지갑 주소 */
+  refundAddress: string;
+}
+
+export function isOnchainOrderRequestPayload(value: unknown): value is OnchainOrderRequestPayload {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.refundAddress === 'string' && v.refundAddress.trim().length > 0;
 }
 
 /** 사전서명·최종서명 암호문의 모양 */

@@ -103,11 +103,8 @@ describe('단계별 주체', () => {
    * `{A,C}` 환불은 어드민 혼자 못 한다. "마감 초과 → 자동 환불"이 진짜 자동이
    * 아니라서, 그 사이 공은 고객에게 있다 — 화면이 그걸 보여줘야 한다.
    */
-  it('환불 서명 대기는 다른 무엇보다 우선한다', () => {
-    expect(onchainStepActor('funded', { refundSignatureNeeded: true })).toBe('customer');
-    expect(onchainStepActor('presigned', {
-      accountInfoSent: true, refundSignatureNeeded: true,
-    })).toBe('customer');
+  it('환불 진행(refunding)은 고객 차례다 — 어드민 혼자 환불 못 한다', () => {
+    expect(onchainStepActor('refunding')).toBe('customer');
   });
 
   it('컨펌 대기 구간은 아무의 차례도 아니다', () => {

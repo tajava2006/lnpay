@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { canCancelOnchain } from '@sajwo-tracker/shared/onchain';
 import type { AddressFunds, ChainQuery, ChainUtxo } from '@sajwo-tracker/shared/onchain';
 import {
-  escrowUnfundedFor, judgeFunding, judgePinnedFunding, requiredConfirmations,
+  escrowUnfundedFor, judgeFunding, judgePinnedFunding, requiredConfirmations, strayUtxos,
   type FundingVerdict,
 } from '../onchain/funding';
 
@@ -177,13 +177,17 @@ describe('funded 이후 감시 (O-008)', () => {
     expect(s).toEqual({ status: 'shallow', confirmations: 0, required: 1 });
   });
 
-  /** 아예 사라졌다 = 고객의 이중지불(공격 E). 마감이 차면 몰수가 맞는 결론이다. */
-  it('사라지면 gone', () => {
+  /**
+   * 리뷰 #8 — 목록에 없다는 건 **"왜 없는지 모른다"**다. esplora `/utxo`는 멤풀에서
+   * 소모된 출력도 빼므로, 우리가 방금 뿌린 환불도 이렇게 보인다. 전에는 곧장 `gone`
+   * (이중지불)으로 읽어 `bonded`로 되돌렸다. 이제 워처가 소모 여부를 따로 묻는다.
+   */
+  it('목록에서 빠지면 missing — 이중지불이라고 단정하지 않는다', () => {
     const s = judgePinnedFunding(known({ confirmed: [utxo({ txid: 'b'.repeat(64) })] }), pinned, AMOUNT);
-    expect(s).toEqual({ status: 'gone' });
+    expect(s).toEqual({ status: 'missing' });
   });
 
-  it('조회 실패는 gone이 아니라 unknown이다', () => {
+  it('조회 실패는 missing이 아니라 unknown이다', () => {
     const s = judgePinnedFunding(UNKNOWN, pinned, AMOUNT);
     expect(s.status).toBe('unknown');
   });
@@ -198,5 +202,27 @@ describe('funded 이후 감시 (O-008)', () => {
       pinned, AMOUNT,
     );
     expect(s).toEqual({ status: 'alive', confirmations: 3 });
+  });
+});
+
+describe('약정 밖의 자금 (리뷰 #8 — 구조 대상)', () => {
+  const pinned = { txid: TXID, vout: 0 };
+
+  it('박아둔 outpoint를 뺀 컨펌된 UTXO 전부', () => {
+    const extra = utxo({ txid: 'c'.repeat(64), valueSat: 1234 });
+    expect(strayUtxos(known({ confirmed: [utxo(), extra] }), pinned))
+      .toEqual([{ txid: 'c'.repeat(64), vout: 0, valueSat: 1234 }]);
+  });
+
+  it('박아둔 게 없으면(취소·금액 불일치) 컨펌된 전부', () => {
+    expect(strayUtxos(known({ confirmed: [utxo()] }), null)).toHaveLength(1);
+  });
+
+  it('멤풀 것은 아직 대상이 아니다 (되돌려질 수 있다)', () => {
+    expect(strayUtxos(known({ mempool: [utxo({ confirmations: 0 })] }), null)).toEqual([]);
+  });
+
+  it('조회 실패면 비어 있다 — 없는 걸 있다고 부르지 않는다', () => {
+    expect(strayUtxos(UNKNOWN, null)).toEqual([]);
   });
 });

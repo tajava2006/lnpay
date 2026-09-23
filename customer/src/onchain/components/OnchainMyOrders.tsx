@@ -3,40 +3,74 @@
  *
  * 역할은 **pubkey 비교로 유도**한다. 칼럼을 따로 두지 않는다(라이트닝과 같은 규칙).
  *
- * ⚠️ 이 화면의 핵심 규칙 둘:
+ * ⚠️ 이 화면의 핵심 규칙:
  *   ① **릴리스는 자동이 아니다**(O-007). 고객이 은행 입금을 눈으로 확인하고 누른다
- *   ② **원화 송금 전에 타임락을 확인시킨다**(T-106). 모르면 막는다
+ *   ② **원화 송금 전에 확인시킨다**(T-106) — 타임락, 그리고 **펀딩이 정말 체인에 있는지**.
+ *      모르면 막는다
+ *   ③ **서명은 내 기록으로 다시 만든 tx에만** 한다(리뷰 #8). 받은 PSBT의 "받는 주소"가
+ *      내가 기대한 곳이 아니면 버튼이 안 열린다
+ *   ④ **마감이 지난 행동은 버튼부터 없다**(리뷰 #8). 늦은 계좌·늦은 송금은 어드민도
+ *      받지 않는다 — 화면이 열어두면 원화만 헛되이 나간다
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { InvoicePayBlock } from '@sajwo-tracker/shared';
 import {
-  canActOnSignRequest, MempoolChainAdapter, onchainStateDisplay, type OnchainOrder,
+  MempoolChainAdapter, accountDeadlineOf, canActOnSignRequest, isPast, krwDeadlineOf,
+  onchainStateDisplay, presignDeadlineOf,
+  type AddressFunds, type ChainQuery, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrdersSnapshot, myOnchainOrders, roleIn, subscribeOnchainOrders } from '../store';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
 import {
-  clearSignRequest, getSignRequestsSnapshot, subscribeSignRequests, type SignRequest,
+  clearSignRequest, getSignRequestsSnapshot, signRequestsFor, subscribeSignRequests,
+  type SignRequest,
 } from '../sign-request-store';
 import {
   forgetPendingRequest, getPendingRequestsSnapshot, subscribePendingRequests,
 } from '../pending-request-store';
 import { getOnchainAccountsSnapshot, subscribeOnchainAccounts } from '../account-store';
+import { clearNotice, getNoticesSnapshot, subscribeNotices } from '../notice-store';
+import { getRefundAddress } from '../refund-address-store';
+import { getMyClaim, rememberMyClaim } from '../claim-store';
 import { depositAmountText } from '../deposit-amount';
-import { cosignSettlement, timelockStatus } from '../actions';
-import { inspectSettlementPsbt, releaseNeedsPriceOverride } from '../verify';
+import { buildCosignature, timelockStatus } from '../actions';
+import { checkFundingOnChain, checkSignRequest, releaseNeedsPriceOverride, type SignCheck } from '../verify';
+import { myOrderXonly } from '../keys';
 import {
   publishOnchainAccountInfo, publishOnchainCancelRequest, publishOnchainCosign,
   publishOnchainDispute,
 } from '../nostr/publish';
 import { publishRemitRequestOnchain } from '../nostr/remit';
+import { presignNow } from '../nostr/service';
 import { DeadlineCountdown } from './DeadlineCountdown';
 import { EscrowAddressPanel } from './EscrowAddressPanel';
 import { OnchainProgressBar } from './OnchainProgressBar';
+import { OnchainChat } from './OnchainChat';
+import { RecoveryPanel } from './RecoveryPanel';
+import { KeyBackup } from './KeyBackup';
 
 interface Props {
   myPubkey: string | null;
   /** 카드를 누르면 그 주문만 보는 화면으로 간다 (URL에 주문이 남는다) */
   onSelectOrder?: (orderId: string) => void;
+}
+
+const nowSec = () => Math.floor(Date.now() / 1000);
+
+/** 1초마다 다시 그린다 — 마감이 지나는 순간 버튼이 닫혀야 한다 */
+function useNow(): number {
+  const [now, setNow] = useState(nowSec);
+  useEffect(() => {
+    const id = setInterval(() => setNow(nowSec()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+function chainFor(order: OnchainOrder): MempoolChainAdapter {
+  return new MempoolChainAdapter({
+    network: order.network === 'mainnet' ? 'mainnet' : order.network === 'testnet' ? 'testnet' : 'signet',
+  });
 }
 
 export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
@@ -63,12 +97,14 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
 
   const waiting = Object.values(pendingRequests);
 
-  if (orders.length === 0 && orphanInvoices.length === 0 && waiting.length === 0) {
-    return <p style={styles.empty}>아직 온체인 거래가 없습니다.</p>;
-  }
-
   return (
     <div style={styles.list}>
+      <KeyBackup myPubkey={myPubkey} />
+
+      {orders.length === 0 && orphanInvoices.length === 0 && waiting.length === 0 && (
+        <p style={styles.empty}>아직 온체인 거래가 없습니다.</p>
+      )}
+
       {waiting.map(req => (
         <div key={req.orderId} style={styles.card}>
           <div style={styles.head}>
@@ -117,8 +153,9 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
           key={order.orderId}
           order={order}
           role={roleIn(order, myPubkey)!}
+          myPubkey={myPubkey}
           invoiceBolt11={invoices[order.orderId]?.done ? undefined : invoices[order.orderId]?.bolt11}
-          signRequest={signRequests[order.orderId]}
+          signRequests={signRequestsFor(signRequests, order.orderId)}
           onSelect={onSelectOrder}
         />
       ))}
@@ -130,14 +167,27 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
  * 주문 하나. 목록과 상세가 **같은 카드를 쓴다** — 둘이 갈리면 한쪽에만 있는
  * 버튼이 생기고, 그게 "왜 여기선 안 보이지"가 된다.
  */
-export function OnchainOrderCard({ order, role, invoiceBolt11, signRequest, onSelect }: {
+export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signRequests, onSelect }: {
   order: OnchainOrder;
   role: 'customer' | 'sponsor';
+  myPubkey: string;
   invoiceBolt11?: string;
-  signRequest?: SignRequest;
+  signRequests: SignRequest[];
   onSelect?: (orderId: string) => void;
 }) {
   const badge = onchainStateDisplay(order.state);
+  const notices = useSyncExternalStore(subscribeNotices, getNoticesSnapshot);
+  const notice = notices[order.orderId];
+  const now = useNow();
+
+  // ⚠️ **스토어에 있다는 것만으로 띄우면 안 된다.** kind 1111은 릴레이에 남아
+  // 새로고침마다 다시 배달되므로 로컬에서 지워도 되살아난다 — 진실은 FSM이다.
+  const actionable = signRequests.filter(r =>
+    canActOnSignRequest(order.state, r.purpose, order.settlementKind));
+
+  const chatOpen = (order.state === 'presigned' && order.accountSentAt !== undefined)
+    || order.state === 'remitted' || order.state === 'disputed'
+    || (order.state === 'refunding' && order.settlementKind === 'refund:account-disputed');
 
   return (
     <div style={styles.card}>
@@ -162,6 +212,13 @@ export function OnchainOrderCard({ order, role, invoiceBolt11, signRequest, onSe
         </p>
       )}
 
+      {notice && (
+        <div style={styles.danger}>
+          <p style={styles.dangerText}>운영자: {notice.reason}</p>
+          <button style={styles.ghost} onClick={() => clearNotice(order.orderId)}>확인</button>
+        </div>
+      )}
+
       <DeadlineCountdown order={order} />
 
       <OnchainProgressBar order={order} role={role} accountInfoSent={Boolean(order.accountSentAt)} />
@@ -173,35 +230,38 @@ export function OnchainOrderCard({ order, role, invoiceBolt11, signRequest, onSe
         </div>
       )}
 
-      {role === 'customer' && order.state === 'listed' && (
-        <CancelOrderPanel order={order} />
-      )}
+      {role === 'customer' && order.state === 'listed' && <CancelOrderPanel order={order} />}
 
       {role === 'customer' && order.state === 'bonded' && (
         <EscrowAddressPanel order={order} role="customer" />
       )}
 
+      {role === 'sponsor' && order.state === 'funded' && !order.settlementKind && (
+        <PresignStatus order={order} now={now} />
+      )}
+
       {role === 'customer' && order.state === 'presigned' && !order.accountSentAt && (
-        <AccountInfoForm order={order} />
+        isPast(accountDeadlineOf(order), now)
+          ? <p style={styles.dangerText}>계좌 공개 마감이 지났습니다. 거래가 환불로 넘어갑니다.</p>
+          : <AccountInfoForm order={order} />
       )}
 
-      {role === 'sponsor' && order.state === 'presigned' && (
-        <RemitPanel order={order} />
-      )}
+      {role === 'sponsor' && order.state === 'presigned' && <RemitPanel order={order} now={now} />}
 
-      {/*
-        ⚠️ **스토어에 있다는 것만으로 띄우면 안 된다.** kind 1111은 릴레이에
-        남아 새로고침마다 다시 배달되므로 로컬에서 지워도 되살아난다 —
-        종결된 주문에 "서명하고 보내기"가 계속 떠 있던 게 그 탓이다(2026-09-23).
-        진실은 FSM이라 상태에 물어본다.
-      */}
-      {signRequest && canActOnSignRequest(order.state, signRequest.purpose) && (
-        <SignPanel order={order} request={signRequest} />
-      )}
+      {actionable.map(r => (
+        <SignPanel
+          key={`${r.purpose}:${r.outpoint ?? ''}`}
+          order={order}
+          role={role}
+          request={r}
+        />
+      ))}
 
-      {(order.state === 'remitted' || order.state === 'presigned') && (
-        <DisputeButton order={order} role={role} />
-      )}
+      <DisputeButton order={order} role={role} now={now} />
+
+      {chatOpen && <OnchainChat order={order} myPubkey={myPubkey} role={role} />}
+
+      {role === 'customer' && <RecoveryPanel order={order} />}
     </div>
   );
 }
@@ -245,6 +305,56 @@ function CancelOrderPanel({ order }: { order: OnchainOrder }) {
   );
 }
 
+/**
+ * 후원자: 사전서명 상태.
+ *
+ * 사전서명은 앱이 자동으로 한다. 다만 **클레임 때 낸 받을 주소·수수료율이 이 기기에
+ * 없으면**(다른 기기에서 클레임했거나 저장소가 지워졌을 때) 서명을 못 만들어 마감을
+ * 넘기고 보증금을 잃는다. 그 자리에서 다시 입력받는다 — 어드민은 클레임 때 값과
+ * 바이트까지 같은 tx만 받으므로 틀리게 넣으면 거절 사유가 돌아온다.
+ */
+function PresignStatus({ order, now }: { order: OnchainOrder; now: number }) {
+  const claim = getMyClaim(order.orderId);
+  const [address, setAddress] = useState('');
+  const [feerate, setFeerate] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  if (isPast(presignDeadlineOf(order), now)) {
+    return <p style={styles.dangerText}>사전서명 마감이 지났습니다. 거래가 환불로 넘어갑니다.</p>;
+  }
+  if (claim) {
+    return <p style={styles.okText}>앱이 자동으로 사전서명합니다. 이 화면을 열어 두세요.</p>;
+  }
+  return (
+    <div style={styles.section}>
+      <p style={styles.sectionTitle}>받을 주소를 다시 입력하세요</p>
+      <p style={styles.warnText}>
+        이 기기에는 클레임 때 낸 받을 주소·수수료율 기록이 없습니다. <strong>그때와 똑같이</strong>
+        입력하면 앱이 바로 사전서명합니다. 마감을 넘기면 보증금을 잃습니다.
+      </p>
+      <input style={styles.input} placeholder="받을 주소" value={address} onChange={e => setAddress(e.target.value)} />
+      <input
+        style={styles.input}
+        placeholder="수수료율 (sat/vB)"
+        inputMode="decimal"
+        value={feerate}
+        onChange={e => setFeerate(e.target.value.replace(/[^0-9.]/g, ''))}
+      />
+      <button
+        style={styles.primary}
+        disabled={busy || !address.trim() || !(Number(feerate) > 0)}
+        onClick={() => {
+          rememberMyClaim({ orderId: order.orderId, payoutAddress: address.trim(), feerateSatPerVb: Number(feerate) });
+          setBusy(true);
+          void presignNow(order).finally(() => setBusy(false));
+        }}
+      >
+        {busy ? '서명 중…' : '사전서명하기'}
+      </button>
+    </div>
+  );
+}
+
 /** 고객: 계좌 공개 — 여기서부터 후원자의 30분이 시작된다 (O-013) */
 function AccountInfoForm({ order }: { order: OnchainOrder }) {
   const [bank, setBank] = useState('');
@@ -271,7 +381,7 @@ function AccountInfoForm({ order }: { order: OnchainOrder }) {
       <p style={styles.sectionTitle}>입금받을 계좌 (15분 안에)</p>
       <p style={styles.warnText}>
         늦으면 거래가 취소되고 <strong>보증금을 잃습니다.</strong> 계좌는 후원자에게만
-        암호화되어 전달됩니다.
+        암호화되어 전달됩니다. 틀린 계좌를 주면 후원자가 이의를 내고, 판정에 따라 보증금을 잃을 수 있습니다.
       </p>
       <input style={styles.input} placeholder="은행" value={bank} onChange={e => setBank(e.target.value)} />
       <input style={styles.input} placeholder="계좌번호" value={number} onChange={e => setNumber(e.target.value)} />
@@ -286,31 +396,31 @@ function AccountInfoForm({ order }: { order: OnchainOrder }) {
 /**
  * 후원자: 원화 송금.
  *
- * ⚠️ **타임락 잔여를 확인하기 전에는 버튼을 열지 않는다**(T-106 · §7.1).
- * 라이트닝에서 정확히 같은 모양의 버그를 겪었다 — 보호 창이 곧 닫히는데
- * 송금을 받아줘서 후원자만 잃었다(AUDIT-EXPIRY F2).
+ * 버튼은 **넷이 다 맞을 때만** 열린다 (리뷰 #8):
+ *   - 운영자가 **고객이 계좌를 보냈다고 확인**했다(`accountSentAt`) — 계좌 스토어에
+ *     뭔가 있다는 것만으로는 부족하다
+ *   - 송금 마감 전이다 — 지나면 어드민이 받지 않고 환불로 간다
+ *   - **펀딩이 체인에 약정 금액으로 있다** — 내가 직접 본다
+ *   - 타임락 잔여가 충분하다(T-106)
  */
-function RemitPanel({ order }: { order: OnchainOrder }) {
-  const [confs, setConfs] = useState<number | undefined>(undefined);
+function RemitPanel({ order, now }: { order: OnchainOrder; now: number }) {
+  const [funds, setFunds] = useState<ChainQuery<AddressFunds> | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const accounts = useSyncExternalStore(subscribeOnchainAccounts, getOnchainAccountsSnapshot);
-  const account = accounts[order.orderId];
+  const account = order.accountSentAt ? accounts[order.orderId] : undefined;
 
   useEffect(() => {
     let alive = true;
-    const txid = order.fundingOutpoint?.split(':')[0];
-    if (!txid) return;
-    const chain = new MempoolChainAdapter({
-      network: order.network === 'mainnet' ? 'mainnet' : 'signet',
-    });
-    void chain.getTxStatus(txid).then(result => {
-      if (alive && result.known) setConfs(result.value.confirmations);
-    });
+    if (!order.escrowAddress) return;
+    void chainFor(order).getAddressFunds(order.escrowAddress).then(r => { if (alive) setFunds(r); });
     return () => { alive = false; };
-  }, [order.fundingOutpoint, order.network]);
+  }, [order]);
 
-  const status = timelockStatus(order, confs);
+  const funding = checkFundingOnChain(order, funds);
+  const status = timelockStatus(order, funding.ok ? funding.confirmations : undefined);
+  const deadlinePassed = order.accountSentAt !== undefined && isPast(krwDeadlineOf(order), now);
+  const canRemit = Boolean(account) && funding.ok && status.safeToRemit && !deadlinePassed;
 
   return (
     <div style={styles.section}>
@@ -319,9 +429,9 @@ function RemitPanel({ order }: { order: OnchainOrder }) {
       {account ? (
         <div style={styles.account}>
           <p style={styles.accountLine}>
-            <strong>{account.bankName}</strong> {account.accountNumber}
+            <strong>{account.accountInfo.bankName}</strong> {account.accountInfo.accountNumber}
           </p>
-          <p style={styles.accountLine}>예금주 {account.holderName}</p>
+          <p style={styles.accountLine}>예금주 {account.accountInfo.holderName}</p>
           {order.priceKrw !== undefined && (
             <p style={styles.accountAmount}>
               보낼 금액 <strong>{order.priceKrw.toLocaleString()}원</strong>
@@ -329,17 +439,27 @@ function RemitPanel({ order }: { order: OnchainOrder }) {
           )}
         </div>
       ) : (
-        <p style={styles.warnText}>고객이 계좌를 보내기를 기다리는 중입니다.</p>
+        <p style={styles.warnText}>
+          {order.accountSentAt
+            ? '계좌 정보를 아직 받지 못했습니다. 잠시 후 다시 보세요.'
+            : '고객이 계좌를 보내기를 기다리는 중입니다.'}
+        </p>
       )}
 
+      <p style={funding.ok ? styles.okText : styles.warnText}>
+        {funding.ok ? `에스크로 확인: 약정 금액이 체인에 있습니다 (${funding.confirmations} 컨펌)` : funding.reason}
+      </p>
       <p style={status.safeToRemit ? styles.okText : styles.warnText}>{status.reason}</p>
+      {deadlinePassed && (
+        <p style={styles.dangerText}>송금 마감이 지났습니다. <strong>원화를 보내지 마세요</strong> — 거래가 환불로 넘어갑니다.</p>
+      )}
       <p style={styles.warnText}>
         <strong>즉시 이체만 사용하세요.</strong> 지연 이체는 시간 안에 도착하지 않아
         보증금을 잃습니다.
       </p>
       <button
-        style={status.safeToRemit && account ? styles.primary : styles.disabled}
-        disabled={!status.safeToRemit || !account || busy || sent}
+        style={canRemit ? styles.primary : styles.disabled}
+        disabled={!canRemit || busy || sent}
         onClick={() => {
           setBusy(true);
           void publishRemitRequestOnchain(order.orderId)
@@ -353,27 +473,59 @@ function RemitPanel({ order }: { order: OnchainOrder }) {
   );
 }
 
-/** 서명 요청 — 릴리스·환불·분쟁 공용. **내용을 보여주고 유저가 누른다** */
-function SignPanel({ order, request }: { order: OnchainOrder; request: SignRequest }) {
+/**
+ * 서명 요청 — 릴리스·환불·분쟁·구조 공용. **내 기록으로 다시 만든 tx에만 서명한다.**
+ *
+ * 받는 주소가 내가 기대한 곳(환불이면 내가 낸 환불 주소, 후원자승이면 내가 낸 받을
+ * 주소)이 아니면 버튼이 안 열린다. 이 기기가 환불 주소를 모르면(다른 기기에서 키를
+ * 가져온 경우) **유저가 다시 입력**하게 해서 대조한다 — 보여주고 "맞다"를 누르게 하면
+ * 대조가 아니다.
+ */
+function SignPanel({ order, role, request }: {
+  order: OnchainOrder;
+  role: 'customer' | 'sponsor';
+  request: SignRequest;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const check = inspectSettlementPsbt(order, request.psbt);
-  const stale = request.purpose === 'release' && releaseNeedsPriceOverride(order, Date.now());
+  const [check, setCheck] = useState<SignCheck | null>(null);
+  const [typedRefund, setTypedRefund] = useState('');
   const [override, setOverride] = useState(false);
+  const stale = request.purpose === 'release' && releaseNeedsPriceOverride(order, Date.now());
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const myXonly = await myOrderXonly(order.orderId);
+      const result = checkSignRequest({
+        order,
+        purpose: request.purpose,
+        psbt: request.psbt,
+        role,
+        myXonly,
+        refundAddress: getRefundAddress(order.orderId) ?? (typedRefund.trim() || undefined),
+        payoutAddress: getMyClaim(order.orderId)?.payoutAddress,
+      });
+      if (alive) setCheck(result);
+    })();
+    return () => { alive = false; };
+  }, [order, request, role, typedRefund]);
 
   const title = request.purpose === 'release' ? '릴리스 서명 (비트코인 지급)'
     : request.purpose === 'refund' ? '환불 서명 (에스크로 회수)'
+    : request.purpose === 'rescue' ? '구조 서명 (약정 밖의 자금 돌려받기)'
     : '분쟁 판정 집행 서명';
 
   async function sign() {
+    if (!check?.ok) return;
     setBusy(true);
     setError(null);
     try {
-      const signed = await cosignSettlement(order.orderId, request.psbt);
+      const signed = await buildCosignature(order.orderId, check);
       if (!signed.ok) return setError(signed.reason);
       const result = await publishOnchainCosign(order.orderId, request.purpose, signed.psbt);
       if (!result.success) return setError('발행에 실패했습니다. 다시 시도하세요.');
-      clearSignRequest(order.orderId);
+      clearSignRequest(request);
     } finally {
       setBusy(false);
     }
@@ -383,14 +535,27 @@ function SignPanel({ order, request }: { order: OnchainOrder; request: SignReque
     <div style={styles.section}>
       <p style={styles.sectionTitle}>{title}</p>
 
-      {!check.ok ? (
-        <p style={styles.dangerText}>⚠️ {check.reason} — 서명하지 마세요.</p>
+      {!check ? (
+        <p style={styles.warnText}>요청을 내 기록과 대조하는 중…</p>
+      ) : !check.ok ? (
+        <>
+          <p style={styles.dangerText}>⚠️ {check.reason} — 서명하지 마세요.</p>
+          {check.needsRefundAddress && (
+            <input
+              style={styles.input}
+              placeholder="의뢰 때 낸 환불 주소를 입력하세요"
+              value={typedRefund}
+              onChange={e => setTypedRefund(e.target.value)}
+            />
+          )}
+        </>
       ) : (
         <>
           <p style={styles.okText}>
-            이 트랜잭션은 <strong>{check.amountSat.toLocaleString()} sats</strong>를 옮깁니다.
-            내 에스크로를 쓰는 것이 맞습니다.
+            <strong>{check.amountSat.toLocaleString()} sats</strong>가 아래 주소로 갑니다
+            (네트워크 수수료 {check.feeSat.toLocaleString()} sats). 내 기록으로 다시 만든 tx와 같습니다.
           </p>
+          <code style={styles.addr}>{check.destination}</code>
 
           {request.purpose === 'release' && (
             <p style={styles.warnText}>
@@ -427,16 +592,37 @@ function SignPanel({ order, request }: { order: OnchainOrder; request: SignReque
   );
 }
 
-function DisputeButton({ order, role }: { order: OnchainOrder; role: 'customer' | 'sponsor' }) {
+/**
+ * 분쟁 · 계좌 이의.
+ *
+ * - `remitted` — 양쪽 다 분쟁을 열 수 있다
+ * - `presigned` — **후원자만**, 계좌를 받은 뒤 송금 마감 전에 "계좌를 쓸 수 없다".
+ *   상태가 아니라 증거다 — 시계는 멈추지 않고, 마감이 차면 누구 과실인지 운영자가
+ *   가른다(§5.2b). 고객에게는 이 단계에 분쟁 버튼이 없다(전에는 떠 있었는데
+ *   누르면 어드민이 조용히 버렸다 — 리뷰 #8)
+ */
+function DisputeButton({ order, role, now }: {
+  order: OnchainOrder;
+  role: 'customer' | 'sponsor';
+  now: number;
+}) {
   const [busy, setBusy] = useState(false);
-  const isAccountIssue = order.state === 'presigned' && role === 'sponsor';
+  const accountIssue = order.state === 'presigned' && role === 'sponsor'
+    && order.accountSentAt !== undefined && !order.accountDisputedAt
+    && !isPast(krwDeadlineOf(order), now);
+  const remittedDispute = order.state === 'remitted';
+
+  if (order.state === 'presigned' && role === 'sponsor' && order.accountDisputedAt) {
+    return <p style={styles.warnText}>계좌 이의를 냈습니다. 채팅에 증거를 올려주세요 — 마감 시계는 멈추지 않습니다.</p>;
+  }
+  if (!accountIssue && !remittedDispute) return null;
 
   return (
     <div style={styles.section}>
-      {isAccountIssue && (
+      {accountIssue && (
         <p style={styles.warnText}>
           계좌를 쓸 수 없다면 알려주세요. <strong>다만 송금 마감 시계는 멈추지 않습니다</strong> —
-          정당한 사유면 보증금은 돌려받습니다.
+          운영자가 확인할 수 있는 증거(이체 거절 화면 등)가 있으면 보증금을 돌려받습니다.
         </p>
       )}
       <button
@@ -444,11 +630,11 @@ function DisputeButton({ order, role }: { order: OnchainOrder; role: 'customer' 
         disabled={busy}
         onClick={() => {
           setBusy(true);
-          void publishOnchainDispute(order.orderId, isAccountIssue ? 'account-unusable' : 'remitted')
+          void publishOnchainDispute(order.orderId, accountIssue ? 'account-unusable' : 'remitted')
             .finally(() => setBusy(false));
         }}
       >
-        {isAccountIssue ? '계좌를 쓸 수 없습니다' : '문제가 있습니다 (분쟁)'}
+        {accountIssue ? '계좌를 쓸 수 없습니다' : '문제가 있습니다 (분쟁)'}
       </button>
     </div>
   );
@@ -481,4 +667,5 @@ const styles = {
   account: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px' },
   accountLine: { margin: 0, fontSize: 14, color: '#111827', lineHeight: 1.7 },
   accountAmount: { margin: '6px 0 0', fontSize: 14, color: '#2563EB' },
+  addr: { display: 'block', fontSize: 12, wordBreak: 'break-all' as const, background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 8px' },
 };

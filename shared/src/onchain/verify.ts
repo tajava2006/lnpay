@@ -29,7 +29,8 @@ import { buildSettlementTx, fromPsbtBase64, settlementLeafFor, tapScriptSigOf } 
 const TAP_LEAF_VERSION = 0xc0;
 
 export type PresigVerdict =
-  | { ok: true; tx: Transaction; txid: string }
+  /** `sig`·`leafScript`는 검증을 통과한 그 서명과 리프 — 우리 tx에 옮겨 심을 때 쓴다 */
+  | { ok: true; tx: Transaction; txid: string; sig: Uint8Array; leafScript: Uint8Array }
   | { ok: false; reason: string };
 
 export interface VerifyPresignatureParams {
@@ -80,17 +81,18 @@ export function verifyPresignature(params: VerifyPresignatureParams): PresigVerd
     return { ok: false, reason: describeMismatch(mine, theirs) };
   }
 
-  const sig = tapScriptSigOf(theirs, signerXonly);
+  const leafName = settlementLeafFor(expected.path);
+  const leaf = expected.descriptor.leaves.find(l => l.name === leafName);
+  if (!leaf) return { ok: false, reason: `알 수 없는 리프: ${leafName}` };
+
+  // **이 리프에 대한** 서명만 본다 — 다른 리프 서명을 끼워 넣은 PSBT를 걸러낸다.
+  const sig = tapScriptSigOf(theirs, signerXonly, leaf.script);
   if (!sig) return { ok: false, reason: '그 키의 서명이 PSBT에 없다' };
   if (sig.length !== 64) {
     // SIGHASH_DEFAULT가 아니면 65바이트가 된다. 우리 양쪽 앱이 내는 서명은
     // 언제나 DEFAULT이므로, 다른 길이는 "다른 구현이 서명했다"는 신호다.
     return { ok: false, reason: `서명 길이가 64가 아니다: ${sig.length}` };
   }
-
-  const leafName = settlementLeafFor(expected.path);
-  const leaf = expected.descriptor.leaves.find(l => l.name === leafName);
-  if (!leaf) return { ok: false, reason: `알 수 없는 리프: ${leafName}` };
 
   let sighash: Uint8Array;
   try {
@@ -115,7 +117,7 @@ export function verifyPresignature(params: VerifyPresignatureParams): PresigVerd
   }
   if (!valid) return { ok: false, reason: '서명이 이 tx에 대한 것이 아니다' };
 
-  return { ok: true, tx: theirs, txid: theirs.id };
+  return { ok: true, tx: theirs, txid: theirs.id, sig, leafScript: leaf.script };
 }
 
 /**

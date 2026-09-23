@@ -25,7 +25,7 @@ import { getCustomerDepositPercent, setCustomerDepositPercent, getSponsorDeposit
 import { restorePendingDeposits } from './pending-deposit-store';
 import { isAutoApproveEnabled, setAutoApproveEnabled } from './auto-approve';
 import { purgeSubscriptionsIfKeyChanged } from './web-push/store';
-import { BtcPrice, createPriceTracker, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
+import { BtcPrice, createPriceTracker, freshPrice, subscribeRelayLists, storage } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { createLightningAdapter, createNodeTracker } from './lightning';
 import type { LightningAdapter, NodeTracker } from './lightning';
@@ -121,7 +121,8 @@ export function App() {
     }
     void startOnchainTrack({
       lnAdapter,
-      btcPriceKrw: () => tracker.getSnapshot().price ?? undefined,
+      // ⚠️ **신선한 가격만** — 끊긴 거래소의 마지막 값은 몇 시간 전 것일 수 있다(리뷰 #8).
+      btcPriceKrw: () => freshPrice(tracker.getSnapshot(), Date.now()) ?? undefined,
       network: getOnchainNetwork(),
       chainBaseUrl: getOnchainBaseUrl(),
     });

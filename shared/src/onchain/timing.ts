@@ -64,16 +64,41 @@ export const SETTLING_WARN_SEC = 24 * HOUR;
 export const DISPUTE_ESCALATION_SEC = [7 * DAY, 14 * DAY] as const;
 
 /**
+ * 분쟁 진입 후 **판정에 쓸 수 있다고 보장하는 시간** (보증금 CLTV 예산의 마지막 칸).
+ *
+ * 몰수는 판정 **시점**에 집행된다(리뷰 #8). 그러니 보증금 HTLC는 판정이 나올 때까지만
+ * 살아 있으면 된다 — 종결 tx 컨펌(`settling`)까지 덮을 필요는 없다. 대신 분쟁은
+ * 하드 마감이 없으므로(§7.5) **이 시간을 넘긴 판정은 몰수를 못 할 수 있다.**
+ * 어드민 화면이 보증금 만료 추정치를 보여주는 이유다.
+ */
+export const DISPUTE_RULING_BUDGET_SEC = 24 * HOUR;
+
+/**
+ * 온체인 이벤트가 릴레이에 남아 있어야 하는 기간.
+ *
+ * ⚠️ **의뢰 만료(`expiration`)를 이벤트 만료로 쓰면 안 된다**(리뷰 #8). 의뢰 만료는
+ * "후원자를 찾는 창"이고, 거래는 그 뒤로 며칠(분쟁이면 몇 주) 더 간다. 릴레이는
+ * NIP-40에 따라 **지난 만료를 가진 이벤트를 거절하고, 저장된 것도 내주지 않는다** —
+ * 막바지에 클레임된 주문은 그 순간부터 상태 발행이 전부 실패했다.
+ *
+ * 타임락(8064블록 ≈ 56일)이 거래의 절대 상한이므로 그보다 넉넉히 잡는다.
+ */
+export const ONCHAIN_EVENT_HORIZON_SEC = 70 * DAY;
+
+/** 종결 이벤트가 만료된 오더 위에 실릴 때 줄 유예 (라이트닝 `publishExpiration`과 같은 규칙) */
+export const TERMINAL_GRACE_SEC = 7 * DAY;
+
+/**
  * 총 옵션 창의 상한. 앞 두 마감이 T0에 묶여 있어 **합이 이걸 못 넘는다.**
  * 보증금은 이 구간의 변동폭을 덮어야 한다(§2.4).
  */
 export const MAX_OPTION_WINDOW_SEC = PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + KRW_WINDOW_SEC;
 
 /**
- * **클레임이 성립한 뒤 거래가 끝나기까지의 최악 소요** (§6.0 최악 소요 시간).
+ * **클레임이 성립한 뒤 마지막 몰수 결정까지의 최악 소요** (§6.0 최악 소요 시간).
  *
  * ```
- * bonded 6h + 옵션 창 50m + cosign 24h + settling 24h ≈ 55시간
+ * bonded 6h + 옵션 창 60m + cosign 24h + 판정 예산 24h ≈ 55시간
  * ```
  *
  * ⚠️ **보증금 HTLC가 이 구간을 덮어야 한다.** 안 덮으면 거래 도중에 보증금이
@@ -81,9 +106,12 @@ export const MAX_OPTION_WINDOW_SEC = PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + K
  * 의뢰 만료(최대 7일)만 보고 CLTV를 잡으면 **막바지에 클레임된 주문이 정확히
  * 그 상태가 된다** — 만료 1시간 전에 클레임하면 보증금은 하루 남짓 사는데
  * 거래는 55시간이 걸릴 수 있다.
+ *
+ * 몰수는 **결정 시점**에 집행되므로(리뷰 #8) 종결 tx 컨펌 대기(`settling`)는
+ * 여기 안 들어간다. 그 자리를 분쟁 판정 예산이 대신한다.
  */
 export const MAX_TRADE_DURATION_SEC =
-  FUNDING_WINDOW_SEC + MAX_OPTION_WINDOW_SEC + COSIGN_WINDOW_SEC + SETTLING_WARN_SEC;
+  FUNDING_WINDOW_SEC + MAX_OPTION_WINDOW_SEC + COSIGN_WINDOW_SEC + DISPUTE_RULING_BUDGET_SEC;
 
 /**
  * 펀딩 마감을 찍는다.
@@ -115,6 +143,56 @@ export function cosignDeadlineFrom(remittedAt: number): number {
   return remittedAt + COSIGN_WINDOW_SEC;
 }
 
+/**
+ * 핸들러가 **지금 이 행동을 받아도 되는지** 보는 마감들.
+ *
+ * 워처만 마감을 보고 핸들러가 안 보면, 워처 틱(30초) 사이에 들어온 늦은 사전서명·
+ * 늦은 계좌·늦은 송금 주장이 그대로 받아들여진다(리뷰 #8). 마감은 **양쪽이 같은
+ * 함수로** 본다.
+ */
+export function presignDeadlineOf(order: { fundedAt?: number }): number | undefined {
+  return order.fundedAt ? presignDeadlineFrom(order.fundedAt) : undefined;
+}
+
+export function accountDeadlineOf(order: { presignedAt?: number }): number | undefined {
+  return order.presignedAt ? accountDeadlineFrom(order.presignedAt) : undefined;
+}
+
+export function krwDeadlineOf(
+  order: { krwDeadline?: number; accountSentAt?: number },
+): number | undefined {
+  if (order.krwDeadline) return order.krwDeadline;
+  return order.accountSentAt ? krwDeadlineFrom(order.accountSentAt) : undefined;
+}
+
+/** 마감이 있고 지났는가. **마감을 모르면 지난 것으로 본다** — 모르는 걸 "여유 있다"로 치지 않는다 */
+export function isPast(deadline: number | undefined, now: number): boolean {
+  return deadline === undefined || now >= deadline;
+}
+
+/**
+ * 오더 이벤트(kind 30402)에 실을 `expiration`.
+ *
+ * - `listed` — 의뢰 만료 그대로. 오더북에서 저절로 사라져야 한다
+ * - 터미널 — 이미 지났으면 유예를 준다(종결을 알리는 이벤트는 도달해야 한다)
+ * - 그 사이(거래 중) — **의뢰 만료와 무관하게** 거래가 끝날 때까지 산다
+ */
+export function onchainOrderEventExpiration(
+  state: string,
+  listingExpiration: number,
+  now: number,
+  terminal: boolean,
+): number {
+  if (state === 'listed') return listingExpiration;
+  if (terminal) return listingExpiration > now ? listingExpiration : now + TERMINAL_GRACE_SEC;
+  return Math.max(listingExpiration, now + ONCHAIN_EVENT_HORIZON_SEC);
+}
+
+/** 요청·통지 이벤트(kind 1111)의 `expiration` — 거래가 끝날 때까지 산다 */
+export function onchainMessageExpiration(now: number): number {
+  return now + ONCHAIN_EVENT_HORIZON_SEC;
+}
+
 export interface OnchainDeadline {
   /** 마감 시각 (unix초) */
   at: number;
@@ -130,8 +208,8 @@ export interface OnchainDeadline {
  * 화면이 "몇 분 남았는지"를 보여주려면 어느 시계가 도는지 한 곳에서 알아야 한다.
  * 상태마다 시계가 다르고, `presigned`는 **한 상태 안에서 주인이 바뀐다**(O-013).
  *
- * `null`이면 마감이 없는 구간이다 — `disputed`가 유일하고, 그건 자동 해소가
- * 어느 방향이든 탈취라서다(§7.5).
+ * `null`이면 마감이 없는 구간이다 — `disputed`(자동 해소가 어느 방향이든 탈취라서,
+ * §7.5)와 `refunding`(고객 자기 돈이고 보증금은 결정 때 이미 처리됐다).
  */
 export function currentOnchainDeadline(
   order: {
@@ -200,6 +278,9 @@ export function currentOnchainDeadline(
     case 'settling':
       // 하드 마감이 아니다 — 넘겨도 잃는 게 없고 CPFP 안내만 뜬다.
       return { at: (order.settlingAt ?? order.updatedAt) + SETTLING_WARN_SEC, label: '컨펌 대기' };
+
+    // `refunding` — 마감이 없다. 고객 자기 돈이고, 보증금은 결정 때 이미 처리됐다
+    // (O-009: 머물러도 아무도 이득을 못 본다). 최후에는 타임락이 받는다.
 
     default:
       return null;

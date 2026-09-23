@@ -42,3 +42,47 @@ export function setOnchainBaseUrl(url: string): void {
   if (url) localStorage.setItem(BASE_URL_KEY, url);
   else localStorage.removeItem(BASE_URL_KEY);
 }
+
+const OPERATOR_KEY = 'admin:onchain-operator-pubkey';
+const DISPUTE_SOON_KEY = 'admin:onchain-dispute-soon-sent';
+
+/**
+ * 운영자에게 알림을 보낼 nostr pubkey (hex). 비어 있으면 안 보낸다.
+ *
+ * ── 왜 필요한가 (리뷰 #8)
+ *
+ * §7.3 ③은 "침묵 공격은 어드민이 와야만 깨진다 — `disputed` 진입 즉시 어드민에게
+ * 알린다"를 방어의 일부로 적었다. 그런데 어드민은 브라우저 탭이고 **어드민에게 가는
+ * 알림이 하나도 없었다.** 경보는 탭을 열어야 보였다. 유저 알림과 같은 NIP-17 경로로
+ * 운영자의 평소 nostr 클라이언트(예: Amethyst)에 보낸다.
+ */
+export function getOnchainOperatorPubkey(): string | undefined {
+  const raw = localStorage.getItem(OPERATOR_KEY);
+  return raw && /^[0-9a-f]{64}$/.test(raw) ? raw : undefined;
+}
+
+export function setOnchainOperatorPubkey(pubkey: string): void {
+  const trimmed = pubkey.trim().toLowerCase();
+  if (/^[0-9a-f]{64}$/.test(trimmed)) localStorage.setItem(OPERATOR_KEY, trimmed);
+  else localStorage.removeItem(OPERATOR_KEY);
+}
+
+/**
+ * 분쟁 임박 알림을 **이미 보냈는가** — 주문당 한 번만 보낸다.
+ *
+ * 전에는 마감 2시간 전부터 워처가 매 틱(30초) 경고를 내고 그때마다 푸시가 나가서
+ * 고객에게 **240번** 울렸다(리뷰 #8). 그러면 유저는 알림을 끄고, 정작 중요한 알림도
+ * 못 받는다.
+ */
+export function claimDisputeSoonNotice(orderId: string): boolean {
+  let sent: string[] = [];
+  try {
+    sent = JSON.parse(localStorage.getItem(DISPUTE_SOON_KEY) ?? '[]') as string[];
+  } catch {
+    sent = [];
+  }
+  if (sent.includes(orderId)) return false;
+  // 오래된 것은 버린다 — 주문 id는 다시 안 쓰이므로 최근 것만 있으면 된다.
+  localStorage.setItem(DISPUTE_SOON_KEY, JSON.stringify([...sent.slice(-499), orderId]));
+  return true;
+}

@@ -9,8 +9,12 @@
  * 한 틱 안에 둘 다 결제돼 있으면 **발행 순서**로 갈린다. 초 단위 순서를
  * 약속할 수 없으니 약속하지 않는다. 진 쪽은 취소되어 아무것도 잃지 않는다.
  */
-import { useState, useSyncExternalStore } from 'react';
-import { InvoicePayBlock } from '@sajwo-tracker/shared';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { InvoicePayBlock, freshPrice, type PriceTracker } from '@sajwo-tracker/shared';
+import {
+  MempoolChainAdapter, RESERVE_MIN_GAP_PERCENT, TYPICAL_SETTLEMENT_VSIZE, addressProblem,
+  releaseFeerateProblem, type FeeEstimates, type OnchainOrder,
+} from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrdersSnapshot, listedOrders, subscribeOnchainOrders } from '../store';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
 import { myOrderXonly } from '../keys';
@@ -20,10 +24,19 @@ import { depositAmountText } from '../deposit-amount';
 
 interface Props {
   myPubkey: string | null;
+  tracker?: PriceTracker;
 }
 
-export function OnchainOrderBook({ myPubkey }: Props) {
+const NO_SUBSCRIBE = () => () => {};
+const NO_SNAPSHOT = () => null;
+
+export function OnchainOrderBook({ myPubkey, tracker }: Props) {
   useSyncExternalStore(subscribeOnchainOrders, getOnchainOrdersSnapshot);
+  const priceSnapshot = useSyncExternalStore(
+    tracker?.subscribe ?? NO_SUBSCRIBE,
+    tracker?.getSnapshot ?? NO_SNAPSHOT,
+  );
+  const price = priceSnapshot ? freshPrice(priceSnapshot, Date.now(), 60_000, 1) : null;
   const invoices = useSyncExternalStore(subscribeDepositInvoices, getDepositInvoicesSnapshot);
   const orders = myPubkey ? listedOrders(myPubkey) : [];
 
@@ -42,9 +55,7 @@ export function OnchainOrderBook({ myPubkey }: Props) {
               <strong style={styles.amount}>{order.amountSat.toLocaleString()} sats</strong>
               <span style={styles.network}>{order.network}</span>
             </div>
-            {order.reserveKrw !== undefined && (
-              <p style={styles.reserve}>최저가 {order.reserveKrw.toLocaleString()}원</p>
-            )}
+            {order.reserveKrw !== undefined && <ReserveLine order={order} price={price} />}
 
             {invoice && !invoice.done ? (
               <div style={styles.invoiceBox}>
@@ -60,7 +71,7 @@ export function OnchainOrderBook({ myPubkey }: Props) {
                 <InvoicePayBlock bolt11={invoice.bolt11} />
               </div>
             ) : (
-              <ClaimForm orderId={order.orderId} />
+              <ClaimForm order={order} />
             )}
           </div>
         );
@@ -69,12 +80,51 @@ export function OnchainOrderBook({ myPubkey }: Props) {
   );
 }
 
-function ClaimForm({ orderId }: { orderId: string }) {
+/**
+ * 최저가가 지금 시세에서 얼마나 떨어져 있는지 (리뷰 #8).
+ *
+ * 최저가가 시세에 붙어 있으면 **컨펌을 기다리는 사이 시세가 조금만 내려도 무과실
+ * 환불**된다 — 후원자는 보증금과 시간을 묶인 채 아무것도 못 얻는다. 어드민이 등록 때
+ * 3% 간격을 요구하지만, 며칠 떠 있는 사이 시세가 최저가 쪽으로 다가올 수 있다.
+ * 그걸 후원자가 **보고** 고르게 한다.
+ */
+function ReserveLine({ order, price }: { order: OnchainOrder; price: number | null }) {
+  const reserve = order.reserveKrw!;
+  if (!price) return <p style={styles.reserve}>최저가 {reserve.toLocaleString()}원</p>;
+  const spot = (order.amountSat / 1e8) * price;
+  const gapPct = ((spot - reserve) / spot) * 100;
+  const close = gapPct < RESERVE_MIN_GAP_PERCENT;
+  return (
+    <p style={close ? styles.reserveClose : styles.reserve}>
+      최저가 {reserve.toLocaleString()}원 · 지금 시세보다 {gapPct.toFixed(1)}% 아래
+      {close && ' — 시세가 조금만 내려도 체결되지 않고 환불될 수 있습니다'}
+    </p>
+  );
+}
+
+function ClaimForm({ order }: { order: OnchainOrder }) {
+  const orderId = order.orderId;
   const [open, setOpen] = useState(false);
   const [address, setAddress] = useState('');
-  const [feerate, setFeerate] = useState('2');
+  const [feerate, setFeerate] = useState('');
+  const [fees, setFees] = useState<FeeEstimates | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 지금 수수료 추정치로 채워 둔다 — 비워두면 대충 넣은 값이 릴리스를 멈추게 한다.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    const chain = new MempoolChainAdapter({
+      network: order.network === 'mainnet' ? 'mainnet' : order.network === 'testnet' ? 'testnet' : 'signet',
+    });
+    void chain.getFeeEstimates().then(r => {
+      if (!alive || !r.known) return;
+      setFees(r.value);
+      setFeerate(prev => prev || String(r.value.halfHour));
+    });
+    return () => { alive = false; };
+  }, [open, order.network]);
 
   if (!open) {
     return (
@@ -86,8 +136,19 @@ function ClaimForm({ orderId }: { orderId: string }) {
     e.preventDefault();
     setError(null);
     const rate = Number(feerate);
-    if (!address.trim()) return setError('받을 주소를 입력하세요.');
+    const addrProblem = addressProblem(address, order.network);
+    if (addrProblem) return setError(addrProblem);
     if (!Number.isFinite(rate) || rate <= 0) return setError('수수료율을 숫자로 입력하세요.');
+    // 어드민과 **같은 경계**로 미리 본다 — 틀린 값은 어드민이 거절하고, 통과한 값이
+    // 릴리스를 멈추는 일은 없어야 한다(리뷰 #8).
+    const feeProblem = releaseFeerateProblem({
+      feerateSatPerVb: rate,
+      fastestSatPerVb: fees?.fastest,
+      amountSat: order.amountSat,
+      releaseFeeSat: Math.ceil(TYPICAL_SETTLEMENT_VSIZE * rate),
+      dustSat: 330,
+    });
+    if (feeProblem) return setError(feeProblem);
 
     setBusy(true);
     try {
@@ -126,6 +187,7 @@ function ClaimForm({ orderId }: { orderId: string }) {
         <span style={styles.hint}>
           받을 때 쓰는 트랜잭션 수수료입니다. <strong>내가 부담</strong>하므로 내가 정합니다.
           너무 낮으면 확정이 늦어집니다.
+          {fees && ` 지금 추정: 30분 ${fees.halfHour} · 1시간 ${fees.hour} sat/vB`}
         </span>
       </label>
 
@@ -150,6 +212,7 @@ const styles = {
   amount: { fontSize: 18, color: '#111827' },
   network: { fontSize: 11, color: '#6B7280', background: '#F3F4F6', padding: '2px 8px', borderRadius: 4 },
   reserve: { margin: 0, fontSize: 12, color: '#6B7280' },
+  reserveClose: { margin: 0, fontSize: 12, color: '#B45309' },
   claim: { padding: '10px 16px', fontSize: 14, fontWeight: 600 as const, background: '#059669', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
   form: { display: 'flex', flexDirection: 'column' as const, gap: 12 },
   label: { display: 'flex', flexDirection: 'column' as const, gap: 6, fontSize: 13, fontWeight: 600 as const, color: '#374151' },

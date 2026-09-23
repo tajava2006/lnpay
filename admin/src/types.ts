@@ -131,7 +131,8 @@ export function parseRequestEvent(event: Event): Request | null {
       const purpose = event.tags.find(t => t[0] === 'purpose')?.[1];
       // 무엇에 대한 서명인지 모르면 어느 tx에 붙일지 알 수 없다.
       if (purpose !== 'release' && purpose !== 'refund'
-          && purpose !== 'dispute-customer' && purpose !== 'dispute-sponsor') {
+          && purpose !== 'dispute-customer' && purpose !== 'dispute-sponsor'
+          && purpose !== 'rescue') {
         return null;
       }
       return { ...base, action, purpose };

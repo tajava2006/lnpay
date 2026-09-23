@@ -13,7 +13,7 @@
  * 그래서 파생과 검증이 같은 파일에 있고, 검증은 "어드민이 준 값"을 하나도
  * 쓰지 않는다 — 오로지 세 키와 타임락 블록 수만으로 다시 만든다.
  */
-import { NETWORK, TEST_NETWORK, p2tr } from '@scure/btc-signer';
+import { Address, NETWORK, TEST_NETWORK, p2tr } from '@scure/btc-signer';
 import type { TaprootScriptTree } from '@scure/btc-signer/payment.js';
 import { bytesToHex, hexToBytes, isXonlyHex } from './hex';
 import type { EscrowXonlyKeys } from './keys';
@@ -138,6 +138,23 @@ export function deriveSingleKeyAddress(xonly: string, network: BtcNetworkName): 
   const out = p2tr(hexToBytes(xonly), undefined, networkParamsFor(network));
   if (!out.address) throw new Error('단일키 주소를 만들지 못했다');
   return out.address;
+}
+
+/**
+ * 이 네트워크에서 **받을 수 있는** 주소인가. 문제가 있으면 사유, 없으면 `null`.
+ *
+ * 유저가 입력한 주소(환불 주소·받을 주소)를 받는 자리에서 쓴다. 틀린 네트워크의
+ * 주소를 받아두면 **종결 tx를 만드는 순간**에야 터진다 — 그때는 거래가 이미 굴러간 뒤다.
+ */
+export function addressProblem(address: string, network: BtcNetworkName): string | null {
+  const trimmed = address.trim();
+  if (!trimmed) return '주소가 비어 있습니다';
+  try {
+    Address(networkParamsFor(network)).decode(trimmed);
+    return null;
+  } catch {
+    return `${network} 네트워크의 비트코인 주소가 아닙니다`;
+  }
 }
 
 export type EscrowAddressCheck =

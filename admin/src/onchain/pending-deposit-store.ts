@@ -39,6 +39,10 @@ export interface OnchainPendingDeposit {
   reserveKrw?: number;
   expiration?: number;
   customerXonly?: string;
+  /** 고객이 낸 환불 주소 (암호문에서 풀어 둔 것) — **공개 이벤트에 싣지 않는다** */
+  refundAddress?: string;
+  /** 이 인보이스에 요구한 최종 CLTV(블록) — 보증금 만료 추정에 쓴다 */
+  cltvBlocks?: number;
 
   // ── 후원자 클레임(type='sponsor')이 `bonded`로 갈 때 필요한 것 ──
   sponsorXonly?: string;

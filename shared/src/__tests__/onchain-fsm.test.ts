@@ -118,9 +118,9 @@ describe('O-001 · O-014 — 자금이 확정된 뒤에는 tx 없이 취소할 �
 });
 
 describe('O-005 — settling은 되돌아가지 않는다', () => {
-  it('종결 넷으로만 나간다', () => {
+  it('종결 넷(+관측된 타임락 회수)으로만 나간다', () => {
     expect([...ONCHAIN_TRANSITIONS.settling].sort())
-      .toEqual(['customer_wins', 'refunded', 'released', 'sponsor_wins']);
+      .toEqual(['customer_wins', 'refunded', 'released', 'sponsor_wins', 'swept']);
   });
 
   it.each(['remitted', 'disputed', 'presigned', 'funded', 'bonded'] as const)(
@@ -129,15 +129,55 @@ describe('O-005 — settling은 되돌아가지 않는다', () => {
   );
 });
 
-describe('O-006 — swept은 관측이지 전이가 아니다', () => {
-  it('어떤 상태에서도 swept으로 가는 화살표가 없다', () => {
-    for (const from of ALL) {
-      expect(canOnchainTransition(from, 'swept')).toBe(false);
-    }
+describe('O-006 — swept은 체인에서 관측한 결과다', () => {
+  /**
+   * 리뷰 #8 전에는 swept으로 가는 화살표가 아예 없어서 **한 번도 기록되지 않았다** —
+   * 고객이 타임락으로 빼가도 장부는 옛 상태에 멈춰 있었다. 이제 소모 증인에서
+   * 타임락 리프를 확인했을 때만(워처) 간다.
+   */
+  it('펀딩이 확정된 뒤의 상태에서만 갈 수 있다', () => {
+    const from = ALL.filter(s => canOnchainTransition(s, 'swept')).sort();
+    expect(from).toEqual(['disputed', 'funded', 'presigned', 'refunding', 'remitted', 'settling']);
   });
 
-  it('그래도 터미널이다 (나가는 전이가 없다)', () => {
+  it('펀딩 전에는 갈 수 없다 (에스크로에 쓸 게 없다)', () => {
+    for (const s of ['listed', 'bonded'] as const) expect(canOnchainTransition(s, 'swept')).toBe(false);
+  });
+
+  it('터미널이다 (나가는 전이가 없다)', () => {
     expect(isOnchainTerminal('swept')).toBe(true);
+  });
+});
+
+describe('리뷰 #8 — 환불 결정은 상태다 (refunding)', () => {
+  /**
+   * 결정이 사이드 스토어에 있을 때는 상태가 funded/presigned에 머물러 늦은 사전서명·
+   * 계좌·송금이 그대로 받아들여졌다. 고객은 어드민 서명 환불을 쥔 채 원화를 받고
+   * 환불로 빠져나갈 수 있었다.
+   */
+  it('refunding에서는 앞으로 가는 길이 없다 — settling(과 관측된 swept)뿐', () => {
+    expect([...ONCHAIN_TRANSITIONS.refunding].sort()).toEqual(['settling', 'swept']);
+  });
+
+  it('funded·presigned에서 refunding으로 간다', () => {
+    expect(canOnchainTransition('funded', 'refunding')).toBe(true);
+    expect(canOnchainTransition('presigned', 'refunding')).toBe(true);
+  });
+
+  /** 가격을 고정하지 않고 접는 경우 (reserve 미달 · O-015 보증금 만료) */
+  it('bonded에서 바로 refunding으로 접을 수 있다', () => {
+    expect(canOnchainTransition('bonded', 'refunding')).toBe(true);
+  });
+
+  it('원화가 오간 뒤(remitted·disputed)에는 refunding으로 못 간다', () => {
+    expect(canOnchainTransition('remitted', 'refunding')).toBe(false);
+    expect(canOnchainTransition('disputed', 'refunding')).toBe(false);
+  });
+
+  it('refunding에서 원래 거래로 되돌아가지 않는다', () => {
+    for (const to of ['funded', 'presigned', 'remitted', 'bonded'] as const) {
+      expect(canOnchainTransition('refunding', to)).toBe(false);
+    }
   });
 });
 
@@ -174,9 +214,9 @@ describe('§7.6 — presigned에서 분쟁으로 못 간다', () => {
     }
   });
 
-  /** O-011 — 분쟁에서 한쪽이 단독으로 빠져나갈 수 없다. 출구는 종결 tx뿐. */
-  it('disputed의 출구는 settling 하나뿐', () => {
-    expect(ONCHAIN_TRANSITIONS.disputed).toEqual(['settling']);
+  /** O-011 — 분쟁에서 한쪽이 단독으로 빠져나갈 수 없다. 출구는 종결 tx뿐(+관측된 타임락). */
+  it('disputed의 출구는 settling뿐 (swept은 체인 관측)', () => {
+    expect(ONCHAIN_TRANSITIONS.disputed).toEqual(['settling', 'swept']);
   });
 });
 
@@ -261,6 +301,7 @@ describe('사유 → 보증금 처리 (§4.1 · §4.1b)', () => {
     ['refund:sponsor-timeout',  'forfeit', 'refund'],
     ['refund:customer-late',    'refund',  'forfeit'],
     ['refund:bond-expired',     'expired', 'refund'],
+    ['refund:account-disputed', 'hold',    'hold'],
     ['sponsor_win',             'refund',  'forfeit'],
     ['customer_win',            'forfeit', 'refund'],
     ['cancel:customer',         'none',    'refund'],
@@ -321,7 +362,7 @@ describe('사유 → 보증금 처리 (§4.1 · §4.1b)', () => {
 describe('타입 경계', () => {
   it('상태 상수와 문자열 리터럴이 일치한다', () => {
     const states: OnchainState[] = [...ALL];
-    expect(states).toHaveLength(13);
+    expect(states).toHaveLength(14);
   });
 });
 
@@ -359,19 +400,33 @@ describe('서명 요청이 아직 쓸모 있는가 (화면 게이트)', () => {
     expect(canActOnSignRequest('bonded', 'release')).toBe(false);
   });
 
-  /** 마감 초과로 접는 경로 — 그 두 상태에서만 환불 tx가 만들어진다. */
-  it('환불은 funded·presigned에서만', () => {
-    expect(canActOnSignRequest('funded', 'refund')).toBe(true);
-    expect(canActOnSignRequest('presigned', 'refund')).toBe(true);
-    expect(canActOnSignRequest('remitted', 'refund')).toBe(false);
-    expect(canActOnSignRequest('disputed', 'refund')).toBe(false);
+  /**
+   * 환불은 **결정이 상태에 박힌 뒤**(refunding)에만 서명한다(리뷰 #8). 전에는
+   * funded·presigned에서 받아서, 거래가 remitted로 굴러간 뒤에도 어드민이 환불
+   * 서명을 받아 브로드캐스트했다 — 고객이 원화와 BTC를 다 가졌다.
+   */
+  it('환불은 refunding에서만', () => {
+    expect(canActOnSignRequest('refunding', 'refund')).toBe(true);
+    for (const s of ['funded', 'presigned', 'remitted', 'disputed'] as const) {
+      expect(canActOnSignRequest(s, 'refund'), s).toBe(false);
+    }
   });
 
-  it('분쟁 판정 집행은 disputed에서만', () => {
+  /** 판정 집행은 disputed이고 **판정이 그 방향일 때만** — 반대쪽 서명을 받으면 안 된다 */
+  it('분쟁 판정 집행은 disputed + 맞는 판정에서만', () => {
+    expect(canActOnSignRequest('disputed', 'dispute-sponsor', 'sponsor_win')).toBe(true);
+    expect(canActOnSignRequest('disputed', 'dispute-customer', 'customer_win')).toBe(true);
+    expect(canActOnSignRequest('disputed', 'dispute-sponsor', 'customer_win')).toBe(false);
+    expect(canActOnSignRequest('disputed', 'dispute-customer', 'sponsor_win')).toBe(false);
+    expect(canActOnSignRequest('disputed', 'dispute-sponsor')).toBe(false); // 판정 전
     for (const purpose of ['dispute-customer', 'dispute-sponsor'] as const) {
-      expect(canActOnSignRequest('disputed', purpose)).toBe(true);
-      expect(canActOnSignRequest('remitted', purpose)).toBe(false);
-      expect(canActOnSignRequest('presigned', purpose)).toBe(false);
+      expect(canActOnSignRequest('remitted', purpose, 'sponsor_win')).toBe(false);
+      expect(canActOnSignRequest('presigned', purpose, 'customer_win')).toBe(false);
     }
+  });
+
+  /** 구조는 FSM 밖 — 약정 밖의 UTXO인지는 따로 확인한다 */
+  it('구조는 상태와 무관하다', () => {
+    for (const s of ALL) expect(canActOnSignRequest(s, 'rescue')).toBe(true);
   });
 });

@@ -5,26 +5,39 @@
  * 혹은 후원자가 유리한 tx를 밀어 넣을 때 막아야 하는 자리가 전부 클라이언트다.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Event } from 'nostr-tools/core';
 import {
-  buildSettlementTx, deriveEscrowAddress, deriveSingleKeyAddress, formatOutpoint,
-  settlementFeeSat, signSettlement, toPsbtBase64, xonlyFromPrivkey,
-  type OnchainOrder,
+  PRESIGN_WINDOW_SEC, addTapScriptSig, buildSettlementTx, deriveEscrowAddress, deriveSingleKeyAddress,
+  formatOutpoint, fromPsbtBase64, settlementFeeSat, signSettlement, tapScriptSigOf, toPsbtBase64,
+  verifyPresignature, xonlyFromPrivkey,
+  type OnchainOrder, type SettlementPath,
 } from '@sajwo-tracker/shared/onchain';
 
 const sk = (n: number) => Uint8Array.from({ length: 32 }, (_, i) => i + n);
-const SK_S = sk(40), SK_A = sk(80), SK_D = sk(120), SK_EVIL = sk(200);
+const SK_S = sk(40), SK_A = sk(80), SK_D = sk(120), SK_EVIL = sk(200), SK_R = sk(150);
 
-// 내 nostr 키는 고정 — 주문별 키 파생이 결정론적이어야 한다
+/** 수신함 핸들러가 "나"로 보는 pubkey — 후원자 역할 테스트에서 바꾼다 */
+let ME = 'spon';
+
+// 내 nostr 키는 고정 — 주문별 키 파생이 결정론적이어야 한다.
+// NIP-44는 접두사로 흉내 낸다 — 여기서 보는 건 암호가 아니라 **발신자 판정**이다.
 vi.mock('@sajwo-tracker/shared', async importOriginal => ({
   ...(await importOriginal<object>()),
   getSecretKey: async () => sk(1),
+  getUserPubkey: async () => ME,
+  nip44Decrypt: (content: string) => {
+    if (!content.startsWith('enc:')) throw new Error('복호화 실패');
+    return content.slice(4);
+  },
   storage: {},
 }));
 
+const { APP_PUBKEY, CLIENT_TAG_ONCHAIN, SAJWO_REQUEST_EVENT_KIND } = await import('@sajwo-tracker/shared');
+const { onchainOrderTags } = await import('@sajwo-tracker/shared/onchain');
 const { myOrderKey, _clearKeyCache } = await import('../onchain/keys');
-const { checkEscrowAddress, inspectSettlementPsbt, releaseNeedsPriceOverride } =
+const { checkEscrowAddress, checkSignRequest, releaseNeedsPriceOverride } =
   await import('../onchain/verify');
-const { buildPresignature, cosignSettlement, timelockStatus, TIMELOCK_BLOCK_THRESHOLD } =
+const { buildPresignature, buildCosignature, timelockStatus, TIMELOCK_BLOCK_THRESHOLD } =
   await import('../onchain/actions');
 const claims = await import('../onchain/claim-store');
 
@@ -36,6 +49,10 @@ let MY_XONLY = '';
 const XS = xonlyFromPrivkey(SK_S);
 const XA = xonlyFromPrivkey(SK_A);
 const PAYOUT = deriveSingleKeyAddress(xonlyFromPrivkey(SK_D), 'signet');
+/** 고객이 의뢰 때 낸 환불 주소 */
+const REFUND = deriveSingleKeyAddress(xonlyFromPrivkey(SK_R), 'signet');
+/** 침해된 어드민의 주소 */
+const EVIL = deriveSingleKeyAddress(xonlyFromPrivkey(SK_EVIL), 'signet');
 
 beforeEach(async () => {
   _clearKeyCache();
@@ -135,45 +152,177 @@ describe('주소 독립 검증 (T-107 · 공격 G)', () => {
   });
 });
 
-describe('서명 요청 PSBT 확인 (§7 I)', () => {
-  const funded = () => order({
-    state: 'remitted', fundingOutpoint: formatOutpoint(TXID, 0),
-    releaseFeeSat: 338, remittedAt: 1_700_000_000,
-  });
+/** 이 주문의 에스크로 */
+const escrow = () => deriveEscrowAddress({
+  keys: { customer: MY_XONLY, sponsor: XS, admin: XA }, network: 'signet',
+});
 
-  function psbtFor(over: { txid?: string; feeSat?: number } = {}): string {
-    const o = funded();
-    const descriptor = deriveEscrowAddress({
-      keys: { customer: MY_XONLY, sponsor: XS, admin: XA }, network: 'signet',
-    });
-    const tx = buildSettlementTx({
-      descriptor,
-      input: { outpoint: { txid: over.txid ?? TXID, vout: 0 }, valueSat: o.amountSat },
-      path: 'release', destination: PAYOUT, feeSat: over.feeSat ?? 338,
-    });
-    signSettlement(tx, SK_S);
-    return toPsbtBase64(tx);
-  }
+/** 어드민이 보낼 법한 요청 PSBT */
+function requestPsbt(p: {
+  path: SettlementPath; destination: string; feeSat: number;
+  txid?: string; valueSat?: number; signWith?: Uint8Array;
+}): string {
+  const tx = buildSettlementTx({
+    descriptor: escrow(),
+    input: { outpoint: { txid: p.txid ?? TXID, vout: 0 }, valueSat: p.valueSat ?? AMOUNT },
+    path: p.path, destination: p.destination, feeSat: p.feeSat,
+  });
+  if (p.signWith) signSettlement(tx, p.signWith);
+  return toPsbtBase64(tx);
+}
+
+describe('서명 요청 확인 — 릴리스 (§7 I)', () => {
+  const remitted = (over: Partial<OnchainOrder> = {}) => order({
+    state: 'remitted', fundingOutpoint: formatOutpoint(TXID, 0),
+    releaseFeeSat: 338, payoutSat: AMOUNT - 338, remittedAt: 1_700_000_000, ...over,
+  });
+  const release = (psbt: string, o = remitted()) =>
+    checkSignRequest({ order: o, purpose: 'release', psbt, role: 'customer', myXonly: MY_XONLY });
 
   it('내 에스크로를 쓰고 얼마가 나가는지 알려준다', () => {
-    const check = inspectSettlementPsbt(funded(), psbtFor());
+    const check = release(requestPsbt({ path: 'release', destination: PAYOUT, feeSat: 338, signWith: SK_S }));
     expect(check.ok).toBe(true);
     if (!check.ok) return;
     expect(check.amountSat).toBe(AMOUNT - 338);
+    expect(check.destination).toBe(PAYOUT);
+    expect(check.counterparty?.xonly).toBe(XS);
   });
 
   /** 남의 UTXO를 쓰는 tx에 서명하면 엉뚱한 주문의 돈이 움직인다. */
   it('다른 UTXO를 쓰는 PSBT는 막는다', () => {
-    const check = inspectSettlementPsbt(funded(), psbtFor({ txid: 'ee'.repeat(32) }));
+    const check = release(requestPsbt({
+      path: 'release', destination: PAYOUT, feeSat: 338, txid: 'ee'.repeat(32), signWith: SK_S,
+    }));
     expect(check.ok).toBe(false);
   });
 
   it('망가진 PSBT는 막는다', () => {
-    expect(inspectSettlementPsbt(funded(), 'not-psbt').ok).toBe(false);
+    expect(release('not-psbt').ok).toBe(false);
   });
 
   it('펀딩 기록이 없으면 막는다', () => {
-    expect(inspectSettlementPsbt(order(), psbtFor()).ok).toBe(false);
+    const psbt = requestPsbt({ path: 'release', destination: PAYOUT, feeSat: 338, signWith: SK_S });
+    expect(release(psbt, remitted({ fundingOutpoint: undefined })).ok).toBe(false);
+  });
+
+  /**
+   * 릴리스는 후원자 주소를 내가 모른다 — 그래서 **후원자 서명이 이 tx에 대해 유효한지**로
+   * 묶는다. 어드민이 받는 주소를 바꾸고 원래 tx의 후원자 서명을 옮겨 심어도 안 통한다.
+   */
+  it('다른 tx의 후원자 서명을 옮겨 심은 PSBT는 막는다', () => {
+    const honest = fromPsbtBase64(requestPsbt({ path: 'release', destination: PAYOUT, feeSat: 338, signWith: SK_S }));
+    const leaf = honest.getInput(0).tapLeafScript![0]!;
+    const sig = tapScriptSigOf(honest, XS)!;
+
+    const forged = buildSettlementTx({
+      descriptor: escrow(), input: { outpoint: { txid: TXID, vout: 0 }, valueSat: AMOUNT },
+      path: 'release', destination: EVIL, feeSat: 338,
+    });
+    addTapScriptSig(forged, leaf[1].subarray(0, -1), XS, sig);
+    expect(release(toPsbtBase64(forged)).ok).toBe(false);
+  });
+
+  it('후원자 서명이 없으면 막는다', () => {
+    expect(release(requestPsbt({ path: 'release', destination: PAYOUT, feeSat: 338 })).ok).toBe(false);
+  });
+
+  it('고객이 아닌 역할로는 확인하지 않는다', () => {
+    const psbt = requestPsbt({ path: 'release', destination: PAYOUT, feeSat: 338, signWith: SK_S });
+    expect(checkSignRequest({ order: remitted(), purpose: 'release', psbt, role: 'sponsor', myXonly: XS }).ok)
+      .toBe(false);
+  });
+});
+
+/**
+ * 리뷰 #8 C3 — **환불 서명은 내가 낸 주소로 가는지** 본다.
+ *
+ * 전에는 "내 에스크로 UTXO를 쓰는가"만 봤다. 침해된 어드민이 `{A,C}` 리프로 **자기
+ * 주소에 보내는 "환불"**을 보내면 화면이 "맞다"고 했고, 고객 서명 하나로 어드민이
+ * 2-of-2를 완성했다.
+ */
+describe('서명 요청 확인 — 환불 (리뷰 #8 C3)', () => {
+  const refunding = (over: Partial<OnchainOrder> = {}) => order({
+    state: 'refunding', fundingOutpoint: formatOutpoint(TXID, 0),
+    settlementKind: 'refund:sponsor-timeout', settlementFeeSat: 300, ...over,
+  });
+  const refund = (psbt: string, refundAddress?: string, o = refunding()) =>
+    checkSignRequest({ order: o, purpose: 'refund', psbt, role: 'customer', myXonly: MY_XONLY, refundAddress });
+
+  it('내가 낸 환불 주소로 가면 통과한다', () => {
+    const check = refund(requestPsbt({ path: 'refund', destination: REFUND, feeSat: 300 }), REFUND);
+    expect(check.ok).toBe(true);
+    if (!check.ok) return;
+    expect(check.destination).toBe(REFUND);
+    expect(check.amountSat).toBe(AMOUNT - 300);
+  });
+
+  it('어드민 주소로 가는 "환불"은 막는다', () => {
+    const check = refund(requestPsbt({ path: 'refund', destination: EVIL, feeSat: 300 }), REFUND);
+    expect(check.ok).toBe(false);
+    if (check.ok) return;
+    expect(check.reason).toMatch(/환불 주소가 아니다/);
+  });
+
+  /** 기기를 바꿔 기록이 없으면 "모른다"고 말하고 **서명하지 않는다** — 유저가 다시 입력하면 대조한다 */
+  it('환불 주소를 모르면 서명하지 않고 입력을 청한다', () => {
+    const check = refund(requestPsbt({ path: 'refund', destination: EVIL, feeSat: 300 }));
+    expect(check.ok).toBe(false);
+    if (check.ok) return;
+    expect(check.needsRefundAddress).toBe(true);
+  });
+
+  it('환불 주소를 받기 전의 주문은 주문별 키 주소로 가는 환불을 받는다', () => {
+    const legacy = deriveSingleKeyAddress(MY_XONLY, 'signet');
+    expect(refund(requestPsbt({ path: 'refund', destination: legacy, feeSat: 300 })).ok).toBe(true);
+  });
+
+  /** 주소가 맞아도 채굴자에게 태우면 고객이 잃는다 */
+  it('비정상 수수료는 막는다', () => {
+    const o = refunding({ settlementFeeSat: 400_000 });
+    const check = refund(requestPsbt({ path: 'refund', destination: REFUND, feeSat: 400_000 }), REFUND, o);
+    expect(check.ok).toBe(false);
+    if (check.ok) return;
+    expect(check.reason).toMatch(/수수료/);
+  });
+
+  it('결정된 수수료와 다른 PSBT는 막는다', () => {
+    expect(refund(requestPsbt({ path: 'refund', destination: REFUND, feeSat: 5_000 }), REFUND).ok).toBe(false);
+  });
+
+  it('환불이 결정되지 않은 주문이면 막는다', () => {
+    const o = refunding({ state: 'remitted', settlementKind: undefined });
+    expect(refund(requestPsbt({ path: 'refund', destination: REFUND, feeSat: 300 }), REFUND, o).ok).toBe(false);
+  });
+
+  it('구조 — 약정 밖 UTXO도 내 환불 주소로 가야만 통과한다', () => {
+    const stray = { txid: 'cc'.repeat(32), valueSat: 70_000 };
+    const good = requestPsbt({ path: 'refund', destination: REFUND, feeSat: 300, ...stray });
+    const bad = requestPsbt({ path: 'refund', destination: EVIL, feeSat: 300, ...stray });
+    const rescue = (psbt: string) => checkSignRequest({
+      order: order({ state: 'cancelled' }), purpose: 'rescue', psbt, role: 'customer',
+      myXonly: MY_XONLY, refundAddress: REFUND,
+    });
+    expect(rescue(good).ok).toBe(true);
+    expect(rescue(bad).ok).toBe(false);
+  });
+});
+
+describe('서명 요청 확인 — 후원자승 집행', () => {
+  const ruled = () => order({
+    state: 'disputed', fundingOutpoint: formatOutpoint(TXID, 0),
+    settlementKind: 'sponsor_win', settlementFeeSat: 300,
+  });
+  const check = (destination: string, payoutAddress: string) => checkSignRequest({
+    order: ruled(), purpose: 'dispute-sponsor', role: 'sponsor', myXonly: XS, payoutAddress,
+    psbt: requestPsbt({ path: 'sponsor-win', destination, feeSat: 300 }),
+  });
+
+  it('내가 낸 받을 주소면 통과한다', () => {
+    expect(check(PAYOUT, PAYOUT).ok).toBe(true);
+  });
+
+  it('다른 주소면 막는다', () => {
+    expect(check(EVIL, PAYOUT).ok).toBe(false);
   });
 });
 
@@ -201,6 +350,7 @@ describe('후원자 사전서명 (§2.4 · §6.1b)', () => {
     return order({
       state: 'funded',
       fundingOutpoint: formatOutpoint(TXID, 0),
+      fundedAt: Math.floor(Date.now() / 1000),
       releaseFeeSat: settlementFeeSat('release', descriptor, PAYOUT, 2),
     });
   };
@@ -239,42 +389,69 @@ describe('후원자 사전서명 (§2.4 · §6.1b)', () => {
     const result = await buildPresignature(order({ state: 'bonded' }));
     expect(result.ok).toBe(false);
   });
+
+  /**
+   * 리뷰 #8 R1 — 마감이 지난 사전서명은 **만들지도 않는다.** 어드민이 받지 않고,
+   * 받았던 시절에는 이미 결정된 환불과 얽혀 고객 서명 하나로 둘 다 완성되는 tx가 나왔다.
+   */
+  it('사전서명 마감이 지났으면 만들지 않는다', async () => {
+    const late = { ...funded(), fundedAt: Math.floor(Date.now() / 1000) - PRESIGN_WINDOW_SEC - 1 };
+    const result = await buildPresignature(late);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toMatch(/마감/);
+  });
+
+  it('환불이 결정된 주문이면 만들지 않는다', async () => {
+    const result = await buildPresignature({
+      ...funded(), state: 'refunding', settlementKind: 'refund:sponsor-timeout',
+    });
+    expect(result.ok).toBe(false);
+  });
 });
 
 describe('최종 서명', () => {
-  it('받은 PSBT에 내 서명을 얹는다 (상대 서명을 날리지 않는다)', async () => {
-    const descriptor = deriveEscrowAddress({
-      keys: { customer: MY_XONLY, sponsor: XS, admin: XA }, network: 'signet',
+  /**
+   * 받은 PSBT에 그대로 서명하지 않는다 — **검증된 재료로 다시 만든 tx**에 서명하고,
+   * 릴리스면 검증된 후원자 서명을 옮겨 심는다.
+   */
+  it('검증된 재료로 다시 만들어 두 서명이 다 든 PSBT를 낸다', async () => {
+    const o = order({
+      state: 'remitted', fundingOutpoint: formatOutpoint(TXID, 0),
+      releaseFeeSat: 338, payoutSat: AMOUNT - 338,
     });
-    const tx = buildSettlementTx({
-      descriptor,
-      input: { outpoint: { txid: TXID, vout: 0 }, valueSat: AMOUNT },
-      path: 'release', destination: PAYOUT, feeSat: 338,
-    });
-    signSettlement(tx, SK_S);
-    const before = toPsbtBase64(tx);
+    const psbt = requestPsbt({ path: 'release', destination: PAYOUT, feeSat: 338, signWith: SK_S });
+    const check = checkSignRequest({ order: o, purpose: 'release', psbt, role: 'customer', myXonly: MY_XONLY });
+    expect(check.ok).toBe(true);
 
-    const result = await cosignSettlement(ORDER_ID, before);
+    const result = await buildCosignature(ORDER_ID, check);
     expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok || !check.ok) return;
 
-    // 두 서명이 다 들어 있어야 완성된다
-    const { fromPsbtBase64, tapScriptSigOf } = await import('@sajwo-tracker/shared/onchain');
     const signed = fromPsbtBase64(result.psbt);
+    expect(signed.id).toBe(fromPsbtBase64(psbt).id);
     expect(tapScriptSigOf(signed, XS)).toHaveLength(64);
     expect(tapScriptSigOf(signed, MY_XONLY)).toHaveLength(64);
+    // 옮겨 심은 후원자 서명이 새 tx에서도 유효하다
+    expect(verifyPresignature({ psbtBase64: result.psbt, expected: check.expected, signerXonly: XS }).ok).toBe(true);
+  });
+
+  it('확인에 실패한 요청은 서명하지 않는다', async () => {
+    const result = await buildCosignature(ORDER_ID, { ok: false, reason: '받는 주소가 내 환불 주소가 아니다' });
+    expect(result.ok).toBe(false);
   });
 
   it('내 키가 그 리프에 없으면 실패를 값으로 돌려준다', async () => {
     const descriptor = deriveEscrowAddress({
       keys: { customer: xonlyFromPrivkey(SK_EVIL), sponsor: XS, admin: XA }, network: 'signet',
     });
-    const tx = buildSettlementTx({
-      descriptor,
-      input: { outpoint: { txid: TXID, vout: 0 }, valueSat: AMOUNT },
-      path: 'release', destination: PAYOUT, feeSat: 338,
+    const result = await buildCosignature(ORDER_ID, {
+      ok: true, destination: REFUND, amountSat: AMOUNT - 300, feeSat: 300,
+      expected: {
+        descriptor, input: { outpoint: { txid: TXID, vout: 0 }, valueSat: AMOUNT },
+        path: 'refund', destination: REFUND, feeSat: 300,
+      },
     });
-    const result = await cosignSettlement(ORDER_ID, toPsbtBase64(tx));
     expect(result.ok).toBe(false);
   });
 });
@@ -393,17 +570,17 @@ describe('계좌 정보 (후원자 수신)', () => {
     const envelope = parseAccountInfoEnvelope(sent);
     expect(envelope?.accountInfo.holderName).toBe('홍길동');
 
-    store.putOnchainAccount('oc-1', envelope!.accountInfo);
-    expect(store.getOnchainAccount('oc-1')?.accountNumber).toBe('123-456');
+    store.putOnchainAccount('oc-1', { accountInfo: envelope!.accountInfo, salt: envelope!.salt });
+    expect(store.getOnchainAccount('oc-1')?.accountInfo.accountNumber).toBe('123-456');
   });
 
   /** 계좌가 나간 뒤 바뀌면 후원자가 이미 본 계좌와 달라진다. */
   it('먼저 온 것을 유지한다', async () => {
     const store = await import('../onchain/account-store');
     store._resetForTesting();
-    store.putOnchainAccount('oc-1', { bankName: 'A', accountNumber: '1', holderName: '갑' });
-    store.putOnchainAccount('oc-1', { bankName: 'B', accountNumber: '2', holderName: '을' });
-    expect(store.getOnchainAccount('oc-1')?.bankName).toBe('A');
+    store.putOnchainAccount('oc-1', { accountInfo: { bankName: 'A', accountNumber: '1', holderName: '갑' }, salt: 's1' });
+    store.putOnchainAccount('oc-1', { accountInfo: { bankName: 'B', accountNumber: '2', holderName: '을' }, salt: 's2' });
+    expect(store.getOnchainAccount('oc-1')?.accountInfo.bankName).toBe('A');
   });
 
   it('스냅샷 참조가 안정하다', async () => {
@@ -417,5 +594,135 @@ describe('보증금 금액 표시', () => {
     const { depositAmountText, depositAmountSat } = await import('../onchain/deposit-amount');
     expect(depositAmountText('not-an-invoice')).toBe('');
     expect(depositAmountSat('not-an-invoice')).toBeNull();
+  });
+});
+
+// ─── 리뷰 #8 C1·C2 — 발신자 확인 ─────────────────────────────
+
+function inbox(pubkey: string, orderId: string, action: string, extra: string[][] = [], content = ''): Event {
+  return {
+    id: `ev-${Math.random()}`, pubkey, kind: SAJWO_REQUEST_EVENT_KIND, created_at: 1_700_000_000,
+    tags: [['a', `30402:${APP_PUBKEY}:${orderId}`], ['action', action], ['t', CLIENT_TAG_ONCHAIN], ...extra],
+    content, sig: 'sig',
+  };
+}
+
+const ACCOUNT = { bankName: '국민', accountNumber: '123-456', holderName: '홍길동' };
+const FAKE_ACCOUNT = { bankName: '대포', accountNumber: '999-999', holderName: '공격자' };
+const accountEvent = (from: string, info = ACCOUNT) =>
+  inbox(from, 'oc-acc', 'account-info', [], `enc:${JSON.stringify({ accountInfo: info, salt: 'salt' })}`);
+
+async function flush(): Promise<void> {
+  for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 0));
+}
+
+/**
+ * 후원자 pubkey는 오더 태그에 공개돼 있다. 전에는 **아무나 보낸 계좌**를 받았고, 스토어가
+ * 먼저 온 것을 유지해서 제3자가 먼저 쏜 가짜 계좌가 진짜 고객 계좌를 밀어냈다 —
+ * 후원자가 공격자 계좌로 원화를 보내는 경로다.
+ */
+describe('리뷰 #8 C1 — 계좌는 오더의 고객이 보낸 것만 받는다', () => {
+  const service = () => import('../onchain/nostr/service');
+  const accounts = () => import('../onchain/account-store');
+  const store = () => import('../onchain/store');
+
+  beforeEach(async () => {
+    ME = 'spon';
+    (await accounts())._resetForTesting();
+    (await store())._resetForTesting();
+  });
+
+  const seed = async () => (await store()).upsertOnchainOrder(order({
+    orderId: 'oc-acc', state: 'presigned', customerPubkey: 'cust', sponsorPubkey: 'spon',
+  }));
+
+  it('제3자가 먼저 쏜 가짜 계좌는 버리고, 고객 계좌를 받는다', async () => {
+    await seed();
+    const { handleInboxEvent } = await service();
+    await handleInboxEvent(accountEvent('stranger', FAKE_ACCOUNT));
+    expect((await accounts()).getOnchainAccount('oc-acc')).toBeUndefined();
+
+    await handleInboxEvent(accountEvent('cust'));
+    expect((await accounts()).getOnchainAccount('oc-acc')?.accountInfo.accountNumber).toBe('123-456');
+  });
+
+  /** 새로고침하면 두 구독이 따로 돌아 계좌가 오더보다 먼저 올 수 있다 — 버리면 진짜 계좌를 잃는다 */
+  it('오더보다 먼저 온 계좌는 오더가 오면 판정한다', async () => {
+    const { handleInboxEvent, handleOrderEvent } = await service();
+    await handleInboxEvent(accountEvent('stranger', FAKE_ACCOUNT));
+    await handleInboxEvent(accountEvent('cust'));
+    expect((await accounts()).getOnchainAccount('oc-acc')).toBeUndefined();
+
+    const o = order({ orderId: 'oc-acc', state: 'presigned', customerPubkey: 'cust', sponsorPubkey: 'spon', updatedAt: 5 });
+    await handleOrderEvent({
+      id: 'ord', pubkey: APP_PUBKEY, kind: 30402, created_at: 5,
+      tags: onchainOrderTags(o, CLIENT_TAG_ONCHAIN), content: '', sig: 'sig',
+    }, 'spon');
+    await flush();
+    expect((await accounts()).getOnchainAccount('oc-acc')?.accountInfo.holderName).toBe('홍길동');
+  });
+
+  it('내가 그 주문의 후원자가 아니면 받지 않는다', async () => {
+    ME = 'someone-else';
+    await seed();
+    await (await service()).handleInboxEvent(accountEvent('cust'));
+    expect((await accounts()).getOnchainAccount('oc-acc')).toBeUndefined();
+  });
+});
+
+/**
+ * 전에는 수신함이 발신자를 안 봐서, 제3자가 `deposit-required`에 **자기 인보이스**를
+ * 실어 보내면 그게 "보증금 결제" 화면에 떴다. 라이트닝 트랙은 이미 막고 있던 자리다.
+ */
+describe('리뷰 #8 C2 — 어드민 통지는 어드민이 보낸 것만 받는다', () => {
+  beforeEach(async () => {
+    (await import('../onchain/deposit-store'))._resetForTesting();
+    (await import('../onchain/sign-request-store'))._resetForTesting();
+  });
+
+  it('가짜 보증금 인보이스를 버린다', async () => {
+    const { handleInboxEvent } = await import('../onchain/nostr/service');
+    const deposits = await import('../onchain/deposit-store');
+
+    await handleInboxEvent(inbox('stranger', 'oc-dep', 'deposit-required', [['bolt11', 'lnbc-evil']]));
+    expect(deposits.getDepositInvoice('oc-dep')).toBeUndefined();
+
+    await handleInboxEvent(inbox(APP_PUBKEY, 'oc-dep', 'deposit-required', [['bolt11', 'lnbc-real']]));
+    expect(deposits.getDepositInvoice('oc-dep')?.bolt11).toBe('lnbc-real');
+  });
+
+  it('가짜 서명 요청을 버린다', async () => {
+    const { handleInboxEvent } = await import('../onchain/nostr/service');
+    const requests = await import('../onchain/sign-request-store');
+    const psbt = requestPsbt({ path: 'refund', destination: EVIL, feeSat: 300 });
+
+    await handleInboxEvent(inbox('stranger', 'oc-sig', 'onchain-cosign', [['purpose', 'refund']], `enc:${JSON.stringify({ psbt })}`));
+    expect(requests.signRequestsFor(requests.getSignRequestsSnapshot(), 'oc-sig')).toHaveLength(0);
+
+    await handleInboxEvent(inbox(APP_PUBKEY, 'oc-sig', 'onchain-cosign', [['purpose', 'refund']], `enc:${JSON.stringify({ psbt })}`));
+    expect(requests.signRequestsFor(requests.getSignRequestsSnapshot(), 'oc-sig')).toHaveLength(1);
+  });
+});
+
+/**
+ * 서명 요청은 **주문 × 목적**으로 쌓인다(리뷰 #8). 전에는 주문당 하나라 분쟁 판정
+ * 요청이 도착하면 아직 안 누른 릴리스 요청을 덮어썼다. 구조는 UTXO마다 따로다.
+ */
+describe('서명 요청 스토어', () => {
+  it('목적이 다르면 따로 남고, 하나를 지워도 나머지는 남는다', async () => {
+    const r = await import('../onchain/sign-request-store');
+    r._resetForTesting();
+    r.putSignRequest({ orderId: 'o', purpose: 'release', psbt: 'a', receivedAt: 1 });
+    r.putSignRequest({ orderId: 'o', purpose: 'dispute-customer', psbt: 'b', receivedAt: 2 });
+    r.putSignRequest({ orderId: 'o', purpose: 'rescue', psbt: 'c', receivedAt: 3, outpoint: 'x:0' });
+    r.putSignRequest({ orderId: 'o', purpose: 'rescue', psbt: 'd', receivedAt: 4, outpoint: 'y:1' });
+    expect(r.signRequestsFor(r.getSignRequestsSnapshot(), 'o')).toHaveLength(4);
+
+    r.clearSignRequest({ orderId: 'o', purpose: 'release' });
+    expect(r.signRequestsFor(r.getSignRequestsSnapshot(), 'o').map(x => x.psbt).sort()).toEqual(['b', 'c', 'd']);
+
+    // 주문이 끝나도 **구조 요청은 남는다** — 약정 밖 자금이라 FSM 종결과 무관하다
+    r.clearSignRequestsFor('o');
+    expect(r.signRequestsFor(r.getSignRequestsSnapshot(), 'o').map(x => x.purpose)).toEqual(['rescue', 'rescue']);
   });
 });

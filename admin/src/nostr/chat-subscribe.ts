@@ -30,6 +30,8 @@ import { getSigner } from './nip46';
 export async function subscribeChatMessages(
   orderId: string,
   onMessage: (msg: ChatMessage) => void,
+  /** 트랙 태그. 온체인 분쟁 채팅은 `CLIENT_TAG_ONCHAIN`으로 오간다 */
+  clientTag: string = CLIENT_TAG,
 ): Promise<() => void> {
   const signer = getSigner();
   if (!signer) throw new Error('로그인되지 않음: signer 없음');
@@ -44,7 +46,7 @@ export async function subscribeChatMessages(
       kinds: [SAJWO_REQUEST_EVENT_KIND],
       '#a': [aCoord],
       '#p': [APP_PUBKEY],
-      '#t': [CLIENT_TAG],
+      '#t': [clientTag],
     },
     {
       onevent: (event: Event) => {

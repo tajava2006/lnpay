@@ -37,6 +37,16 @@ export const ONCHAIN_STATES = {
   REMITTED: 'remitted',
   /** 어드민 판정 대기. **고객 의사와 무관하게 진입한다**(O-010) */
   DISPUTED: 'disputed',
+  /**
+   * **환불이 결정됐다.** 마감 초과·reserve 미달·보증금 만료로 거래가 끝났고,
+   * 고객의 환불 서명을 기다린다. 체인에는 아직 아무 일도 없다.
+   *
+   * 상태로 둔 이유(리뷰 #8): 사이드 스토어였을 때는 상태가 `funded`/`presigned`에
+   * 머물러 **늦은 사전서명·늦은 계좌·늦은 송금 주장을 그대로 받아줬다.** 그 사이
+   * 고객은 환불 PSBT를 쥐고 있었으므로 원화를 받은 뒤 환불로 빠져나갈 수 있었다.
+   * 결정을 상태로 박아야 앞으로 가는 전이를 전부 닫을 수 있다.
+   */
+  REFUNDING: 'refunding',
   /** 종결 tx 브로드캐스트됨 (멤풀). `settlementKind`가 어느 종결인지 지정 */
   SETTLING: 'settling',
 
@@ -62,7 +72,8 @@ export type OnchainState = typeof ONCHAIN_STATES[keyof typeof ONCHAIN_STATES];
  *
  * ```
  * listed → bonded → funded → presigned → remitted → settling → released
- *                                            └──→ disputed ──┘
+ *             │        │          │           └──→ disputed ──┤
+ *             └────────┴──────────┴──→ refunding ─────────────┘→ refunded
  * ```
  *
  * ── ⚠️ `funding` 상태는 **의도적으로 없다** (P2 착수 전 결정)
@@ -92,22 +103,32 @@ export type OnchainState = typeof ONCHAIN_STATES[keyof typeof ONCHAIN_STATES];
  *   돌아가면서 **마감 시각을 다시 찍는다** — 안 그러면 체인 사고로 정직한 고객이
  *   몰수당한다. (양성 리오그면 같은 tx가 다시 캐져 outpoint도 그대로라, 후원자
  *   앱이 자동으로 다시 서명하면 그만이다.)
+ * - **`bonded|funded|presigned → refunding`** — 환불이 **결정**됐다. `bonded`에서
+ *   바로 가는 건 가격을 고정하지 않고 접는 경우다(reserve 미달 · O-015 보증금 만료).
+ *   결정과 동시에 보증금이 처리되고, 거래는 **더 이상 앞으로 가지 않는다**.
  * - **`presigned`에서 분쟁 진입이 없다** — 후원자의 "계좌를 못 쓴다"는 주장은
  *   상태가 아니라 **증거**다(§5.2b). 상태로 받으면 원화 마감 시계가 멈추고
  *   그 순간 무한 옵션이 열린다(§7.6 R4-H1).
+ * - **`presigned → settling`** — 앱을 거치지 않은 릴리스를 **체인에서 관측**한
+ *   경우다. 고객은 `presigned`에서 이미 후원자 사전서명을 들고 있어 원화 확인 전에도
+ *   스스로 릴리스할 수 있다(자기 손해). 어드민 핸들러는 이 전이를 쓰지 않는다
+ *   (`canActOnSignRequest`가 막는다) — 체인이 먼저 말한 걸 장부가 따라갈 뿐이다.
  * - **`settling`은 되돌아가지 않는다**(O-005) — 멤풀 이탈은 **같은 tx 재브로드캐스트**로
  *   대응한다. 종결이 `remitted`로 돌아가는 전이는 의미가 없다.
- * - **`swept`으로 가는 화살표가 없다** — 어드민이 만드는 상태가 아니라 체인에서
- *   관측하는 결과다(O-006). 펀딩 컨펌 이후 어느 상태에서든 관측될 수 있다.
+ * - **`… → swept`** — 어드민이 만드는 상태가 아니라 **체인에서 관측**하는 결과다
+ *   (O-006). 에스크로를 소모한 tx의 증인에 **타임락 리프**가 있을 때만 간다 —
+ *   그 증거 없이는 워처도 이 전이를 쓰지 않는다. 펀딩 컨펌 이후 어느 상태에서든
+ *   일어날 수 있다.
  */
 export const ONCHAIN_TRANSITIONS: Record<OnchainState, readonly OnchainState[]> = {
   listed: ['bonded', 'cancelled'],
-  bonded: ['funded', 'cancelled'],
-  funded: ['presigned', 'settling', 'bonded'],
-  presigned: ['remitted', 'settling', 'bonded'],
-  remitted: ['settling', 'disputed'],
-  disputed: ['settling'],
-  settling: ['released', 'refunded', 'sponsor_wins', 'customer_wins'],
+  bonded: ['funded', 'refunding', 'cancelled'],
+  funded: ['presigned', 'refunding', 'bonded', 'swept'],
+  presigned: ['remitted', 'refunding', 'settling', 'bonded', 'swept'],
+  remitted: ['settling', 'disputed', 'swept'],
+  disputed: ['settling', 'swept'],
+  refunding: ['settling', 'swept'],
+  settling: ['released', 'refunded', 'sponsor_wins', 'customer_wins', 'swept'],
 
   released: [],
   refunded: [],
@@ -157,6 +178,15 @@ export const SETTLEMENT_KINDS = {
   REFUND_CUSTOMER_LATE: 'refund:customer-late',
   /** `funded` 진입 시 후원자 보증금이 이미 만료 (O-015) */
   REFUND_BOND_EXPIRED: 'refund:bond-expired',
+  /**
+   * 후원자가 **송금 마감 전에** "계좌를 쓸 수 없다"고 이의를 냈고 그대로 마감이 찼다.
+   *
+   * **잠정 사유다.** 누구 과실인지 사람이 봐야 해서(§5.2b) 보증금을 양쪽 다 붙잡아
+   * 둔다(`hold`). 어드민이 증거를 보고 `refund:customer-late`(계좌가 정말 나빴다)나
+   * `refund:sponsor-timeout`(이의가 근거 없다)으로 **사유를 바꾸는 순간** 집행된다.
+   * 환불 tx는 사유와 무관하게 같은 모양이라 고객 서명은 그대로 유효하다.
+   */
+  REFUND_ACCOUNT_DISPUTED: 'refund:account-disputed',
   SPONSOR_WIN: 'sponsor_win',
   CUSTOMER_WIN: 'customer_win',
 } as const;
@@ -193,8 +223,13 @@ export type OnchainOutcome = SettlementKind | NonTxOutcome;
  * - `forfeit` — 어드민이 settle한다 = **어드민이 갖는다**
  * - `expired` — 어드민이 손댈 게 없다. LN CLTV 만료로 이미/저절로 환불된다
  * - `none`    — 애초에 그 보증금이 없다 (후원자가 안 붙은 단계)
+ * - `hold`    — **사람이 판정할 때까지 손대지 않는다** (계좌 이의, §5.2b)
+ *
+ * ⚠️ 보증금은 **결정 시점**에 처리한다 — 종결 tx 컨펌 때가 아니다(리뷰 #8).
+ * 환불 tx는 고객 서명이 있어야 나가는데, 컨펌 때 몰수하면 `refund:customer-late`처럼
+ * **몰수당할 쪽이 그 시점을 쥔다** — HTLC가 만료될 때까지 서명을 미루면 몰수가 사라진다.
  */
-export type BondDisposition = 'refund' | 'forfeit' | 'expired' | 'none';
+export type BondDisposition = 'refund' | 'forfeit' | 'expired' | 'none' | 'hold';
 
 export interface OutcomeRule {
   /** 이 사유로 끝났을 때 도달하는 터미널 상태 */
@@ -242,6 +277,12 @@ export const OUTCOME_RULES: Record<OnchainOutcome, OutcomeRule> = {
     terminal: 'refunded',
     sponsorBond: 'expired', customerBond: 'refund',
     arbitrated: false, label: '후원자 보증금 만료 — 무담보 창을 열지 않고 접음',
+  },
+  'refund:account-disputed': {
+    // 잠정 사유 — 어드민이 증거를 보고 customer-late / sponsor-timeout으로 바꾼다.
+    terminal: 'refunded',
+    sponsorBond: 'hold', customerBond: 'hold',
+    arbitrated: false, label: '계좌 이의 — 누구 과실인지 판정 대기',
   },
   'sponsor_win': {
     terminal: 'sponsor_wins',
@@ -361,8 +402,30 @@ export function isPriceStale(remittedAtMs: number, nowMs: number): boolean {
   return nowMs - remittedAtMs > PRICE_VALIDITY_MS;
 }
 
-/** 서명 요청이 가리키는 종결 (kind 1111 `purpose` 태그) */
-export type SignPurpose = 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor';
+/**
+ * 서명 요청이 가리키는 종결 (kind 1111 `purpose` 태그).
+ *
+ * `rescue`는 FSM 밖이다 — 약정과 다른 모양으로 들어온 자금(금액 불일치, 이중 송금,
+ * 취소 뒤 늦은 펀딩, 확정 뒤 추가 입금)을 고객에게 돌려주는 `{A,C}` tx다.
+ */
+export type SignPurpose = 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor' | 'rescue';
+
+export function isRefundKind(kind: SettlementKind | undefined): boolean {
+  return kind !== undefined && kind.startsWith('refund:');
+}
+
+/** 사유 → 서명 요청 purpose. 사유가 곧 누구에게 무엇을 받아야 하는지를 정한다. */
+export function signPurposeFor(kind: SettlementKind): Exclude<SignPurpose, 'rescue'> {
+  if (kind === 'release') return 'release';
+  if (kind === 'sponsor_win') return 'dispute-sponsor';
+  if (kind === 'customer_win') return 'dispute-customer';
+  return 'refund';
+}
+
+/** 사유 → 서명해야 하는 쪽 (어드민 말고). `{A,S}`만 후원자, 나머지는 전부 고객이다 */
+export function awaitingSignerFor(kind: SettlementKind): 'customer' | 'sponsor' {
+  return kind === 'sponsor_win' ? 'sponsor' : 'customer';
+}
 
 /**
  * 이 서명 요청이 **아직 쓸모 있는가.**
@@ -370,28 +433,30 @@ export type SignPurpose = 'release' | 'refund' | 'dispute-customer' | 'dispute-s
  * ⚠️ 화면이 "서명 요청이 스토어에 있다"만 보고 버튼을 띄우면 안 된다.
  * kind 1111은 릴레이에 남아 있어 **새로고침할 때마다 다시 배달되므로**,
  * 로컬에서 지워도 되살아난다. 실제로 **종결된 주문에 "서명하고 보내기"가
- * 계속 떠 있었다**(2026-09-23). 에스크로 주소가 주문마다 유일해서 두 번 나갈
- * 일은 없지만, 끝난 거래에 살아 있는 버튼이 남아 있는 건 그 자체로 잘못이다.
+ * 계속 떠 있었다**(2026-09-23).
  *
- * **진실은 FSM이다.** 상태가 답을 갖고 있으니 상태에 물어본다:
+ * **진실은 FSM이다.** 어드민 핸들러도 같은 함수로 막는다(리뷰 #8) — 화면만
+ * 막으면 수정한 클라이언트가 `remitted`에서 환불 서명을 보내 원화와 BTC를 다 가져간다.
  *
  * - `settling`·터미널 → **무조건 아니다.** 이미 브로드캐스트됐거나 끝났다
  * - `release` → `remitted`(고객이 입금을 확인할 수 있는 시점)이거나
  *   `disputed`(양쪽 합의 릴리스로 빠져나가는 길, O-011)일 때만
- * - `refund` → `funded`·`presigned` — 마감 초과로 접는 경로다
- * - 분쟁 판정 집행 → `disputed`일 때만
- *
- * `release`를 `presigned`에서 막는 이유: 그때는 **원화가 아직 안 왔다.**
- * O-007이 "고객이 수령을 확인해야 릴리스"인데, 확인할 게 없는 시점에 버튼을
- * 열어두면 그 원칙이 화면에서 새어나간다.
+ * - `refund` → `refunding`일 때만. 결정이 상태에 박힌 뒤에만 환불 tx가 존재한다
+ * - 분쟁 판정 집행 → `disputed`이고 **판정 사유가 그 purpose와 맞을 때만**
+ * - `rescue` → FSM과 무관하다. 소모할 UTXO가 약정 밖의 것인지는 따로 확인한다
  */
-export function canActOnSignRequest(state: OnchainState, purpose: SignPurpose): boolean {
+export function canActOnSignRequest(
+  state: OnchainState,
+  purpose: SignPurpose,
+  settlementKind?: SettlementKind,
+): boolean {
+  if (purpose === 'rescue') return true;
   if (isOnchainTerminal(state) || state === 'settling') return false;
 
   switch (purpose) {
     case 'release': return state === 'remitted' || state === 'disputed';
-    case 'refund': return state === 'funded' || state === 'presigned';
-    case 'dispute-customer':
-    case 'dispute-sponsor': return state === 'disputed';
+    case 'refund': return state === 'refunding';
+    case 'dispute-customer': return state === 'disputed' && settlementKind === 'customer_win';
+    case 'dispute-sponsor': return state === 'disputed' && settlementKind === 'sponsor_win';
   }
 }

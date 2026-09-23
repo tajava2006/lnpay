@@ -13,6 +13,7 @@ import {
   APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
   SAJWO_REQUEST_KIND, getReadRelays, getSecretKey, storage,
 } from '@sajwo-tracker/shared';
+import { onchainMessageExpiration } from '@sajwo-tracker/shared/onchain';
 
 export async function publishRemitRequestOnchain(orderId: string): Promise<boolean> {
   const sk = await getSecretKey(storage);
@@ -24,6 +25,7 @@ export async function publishRemitRequestOnchain(orderId: string): Promise<boole
       ['action', REQUEST_ACTIONS.REMIT_REQUEST],
       ['t', CLIENT_TAG_ONCHAIN],
       ['p', APP_PUBKEY],
+      ['expiration', String(onchainMessageExpiration(Math.floor(Date.now() / 1000)))],
     ],
     content: '',
   }, sk);

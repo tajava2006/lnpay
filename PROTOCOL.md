@@ -909,8 +909,9 @@ seal/wrap의 `created_at`은 NIP-59 요구대로 최대 이틀 전으로 흩뿌�
 > [docs/PLAN-ONCHAIN-TRACK.md](docs/PLAN-ONCHAIN-TRACK.md)가 진실이고, 여기에는
 > **프로토콜로 굳은 것**만 적는다.
 >
-> 구현 진행: P0(키·스크립트·주소) ✅ / P1(FSM·표시) ✅ / 이벤트 규약(태그·action)은
-> **P4에서 확정**된다. 아래 태그 표가 아직 없는 이유다.
+> 구현 진행: P0~P5 · P7 · P8(구현 감사 반영) ✅ / P6은 코드 몫까지 ✅, 실제 signet
+> 드릴이 남았다. 태그·action의 전체 표는 PLAN §5.1·§5.2가 진실이고, 여기에는
+> **어기면 돈이 새는 규칙**만 옮긴다(아래 "이벤트 규칙").
 
 ### 태그 분리 — `sajwo-tracker-onchain`
 
@@ -937,9 +938,11 @@ listed → bonded → funded → presigned → remitted → settling → release
             └────────┴──────────┘          ↓          ├→ refunded
             (리오그 복귀)             disputed ───────→├→ sponsor_wins
                                                        └→ customer_wins
+bonded · funded · presigned ──→ refunding ──→ settling → refunded
 
 cancelled: listed, bonded에서만 (funded 이후 불가)
-swept:     전이가 아니라 **체인에서 관측**한다
+refunding: 환불이 **결정**됐다. 여기서는 앞으로 가지 않는다
+swept:     어드민이 만들지 않는다 — **체인에서 관측**한다 (펀딩 이후 어느 상태에서든)
 터미널:    released, refunded, sponsor_wins, customer_wins, cancelled, swept
 ```
 
@@ -955,9 +958,10 @@ swept:     전이가 아니라 **체인에서 관측**한다
 | `listed` | 의뢰 등록됨 (고객 LN 보증금 결제 완료). 오더북 노출 |
 | `bonded` | 후원자 보증금 accepted = **클레임 성립**. 세 키 확정 → 에스크로 주소 발행. **고객이 마감 안에 펀딩을 컨펌시켜야 하는 구간** |
 | `funded` | 펀딩 N컨펌. **KRW 가격 확정(T0)**. 후원자 사전서명 대기 |
-| `presigned` | 사전서명 검증됨. 고객이 5분 내 계좌 공개 → 그때부터 송금 창 30분 |
+| `presigned` | 사전서명 검증됨. 고객이 **15분** 내 계좌 공개 → 그때부터 송금 창 30분 |
 | `remitted` | 후원자가 원화 송금 주장. 고객이 은행 확인 후 cosign해야 한다 |
 | `disputed` | 어드민 판정 대기. **고객 동의 없이 진입한다** |
+| `refunding` | **환불이 결정됐다**(마감 초과 · 최저가 미달 · 보증금 만료 · 계좌 이의). 고객의 환불 서명 대기. 늦은 사전서명·계좌·송금 주장·릴리스는 **전부 거절** |
 | `settling` | 종결 tx 브로드캐스트됨. `settlementKind`가 어느 종결인지 지정 |
 | `released` | `{C,S}` 릴리스 컨펌 — 정상 완료 (최종) |
 | `refunded` | `{A,C}` 환불 컨펌 — 분쟁 아닌 사유 (최종) |
@@ -977,7 +981,7 @@ swept:     전이가 아니라 **체인에서 관측**한다
 | 순서 | 후원자 매칭 → 고객 에스크로 | 후원자 매칭 → **주소 생성** → 고객 펀딩 |
 | 종결 | 상태 발행 한 번 | **tx 브로드캐스트 + 컨펌** (그래서 `settling`이 있다) |
 | 취소 | `escrowed` 전까지 자유 | **펀딩 tx 부재를 확인해야** 취소된다 |
-| 환불 | 어드민 단독 (hold invoice cancel) | `{A,C}` — **고객 서명이 있어야 한다** |
+| 환불 | 어드민 단독 (hold invoice cancel) | `{A,C}` — **고객이 먼저, 어드민이 마지막에** 서명한다. 받는 곳은 **고객이 의뢰 때 낸 환불 주소** |
 | 수수료 | 고객이 `payout × 1.005`로 전부 | **한 쪽에 하나씩** (고객=펀딩 tx, 후원자=릴리스 tx) |
 
 ### 종결 사유 → 보증금 처리
@@ -993,6 +997,7 @@ swept:     전이가 아니라 **체인에서 관측**한다
 | `refund:sponsor-timeout` | **몰수** | 환불 |
 | `refund:customer-late` (계좌 미공개) | 환불 | **몰수** |
 | `refund:bond-expired` | (LN 만료로 이미 환불) | 환불 |
+| `refund:account-disputed` (계좌 이의 판정 대기) | **보류** | **보류** — 판정이 사유를 `customer-late`/`sponsor-timeout`으로 바꿀 때 집행 |
 | `sponsor_win` | 환불 | **몰수** |
 | `customer_win` | **몰수** | 환불 |
 | `cancel:customer` / `cancel:expired` | — | 환불 |
@@ -1002,18 +1007,23 @@ swept:     전이가 아니라 **체인에서 관측**한다
 몰수금의 쓰임이 갈린다: **분쟁이면 전액 중재료**, 타임아웃이면 50%를 피해자에게
 수동 충당(운영 재량 — 권리가 아니므로 UI에서 약속하지 않는다).
 
+**보증금은 결정 시점에 처리한다** — 종결 tx 컨펌 때가 아니다. 환불 tx는 고객 서명이
+있어야 나가므로, 컨펌 때 몰수하면 `refund:customer-late`처럼 **몰수당할 쪽이 서명을
+미뤄** 보증금 HTLC 만료를 기다릴 수 있다. 터미널에서 한 번 더 불리지만 멱등이다.
+
 ### 마감
 
 | 상태 | 마감 | 초과 시 |
 |---|---|---|
 | `listed` | 의뢰 만료 (**최대 7일**) | `cancelled` |
 | `bonded` | **6시간 (컨펌까지)** | `cancelled`, 고객 보증금 몰수 |
-| `funded` | T0+15분 | `refund:sponsor-timeout` |
-| `presigned` (고객) | 계좌 공개 = +15분 | `refund:customer-late` |
-| `presigned` (후원자) | 송금 = **계좌 공개 +30분** | `refund:sponsor-timeout` |
+| `funded` | T0+15분 | `refunding` (`refund:sponsor-timeout`) |
+| `presigned` (고객) | 계좌 공개 = +15분 | `refunding` (`refund:customer-late`) |
+| `presigned` (후원자) | 송금 = **계좌 공개 +30분** | `refunding` (`refund:sponsor-timeout` · 이의가 있었으면 `refund:account-disputed`) |
 | `remitted` | 24시간 | **`disputed` 강제 전이** (동의 불필요) |
-| `disputed` | **하드 마감 없음** (에스컬레이션만) | 자동 해소는 어느 방향이든 탈취다 |
-| `settling` | 24시간 | CPFP 안내 |
+| `disputed` | **하드 마감 없음** (에스컬레이션만) | 자동 해소는 어느 방향이든 탈취다. 판정 예산 24h 뒤엔 몰수를 못 할 수 있다 |
+| `refunding` | **없음** (6시간마다 서명 재요청) | 고객 자기 돈이고 고객만 서명할 수 있다. 최후는 타임락 |
+| `settling` | 24시간 | CPFP 안내. 멤풀에서 사라지면 같은 바이트 재브로드캐스트 |
 
 총 옵션 창은 **T0+60분을 넘지 않는다** — 앞 두 마감이 T0에 묶여 있고, 후원자
 마감만 계좌 공개를 기준으로 센다(고객 지연이 후원자를 치지 않게).
@@ -1031,6 +1041,31 @@ swept:     전이가 아니라 **체인에서 관측**한다
 | 가격 유효창 = `remitted` + 24시간. 넘기면 경고 + 명시적 우회만 | `isPriceStale()` |
 | 주소는 클라이언트가 **직접 파생해 대조** | `verifyEscrowAddress()` |
 | 세 키가 하나라도 겹치면 주소를 만들지 않는다 | `assertEscrowKeys()` |
+| 서명 요청은 **FSM이 허락할 때만** — 화면과 어드민 핸들러가 같은 함수 | `canActOnSignRequest()` |
+| 유저는 서명 요청을 **자기 기록으로 다시 만들어 txid 대조** 후, 다시 만든 tx에 서명 | `checkSignRequest()` → `buildCosignature()` |
+| 어드민은 **마지막에** 서명하고, raw tx를 기록 → `settling` 커밋 → 브로드캐스트 | `handleOnchainCosign()` · `settleThroughOutbox()` |
+| 후원자는 원화 전에 **펀딩을 체인에서 직접** 확인 (outpoint · 주소 · 금액 · 컨펌) | `checkFundingOnChain()` |
+| 후원자 feerate 경계: `1 ≤ r ≤ max(100, 5×fastest)`, 수수료 ≤ 금액의 20% | `releaseFeerateProblem()` |
+| 최저가는 신선한 시세보다 3% 이상 아래 | `reserveProblem()` |
+
+### 이벤트 규칙 (어기면 돈이 새는 것)
+
+- **발신자를 본다.** 어드민 통지(`deposit-required` · `onchain-cosign` 서명 요청 ·
+  `onchain-rejected` 등)는 `APP_PUBKEY`만, 계좌(`account-info`)는 **그 오더의 고객**만,
+  요청은 그 역할의 pubkey만 받는다. 계좌가 오더보다 먼저 오면 메모리에 잡아뒀다가 판정한다.
+  라이트닝 후원자 계좌 수신도 같은 규칙이다.
+- **`expiration`**: `listed`는 의뢰 만료, 진행 중은 `max(의뢰 만료, now + 70일)`, 터미널은
+  지났으면 `+7일`. 메시지류는 `now + 70일`. **진행 중에 의뢰 만료를 달면 릴레이가
+  NIP-40으로 거절한다** — 막바지에 클레임된 주문이 그렇게 멈췄다.
+- **오더 `created_at` = `updatedAt`.** `now`를 쓰면 같은 초의 두 갱신 중 id가 작은 쪽이 남는다.
+- **`onchain-cosign`은 양방향 · 목적별**: `purpose ∈ release | refund | dispute-customer |
+  dispute-sponsor | rescue`. 어드민 → 유저는 **서명 없는** PSBT(릴리스만 후원자 사전서명 포함).
+  서명 요청은 주문 × 목적(구조는 × UTXO)으로 따로 쌓인다.
+- **`onchain-order-request` content** = NIP-44 `{ refundAddress }` (어드민만 읽는다).
+- **`account-info`** 봉투 `{ accountInfo, salt }` + 공개 `commitment` 태그 — 계좌 이의 판정 때
+  분쟁 채팅에 공개된 계좌·솔트와 대조한다.
+- **`settlement-kind`를 모르는 값이면 오더 이벤트를 버린다** — 서명할 tx를 정하는 값이다.
+- 새 오더 태그: `settlement-fee-sat` · `decided-at` · `disputed-at` · `account-disputed-at`.
 
 ## 참조 NIP
 

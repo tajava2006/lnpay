@@ -17,7 +17,7 @@
  * 사전서명 PSBT 안에 실려 어드민·고객에게만 간다 (§3.2 말미).
  */
 import type { OnchainState, SettlementKind } from './state-machine';
-import { ONCHAIN_STATES, isOnchainTerminal } from './state-machine';
+import { ONCHAIN_STATES, SETTLEMENT_KINDS, isOnchainTerminal } from './state-machine';
 import type { BtcNetworkName } from './address';
 import { isXonlyHex } from './hex';
 
@@ -74,8 +74,34 @@ export interface OnchainOrder {
   /** 가격 유효창(O-016)과 cosign 마감의 기준 */
   remittedAt?: number;
 
-  // ── settling 이후 ──
+  /**
+   * 후원자가 송금 마감 **전에** "계좌를 쓸 수 없다"고 이의를 낸 시각 (§5.2b).
+   * 상태가 아니라 증거다 — 시계를 멈추지 않는다. 마감이 차면 환불 사유가
+   * `refund:account-disputed`(잠정)가 되고 어드민이 과실을 판정한다.
+   */
+  accountDisputedAt?: number;
+
+  // ── remitted → disputed ──
+  /** 분쟁 진입 시각. 에스컬레이션 시계의 기준이다(`updatedAt`은 재발행마다 바뀐다) */
+  disputedAt?: number;
+
+  // ── 종결 결정 (refunding · 분쟁 판정) ──
+  /**
+   * 종결 사유. `refunding`과 판정이 난 `disputed`에서는 **결정**이고, `settling`
+   * 이후에는 브로드캐스트된 tx의 사유다.
+   *
+   * 결정을 오더 이벤트에 싣는 이유(리뷰 #8): 사이드 스토어에만 두면 기기를 옮기거나
+   * 저장소가 날아갈 때 결정이 사라지고, 새 기기가 **다른 사유**로 다시 결정한다
+   * (reserve 미달로 접은 주문이 후원자 이탈로 재판정돼 후원자가 부당하게 몰수됐다).
+   */
   settlementKind?: SettlementKind;
+  /**
+   * 결정된 종결 tx의 수수료(sat). 사유·수수료·받는 주소가 정해지면 tx가 **한 바이트까지**
+   * 정해지므로, 어느 기기에서든 같은 tx를 다시 만들 수 있다.
+   */
+  settlementFeeSat?: number;
+  /** 결정 시각 — 보증금은 이때 처리된다 */
+  decidedAt?: number;
   settlementTxid?: string;
   /** 종결 tx를 뿌린 시각. 24시간 넘게 안 잡히면 CPFP 안내를 띄운다 (§6.2) */
   settlingAt?: number;
@@ -135,8 +161,12 @@ export function onchainOrderTags(order: OnchainOrder, clientTag: string): TagLis
   num(tags, 'account-sent-at', order.accountSentAt);
   num(tags, 'krw-deadline', order.krwDeadline);
   num(tags, 'remitted-at', order.remittedAt);
+  num(tags, 'account-disputed-at', order.accountDisputedAt);
+  num(tags, 'disputed-at', order.disputedAt);
 
   str(tags, 'settlement-kind', order.settlementKind);
+  num(tags, 'settlement-fee-sat', order.settlementFeeSat);
+  num(tags, 'decided-at', order.decidedAt);
   str(tags, 'settlement-txid', order.settlementTxid);
   num(tags, 'settling-at', order.settlingAt);
 
@@ -156,6 +186,7 @@ export interface OnchainOrderEvent {
 }
 
 const KNOWN_STATES = new Set<string>(Object.values(ONCHAIN_STATES));
+const KNOWN_KINDS = new Set<string>(Object.values(SETTLEMENT_KINDS));
 const KNOWN_NETWORKS = new Set<string>(['mainnet', 'signet', 'testnet', 'regtest']);
 
 function tagValue(tags: TagList, name: string): string | undefined {
@@ -200,6 +231,10 @@ export function parseOnchainOrder(
     if (v !== undefined && !isXonlyHex(v)) return null;
   }
 
+  // 사유는 서명할 tx를 정한다 — 모르는 값을 아는 척하면 엉뚱한 tx에 서명하게 된다.
+  const settlementKind = tagValue(tags, 'settlement-kind');
+  if (settlementKind !== undefined && !KNOWN_KINDS.has(settlementKind)) return null;
+
   return {
     orderId,
     state: state as OnchainState,
@@ -231,8 +266,12 @@ export function parseOnchainOrder(
     accountSentAt: readNum(tags, 'account-sent-at'),
     krwDeadline: readNum(tags, 'krw-deadline'),
     remittedAt: readNum(tags, 'remitted-at'),
+    accountDisputedAt: readNum(tags, 'account-disputed-at'),
+    disputedAt: readNum(tags, 'disputed-at'),
 
-    settlementKind: tagValue(tags, 'settlement-kind') as SettlementKind | undefined,
+    settlementKind: settlementKind as SettlementKind | undefined,
+    settlementFeeSat: readNum(tags, 'settlement-fee-sat'),
+    decidedAt: readNum(tags, 'decided-at'),
     settlementTxid: tagValue(tags, 'settlement-txid'),
     settlingAt: readNum(tags, 'settling-at'),
 
@@ -285,16 +324,27 @@ export function onchainOrderIssues(order: OnchainOrder): string[] {
     need(order.timelockBlocks, 'timelock-blocks');
   }
 
-  const afterFunded = order.state === 'funded' || order.state === 'presigned'
-    || order.state === 'remitted' || order.state === 'disputed'
-    || order.state === 'settling' || order.state === 'released'
-    || order.state === 'refunded' || order.state === 'sponsor_wins'
-    || order.state === 'customer_wins';
-  if (afterFunded) {
-    need(order.fundingOutpoint, 'funding-outpoint');
+  // 펀딩 outpoint는 가격 고정 여부와 무관하게 에스크로를 소모하는 모든 상태에 필요하다
+  // (`bonded → refunding`으로 접는 경우는 가격이 없다).
+  const pinned = order.state !== 'listed' && order.state !== 'bonded' && order.state !== 'cancelled';
+  if (pinned) need(order.fundingOutpoint, 'funding-outpoint');
+
+  // 가격이 고정된 거래 — 원화가 오갈 수 있는 상태들
+  const priced = order.state === 'funded' || order.state === 'presigned'
+    || order.state === 'remitted' || order.state === 'disputed' || order.state === 'released';
+  if (priced) {
     need(order.priceKrw, 'price-krw');
     need(order.payoutSat, 'payout-sat');
     need(order.fundedAt, 'funded-at');
+  }
+
+  if (order.state === 'refunding') {
+    need(order.settlementKind, 'settlement-kind');
+    need(order.settlementFeeSat !== undefined, 'settlement-fee-sat');
+  }
+
+  if (order.state === 'disputed' && order.settlementKind) {
+    need(order.settlementFeeSat !== undefined, 'settlement-fee-sat');
   }
 
   if (order.state === 'settling') {

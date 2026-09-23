@@ -13,6 +13,11 @@ export interface ExchangeState {
   name: string;
   price: number | null;
   connected: boolean;
+  /**
+   * 이 거래소 가격을 마지막으로 받은 시각(ms). 끊겨도 `price`는 화면용으로 남기므로,
+   * **돈을 정하는 자리**는 이 값으로 신선도를 따로 봐야 한다(`freshPrice`).
+   */
+  updatedAt: number | null;
 }
 
 export interface PriceSnapshot {
@@ -129,6 +134,7 @@ export function createPriceTracker(): PriceTracker {
     name: ex.name,
     price: null,
     connected: false,
+    updatedAt: null,
   }));
 
   let snapshot: PriceSnapshot = { price: null, exchanges: [...states] };
@@ -205,6 +211,7 @@ export function createPriceTracker(): PriceTracker {
         const price = config.parsePrice(parsed);
         if (price !== null) {
           state.price = price;
+          state.updatedAt = Date.now();
           notify();
         }
       });
@@ -277,6 +284,7 @@ export function createPriceTracker(): PriceTracker {
         if (state) {
           state.connected = false;
           state.price = null;
+          state.updatedAt = null;
         }
       }
       notify();
@@ -291,6 +299,29 @@ export function createPriceTracker(): PriceTracker {
       return snapshot;
     },
   };
+}
+
+/**
+ * **돈을 정하는 데 써도 되는** 가격 — 최근에 받은 소스만으로 낸 중간값.
+ *
+ * `snapshot.price`는 화면용이다. 소켓이 끊겨도 마지막 가격을 지우지 않아서, 노트북이
+ * 자다 깬 직후엔 **몇 시간 전 가격**이 그대로 들어 있다. 온체인 트랙은 그 값으로
+ * T0 가격을 고정했었다(리뷰 #8) — 후원자 앱은 가격을 안 보고 자동 서명하므로 낡은
+ * 가격이 그대로 체결가가 된다.
+ *
+ * 소스가 모자라면 `null` — 부르는 쪽은 **기다린다**(가격 고정을 미룬다).
+ */
+export function freshPrice(
+  snapshot: PriceSnapshot,
+  now: number,
+  maxAgeMs = 60_000,
+  minSources = 2,
+): number | null {
+  const fresh = snapshot.exchanges
+    .filter(e => e.price !== null && e.updatedAt !== null && now - e.updatedAt <= maxAgeMs)
+    .map(e => e.price!);
+  if (fresh.length < minSources) return null;
+  return median(fresh);
 }
 
 // ── 유틸 ──────────────────────────────────────────

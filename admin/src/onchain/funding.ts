@@ -15,22 +15,10 @@
  * 전용이고 어떤 결정도 그 값으로 갈리지 않는다.
  */
 import type { AddressFunds, ChainOutpoint, ChainQuery } from '@sajwo-tracker/shared/onchain';
+import { requiredConfirmations } from '@sajwo-tracker/shared/onchain';
 
-/**
- * 금액별 요구 컨펌 수 (§12 Q1).
- *
- * 공격은 **고객이 자기 펀딩을 되돌리는 것**(§7 E)이고, N컨펌을 되돌리려면 그만한
- * 해시파워를 사야 한다. **그 비용이 거래액을 넘으면 동기가 사라진다.** 1블록
- * 되돌리기도 현실적으로 블록 보상 규모의 기회비용이라 소액에 1컨펌은 충분히 과하다.
- */
-export function requiredConfirmations(amountSat: number): number {
-  if (!Number.isFinite(amountSat) || amountSat <= 0) {
-    throw new Error(`requiredConfirmations: 금액이 비정상이다: ${amountSat}`);
-  }
-  if (amountSat < 100_000) return 1;
-  if (amountSat < 1_000_000) return 2;
-  return 3;
-}
+/** 금액별 요구 컨펌 수 (§12 Q1) — 후원자 앱도 같은 값을 봐야 해서 shared에 있다 */
+export { requiredConfirmations } from '@sajwo-tracker/shared/onchain';
 
 export type FundingVerdict =
   /** 조회 실패 — **"없다"가 아니다.** 아무 결정도 내리지 않는다 */
@@ -132,8 +120,15 @@ export type PinnedFundingState =
   | { status: 'alive'; confirmations: number }
   /** 컨펌이 N 아래로 내려갔다 — 리오그. **가격 고정을 폐기하고 `bonded`로** (O-008) */
   | { status: 'shallow'; confirmations: number; required: number }
-  /** 아예 사라졌다 — 고객의 이중지불(공격 E). 마감이 차면 몰수가 맞는 결론이다 */
-  | { status: 'gone' };
+  /**
+   * UTXO 목록에 없다. **왜 없는지는 아직 모른다** — 누가 썼을 수도(우리 종결 tx 포함),
+   * 펀딩 tx 자체가 사라졌을 수도 있다.
+   *
+   * ⚠️ 전에는 이걸 곧장 `gone`(이중지불)으로 읽었다. esplora `/utxo`는 **멤풀에서 소모된
+   * 출력도 뺀다** — 우리가 방금 뿌린 환불 tx가 리오그로 오인됐고, `bonded`로 돌아가
+   * 마감이 차면 **엉뚱한 쪽이 몰수**됐다(리뷰 #8). 워처가 소모 여부를 따로 물어 가른다.
+   */
+  | { status: 'missing' };
 
 /**
  * `funded` 이후 감시. **박아둔 outpoint 하나만** 본다.
@@ -159,10 +154,27 @@ export function judgePinnedFunding(
       : { status: 'shallow', confirmations: confirmed.confirmations, required };
   }
 
-  // 멤풀로 내려갔다 = 컨펌 0 = 리오그. `gone`과 구분한다 — 다시 캐지면 그대로 살아난다.
+  // 멤풀로 내려갔다 = 컨펌 0 = 리오그. 다시 캐지면 그대로 살아난다.
   if (funds.value.mempool.some(match)) {
     return { status: 'shallow', confirmations: 0, required };
   }
 
-  return { status: 'gone' };
+  return { status: 'missing' };
+}
+
+/**
+ * 약정 밖의 자금 — 구조(`rescue`) 대상.
+ *
+ * 박아둔 outpoint가 있으면 **그걸 뺀 나머지 전부**(확정 뒤 추가 입금), 없으면(취소됐거나
+ * 종결된 주문, 금액이 틀린 펀딩) **컨펌된 전부**다. 전에는 이런 자금을 볼 곳도
+ * 돌려줄 길도 없어서 8주 타임락이 유일한 출구였다(리뷰 #8).
+ */
+export function strayUtxos(
+  funds: ChainQuery<AddressFunds>,
+  pinned: ChainOutpoint | null,
+): Array<{ txid: string; vout: number; valueSat: number }> {
+  if (!funds.known) return [];
+  return funds.value.confirmed
+    .filter(u => !pinned || u.txid !== pinned.txid || u.vout !== pinned.vout)
+    .map(u => ({ txid: u.txid, vout: u.vout, valueSat: u.valueSat }));
 }

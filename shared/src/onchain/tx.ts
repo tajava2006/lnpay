@@ -19,19 +19,24 @@
  * 중재료는 **몰수된 보증금에서** 충당한다(§4.1, Q4). 분쟁 tx에 어드민 출력을
  * 달면 승자가 받을 금액이 깎이고 tx도 커진다. 그래서 어느 경로든 **출력은 하나**다.
  *
- * ── RBF를 끈다 (§7 O)
+ * ── RBF 신호를 끈다 (§7 O)
  *
- * 모든 입력의 nSequence를 final(`0xffffffff`)로 둔다. 릴리스가 멤풀에 있는 동안
- * 고객이 같은 UTXO를 쓰는 다른 tx로 교체하면 **릴리스를 탈취**할 수 있기 때문이다.
- * 환불·분쟁도 같게 둔다 — 어차피 교체하려면 상대 서명이 다시 필요해서 RBF로
- * 얻는 게 없고, 경로마다 다르게 두면 그 자체가 버그 자리다.
- * 막히면 **받는 쪽이 CPFP** 한다(§7 L).
+ * 모든 입력의 nSequence를 final(`0xffffffff`)로 둔다. 다만 **이게 교체를 막는
+ * 장치는 아니다** — full-RBF(Bitcoin Core 28+ 기본)에서는 신호가 없어도 수수료가
+ * 높은 충돌 tx가 이긴다(리뷰 #8에서 바로잡았다). 교체를 실제로 막는 건 **2-of-3**이다:
+ * 에스크로를 쓰는 다른 tx를 만들려면 **다른 서명 짝**이 필요하다. 그래서 어드민은
+ * 언제나 **마지막에** 서명하고, 고객 손에 완성 가능한 환불 tx가 들려 있는 순간을
+ * 만들지 않는다(`admin/src/onchain/service.ts`).
+ *
+ * 신호를 끄는 이유는 단순함이다 — 교체하려면 상대 서명이 또 필요해서 RBF로 얻는 게
+ * 없고, 경로마다 다르게 두면 그 자체가 버그 자리다. 막히면 **받는 쪽이 CPFP** 한다(§7 L).
  *
  * 예외는 `timelock`뿐이다 — CSV를 만족시키려면 nSequence가 **블록 수 그 자체**여야 한다.
  */
-import { Address, OutScript, TaprootControlBlock, Transaction } from '@scure/btc-signer';
-import { bytesToHex } from './hex';
-import type { EscrowDescriptor } from './address';
+import { Address, OutScript, TaprootControlBlock, Transaction, p2tr, utils } from '@scure/btc-signer';
+import { tapLeafHash } from '@scure/btc-signer/payment.js';
+import { bytesToHex, hexToBytes } from './hex';
+import type { BtcNetworkName, EscrowDescriptor } from './address';
 import { networkParamsFor } from './address';
 import type { EscrowLeafName } from './script';
 
@@ -41,6 +46,14 @@ export interface Outpoint {
 }
 
 export type SettlementPath = 'release' | 'refund' | 'customer-win' | 'sponsor-win' | 'timelock';
+
+/** 사유 → 리프 경로. 환불·고객승·구조는 전부 `{A,C}`다 */
+export function settlementPathForKind(kind: string): SettlementPath {
+  if (kind === 'release') return 'release';
+  if (kind === 'sponsor_win') return 'sponsor-win';
+  if (kind === 'customer_win') return 'customer-win';
+  return 'refund';
+}
 
 /** BIP-68 상대 타임락은 **tx version 2 이상**에서만 동작한다. */
 const TX_VERSION = 2;
@@ -251,6 +264,15 @@ export function fromPsbtBase64(psbt: string): Transaction {
 }
 
 /**
+ * 브로드캐스트용 원본 hex를 tx로 되읽는다. outbox는 **hex만** 남기므로(어드민
+ * `escrow-meta-store`) 그 바이트가 무엇을 어디로 보내는지 확인할 때 쓴다 —
+ * 가짜 체인·드릴 도구처럼 `@scure/btc-signer`를 직접 들이지 않는 쪽에서.
+ */
+export function fromRawHex(hex: string): Transaction {
+  return Transaction.fromRaw(hexToBytes(hex), { allowUnknownOutputs: true });
+}
+
+/**
  * 증인을 완성한다.
  *
  * 2서명 리프 셋은 표준 `tr_ns` 패턴이라 라이브러리가 알아서 조립한다.
@@ -281,12 +303,143 @@ export function finalizeSettlement(tx: Transaction, path: SettlementPath): void 
   });
 }
 
-/** 특정 키가 이 tx에 남긴 tapScript 서명 (없으면 `null`) */
-export function tapScriptSigOf(tx: Transaction, xonlyHex: string): Uint8Array | null {
+/**
+ * 특정 키가 이 tx에 남긴 tapScript 서명 (없으면 `null`).
+ *
+ * `leafScript`를 주면 **그 리프에 대한 서명만** 찾는다. 한 PSBT에 여러 리프의 서명이
+ * 섞일 수 있어서(악의적인 PSBT가 다른 리프 서명을 끼워 넣는 경우) 키만으로 고르면
+ * 엉뚱한 서명을 집는다.
+ */
+export function tapScriptSigOf(
+  tx: Transaction,
+  xonlyHex: string,
+  leafScript?: Uint8Array,
+): Uint8Array | null {
   const sigs = tx.getInput(0)?.tapScriptSig;
   if (!sigs) return null;
+  const wantLeaf = leafScript ? bytesToHex(tapLeafHash(leafScript)) : null;
   for (const [key, sig] of sigs) {
-    if (bytesToHex(key.pubKey) === xonlyHex) return sig;
+    if (bytesToHex(key.pubKey) !== xonlyHex) continue;
+    if (wantLeaf && bytesToHex(key.leafHash) !== wantLeaf) continue;
+    return sig;
   }
   return null;
+}
+
+/**
+ * 상대 서명 하나를 **우리가 직접 만든 tx에** 옮겨 심는다.
+ *
+ * 받은 PSBT에 그대로 서명하면 그 PSBT가 무엇을 담았는지(어느 리프, 어느 주소)를
+ * 상대 말만 믿는 셈이 된다(리뷰 #8 — 어드민이 보낸 "환불"이 공격자 주소로 가는
+ * `{A,C}` tx여도 화면은 "내 에스크로가 맞다"고 했다). 그래서 서명할 tx는 **언제나
+ * 우리 기록으로 다시 만들고**, 상대에게서는 서명 바이트만 가져온다. 그 서명이
+ * 이 tx·이 리프에 대해 유효한지는 `verifyPresignature`가 먼저 확인한다.
+ */
+export function addTapScriptSig(
+  tx: Transaction,
+  leafScript: Uint8Array,
+  signerXonlyHex: string,
+  sig: Uint8Array,
+): void {
+  tx.updateInput(0, {
+    tapScriptSig: [[
+      { pubKey: hexToBytesStrict(signerXonlyHex), leafHash: tapLeafHash(leafScript) },
+      sig,
+    ]],
+  }, true);
+}
+
+/** 이 tx의 0번 출력이 가는 주소 (화면에 보여주고, 기대한 주소와 대조할 때) */
+export function outputAddressOf(tx: Transaction, descriptor: EscrowDescriptor): string | null {
+  const out = tx.getOutput(0);
+  if (!out?.script) return null;
+  try {
+    return Address(networkParamsFor(descriptor.network)).encode(OutScript.decode(out.script));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 에스크로를 소모한 입력의 증인 → 어느 리프로 썼는가.
+ *
+ * tapscript 경로의 증인은 `[…스크립트가 먹는 항목, 스크립트, control block]`이다.
+ * 끝에서 두 번째가 리프 스크립트이므로 그걸 우리 네 리프와 대조한다. 키패스는
+ * NUMS라 불가능하고, 모르는 모양이면 `null`이다 — 추측하지 않는다.
+ */
+export function leafOfWitness(
+  witness: readonly string[] | null | undefined,
+  descriptor: EscrowDescriptor,
+): EscrowLeafName | null {
+  if (!witness || witness.length < 2) return null;
+  const scriptHex = witness[witness.length - 2]!.toLowerCase();
+  const leaf = descriptor.leaves.find(l => bytesToHex(l.script) === scriptHex);
+  return leaf?.name ?? null;
+}
+
+export interface KeyPathUtxo {
+  txid: string;
+  vout: number;
+  valueSat: number;
+}
+
+/**
+ * 단일키 taproot 주소(`tr(주문별 키)`)에 있는 자금을 내 지갑으로 보낸다.
+ *
+ * 옛 주문의 환불은 이 주소로 갔다 — 이 앱만 쓸 수 있는 주소다(리뷰 #8). 꺼내는 화면이
+ * 없어서 환불금이 사실상 갇혀 있었고, 환불 tx가 수수료 부족으로 막혀도 CPFP를 못 했다.
+ * 이 함수가 그 출구다. 멤풀에 있는 출력도 입력으로 받으므로 **CPFP로도 쓴다.**
+ *
+ * vsize는 한 번 서명해 재고 다시 만든다 — Schnorr 서명이 64바이트 고정이라 두 번째
+ * tx도 크기가 같다.
+ */
+export function buildKeyPathSweep(params: {
+  privkey: Uint8Array;
+  network: BtcNetworkName;
+  utxos: readonly KeyPathUtxo[];
+  destination: string;
+  feerateSatPerVb: number;
+}): { tx: Transaction; feeSat: number; outputSat: number } {
+  const { privkey, network, utxos, destination, feerateSatPerVb } = params;
+  if (utxos.length === 0) throw new Error('보낼 UTXO가 없다');
+  if (!Number.isFinite(feerateSatPerVb) || feerateSatPerVb <= 0) {
+    throw new Error(`feerate가 비정상이다: ${feerateSatPerVb}`);
+  }
+  const net = networkParamsFor(network);
+  const pay = p2tr(utils.pubSchnorr(privkey), undefined, net);
+  const total = utxos.reduce((n, u) => n + u.valueSat, 0);
+  const outScript = OutScript.encode(Address(net).decode(destination));
+
+  const build = (feeSat: number): Transaction => {
+    const tx = new Transaction({ version: TX_VERSION, allowUnknownOutputs: true });
+    for (const u of utxos) {
+      tx.addInput({
+        txid: u.txid,
+        index: u.vout,
+        sequence: SEQUENCE_FINAL,
+        witnessUtxo: { script: pay.script, amount: BigInt(u.valueSat) },
+        tapInternalKey: pay.tapInternalKey,
+      });
+    }
+    tx.addOutput({ script: outScript, amount: BigInt(total - feeSat) });
+    tx.sign(privkey);
+    tx.finalize();
+    return tx;
+  };
+
+  const probe = build(0);
+  const feeSat = Math.ceil(probe.vsize * feerateSatPerVb);
+  const outputSat = total - feeSat;
+  const dust = DUST_BY_TYPE[Address(net).decode(destination).type] ?? DUST_FALLBACK;
+  if (outputSat < dust) {
+    throw new Error(`수수료를 빼면 dust 이하다: ${outputSat} sat < ${dust} sat`);
+  }
+  return { tx: build(feeSat), feeSat, outputSat };
+}
+
+function hexToBytesStrict(hex: string): Uint8Array {
+  if (!/^[0-9a-f]{64}$/.test(hex)) throw new Error('x-only hex가 아니다');
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
 }

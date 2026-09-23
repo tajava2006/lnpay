@@ -49,7 +49,7 @@ export {
 export type { AccountInfoEnvelope } from './account-commitment';
 
 // Price
-export { createPriceTracker } from './price';
+export { createPriceTracker, freshPrice } from './price';
 export type { PriceTracker, PriceSnapshot, ExchangeState } from './price';
 
 // IDB (공통 IndexedDB)

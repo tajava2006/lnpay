@@ -27,6 +27,7 @@ export const ONCHAIN_STATE_DISPLAY: Record<OnchainState, StateDisplay> = {
   presigned:  { label: '계좌 전달 대기',  color: '#9333EA', bg: '#F3E8FF' },
   remitted:   { label: '송금 주장',       color: '#BE185D', bg: '#FCE7F3' },
   disputed:   { label: '분쟁 중',         color: '#DC2626', bg: '#FEE2E2' },
+  refunding:  { label: '환불 진행',       color: '#B45309', bg: '#FFEDD5' },
   settling:   { label: '종결 tx 대기',    color: '#0891B2', bg: '#CFFAFE' },
 
   released:   { label: '완료',            color: '#059669', bg: '#D1FAE5' },

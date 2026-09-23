@@ -10,12 +10,13 @@
  * 호출되면 서명할 뿐이고, **언제 부를지**는 화면이 정한다.
  */
 import {
-  buildSettlementTx, fromPsbtBase64, settlementFeeSat, signSettlement, toPsbtBase64,
-  deriveEscrowAddress, parseOutpoint,
-  type OnchainOrder, type SettlementPath,
+  addTapScriptSig, buildKeyPathSweep, buildSettlementTx, finalizeSettlement, settlementFeeSat, signSettlement,
+  toPsbtBase64, deriveEscrowAddress, parseOutpoint, presignDeadlineOf, isPast,
+  type KeyPathUtxo, type OnchainOrder, type SettlementPath,
 } from '@sajwo-tracker/shared/onchain';
 import { myOrderKey } from './keys';
 import { getMyClaim } from './claim-store';
+import type { SignCheck } from './verify';
 
 function descriptorOf(order: OnchainOrder) {
   if (!order.customerXonly || !order.sponsorXonly || !order.adminXonly) return null;
@@ -47,6 +48,13 @@ export type BuildResult =
 export async function buildPresignature(order: OnchainOrder): Promise<BuildResult> {
   const claim = getMyClaim(order.orderId);
   if (!claim) return { ok: false, reason: '내가 낸 받을 주소를 찾을 수 없다' };
+  // 마감이 지난 사전서명은 어드민이 받지 않는다(리뷰 #8) — 보내 봐야 헛걸음이다.
+  if (order.state !== 'funded' || order.settlementKind) {
+    return { ok: false, reason: '사전서명을 받는 단계가 아니다' };
+  }
+  if (isPast(presignDeadlineOf(order), Math.floor(Date.now() / 1000))) {
+    return { ok: false, reason: '사전서명 마감이 지났다' };
+  }
 
   const descriptor = descriptorOf(order);
   const outpoint = parseOutpoint(order.fundingOutpoint);
@@ -80,18 +88,20 @@ export async function buildPresignature(order: OnchainOrder): Promise<BuildResul
 }
 
 /**
- * 받은 PSBT에 내 서명을 얹는다 (최종 서명).
+ * 최종 서명 — **검증을 통과한 재료로 tx를 다시 만들어** 내 서명을 얹는다.
  *
- * **PSBT를 새로 만들지 않는다** — 상대 서명이 그 안에 들어 있어서, 다시 만들면
- * 그 서명이 날아간다. 대신 호출 전에 `inspectSettlementPsbt`로 "내 에스크로를
- * 쓰는가 / 얼마가 나가는가"를 확인한다.
+ * 받은 PSBT에 그대로 서명하지 않는다(리뷰 #8). 그 PSBT에 무슨 리프·무슨 주소가
+ * 들었는지를 보낸 쪽 말만 믿는 셈이라서다. `checkSignRequest`가 "누구에게 얼마가
+ * 어느 리프로" 가야 하는지를 내 기록으로 정했고, 그걸로 만든 tx가 받은 PSBT와
+ * 바이트까지 같다는 것도 이미 확인했다. 릴리스면 검증된 후원자 서명을 옮겨 심는다.
  */
-export async function cosignSettlement(
-  orderId: string,
-  psbtBase64: string,
-): Promise<BuildResult> {
+export async function buildCosignature(orderId: string, check: SignCheck): Promise<BuildResult> {
+  if (!check.ok) return { ok: false, reason: check.reason };
   try {
-    const tx = fromPsbtBase64(psbtBase64);
+    const tx = buildSettlementTx(check.expected);
+    if (check.counterparty) {
+      addTapScriptSig(tx, check.counterparty.leafScript, check.counterparty.xonly, check.counterparty.sig);
+    }
     const key = await myOrderKey(orderId);
     signSettlement(tx, key.privkey);
     return { ok: true, psbt: toPsbtBase64(tx) };
@@ -101,32 +111,61 @@ export async function cosignSettlement(
 }
 
 /**
- * 타임락으로 혼자 회수하는 tx (어드민이 증발했을 때).
+ * 타임락으로 혼자 회수하는 tx (어드민이 증발했을 때) — **완성된 raw tx**를 돌려준다.
  *
- * 받는 주소는 **내 주문별 키로 만든 단일키 주소**다 — 환불과 같은 이유로
- * 물어볼 대상이 없다. `nSequence`는 빌더가 CSV 값으로 맞춘다.
+ * `utxo`는 에스크로 주소의 UTXO 하나다 — 박아둔 펀딩이 아니어도 된다(취소 뒤 늦게
+ * 들어온 펀딩, 금액이 틀린 펀딩도 이 길로 나간다). CSV는 **그 UTXO의 컨펌부터** 센다.
+ * `nSequence`는 빌더가 CSV 값으로 맞춘다.
+ *
+ * 전에는 함수만 있고 화면이 없었다(리뷰 #8) — 스크립트에 길이 있는데 앱에 버튼이
+ * 없으면 유저는 못 쓴다. 이제 "비상 회수" 화면이 이걸 부른다.
  */
 export async function buildTimelockSweep(
   order: OnchainOrder,
+  utxo: { txid: string; vout: number; valueSat: number },
   destination: string,
   feerateSatPerVb: number,
-): Promise<BuildResult> {
+): Promise<{ ok: true; hex: string; txid: string; feeSat: number } | { ok: false; reason: string }> {
   const descriptor = descriptorOf(order);
-  const outpoint = parseOutpoint(order.fundingOutpoint);
-  if (!descriptor || !outpoint) return { ok: false, reason: '펀딩 기록이 없다' };
+  if (!descriptor) return { ok: false, reason: '에스크로 정보가 없다' };
 
   try {
     const feeSat = settlementFeeSat('timelock', descriptor, destination, feerateSatPerVb);
     const tx = buildSettlementTx({
       descriptor,
-      input: { outpoint, valueSat: order.amountSat },
+      input: { outpoint: { txid: utxo.txid, vout: utxo.vout }, valueSat: utxo.valueSat },
       path: 'timelock',
       destination,
       feeSat,
     });
     const key = await myOrderKey(order.orderId);
     signSettlement(tx, key.privkey);
-    return { ok: true, psbt: toPsbtBase64(tx) };
+    finalizeSettlement(tx, 'timelock');
+    return { ok: true, hex: tx.hex, txid: tx.id, feeSat };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * 주문별 키 단일키 주소(`tr(주문별 키)`)에 있는 자금을 내 지갑으로 — **완성된 raw tx**.
+ *
+ * 그 전에 만든 주문의 환불은 이 주소로 왔다. 이 앱만 쓸 수 있는 주소라 꺼내는 화면이
+ * 없으면 환불금은 사실상 갇혀 있다(리뷰 #8). 멤풀에 있는 출력도 받으므로 막힌 환불
+ * tx를 **CPFP로 끌어올리는** 데도 쓴다.
+ */
+export async function buildRefundSweep(
+  order: OnchainOrder,
+  utxos: readonly KeyPathUtxo[],
+  destination: string,
+  feerateSatPerVb: number,
+): Promise<{ ok: true; hex: string; txid: string; feeSat: number; outputSat: number } | { ok: false; reason: string }> {
+  try {
+    const key = await myOrderKey(order.orderId);
+    const { tx, feeSat, outputSat } = buildKeyPathSweep({
+      privkey: key.privkey, network: order.network, utxos, destination, feerateSatPerVb,
+    });
+    return { ok: true, hex: tx.hex, txid: tx.id, feeSat, outputSat };
   } catch (e) {
     return { ok: false, reason: e instanceof Error ? e.message : String(e) };
   }
@@ -134,11 +173,12 @@ export async function buildTimelockSweep(
 
 /** 어느 리프로 서명하는지 — 화면이 사유를 보여줄 때 쓴다 */
 export function pathForPurpose(
-  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor',
+  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor' | 'rescue',
 ): SettlementPath {
   switch (purpose) {
     case 'release': return 'release';
-    case 'refund': return 'refund';
+    case 'refund':
+    case 'rescue': return 'refund';
     case 'dispute-customer': return 'customer-win';
     case 'dispute-sponsor': return 'sponsor-win';
   }

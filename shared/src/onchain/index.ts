@@ -45,17 +45,26 @@ export {
   MAX_ORDER_EXPIRY_SEC, FUNDING_WINDOW_SEC, PRESIGN_WINDOW_SEC, ACCOUNT_WINDOW_SEC,
   KRW_WINDOW_SEC, COSIGN_WINDOW_SEC, COSIGN_GRACE_WARNING_SEC, SETTLING_WARN_SEC,
   DISPUTE_ESCALATION_SEC, MAX_OPTION_WINDOW_SEC, MAX_TRADE_DURATION_SEC,
+  DISPUTE_RULING_BUDGET_SEC, ONCHAIN_EVENT_HORIZON_SEC, TERMINAL_GRACE_SEC,
   fundingDeadlineFrom, presignDeadlineFrom, accountDeadlineFrom, krwDeadlineFrom,
   cosignDeadlineFrom, isOrderExpiryAllowed, currentOnchainDeadline,
+  presignDeadlineOf, accountDeadlineOf, krwDeadlineOf, isPast,
+  onchainOrderEventExpiration, onchainMessageExpiration,
 } from './timing';
 export type { OnchainDeadline } from './timing';
 
-export { isOnchainClaimPayload, isOnchainPsbtPayload } from './requests';
+export { isOnchainClaimPayload, isOnchainPsbtPayload, isOnchainOrderRequestPayload } from './requests';
 export type {
   OnchainRequest, OnchainOrderRequestMsg, OnchainClaimMsg, OnchainPresigMsg,
   OnchainCosignMsg, OnchainDisputeMsg, OnchainRejectedMsg,
-  OnchainClaimPayload, OnchainPsbtPayload,
+  OnchainClaimPayload, OnchainPsbtPayload, OnchainOrderRequestPayload,
 } from './requests';
+
+export {
+  MIN_RELEASE_FEERATE, MAX_RELEASE_FEERATE_MULTIPLIER, MAX_RELEASE_FEERATE_FLOOR,
+  MAX_RELEASE_FEE_SHARE, RESERVE_MIN_GAP_PERCENT, MAX_SANE_SETTLEMENT_FEERATE,
+  releaseFeerateProblem, reserveProblem, requiredConfirmations,
+} from './policy';
 
 export {
   ORDER_KEY_PREFIX,
@@ -96,6 +105,9 @@ export {
   canAutoRelease,
   isPriceStale,
   canActOnSignRequest,
+  isRefundKind,
+  signPurposeFor,
+  awaitingSignerFor,
 } from './state-machine';
 export type {
   OnchainState, SettlementKind, NonTxOutcome, OnchainOutcome,
@@ -112,6 +124,7 @@ export {
 export type {
   OnchainRole, StepStatus, OnchainStepActor, StepAction, OnchainProgressStep,
   OnchainProgressContext, ResolvedOnchainStep, OnchainProgress, OnchainTerminalInfo,
+  OnchainRefundingInfo,
 } from './progress';
 
 export {
@@ -127,16 +140,22 @@ export {
   finalizeSettlement,
   toPsbtBase64,
   fromPsbtBase64,
+  fromRawHex,
   tapScriptSigOf,
+  settlementPathForKind,
+  addTapScriptSig,
+  outputAddressOf,
+  leafOfWitness,
+  buildKeyPathSweep,
 } from './tx';
-export type { Outpoint, SettlementPath, BuildSettlementParams } from './tx';
+export type { Outpoint, SettlementPath, BuildSettlementParams, KeyPathUtxo } from './tx';
 
 export { verifyPresignature, leafHashOf, outputGoesTo } from './verify';
 
 export { MempoolChainAdapter, DEFAULT_MEMPOOL_API } from './chain';
 export type {
   ChainAdapter, ChainQuery, ChainNetwork, ChainAdapterConfig,
-  ChainOutpoint, ChainUtxo, AddressFunds, TxStatus, FeeEstimates,
+  ChainOutpoint, ChainUtxo, AddressFunds, TxStatus, FeeEstimates, SpendInfo,
 } from './chain';
 export type { PresigVerdict, VerifyPresignatureParams } from './verify';
 
@@ -145,6 +164,7 @@ export {
   verifyEscrowAddress,
   assertEscrowAddress,
   deriveSingleKeyAddress,
+  addressProblem,
 } from './address';
 export { networkParamsFor } from './address';
 export type {

@@ -63,8 +63,31 @@ export async function publishAppState(dTag: string, data: unknown): Promise<void
 
 /** 쓰기 릴레이에서 상태를 조회해 복호화한다. 없거나 실패하면 null. */
 export async function fetchAppState<T>(dTag: string): Promise<T | null> {
+  return (await fetchAppStateResult<T>(dTag)).value;
+}
+
+/** 조회 결과. `known: false`는 **못 읽었다**는 뜻이지 없다는 뜻이 아니다. */
+export interface AppStateResult<T> {
+  known: boolean;
+  value: T | null;
+}
+
+/**
+ * 같은 조회를 하되 **"없다"와 "못 읽었다"를 구별한다.**
+ *
+ * `fetchAppState`는 둘을 `null` 하나로 뭉갠다. 백업 복원에는 그래도 된다 —
+ * 없으면 로컬을 쓰면 그만이다. 하지만 **소유권 판정에는 치명적이다**:
+ * 못 읽은 것을 "아무도 안 잡았다"로 읽으면 남이 쥔 소유권을 조용히
+ * 빼앗는다(PLAN-ONCHAIN-TRACK §9.1).
+ *
+ * ⚠️ 구별에 한계가 있다. 릴레이가 **전부** 죽으면 `pool.get`이 예외가 아니라
+ * `null`로 끝나므로 여기서도 "없음"으로 보인다. 그래서 소유권 주장은
+ * 조회만으로 성립시키지 않고 **발행 성공까지** 확인한다 — 릴레이가 죽어
+ * 있으면 그 발행이 실패하므로 빼앗기가 성립하지 않는다.
+ */
+export async function fetchAppStateResult<T>(dTag: string): Promise<AppStateResult<T>> {
   const signer = getSigner();
-  if (!signer) return null;
+  if (!signer) return { known: false, value: null };
 
   const relays = await getWriteRelays(storage);
   const pool = new SimplePool();
@@ -74,13 +97,13 @@ export async function fetchAppState<T>(dTag: string): Promise<T | null> {
       authors: [APP_PUBKEY],
       '#d': [dTag],
     });
-    if (!event) return null;
+    if (!event) return { known: true, value: null };
 
     const plaintext = await signer.nip44Decrypt(APP_PUBKEY, event.content);
-    return JSON.parse(plaintext) as T;
+    return { known: true, value: JSON.parse(plaintext) as T };
   } catch (e) {
     console.warn('[AppState] 조회/복호화 실패:', dTag, e);
-    return null;
+    return { known: false, value: null };
   } finally {
     pool.destroy();
   }

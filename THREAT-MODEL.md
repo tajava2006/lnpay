@@ -121,8 +121,9 @@ invoice가 CLTV 타임아웃까지 유동성을 붙들고, 같은 채널의 다�
 | **공격자** | Sponsor |
 | **시나리오** | Nostr pubkey는 무료 생성 가능. 트롤링/스팸 후 새 키로 전환하면 블랙리스트 우회 가능. |
 | **영향** | 반복적인 거짓 claim으로 Customer 거래 방해. |
-| **방어** | ✅ Sponsor 보증금(Fidelity Bond) — claim 시 소액 hold invoice 결제 필수. 트롤링 시 보증금 몰수(customer_wins). BTC 없는 Sybil은 원천 차단. 추가 방어로 Lightning 노드 블랙리스트 도입 가능(보류). |
-| **관련** | SECURITY-ROADMAP.md — S-001, [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) |
+| **방어** | ⚠️ **부분적.** Sponsor 보증금(S-001)은 트롤링에 몰수로 답하지만(customer_wins), **클레임 자체는 막지 않는다** — `requested → claimed`는 무료고 보증금 인보이스는 그 **다음**에 발행된다(`nostr/service.ts:1044` → 1078). 즉 보증금이 서는 자리는 `claimed → verified`뿐이다(`auto-approve.ts:71`). 클레임만 걸어놓고 보증금을 안 내면 오더는 `claimed`에 묶이고, 푸는 건 어드민이 손으로 누르는 `revertClaim`이다. 자동 회수는 없다. |
+| **남은 구멍** | 무료 클레임 점유(AUDIT-EXPIRY F6). 보증금 OFF(현 운영값)에서는 자동 승인까지 타고 넘어가 고객 BTC가 에스크로에 24h 묶였다 풀린다. **온체인 트랙은 이 순서를 뒤집어 닫았다** — 보증금 결제가 곧 클레임이다(PLAN-ONCHAIN-TRACK §4.1b · §9.1). |
+| **관련** | SECURITY-ROADMAP.md — S-001, [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md), [PLAN-ONCHAIN-TRACK.md](docs/PLAN-ONCHAIN-TRACK.md) §9.1 |
 
 ---
 

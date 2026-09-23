@@ -232,6 +232,20 @@ export async function handleOnchainOrderRequest(req: OnchainOrderRequestMsg): Pr
 
 // ─── ② 클레임 ────────────────────────────────────────────────
 
+/**
+ * 한 의뢰에 동시에 띄워 둘 수 있는 보증금 인보이스 수.
+ *
+ * 클레임은 상태를 안 바꾸고 인보이스만 내주므로(§4.1b) **아무나 몇 번이든**
+ * 부를 수 있다. 중복 방지는 `orderId:sponsorPubkey`로 하는데 nostr 키는 공짜라
+ * 시빌마다 자리가 갈린다 — 결제할 생각 없이 무한히 발행시킬 수 있다.
+ *
+ * 돈이 걸린 문제는 아니다(미결제 홀드 인보이스는 아무것도 묶지 않는다). 어드민
+ * 노드의 인보이스와 릴레이 발행을 태우는 **위생 문제**라 상한 하나로 끝낸다.
+ * 레이스 자체는 막지 않는다 — 진짜 후원자 다섯이 동시에 붙는 건 정상이고,
+ * 진 쪽은 취소(수수료 0)로 끝난다.
+ */
+const MAX_CLAIM_CANDIDATES = 5;
+
 export async function handleOnchainClaim(req: OnchainClaimMsg): Promise<void> {
   if (!lnAdapter) return;
   const order = getOnchainOrder(req.orderId);
@@ -240,8 +254,17 @@ export async function handleOnchainClaim(req: OnchainClaimMsg): Promise<void> {
     return console.warn('[Onchain] 자기 의뢰를 자기가 클레임할 수 없다:', req.orderId);
   }
 
-  const key = depositKey({ orderId: req.orderId, type: 'sponsor', sponsorPubkey: req.pubkey });
-  if (getOnchainDeposits().some(d => depositKey(d) === key)) return; // 이미 발행했다
+  const candidates = getOnchainDepositsFor(req.orderId).filter(d => d.type === 'sponsor');
+  if (candidates.some(d => d.sponsorPubkey === req.pubkey)) return; // 이미 발행했다
+  if (candidates.length >= MAX_CLAIM_CANDIDATES) {
+    console.warn('[Onchain] 대기 중인 클레임이 너무 많다:', req.orderId, candidates.length);
+    await publishOnchainRejected(
+      req.orderId, req.pubkey,
+      '이 의뢰에 보증금 결제를 기다리는 분이 이미 여럿입니다 — 잠시 후 다시 시도해 주세요',
+      now() + 86_400,
+    ).catch(e => console.error('[Onchain] 거절 통지 실패', req.orderId, e));
+    return;
+  }
 
   let payload: unknown;
   try {

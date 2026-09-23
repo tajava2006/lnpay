@@ -47,6 +47,15 @@ export interface OnchainWatcherDeps {
   listOrders: () => OnchainOrder[];
   /** 보증금 결제 감시 (phase 0) — 여기서 오더가 생기고 클레임이 성립한다 */
   checkDeposits: () => Promise<void>;
+  /**
+   * 이 기기가 집행해도 되는가 (§9.1). **조회를 동반한다** — 소유권을 릴레이에서
+   * 다시 읽고 답한다.
+   *
+   * 없으면 항상 집행한다. 테스트는 판정만 보고 싶어서 배선을 안 주는데,
+   * 거기서까지 소유권을 요구하면 모든 워처 테스트가 릴레이를 흉내 내야 한다.
+   * **프로덕션 배선(`runtime.ts`)은 반드시 준다.**
+   */
+  canAct?: () => Promise<boolean>;
 }
 
 /**
@@ -237,6 +246,19 @@ export function startOnchainWatcher(deps: OnchainWatcherDeps): void {
     if (polling) return;
     polling = true;
     try {
+      // **소유권 먼저.** 두 기기가 같이 돌면 `listed → bonded`가 서로 다른
+      // 후원자로 두 번 일어나고, 에스크로 주소가 둘 생긴다 (§9.1).
+      if (deps.canAct) {
+        let allowed = false;
+        try {
+          allowed = await deps.canAct();
+        } catch (e) {
+          // 모르면 안 한다. 옛 판정으로 계속 도는 게 분단의 양쪽이 다 도는 경로다.
+          console.warn('[OnchainWatcher] 소유권 확인 실패 — 이번 틱은 쉰다', e);
+        }
+        if (!allowed) return;
+      }
+
       // phase 0 — 보증금 결제. 오더가 생기고 클레임이 성립하는 자리라 먼저 돈다.
       try {
         await deps.checkDeposits();

@@ -9,6 +9,15 @@
  * ⚠️ 라이트닝의 `pending-deposit-store`와 **따로 둔다.** 거기 엔트리는
  * 라이트닝 워처가 집어 **라이트닝 오더**를 만든다 — 섞이면 온체인 보증금 결제가
  * 엉뚱한 트랙의 주문을 만든다.
+ *
+ * ── 릴레이 백업이 필요한 이유 (§9.1)
+ *
+ * 이 상태는 **릴레이 이벤트로 재구성할 수 없다.** 인보이스는 어드민이 로컬에서
+ * 만든 것이고 오더는 아직 없다. 기기를 옮기면 새 기기는 그 인보이스의 존재를
+ * 모르고, 후원자가 그걸 결제하면 **아무도 결제를 감지하지 못한다** — 후원자
+ * 돈이 CLTV 만료까지 HTLC에 갇힌다. 라이트닝이 같은 이유로 NIP-78 백업을
+ * 두고 있고(`app-state-backup`), 여기도 같다. 백업은 `backup.ts`가 건다 —
+ * 이 파일은 저장소일 뿐 릴레이를 모른다(헌법).
  */
 const STORAGE_KEY = 'admin:onchain-pending-deposits';
 
@@ -54,8 +63,16 @@ function load(): DepositMap {
 
 let deposits: DepositMap = load();
 
+/** 바뀔 때마다 불린다. `backup.ts`가 릴레이 백업을 여기 건다 */
+let onChanged: (() => void) | null = null;
+
+export function setOnchainDepositHook(fn: (() => void) | null): void {
+  onChanged = fn;
+}
+
 function save(): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(deposits));
+  onChanged?.();
 }
 
 export function depositKey(entry: Pick<OnchainPendingDeposit, 'orderId' | 'type' | 'sponsorPubkey'>): string {
@@ -75,6 +92,23 @@ export function getOnchainDepositsFor(orderId: string): OnchainPendingDeposit[] 
   return Object.values(deposits).filter(d => d.orderId === orderId);
 }
 
+/**
+ * 백업본에서 **비어 있는 자리만** 채운다.
+ *
+ * 로컬이 이긴다 — 이 기기가 방금 만든 인보이스가 옛 백업에 밀리면 안 된다.
+ */
+export function mergeOnchainDeposits(entries: OnchainPendingDeposit[]): number {
+  let added = 0;
+  for (const entry of entries) {
+    const key = depositKey(entry);
+    if (deposits[key]) continue;
+    deposits = { ...deposits, [key]: entry };
+    added += 1;
+  }
+  if (added > 0) save();
+  return added;
+}
+
 export function deleteOnchainDeposit(key: string): void {
   if (!deposits[key]) return;
   const { [key]: _gone, ...rest } = deposits;
@@ -85,5 +119,6 @@ export function deleteOnchainDeposit(key: string): void {
 /** @testing-only */
 export function _resetForTesting(): void {
   deposits = {};
+  onChanged = null;
   localStorage.removeItem(STORAGE_KEY);
 }

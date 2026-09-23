@@ -7,6 +7,11 @@
  * ⚠️ 진행 중인 온체인 주문이 있으면 **네트워크를 못 바꾸게** 막는다 —
  * 바꾸는 순간 이미 발행된 에스크로 주소가 다른 체인의 것이 되고, 거기 있는
  * 자금은 아무도 못 만진다.
+ *
+ * ── 워처 소유권 (§9.1)
+ *
+ * 자동 집행은 **한 번에 한 기기**만 한다. 여기가 그걸 보여주고 옮기는 자리다.
+ * 옮기지 않은 기기도 조회와 분쟁 판정은 그대로 된다 — 막는 건 자동 경로뿐이다.
  */
 import { useState, useSyncExternalStore } from 'react';
 import type { ChainNetwork } from '@sajwo-tracker/shared/onchain';
@@ -15,11 +20,15 @@ import {
   setOnchainBaseUrl, setOnchainEnabled, setOnchainNetwork,
 } from '../onchain/config';
 import { getSnapshot, subscribe } from '../onchain/order-store';
+import {
+  claimWatcherLease, getLeaseSnapshot, leaseBlockText, subscribeLease,
+} from '../onchain/lease';
 
 const NETWORKS: ChainNetwork[] = ['signet', 'testnet', 'mainnet'];
 
 export function OnchainConfig({ onChanged }: { onChanged: () => void }) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
+  const lease = useSyncExternalStore(subscribeLease, getLeaseSnapshot);
   const [enabled, setEnabled] = useState(isOnchainEnabled);
   const [network, setNetwork] = useState<ChainNetwork>(getOnchainNetwork);
   const [baseUrl, setBaseUrl] = useState(getOnchainBaseUrl() ?? '');
@@ -67,6 +76,18 @@ export function OnchainConfig({ onChanged }: { onChanged: () => void }) {
         )}
       </label>
 
+      {enabled && (
+        <div style={styles.row}>
+          <span style={lease.acting ? styles.ok : styles.lock}>
+            {lease.acting ? '●' : '○'} 워처
+          </span>
+          <span style={styles.hint}>{leaseBlockText(lease)}</span>
+          {!lease.acting && lease.why !== 'handover-wait' && (
+            <TakeoverButton />
+          )}
+        </div>
+      )}
+
       <label style={styles.row}>
         mempool API
         <input
@@ -81,11 +102,44 @@ export function OnchainConfig({ onChanged }: { onChanged: () => void }) {
   );
 }
 
+/**
+ * 소유권을 이 기기로 가져온다.
+ *
+ * ⚠️ **옛 주인이 알아채는 데 한 틱(30초)이 걸린다.** 그래서 가져온 직후 바로
+ * 돌지 않고 인수 지연이 지난 뒤에 시작한다 — 그 사이 둘 다 도는 걸 막는 게
+ * 이 기능의 전부다.
+ */
+function TakeoverButton() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <>
+      <button
+        style={styles.takeover}
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          claimWatcherLease()
+            .catch((e: unknown) => setError(e instanceof Error ? e.message : '실패'))
+            .finally(() => setBusy(false));
+        }}
+      >
+        {busy ? '가져오는 중…' : '이 기기로 가져오기'}
+      </button>
+      {error && <span style={styles.lock}>{error}</span>}
+    </>
+  );
+}
+
 const styles = {
   box: { display: 'flex', flexDirection: 'column' as const, gap: 8, padding: '10px 12px', border: '1px solid #E5E7EB', borderRadius: 8 },
   row: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151' },
   hint: { fontSize: 12, color: '#6B7280' },
   lock: { fontSize: 11, color: '#B45309' },
+  ok: { fontSize: 12, color: '#047857' },
+  takeover: { padding: '3px 9px', fontSize: 12, borderRadius: 6, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer' },
   select: { padding: '4px 8px', fontSize: 13, borderRadius: 6, border: '1px solid #D1D5DB' },
   input: { flex: 1, padding: '5px 9px', fontSize: 13, borderRadius: 6, border: '1px solid #D1D5DB' },
 };

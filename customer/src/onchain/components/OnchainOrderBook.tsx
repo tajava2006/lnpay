@@ -2,8 +2,12 @@
  * 온체인 오더북 (후원자)
  *
  * ⚠️ **"사줄게"를 눌러도 아무도 예약되지 않는다**(§4.1b). 보증금 인보이스가
- * 발행될 뿐이고, **먼저 결제한 쪽**이 가져간다. 화면이 그렇게 말해야 한다 —
- * "잡았다"고 읽히면 결제를 미루다 놓친다.
+ * 발행될 뿐이고, **결제가 먼저 확인된 쪽**이 가져간다. 화면이 그렇게 말해야
+ * 한다 — "잡았다"고 읽히면 결제를 미루다 놓친다.
+ *
+ * "먼저 낸 쪽"이라고 쓰지 않는 이유: 어드민은 30초마다 인보이스 상태를 훑고,
+ * 한 틱 안에 둘 다 결제돼 있으면 **발행 순서**로 갈린다. 초 단위 순서를
+ * 약속할 수 없으니 약속하지 않는다. 진 쪽은 취소되어 아무것도 잃지 않는다.
  */
 import { useState, useSyncExternalStore } from 'react';
 import { InvoicePayBlock } from '@sajwo-tracker/shared';
@@ -50,7 +54,7 @@ export function OnchainOrderBook({ myPubkey }: Props) {
                 </p>
                 <p style={styles.invoiceNote}>
                   ⚠️ 같은 의뢰에 다른 분도 보증금을 내고 있을 수 있습니다 —
-                  <strong> 보증금을 먼저 낸 쪽이 맡습니다.</strong> 늦은 쪽은 결제가
+                  <strong> 결제가 먼저 확인된 쪽이 맡습니다.</strong> 늦은 쪽은 결제가
                   실패 처리되어 아무것도 잃지 않습니다.
                 </p>
                 <InvoicePayBlock bolt11={invoice.bolt11} />

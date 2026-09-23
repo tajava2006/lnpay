@@ -241,11 +241,50 @@ describe('클레임', () => {
     expect(ln.createHoldInvoice).not.toHaveBeenCalled();
   });
 
-  /** 여러 명이 동시에 시도해도 된다 — **먼저 결제한 쪽**이 가져간다(§4.1b). */
+  /** 여러 명이 동시에 시도해도 된다 — **결제가 먼저 확인된 쪽**이 가져간다(§4.1b). */
   it('여러 후원자가 동시에 인보이스를 받을 수 있다', async () => {
     await svc.handleOnchainClaim(claim('sponsor-a') as never);
     await svc.handleOnchainClaim(claim('sponsor-b') as never);
     expect(deposits.getOnchainDepositsFor('o-1')).toHaveLength(2);
+  });
+
+  it('같은 후원자가 두 번 눌러도 인보이스는 하나다', async () => {
+    await svc.handleOnchainClaim(claim('sponsor-a') as never);
+    await svc.handleOnchainClaim(claim('sponsor-a') as never);
+    expect(deposits.getOnchainDepositsFor('o-1')).toHaveLength(1);
+  });
+
+  /**
+   * 키가 공짜라 중복 방지(`orderId:sponsorPubkey`)를 시빌로 우회할 수 있다.
+   * 돈이 걸린 문제는 아니고(미결제 홀드 인보이스는 아무것도 안 묶는다) 어드민
+   * 노드와 릴레이를 태우는 위생 문제라 **상한 하나**로 끝낸다.
+   */
+  it('대기 인보이스가 상한에 닿으면 더 내주지 않고 거절을 알린다', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await svc.handleOnchainClaim(claim(`sybil-${i}`) as never);
+    }
+    expect(deposits.getOnchainDepositsFor('o-1')).toHaveLength(5);
+
+    published.length = 0;
+    await svc.handleOnchainClaim(claim('sybil-5') as never);
+
+    expect(deposits.getOnchainDepositsFor('o-1')).toHaveLength(5);
+    // **조용히 버리지 않는다** — 유저 쪽에 흔적이 남아야 한다.
+    const rejected = published.find(e =>
+      e.tags.some(([k, v]) => k === 'action' && v === 'onchain-rejected'));
+    expect(rejected).toBeTruthy();
+  });
+
+  /** 한 자리가 비면 다시 받는다 — 상한은 영구 차단이 아니다. */
+  it('결제 실패로 자리가 비면 다시 받는다', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await svc.handleOnchainClaim(claim(`sybil-${i}`) as never);
+    }
+    deposits.deleteOnchainDeposit('o-1:sybil-0');
+
+    await svc.handleOnchainClaim(claim('late-comer') as never);
+    expect(deposits.getOnchainDepositsFor('o-1').map(d => d.sponsorPubkey))
+      .toContain('late-comer');
   });
 });
 

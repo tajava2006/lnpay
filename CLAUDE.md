@@ -19,6 +19,7 @@ pnpm install                          # 의존성 설치
 pnpm build:customer                   # 통합 유저 앱 빌드 (고객+후원자)
 pnpm build:sponsor                    # 구 후원자 도메인 리다이렉트 페이지 빌드
 pnpm build:admin                      # Admin React SPA 빌드
+pnpm build:daemon                     # 어드민 데몬 번들 (daemon/dist/daemon.mjs, docs/PLAN-DAEMON.md)
 pnpm build:userscript                 # 유저스크립트 빌드 (prod)
 pnpm build:userscript:dev             # 유저스크립트 빌드 (dev, CLIENT_TAG=sajwo-tracker-dev)
 pnpm dev:customer                     # 통합 유저 앱 개발 서버
@@ -65,7 +66,13 @@ sajwo-tracker/                ← pnpm workspace 모노레포
   customer/userscript/        ← 쿠팡 자동파싱 유저스크립트 (esbuild IIFE 번들)
   sponsor/                    ← 정적 리다이렉트 껍데기 (구 후원자 도메인 전환 안내)
   admin/                      ← @sajwo-tracker/admin (React 19 SPA, 순수 프론트엔드 에스크로)
+  daemon/                     ← @sajwo-tracker/daemon — 어드민 데몬 (Node 24, 운영 PC). **전환 중** — docs/PLAN-DAEMON.md
 ```
+
+> ⚠️ **어드민을 데몬으로 옮기는 중이다**(2026-09-24~, `docs/PLAN-DAEMON.md`). 옮기는 동안 아래 "순수
+> 프론트엔드 배포"·"Admin이 유일한 FSM 소유자(발행 우선 패턴)" 서술은 **옛 구조**다. 새 코드는 데몬
+> 불변조건(DM-001~009)을 따른다. 데몬은 shared를 **`@sajwo-tracker/shared/core`·`/onchain`으로만**
+> 가져간다 — 루트 입구는 React·localStorage를 끌고 온다.
 
 ## 핵심 설계 요약
 
@@ -110,6 +117,7 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 | [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) | ~200 | S-001 보증금(Fidelity Bond) 구현 시 설계 참조 |
 | [SECURITY-ROADMAP.md](SECURITY-ROADMAP.md) | ~250 | 보안/아키텍처 개선 항목 추적, 우선순위별 해결 계획 |
 | [TODO.md](TODO.md) | ~80 | 미구현 기능 목록 확인 시 |
+| [PLAN-DAEMON.md](docs/PLAN-DAEMON.md) | ~420 | **어드민 데몬 전환 플랜 (2026-09-24~, 진행 중).** 판단·집행을 운영 PC 롱러닝 데몬으로, 어드민 페이지는 명령만 보내는 리모컨으로. 불변조건 DM-001~009 · 명령 채널 · 단계 P0~P5 · 결정 D1~D9. **어드민·데몬 코드를 만질 때 여기부터** |
 | [PLAN-ONCHAIN-TRACK.md](docs/PLAN-ONCHAIN-TRACK.md) | ~4700 | **온체인 2-of-3 taproot 트랙 구현 플랜 + 리뷰 기록(§14).** 별도 FSM·별도 CLIENT_TAG. 본문 §1~§13이 현행이고 §11에 단계별 진행이 기록된다. 온체인 코드를 만질 때 **여기부터** |
 | [AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md) | ~230 | **미처리 보안·문서·공학 개선 항목의 작업 목록.** 개선 작업을 집을 때 여기부터 |
 | [AUDIT-ONCHAIN-EXPIRY.md](docs/AUDIT-ONCHAIN-EXPIRY.md) | ~190 | **온체인 트랙 만료 전수조사.** 시간 값·부등식·발견(O-F1~O-F5). 온체인 마감을 만질 때 |

@@ -1,0 +1,26 @@
+{
+  "name": "@sajwo-tracker/daemon",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "페어바이 어드민 데몬 — 판단과 집행을 한 프로세스가 맡는다 (docs/PLAN-DAEMON.md)",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/daemon.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sajwo-tracker/shared": "workspace:*",
+    "nostr-tools": "^2.25.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}

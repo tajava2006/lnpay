@@ -7,8 +7,18 @@ export const SAJWO_REQUEST_KIND = 30402;
 /** 요청 이벤트 kind (NIP-22 Comment, Customer/Sponsor → Admin 요청) */
 export const SAJWO_REQUEST_EVENT_KIND = 1111;
 
+/**
+ * Vite가 빌드 때 채우는 환경. **데몬(Node)에는 없다** — 그때는 빈 객체라 prod 값이 된다.
+ *
+ * 데몬은 태그·에포크를 자기 설정에서 정하고 아래 상수에 기대지 않는다(PLAN-DAEMON §10).
+ * 여기서 할 일은 Node에서 이 모듈을 불러도 **터지지 않는 것**뿐이다 — `import.meta.env.DEV`를
+ * 그대로 읽으면 Node에서는 `undefined.DEV`로 모듈 로드가 실패한다.
+ */
+const viteEnv: { DEV?: unknown; VITE_NOSTR_SINCE?: unknown } =
+  (import.meta as { env?: Record<string, unknown> }).env ?? {};
+
 /** 클라이언트 식별 태그 (다른 30402 이벤트와 구분, dev/prod 데이터 격리) */
-export const CLIENT_TAG = import.meta.env.DEV ? 'sajwo-tracker-dev' : 'sajwo-tracker';
+export const CLIENT_TAG = viteEnv.DEV === true ? 'sajwo-tracker-dev' : 'sajwo-tracker';
 
 /**
  * 온체인 트랙 전용 태그 — **라이트닝과 반드시 분리한다** (PLAN-ONCHAIN-TRACK §1.3).
@@ -23,7 +33,7 @@ export const CLIENT_TAG = import.meta.env.DEV ? 'sajwo-tracker-dev' : 'sajwo-tra
  * 업데이트된 뒤에야** 첫 오더를 발행할 수 있다. 정적 PWA라 캐시된 구버전이
  * 언제까지 남는지 알 수 없다. 태그 분리가 유일하게 순서에 의존하지 않는 방법이다.
  */
-export const CLIENT_TAG_ONCHAIN = import.meta.env.DEV
+export const CLIENT_TAG_ONCHAIN = viteEnv.DEV === true
   ? 'sajwo-tracker-onchain-dev'
   : 'sajwo-tracker-onchain';
 
@@ -50,8 +60,8 @@ export const ORDER_DB_NAME = 'customer-history';
  * 해당 시각 이후 이벤트만 구독한다. 미설정 시 필터 없음.
  */
 export const NOSTR_SINCE: number | undefined =
-  import.meta.env.VITE_NOSTR_SINCE
-    ? Number(import.meta.env.VITE_NOSTR_SINCE)
+  typeof viteEnv.VITE_NOSTR_SINCE === 'string' && viteEnv.VITE_NOSTR_SINCE !== ''
+    ? Number(viteEnv.VITE_NOSTR_SINCE)
     : undefined;
 
 /** kind 1111 request의 action 태그 값 */

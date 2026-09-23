@@ -10,11 +10,13 @@
     "build:sponsor": "pnpm --filter @sajwo-tracker/sponsor-redirect build",
     "dev:admin": "pnpm --filter @sajwo-tracker/admin dev",
     "build:admin": "pnpm --filter @sajwo-tracker/admin build",
+    "build:daemon": "pnpm --filter @sajwo-tracker/daemon build",
     "build:userscript": "node customer/userscript/esbuild.config.mjs",
     "build:userscript:dev": "SAJWO_DEV=true node customer/userscript/esbuild.config.mjs",
-    "ship": "git pull && pnpm install --frozen-lockfile && pnpm verify && pnpm build:userscript && pnpm build:customer && pnpm build:sponsor && pnpm build:admin",
+    "ship": "git pull && pnpm install --frozen-lockfile && pnpm verify:web && pnpm build:userscript && pnpm build:customer && pnpm build:sponsor && pnpm build:admin",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
-    "verify": "pnpm typecheck && pnpm test"
+    "verify": "pnpm typecheck && pnpm test",
+    "verify:web": "pnpm -r --filter '!@sajwo-tracker/daemon' --if-present typecheck && pnpm -r --filter '!@sajwo-tracker/daemon' --if-present test"
   }
 }

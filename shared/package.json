@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./constants": "./src/constants.ts",
-    "./onchain": "./src/onchain/index.ts"
+    "./onchain": "./src/onchain/index.ts",
+    "./core": "./src/core.ts"
   },
   "dependencies": {
     "@noble/curves": "2.4.0",

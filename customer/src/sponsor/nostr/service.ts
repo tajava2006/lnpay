@@ -23,7 +23,7 @@ import {
 } from '@sajwo-tracker/shared';
 import type { Event } from 'nostr-tools/core';
 import { parseEvent, parseAccountInfoEvent } from '../types';
-import { upsertOrder, markSynced } from '../order-store';
+import { upsertOrder, markSynced, getSnapshot as getSponsorOrders } from '../order-store';
 import { setAccountInfo } from '../account-store';
 import { setClaimError, type InvoiceRejectReason } from '../claim-error-store';
 import { setDepositBolt11, setDepositStatus } from '../deposit-store';
@@ -39,7 +39,23 @@ export function handleAdminOrder(event: Event): void {
 
   upsertOrder(parsed);
   void syncOrderToIdb(parsed);
+
+  // 오더보다 먼저 도착한 계좌가 있으면 이제 발신자를 판정할 수 있다.
+  const buffered = accountAwaitingOrder.get(parsed.orderId);
+  if (buffered) {
+    accountAwaitingOrder.delete(parsed.orderId);
+    for (const ev of buffered) void handleAccountInfo(ev);
+  }
 }
+
+/**
+ * 오더보다 먼저 온 계좌 정보 (메모리만 — 릴레이가 다시 준다).
+ *
+ * 계좌는 **오더의 고객이 보낸 것만** 받는다(온체인 리뷰 #8에서 같이 발견). 그런데 두
+ * 구독이 따로 돌아 계좌가 오더보다 먼저 올 수 있다 — 그때 버리면 진짜 계좌를 잃는다.
+ */
+const accountAwaitingOrder = new Map<string, AccountInfoEvent[]>();
+const MAX_BUFFERED_PER_ORDER = 10;
 
 export function handleOrdersEose(): void {
   markSynced();
@@ -115,7 +131,26 @@ async function syncOrderToIdb(order: Parameters<typeof idbUpsertOrder>[0]): Prom
 
 // ── account-info 처리 ────────────────────────────────
 
+/**
+ * ⚠️ **보낸 사람이 그 오더의 고객인지 먼저 본다.**
+ *
+ * 전에는 보낸 사람 키로 복호화만 되면 받았다. 후원자 pubkey는 오더 태그에 공개돼
+ * 있으므로 누구든 가짜 계좌를 NIP-44로 보낼 수 있었고, 스토어가 **먼저 온 것을
+ * 유지**해서 제3자가 먼저 쏜 계좌가 진짜 고객 계좌를 밀어냈다 — 후원자가 공격자
+ * 계좌로 원화를 보내는 경로다(온체인 트랙 리뷰 #8에서 같은 모양으로 발견).
+ */
 async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
+  const order = getSponsorOrders()[event.orderId];
+  if (!order) {
+    const list = accountAwaitingOrder.get(event.orderId) ?? [];
+    if (list.length < MAX_BUFFERED_PER_ORDER) accountAwaitingOrder.set(event.orderId, [...list, event]);
+    return;
+  }
+  if (event.customerPubkey !== order.customerPubkey) {
+    console.warn('[후원자] 고객이 아닌 쪽이 보낸 계좌 — 버린다:', event.orderId, event.customerPubkey.slice(0, 8));
+    return;
+  }
+
   const sk = await getSecretKey(storage);
   let envelope: AccountInfoEnvelope | null;
   try {

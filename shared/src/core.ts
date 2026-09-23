@@ -9,6 +9,9 @@ export {
   APP_PUBKEY,
   SAJWO_REQUEST_KIND,
   SAJWO_REQUEST_EVENT_KIND,
+  CLIENT_TAG,
+  CLIENT_TAG_ONCHAIN,
+  CLIENT_TAG_ADMIN,
   DISCOVERY_RELAYS,
   FALLBACK_RELAYS,
   REQUEST_ACTIONS,
@@ -19,3 +22,14 @@ export {
 export type { RequestAction, OrderState } from './constants';
 
 export { nip44Encrypt, nip44Decrypt } from './crypto';
+
+export {
+  ADMIN_ACTIONS, ADMIN_COMMAND_TTL_SEC, ADMIN_STATE_KIND, ADMIN_STATE_STALE_SEC, DEFAULT_SETTINGS,
+  MAX_CHAT_TEXT, MAX_DEPOSIT_PCT, adminStateDTag, applySettingsPatch,
+} from './admin-protocol';
+export type {
+  AdminAlert, AdminChatCopy, AdminCommand, AdminCommandResult, AdminState, DaemonSettings,
+  OrderTarget, TrackName,
+} from './admin-protocol';
+export type { DisputeMessagePayload, AccountInfo } from './types';
+export { extractOrderId, orderRef } from './order-ref';

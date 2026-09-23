@@ -47,4 +47,20 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX effects_due ON effects (status, next_at);
     `,
   },
+  {
+    version: 2,
+    sql: `
+      -- 사람이 봐야 하는 일. dedup이 같으면 한 번만 울린다 (admin/alerts.ts)
+      CREATE TABLE alerts (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        dedup     TEXT NOT NULL UNIQUE,
+        level     TEXT NOT NULL,
+        track     TEXT,
+        order_id  TEXT,
+        message   TEXT NOT NULL,
+        raised_at INTEGER NOT NULL,
+        acked_at  INTEGER
+      );
+    `,
+  },
 ];

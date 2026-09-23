@@ -27,7 +27,7 @@ type LoginState =
 const CONNECTION_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface LoginScreenProps {
-  onLogin: () => void;
+  onLogin: (operatorPubkey: string) => void;
 }
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
@@ -70,11 +70,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
       // 5. 신원 검증
       setState({ phase: 'verifying' });
-      await verifyIdentity(signer);
+      const operatorPubkey = await verifyIdentity(signer);
 
       // 6. 세션 저장 + 완료
-      finalizeLogin(signer, clientSecretKey);
-      onLogin();
+      finalizeLogin(signer, clientSecretKey, operatorPubkey);
+      onLogin(operatorPubkey);
     } catch (err) {
       if (abortRef.current?.signal.aborted) {
         setState({ phase: 'error', message: '연결 대기 시간이 초과되었습니다.' });
@@ -95,7 +95,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     <div style={styles.container}>
       <div style={styles.card}>
         <h1 style={styles.title}>페어바이 어드민</h1>
-        <p style={styles.subtitle}>NIP-46 원격 서명으로 로그인</p>
+        <p style={styles.subtitle}>운영자 키로 로그인 (NIP-46)</p>
 
         {state.phase === 'loading' && (
           <p style={styles.status}>릴레이 연결 준비 중...</p>

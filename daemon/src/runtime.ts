@@ -10,6 +10,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { ADMIN_ACTIONS, REQUEST_ACTIONS } from '@sajwo-tracker/shared/core';
 import type { Db } from './db';
 import { Dispatcher, tagValue, type Router } from './dispatch';
 import { Effects } from './effects';
@@ -17,18 +18,24 @@ import type { Logger } from './log';
 import { Ingress } from './nostr/ingress';
 import { createPublishExecutor, PUBLISH_EFFECT } from './nostr/publisher';
 import type { RelayTransport } from './nostr/transport';
-import { ADMIN_COMMAND, createAdminHandler } from './admin/commands';
-import type { DaemonTags } from './config';
+import { createAdminHandler, createBaseCommands, type CommandRegistry } from './admin/commands';
+import { createChatForwarder } from './admin/chat';
+import type { AdminContext } from './admin/context';
+import { STATE_EFFECT, STATE_INTERVAL_MS, createStateExecutor, requestStatePublish } from './admin/state';
+import type { DaemonMode, DaemonTags } from './config';
+import { EMPTY_DIRECTORY, type OrderDirectory } from './orders/directory';
 import type { AppKey } from './secrets';
 
-export const DAEMON_VERSION = '0.1.0';
+export const DAEMON_VERSION = '0.2.0';
 
 export interface DaemonDeps {
   db: Db;
   transport: RelayTransport;
   appKey: AppKey;
   seed: Uint8Array;
+  mode: DaemonMode;
   tags: DaemonTags;
+  relays: string[];
   operators: string[];
   epoch: number;
   lookbackSec: number;
@@ -37,6 +44,8 @@ export interface DaemonDeps {
   holdMs: number;
   nowMs: () => number;
   log: Logger;
+  /** 트랙 모듈이 채운다(P3·P4). 없으면 아무 오더도 모른다 */
+  directory?: OrderDirectory;
   /** 있으면 틱마다 하트비트 파일을 쓴다 (docker healthcheck) */
   dataDir?: string;
 }
@@ -45,23 +54,39 @@ export class Daemon {
   readonly effects: Effects;
   readonly ingress: Ingress;
   readonly dispatcher: Dispatcher;
+  readonly admin: AdminContext;
+  readonly commands: CommandRegistry;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private ticking = false;
   private stopped = true;
+  private lastStateRequestMs = -Infinity;
 
   constructor(private readonly deps: DaemonDeps) {
     const { db, nowMs, log } = deps;
     this.effects = new Effects(db, nowMs, log);
-    this.effects.register(PUBLISH_EFFECT, createPublishExecutor(deps.transport, nowMs));
 
-    const admin = createAdminHandler({
-      db, effects: this.effects, appKey: deps.appKey, operators: new Set(deps.operators),
-      adminTag: deps.tags.admin, nowMs, version: DAEMON_VERSION,
-    });
+    this.admin = {
+      db, effects: this.effects, appKey: deps.appKey, operators: deps.operators, tags: deps.tags,
+      mode: deps.mode, relays: deps.relays, directory: deps.directory ?? EMPTY_DIRECTORY,
+      version: DAEMON_VERSION, startedAt: Math.floor(nowMs() / 1000), nowMs, log,
+    };
+
+    this.effects.register(PUBLISH_EFFECT, createPublishExecutor(deps.transport, nowMs));
+    this.effects.register(STATE_EFFECT, createStateExecutor(this.admin, deps.transport));
+
+    this.commands = createBaseCommands();
+    const adminHandler = createAdminHandler(this.admin, this.commands);
+    const chatForwarder = createChatForwarder(this.admin);
+
     const route: Router = event => {
+      // 우리가 낸 것(어드민이 보낸 분쟁 메시지 등)도 `p=APP`이라 되돌아온다 — 처리할 게 없다
+      if (event.pubkey === deps.appKey.pubkey) return null;
       const t = tagValue(event, 't');
       const action = tagValue(event, 'action');
-      if (t === deps.tags.admin && action === ADMIN_COMMAND) return admin;
+      if (t === deps.tags.admin && action === ADMIN_ACTIONS.COMMAND) return adminHandler;
+      if ((t === deps.tags.ln || t === deps.tags.onchain) && action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
+        return chatForwarder;
+      }
       return null; // 라이트닝(P3)·온체인(P4) 핸들러가 여기 붙는다
     };
     this.dispatcher = new Dispatcher(db, route, nowMs, deps.holdMs, log);
@@ -97,8 +122,8 @@ export class Daemon {
     this.ticking = true;
     try {
       this.dispatcher.runPending();
-      await this.effects.runDue();
       this.heartbeat();
+      await this.effects.runDue();
     } catch (e) {
       this.deps.log.error('틱 실패', { error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -120,9 +145,14 @@ export class Daemon {
     }, delayMs);
   }
 
+  /** 하트비트 — 파일(docker), 그리고 주기적으로 운영자 상태 발행 */
   private heartbeat(): void {
     const now = this.deps.nowMs();
     this.deps.db.kvSet('heartbeat', String(now));
     if (this.deps.dataDir) writeFileSync(join(this.deps.dataDir, 'heartbeat'), String(now));
+    if (now - this.lastStateRequestMs >= STATE_INTERVAL_MS) {
+      this.lastStateRequestMs = now;
+      this.deps.db.tx(() => requestStatePublish(this.admin));
+    }
   }
 }

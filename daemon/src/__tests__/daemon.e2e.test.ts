@@ -12,51 +12,16 @@ import type { Event } from 'nostr-tools/core';
 import { tagsFor } from '../config';
 import { Db } from '../db';
 import { backoffMs } from '../effects';
-import { silentLogger } from '../log';
-import { Daemon, DAEMON_VERSION } from '../runtime';
-import { ADMIN_RESULT } from '../admin/commands';
-import { FakeRelay, adminCommand, appKeyOf, newKey, openResult, type TestKey } from './fakes';
+import { DAEMON_VERSION, type Daemon } from '../runtime';
+import { ADMIN_ACTIONS } from '@sajwo-tracker/shared/core';
+import { TEST_TAGS as TAGS, adminCommand, createHarness, newKey, openResult, type Harness } from './fakes';
 
-const TAGS = tagsFor('dev');
-const T0 = 1_700_000_000_000;
+const harness = () => createHarness();
+const sec = (h: Harness) => h.sec();
+const settle = (h: Harness, daemon: Daemon) => h.settle(daemon);
 
-interface Harness {
-  relay: FakeRelay;
-  app: TestKey;
-  operator: TestKey;
-  clock: { now: number };
-  start(db: Db): Daemon;
-}
-
-function harness(): Harness {
-  const clock = { now: T0 };
-  const relay = new FakeRelay(() => clock.now);
-  const app = newKey();
-  const operator = newKey();
-  return {
-    relay, app, operator, clock,
-    start(db) {
-      const daemon = new Daemon({
-        db, transport: relay, appKey: appKeyOf(app), seed: new Uint8Array(32).fill(7),
-        tags: TAGS, operators: [operator.pubkey],
-        epoch: Math.floor(T0 / 1000) - 3600, lookbackSec: 3600, resubscribeSec: 300,
-        tickMs: 15_000, holdMs: 1_500, nowMs: () => clock.now, log: silentLogger,
-      });
-      daemon.ingress.reopen(); // 타이머 없이 구독만 연다 — 시계는 테스트가 돌린다
-      return daemon;
-    },
-  };
-}
-
-const sec = (h: Harness) => Math.floor(h.clock.now / 1000);
-const results = (h: Harness): Event[] =>
-  h.relay.published.filter(e => e.tags.some(t => t[0] === 'action' && t[1] === ADMIN_RESULT));
-
-/** 묵힘 시간을 넘기고 한 바퀴 */
-async function settle(h: Harness, daemon: Daemon): Promise<void> {
-  h.clock.now += 2_000;
-  await daemon.tick();
-}
+const isResult = (e: Event) => e.tags.some(t => t[0] === 'action' && t[1] === ADMIN_ACTIONS.RESULT);
+const results = (h: Harness): Event[] => h.relay.published.filter(isResult);
 
 const tmpDirs: string[] = [];
 afterEach(() => {
@@ -158,6 +123,7 @@ describe('발행 실패와 크래시 (DM-002 · §4.5)', () => {
     const h = harness();
     const daemon = h.start(new Db(':memory:'));
     h.relay.failNext = 2;
+    h.relay.failWhen = isResult;
     h.relay.inject(adminCommand(h.operator, h.app.pubkey, TAGS.admin, { cmd: 'ping' }, sec(h)));
     await settle(h, daemon);
     expect(results(h)).toHaveLength(0);
@@ -167,7 +133,7 @@ describe('발행 실패와 크래시 (DM-002 · §4.5)', () => {
     h.clock.now += backoffMs(2);
     await daemon.tick();
     expect(results(h)).toHaveLength(1);
-    expect(h.relay.publishAttempts).toBe(3);
+    expect(h.relay.attempts.get(results(h)[0]!.id)).toBe(3);
   });
 
   /**
@@ -183,6 +149,7 @@ describe('발행 실패와 크래시 (DM-002 · §4.5)', () => {
     const first = new Db(path);
     const daemonA = h.start(first);
     h.relay.failNext = 1;
+    h.relay.failWhen = isResult;
     h.relay.inject(adminCommand(h.operator, h.app.pubkey, TAGS.admin, { cmd: 'ping' }, sec(h)));
     await settle(h, daemonA);
     const pendingId = first.get<{ payload: string }>(`SELECT payload FROM effects WHERE status = 'pending'`);
@@ -206,10 +173,11 @@ describe('발행 실패와 크래시 (DM-002 · §4.5)', () => {
     const db = new Db(':memory:');
     const daemon = h.start(db);
     h.relay.failNext = 100;
+    h.relay.failWhen = isResult;
     h.relay.inject(adminCommand(h.operator, h.app.pubkey, TAGS.admin, { cmd: 'ping' }, sec(h)));
     await settle(h, daemon);
     h.clock.now += 11 * 60_000;
     await daemon.tick();
-    expect(db.get<{ status: string }>(`SELECT status FROM effects`)?.status).toBe('dead');
+    expect(db.get<{ status: string }>(`SELECT status FROM effects WHERE kind = 'nostr.publish'`)?.status).toBe('dead');
   });
 });

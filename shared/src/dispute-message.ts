@@ -6,9 +6,11 @@
  *
  * 복호화 방식만 앱마다 다르므로(sk 직접 / NIP-46 signer) 콜백으로 주입한다.
  */
-import { SAJWO_REQUEST_KIND } from './constants';
+import { extractOrderId } from './order-ref';
 import { idbUpsertMessage } from './idb';
 import type { ChatMessage, DisputeMessagePayload } from './types';
+
+export { extractOrderId };
 
 /** dispute-message 이벤트의 최소 필드 */
 export interface DisputeEvent {
@@ -17,18 +19,6 @@ export interface DisputeEvent {
   content: string;
   tags: string[][];
   created_at: number;
-}
-
-/**
- * a-tag에서 orderId를 추출한다.
- * `SAJWO_REQUEST_KIND:pubkey:orderId` 형식을 파싱한다.
- */
-export function extractOrderId(tags: string[][]): string | null {
-  const aTag = tags.find(t => t[0] === 'a')?.[1];
-  if (!aTag) return null;
-  const parts = aTag.split(':');
-  if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return null;
-  return parts[2]!;
 }
 
 /**

@@ -1,6 +1,6 @@
 # 어드민 데몬 전환 플랜
 
-> 상태: **v1.2 — 결정 확정(§14, D5만 출시 전 운영값으로). P1 코드 완료(§13 진행 기록), P2 착수 전.** 2026-09-24.
+> 상태: **v1.3 — 결정 확정(§14, D5만 출시 전 운영값으로). P1·P2 코드 완료(§13 진행 기록), P3 착수 전.** 2026-09-24.
 >
 > 어드민의 **판단과 집행**을 브라우저에서 빼서 운영 PC(`grey`)의 롱러닝 데몬 하나로 옮긴다.
 > 어드민 페이지는 남기되 **데몬에게 명령만 보내는 리모컨**이 된다. 라이트닝·온체인 두 트랙 다.
@@ -246,8 +246,11 @@ content = NIP-44(운영자 → APP, { cmd, args, orderId?, expectVersion? })
 
 | 트랙 | 명령 | 버전 확인 |
 |---|---|---|
-| 공통 | `ping` · `alert.ack` · `chat.send` · `config.set` (보증금 비율, 자동 승인, 온체인 켜기·네트워크) | — |
+| 공통 | `ping` · `config.get` · `config.set` (자동 승인, 보증금 비율, 온체인 새 의뢰 받기) · `alert.ack` · `chat.send` | — |
 | 라이트닝 | `ln.rule {winner}` · `ln.force-close` · `ln.revert-claim` · `ln.retry-payout` · `ln.deposit {settle\|cancel}`(예외용) | ✅ |
+
+> 네트워크(mainnet/signet)·체인 API·LN 접속은 `config.set`에 없다 — 진행 중 거래가 있는데 바뀌면 안 되는
+> 값이라 **배포 설정(데몬 환경변수)**으로 둔다. 운영 중에 바꾸는 값만 명령으로 바꾼다.
 | 온체인 | `oc.rule {winner}` · `oc.account-dispute {verdict}` · `oc.resend` · `oc.rescue`(§14 D7이 수동이면) | ✅ |
 
 ---
@@ -399,6 +402,29 @@ content = NIP-44(운영자 → APP, { cmd, args, orderId?, expectVersion? })
 
 ⬜ **남긴 것**: Docker 이미지 빌드는 개발 맥에 도커 데몬이 꺼져 있어 **아직 못 돌렸다** — 운영 PC에서 확인(P5).
 compose 서비스 등록도 P5로 옮겼다(돌릴 게 생긴 뒤에).
+
+### P2 명령 채널 — ✅ 코드 완료 (2026-09-24)
+
+- **약속을 한 곳에** — `shared/src/admin-protocol.ts`(action 이름, 명령 TTL, 상태 d태그, `DaemonSettings`와 검증,
+  `AdminState`, `AdminChatCopy`). 데몬과 어드민 앱이 같은 파일을 본다. `CLIENT_TAG_ADMIN` 신설.
+  `extractOrderId`를 IndexedDB 없는 `order-ref.ts`로 떼어냈다(데몬이 못 불렀다).
+- **데몬** — `admin/commands`(명령 표: `ping`·`config.get/set`·`alert.ack`·`chat.send`, 트랙 명령은 `register`로) ·
+  `settings`(DB, 기본값 위에 다시 적용) · `alerts`(dedup 한 번만, 새것만 DM) · `notify`(운영자 NIP-17, 봉투는 쌓을 때
+  한 번) · `state`(운영자별 30078, 60초 하트비트 + 바뀔 때, created_at 단조) · `chat`(당사자 메시지만 중계,
+  `chat.send`는 APP으로 보내고 사본을 운영자 전원에게) · `orders/directory`(버전 확인 `checkTarget` — P3가 채운다).
+  **우리가 낸 이벤트는 처리하지 않는다**(어드민이 보낸 분쟁 메시지도 `p=APP`이라 되돌아온다).
+- **어드민 앱 = 리모컨** — 운영자 키 로그인(**APP 키 로그인은 거부**), `daemon/{client,feed,stores}`, 데몬 상태·경보·
+  설정 화면, 두 트랙 오더 목록(보기 전용). 번들에 LN 호출·프리이미지·옛 서비스 문자열이 **하나도 없다**(확인).
+- **지운 것** — LN 설정·VAPID 입력·노드 상태 화면, 온체인 설정 화면, 온체인 `runtime`·`lease`·`backup`(+ 그 테스트 14개).
+- **남겨 둔 것 (전환 중)** — `admin/src`의 라이트닝·온체인 **집행 모듈과 그 테스트**는 아무도 부르지 않지만 그대로다.
+  P3·P4에서 데몬으로 **`git mv`**해 이력과 함께 옮긴다. 상세·판정·분쟁 화면(`OrderDetail`·`OnchainPanel` 등)도
+  그때 명령 기반으로 다시 쓴다.
+- 테스트: 데몬 54(설정 통째 거부 · 운영자별 상태 · 같은 초 단조 · 경보 한 번 + DM · 채팅 스팸 차단 · 트랙 태그 ·
+  자기 이벤트 무시 · 버전 확인). 변이 확인: 채팅 당사자 확인·상태 단조를 빼면 해당 테스트가 깨진다.
+  전체: shared 409 · daemon 54 · customer 73 · admin 548, 빌드 넷.
+
+⬜ **남긴 것**: 실제 릴레이·실제 벙커로 어드민 앱 ↔ 데몬 왕복은 아직 안 해봤다(가짜 릴레이로만). 운영자 DM은 데몬
+릴레이로만 간다 — 운영자 nostr 클라이언트가 그 릴레이를 읽어야 받는다(kind 10050 조회는 필요해지면).
 
 ---
 

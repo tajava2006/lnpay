@@ -37,6 +37,14 @@ export const CLIENT_TAG_ONCHAIN = viteEnv.DEV === true
   ? 'sajwo-tracker-onchain-dev'
   : 'sajwo-tracker-onchain';
 
+/**
+ * 운영자 명령·결과·상태 태그 (PLAN-DAEMON §5). 유저 트래픽과 섞이지 않게 따로 둔다.
+ * 데몬은 같은 이름을 자기 설정(`LNPAY_MODE`)에서 만든다 — 둘이 어긋나면 명령이 안 닿는다.
+ */
+export const CLIENT_TAG_ADMIN = viteEnv.DEV === true
+  ? 'sajwo-tracker-admin-dev'
+  : 'sajwo-tracker-admin';
+
 /** 영구저장소 키 (키페어, 릴레이 캐시) */
 export const STORAGE_KEYS = {
   KEYPAIR: 'nostr:keys',

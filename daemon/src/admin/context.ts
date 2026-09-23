@@ -1,0 +1,26 @@
+/**
+ * 어드민 채널 모듈들이 같이 쓰는 것
+ */
+import type { Db } from '../db';
+import type { Effects } from '../effects';
+import type { Logger } from '../log';
+import type { DaemonMode, DaemonTags } from '../config';
+import type { OrderDirectory } from '../orders/directory';
+import type { AppKey } from '../secrets';
+
+export interface AdminContext {
+  db: Db;
+  effects: Effects;
+  appKey: AppKey;
+  operators: readonly string[];
+  tags: DaemonTags;
+  mode: DaemonMode;
+  relays: readonly string[];
+  directory: OrderDirectory;
+  version: string;
+  startedAt: number;
+  nowMs: () => number;
+  log: Logger;
+}
+
+export const nowSec = (ctx: Pick<AdminContext, 'nowMs'>): number => Math.floor(ctx.nowMs() / 1000);

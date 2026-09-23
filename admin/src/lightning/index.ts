@@ -9,8 +9,6 @@ export type {
   LightningBackend, LnConnectionConfig, NodeInfo, ConnectionStatus, NodeSnapshot,
   DecodedInvoice, ProbeResult, HoldInvoiceResult, HoldInvoiceStatus, PaymentResult,
 } from './types';
-export { createNodeTracker } from './node-tracker';
-export type { NodeTracker } from './node-tracker';
 
 /**
  * LnConfig에서 LightningAdapter를 생성한다.

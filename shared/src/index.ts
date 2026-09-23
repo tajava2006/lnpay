@@ -9,6 +9,7 @@ export {
   SAJWO_REQUEST_EVENT_KIND,
   CLIENT_TAG,
   CLIENT_TAG_ONCHAIN,
+  CLIENT_TAG_ADMIN,
   STORAGE_KEYS,
   ORDER_DB_NAME,
   DISCOVERY_RELAYS,
@@ -109,3 +110,14 @@ export {
 // 채팅 전송 (낙관적 렌더링 + 상태)
 export { sendChatMessage, retryChatMessage } from './chat-send';
 export type { PreparedChatMessage } from './chat-send';
+
+// 운영자 ↔ 데몬 약속 (PLAN-DAEMON §5)
+export {
+  ADMIN_ACTIONS, ADMIN_COMMAND_TTL_SEC, ADMIN_STATE_KIND, ADMIN_STATE_STALE_SEC, DEFAULT_SETTINGS,
+  MAX_CHAT_TEXT, MAX_DEPOSIT_PCT, adminStateDTag, applySettingsPatch,
+} from './admin-protocol';
+export type {
+  AdminAlert, AdminChatCopy, AdminCommand, AdminCommandResult, AdminState, DaemonSettings,
+  OrderTarget, TrackName,
+} from './admin-protocol';
+export { orderRef } from './order-ref';

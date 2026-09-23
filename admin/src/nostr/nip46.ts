@@ -12,9 +12,12 @@
  *   → 실패 시 세션 삭제 → 로그인 화면
  *
  * 보안:
- *   일반 NIP-46과 달리 특정 pubkey(APP_PUBKEY)만 허용해야 하므로,
- *   get_public_key 결과만으로는 불충분하다 (벙커 통신키로만 서명됨).
+ *   어드민은 **운영자 키**로 로그인한다(PLAN-DAEMON §5.1). 명령을 받을지는 데몬이 자기 운영자
+ *   목록으로 정한다. get_public_key 결과만으로는 불충분하다(벙커 통신키로만 서명됨) —
  *   sign_event 챌린지로 실제 신원키의 proof-of-possession을 수행한다.
+ *
+ *   ⚠️ **APP 키로는 로그인하지 않는다.** APP 키를 쥔 어드민 앱은 데몬의 FSM을 우회해 오더를
+ *   직접 서명할 수 있다 — 집행자가 데몬 하나(DM-001)라는 걸 구조로 지키려면 여기서 막아야 한다.
  */
 import { BunkerSigner, createNostrConnectURI } from 'nostr-tools/nip46';
 import type { BunkerPointer } from 'nostr-tools/nip46';
@@ -28,6 +31,8 @@ export interface Nip46Session {
   clientSecretKeyHex: string;   // 클라이언트 통신용 비밀키
   bunkerPubkey: string;         // 벙커의 통신용 pubkey
   relays: string[];             // 통신에 사용된 릴레이
+  /** 검증된 운영자 신원 pubkey (옛 세션에는 없다 — 다시 로그인) */
+  operatorPubkey?: string;
 }
 
 // ─── 모듈 레벨 signer 인스턴스 ──────────────────────────────
@@ -122,20 +127,17 @@ export async function waitForConnection(
 // ─── 신원 검증 ──────────────────────────────────────────────
 
 /**
- * 벙커가 APP_PUBKEY의 실제 소유자인지 검증한다.
+ * 벙커가 주장하는 운영자 키를 실제로 쥐고 있는지 검증하고, 그 pubkey를 돌려준다.
  *
- * 1. get_public_key — 벙커가 주장하는 신원 확인 (빠른 실패용)
- * 2. sign_event 챌린지 — 반환된 서명의 pubkey가 APP_PUBKEY인지 검증
+ * 1. get_public_key — 벙커가 주장하는 신원 (APP 키면 거부)
+ * 2. sign_event 챌린지 — 서명한 pubkey가 주장한 것과 같은지
  *    (nostr-tools가 서명 유효성은 이미 검증하므로 pubkey 일치만 추가 확인)
  */
-export async function verifyIdentity(signer: BunkerSigner): Promise<void> {
+export async function verifyIdentity(signer: BunkerSigner): Promise<string> {
   // Step 1: get_public_key — 빠른 실패
   const claimedPubkey = await signer.getPublicKey();
-  if (claimedPubkey !== APP_PUBKEY) {
-    throw new Error(
-      `신원 불일치: 벙커가 반환한 pubkey(${claimedPubkey.slice(0, 12)}...)가 ` +
-      `APP_PUBKEY(${APP_PUBKEY.slice(0, 12)}...)와 다릅니다.`,
-    );
+  if (claimedPubkey === APP_PUBKEY) {
+    throw new Error('APP 키로는 로그인하지 않습니다. 운영자 키로 로그인하세요 — APP 키는 데몬만 씁니다.');
   }
 
   // Step 2: sign_event 챌린지 — proof of possession
@@ -149,12 +151,13 @@ export async function verifyIdentity(signer: BunkerSigner): Promise<void> {
   const signed = await signer.signEvent(challenge);
   // nostr-tools의 signEvent()가 verifyEvent()를 내부적으로 호출하므로
   // 서명 유효성은 이미 보장됨. pubkey 일치만 추가 확인.
-  if (signed.pubkey !== APP_PUBKEY) {
+  if (signed.pubkey !== claimedPubkey) {
     throw new Error(
-      `신원 검증 실패: 서명된 이벤트의 pubkey(${signed.pubkey.slice(0, 12)}...)가 ` +
-      `APP_PUBKEY(${APP_PUBKEY.slice(0, 12)}...)와 다릅니다.`,
+      `신원 검증 실패: 서명한 pubkey(${signed.pubkey.slice(0, 12)}...)가 ` +
+      `주장한 pubkey(${claimedPubkey.slice(0, 12)}...)와 다릅니다.`,
     );
   }
+  return claimedPubkey;
 }
 
 // ─── 세션 복원 ──────────────────────────────────────────────
@@ -182,11 +185,12 @@ export function restoreSigner(session: Nip46Session): BunkerSigner {
 /**
  * 로그인 성공 후 세션 저장 + signer 등록을 한 번에 처리한다.
  */
-export function finalizeLogin(signer: BunkerSigner, clientSecretKey: Uint8Array): void {
+export function finalizeLogin(signer: BunkerSigner, clientSecretKey: Uint8Array, operatorPubkey: string): void {
   currentSigner = signer;
   saveSession({
     clientSecretKeyHex: bytesToHex(clientSecretKey),
     bunkerPubkey: signer.bp.pubkey,
     relays: signer.bp.relays,
+    operatorPubkey,
   });
 }

@@ -27,17 +27,31 @@
 | 환불 주소 | 고객이 의뢰 때 낸다. signet 주소 하나를 미리 준비 |
 | 브라우저 | **2개 프로필** — 고객·후원자가 서로 다른 키여야 한다 |
 
-⚠️ **먼저 확인** (데몬):
+⚠️ **먼저 확인** (데몬) — **signet 드릴 전용 데몬을 따로 띄운다.** 운영 데몬은 그대로 둔다(유저에게 안 보인다):
 
-- 데몬을 **dev 모드**로 따로 띄운다 — `LNPAY_MODE=dev`(태그가 `-dev`로 갈려 운영 데이터와 안 섞인다).
-  ⚠️ **데이터 디렉터리도 따로**(`LNPAY_DATA_DIR` — compose의 `./lnpay-data`를 같이 쓰지 않는다). 데몬은 모드를 DB에
-  박지 않아서, 같은 DB면 dev 오더가 prod 데몬에 넘어가 prod 태그로 다시 나간다. 그리고
-  `LNPAY_ONCHAIN_NETWORK=signet`, 필요하면 `LNPAY_ONCHAIN_API`(공개 mempool.space가 막히면). 네트워크는
-  배포 설정이라 운영 중에 바꾸지 않는다 — 진행 중 주문의 주소가 다른 체인의 것이 된다.
-- 어드민 앱(dev 빌드) 데몬 탭 → 운영 설정에서 **"온체인 새 의뢰 받기"**를 켠다(기본 꺼짐).
-- 보증금은 데몬의 LND로 만든다 — 그 LND가 mainnet이면 **보증금은 진짜 sats**다(소액). 드릴 금액을 작게.
+```bash
+cd ~/my-server && mkdir -p lnpay-data-signet          # 컨테이너 uid 1000이 쓸 수 있게
+docker compose build lnpay-daemon && docker compose --profile signet up -d lnpay-daemon-signet
+docker compose logs -f lnpay-daemon-signet             # "릴레이 … mode: dev, onchain: signet"
+# 끝나면: docker compose --profile signet stop lnpay-daemon-signet
+```
+
+- compose의 `lnpay-daemon-signet`은 운영 데몬을 `extends`로 물려받는다(같은 이미지·비밀·LND). 다른 건 셋뿐:
+  `LNPAY_MODE=dev`(태그가 `-dev`로 갈린다), `LNPAY_ONCHAIN_NETWORK=signet`, 장부 `lnpay-data-signet/`.
+  공개 mempool.space가 막히면 `.env`에 `LNPAY_SIGNET_API`.
+- **장부 하나 = 모드 하나 · 네트워크 하나** — 데몬이 부팅 때 본다(`daemon/src/guards.ts`). 운영 장부를 dev 모드로
+  띄우거나, 진행 중 온체인 오더가 있는 채로 네트워크를 바꾸거나 끄면 **일부러 안 뜬다**. 그래서 운영 데몬의
+  네트워크를 드릴 때마다 바꾸는 방식은 쓰지 않는다(옛 프론트 어드민의 네트워크 토글은 이 문제로 "진행 중이면
+  막는다"는 호출부 가드에 기대고 있었다).
+- 유저 앱·어드민은 **dev 빌드**로 붙는다 — `pnpm dev:customer`(5173), `pnpm dev:admin`(5175). dev 빌드는
+  `-dev` 태그라 signet 데몬만 보고, 운영 데몬(`preview:*`, 4173·4174)과 동시에 띄워도 서로 안 섞인다.
+- 어드민 앱(dev 빌드) 데몬 탭 → 운영 설정에서 **"온체인 새 의뢰 받기"**를 켠다(기본 꺼짐, 데몬마다 따로다).
+- 보증금은 같은 LND로 만든다 — **보증금은 진짜 sats**다(소액, 정상 종결이면 환불). signet인 건 온체인 코인뿐.
+  ⚠️ 라이트닝 드릴 때처럼 **이 노드 밖의 지갑**으로 낸다(같은 LND 셀프 결제는 거부된다).
 - 판정·계좌 이의·구조는 어드민 앱 온체인 상세의 버튼(운영자 명령)이다. 어드민 키는 데몬이 시드에서 파생한다 —
   어드민 앱에는 키가 없다.
+- 키 백업·복원 화면은 **지금 없다**(2026-09-24 — 키 교체·파기는 두 트랙을 같이 놓고 나중에 기획). 드릴 중에
+  브라우저 저장소를 지우지 않는다 — 에스크로 키가 그 nostr 키에서 파생된다.
 
 ## 1. 드릴 5종
 

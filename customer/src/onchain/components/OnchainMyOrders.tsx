@@ -47,7 +47,6 @@ import { EscrowAddressPanel } from './EscrowAddressPanel';
 import { OnchainProgressBar } from './OnchainProgressBar';
 import { OnchainChat } from './OnchainChat';
 import { RecoveryPanel } from './RecoveryPanel';
-import { KeyBackup } from './KeyBackup';
 
 interface Props {
   myPubkey: string | null;
@@ -99,7 +98,6 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
 
   return (
     <div style={styles.list}>
-      <KeyBackup myPubkey={myPubkey} />
 
       {orders.length === 0 && orphanInvoices.length === 0 && waiting.length === 0 && (
         <p style={styles.empty}>아직 온체인 거래가 없습니다.</p>

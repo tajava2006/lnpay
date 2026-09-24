@@ -22,7 +22,6 @@ import { myOrderXonly } from '../keys';
 import { publishOnchainOrderRequest } from '../nostr/publish';
 import { rememberPendingRequest } from '../pending-request-store';
 import { rememberRefundAddress } from '../refund-address-store';
-import { KeyBackup } from './KeyBackup';
 
 const DAY = 86_400;
 
@@ -40,10 +39,9 @@ function refundAddressProblem(address: string): string | null {
   return ok ? null : '비트코인 주소가 아닙니다.';
 }
 
-export function OnchainOrderForm({ onDone, tracker, myPubkey }: {
+export function OnchainOrderForm({ onDone, tracker }: {
   onDone?: () => void;
   tracker?: PriceTracker;
-  myPubkey?: string | null;
 }) {
   const priceSnapshot = useSyncExternalStore(
     tracker?.subscribe ?? NO_SUBSCRIBE,
@@ -163,8 +161,6 @@ export function OnchainOrderForm({ onDone, tracker, myPubkey }: {
         거래가 정상적으로 끝나면 돌려받고, <strong>후원자가 붙은 뒤 6시간 안에 펀딩을
         컨펌시키지 못하면 잃습니다.</strong>
       </div>
-
-      <KeyBackup myPubkey={myPubkey ?? null} />
 
       {error && <p style={styles.error}>{error}</p>}
 

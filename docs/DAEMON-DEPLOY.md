@@ -111,8 +111,9 @@ docker inspect --format '{{.State.Health.Status}}' lnpay-daemon   # healthy = �
    - ⚠️ **결제는 이 노드 밖의 지갑으로.** 데몬 LND가 낸 인보이스를 같은 LND가 결제하면 셀프 결제라 LND가 기본으로
      거부한다. 브리지(boltz 경유)가 이 LND로 내거나 받는 인보이스가 그 경우다(boltz는 `allowSelfPayment`를 켜지 않는다)
    - 포트는 고정(4173 어드민 / 4174 유저, `strictPort`) — 오리진이 바뀌면 localStorage의 키가 달라져 다른 사람이 된다
-4. 온체인은 signet 드릴을 **dev 데몬**으로 따로 돌린다 — `ONCHAIN-SIGNET-DRILL.md`. ⚠️ `lnpay-data/`를 같이 쓰면 안 된다
-   (데몬은 모드를 DB에 박지 않는다 — dev에서 만든 오더가 prod 태그로 다시 나갈 수 있다). 데이터 디렉터리를 따로.
+4. 온체인은 signet 드릴을 **드릴 전용 데몬**으로 따로 돌린다 — compose `lnpay-daemon-signet`(profile `signet`, 평소엔
+   안 뜬다) · `ONCHAIN-SIGNET-DRILL.md`. 장부 하나 = 모드 하나 · 네트워크 하나라, 운영 장부를 dev로 띄우거나 진행 중
+   온체인 오더가 있는 채로 네트워크를 바꾸면 데몬이 **일부러 안 뜬다**(`daemon/src/guards.ts`).
 
 ## 5. 옛 구조 걷어내기 (VPS)
 

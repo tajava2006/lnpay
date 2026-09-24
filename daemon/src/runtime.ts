@@ -16,6 +16,7 @@ import { Dispatcher, tagValue, type Router } from './dispatch';
 import { Effects } from './effects';
 import type { Logger } from './log';
 import { Ingress, resolveEpoch } from './nostr/ingress';
+import { assertDataDirFits } from './guards';
 import { createPublishExecutor, PUBLISH_EFFECT } from './nostr/publisher';
 import type { RelayTransport } from './nostr/transport';
 import { createAdminHandler, createBaseCommands, type CommandRegistry } from './admin/commands';
@@ -80,6 +81,7 @@ export class Daemon {
     this.effects = new Effects(db, nowMs, log);
 
     if (deps.onchain && !deps.ln) throw new Error('온체인 트랙은 라이트닝 노드가 있어야 한다 (보증금이 홀드 인보이스다)');
+    assertDataDirFits(db, { mode: deps.mode, onchainNetwork: deps.onchain?.network });
     const directory = composeDirectories([
       ...(deps.directory ? [deps.directory] : []),
       ...(deps.ln ? [createLnDirectory(db)] : []),

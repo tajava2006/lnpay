@@ -221,7 +221,7 @@ function AppContent() {
               onBack={closeDetail}
             />
           ) : tab === 'request' ? (
-            <OnchainOrderForm onDone={() => goTab('history')} tracker={tracker} myPubkey={myPubkey} />
+            <OnchainOrderForm onDone={() => goTab('history')} tracker={tracker} />
           ) : tab === 'fulfill' ? (
             <OnchainOrderBook myPubkey={myPubkey} tracker={tracker} />
           ) : (

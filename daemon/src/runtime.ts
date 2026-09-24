@@ -25,6 +25,7 @@ import { STATE_EFFECT, STATE_INTERVAL_MS, createStateExecutor, requestStatePubli
 import type { DaemonMode, DaemonTags } from './config';
 import { composeDirectories, type OrderDirectory } from './orders/directory';
 import { raiseStuckEffects } from './admin/stuck';
+import { Backups } from './backup';
 import { Holds } from './hold';
 import { createLnDirectory, installLnTrack, type LnDeps, type LnTrack } from './ln';
 import { createOcDirectory, installOcTrack, type OcDeps, type OcTrack } from './onchain';
@@ -68,6 +69,7 @@ export class Daemon {
   readonly ln: LnTrack | null;
   readonly onchain: OcTrack | null;
   readonly holds: Holds | null;
+  private readonly backups: Backups | null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private ticking = false;
   private stopped = true;
@@ -124,6 +126,8 @@ export class Daemon {
     };
     this.dispatcher = new Dispatcher(db, route, nowMs, deps.holdMs, log);
 
+    this.backups = deps.dataDir ? new Backups(db, join(deps.dataDir, 'backups'), nowMs, log) : null;
+
     this.ingress = new Ingress(db, deps.transport, {
       appPubkey: deps.appKey.pubkey,
       epoch: deps.epoch,
@@ -163,6 +167,7 @@ export class Daemon {
       this.deps.db.tx(() => raiseStuckEffects(this.admin));
       this.heartbeat();
       await this.effects.runDue();
+      this.backups?.maybeRun();
     } catch (e) {
       this.deps.log.error('틱 실패', { error: e instanceof Error ? e.message : String(e) });
     } finally {

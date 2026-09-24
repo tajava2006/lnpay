@@ -509,6 +509,19 @@ VAPID 키 파일). 문서: PROTOCOL 라이트닝 절은 고쳤고, ARCHITECTURE�
 ⬜ **남긴 것**: signet 드릴(`ONCHAIN-SIGNET-DRILL.md`를 데몬 대상으로 — 실제 esplora 응답·브로드캐스트 에러 문구,
 실제 LND 홀드 인보이스), 운영 PC 배포(P5).
 
+### P5 출시 준비 — 🟡 코드·문서 완료, 운영 PC 작업 남음 (2026-09-24)
+
+- my-server `docker-compose.yml`에 `lnpay-daemon` 서비스(포트 없음, `ark-net`, 호스트 LND REST `172.28.0.1:8080`,
+  `lnpay-secrets/`·`lnpay-data/`) + `.gitignore`. **my-server 쪽은 커밋하지 않았다**(별도 레포 — 확인 뒤).
+- 데몬이 하루 한 번 DB 스냅숏(`backup.ts`, `VACUUM INTO`, 최근 7벌).
+- VAPID 개인키 되찾기 스크립트(`daemon/scripts/recover-vapid.mjs` — 옛 어드민의 릴레이 백업을 APP 키로 푼다).
+- 옛 웹 푸시 중계 설정(`deploy/nginx-push-proxy.conf`) 삭제 — 데몬이 직접 보낸다.
+- 배포 절차 = `docs/DAEMON-DEPLOY.md` (비밀 파일 · 구운 매크룬 · LND restlisten/TLS SAN 확인 · 첫 부팅 · 드릴 · VPS 정리 · 열기).
+
+⬜ **운영 PC에서**: 비밀 파일·매크룬·LND 설정 확인 → 빌드·기동(Docker 이미지 빌드는 여기서 처음 돈다) → 소액 mainnet
+드릴 → signet 드릴(dev 데몬) → D5 결정 → VPS 정리 → `MAINTENANCE = false`. 문서 중 ARCHITECTURE·THREAT-MODEL의
+어드민 서술은 아직 옛 구조다(CLAUDE.md가 경고한다).
+
 ---
 
 # §14. 결정 필요

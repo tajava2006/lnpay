@@ -206,3 +206,30 @@ describe('효과 대기열 (§4.5)', () => {
     expect(() => effects.enqueue('nope', {})).toThrow();
   });
 });
+
+describe('DB 스냅숏 (§11)', () => {
+  it('하루에 한 벌, 최근 N벌만 남긴다 — 스냅숏은 열리는 DB다', async () => {
+    const { mkdtempSync, readdirSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { Backups } = await import('../backup');
+    const dir = mkdtempSync(join(tmpdir(), 'lnpay-backup-'));
+    const db = new Db(join(dir, 'daemon.sqlite'));
+    db.kvSet('marker', 'hello');
+    const clock = { now: Date.UTC(2026, 8, 24, 12) };
+    const backups = new Backups(db, join(dir, 'backups'), () => clock.now, silentLogger, 2);
+
+    expect(backups.maybeRun()).toBe(true);
+    expect(backups.maybeRun()).toBe(false); // 같은 날
+    for (let i = 0; i < 3; i++) {
+      clock.now += 24 * 60 * 60 * 1000;
+      backups.maybeRun();
+    }
+    const files = readdirSync(join(dir, 'backups')).sort();
+    expect(files).toEqual(['daemon-2026-09-26.sqlite', 'daemon-2026-09-27.sqlite']);
+    const copy = new Db(join(dir, 'backups', files[1]!));
+    expect(copy.kvGet('marker')).toBe('hello');
+    copy.close();
+    db.close();
+  });
+});

@@ -5,6 +5,8 @@
  * 이미 배포된 주소가 404가 되지 않게 이 화면 하나만 띄운다 — 구독도 저장소도
  * 건드리지 않는다(`main.tsx`가 앱을 아예 불러오지 않는다).
  */
+const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
 export function Maintenance() {
   return (
     <div style={styles.page}>
@@ -16,6 +18,13 @@ export function Maintenance() {
           <br />
           준비가 끝나면 다시 열겠습니다.
         </p>
+        {/* 로컬에서 이 화면이 뜨면 공사 중 빌드를 보고 있는 것이다 — 어느 빌드인지 알아야 헤매지 않는다 */}
+        {isLocal && (
+          <p style={styles.local}>
+            공사 중 빌드 ({__COMMIT_HASH__}). 로컬에서 앱을 열려면 <code>pnpm preview:customer</code> —
+            4174에 예전 preview 서버가 떠 있으면 새 서버가 못 뜨고 이 화면이 계속 나온다.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -41,4 +50,5 @@ const styles = {
   brand: { margin: 0, fontSize: 14, fontWeight: 600 as const, color: '#4F46E5' },
   title: { margin: '12px 0 16px', fontSize: 24, color: '#333' },
   body: { margin: 0, fontSize: 15, lineHeight: 1.7, color: '#666' },
+  local: { margin: '20px 0 0', fontSize: 12, lineHeight: 1.6, color: '#B45309', textAlign: 'left' as const },
 };

@@ -16,8 +16,7 @@ import { OnchainOrderDetail } from './components/OnchainOrderDetail';
 import { LnOrderList, OnchainOrderList } from './components/OrderLists';
 import { startDaemonFeed, stopDaemonFeed } from './daemon/feed';
 import { clearStores } from './daemon/stores';
-
-type Tab = 'daemon' | 'ln' | 'onchain';
+import { parseRoute, urlFor, type Route, type Tab } from './routing';
 
 /** 저장된 세션을 되살린다. 운영자 pubkey가 없는 옛 세션(APP 키 로그인 시절)은 버린다 */
 function restoreOperator(): string | null {
@@ -32,9 +31,21 @@ function restoreOperator(): string | null {
 
 export function App() {
   const [operator, setOperator] = useState<string | null>(restoreOperator);
-  const [tab, setTab] = useState<Tab>('daemon');
-  const [lnSelected, setLnSelected] = useState<string | null>(null);
-  const [ocSelected, setOcSelected] = useState<string | null>(null);
+  // 화면 = 주소. 새로고침·뒤로가기·링크가 같은 자리로 온다 (routing.ts)
+  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.search));
+  const go = useCallback((next: Route) => {
+    history.pushState(null, '', urlFor(next));
+    setRoute(next);
+  }, []);
+  useEffect(() => {
+    const onPop = () => setRoute(parseRoute(window.location.search));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const { tab, orderId } = route;
+  const goTab = (next: Tab) => go({ tab: next, orderId: null });
+  const select = (id: string) => go({ tab, orderId: id });
+  const back = () => go({ tab, orderId: null });
 
   useEffect(() => subscribeRelayLists(storage), []);
 
@@ -74,19 +85,19 @@ export function App() {
       </header>
       <nav style={styles.tabs}>
         {([['daemon', '데몬'], ['ln', '라이트닝'], ['onchain', '온체인']] as const).map(([key, label]) => (
-          <button key={key} style={{ ...styles.tab, ...(tab === key ? styles.tabActive : {}) }} onClick={() => setTab(key)}>
+          <button key={key} style={{ ...styles.tab, ...(tab === key ? styles.tabActive : {}) }} onClick={() => goTab(key)}>
             {label}
           </button>
         ))}
       </nav>
       <main>
         {tab === 'daemon' && <DaemonPanel />}
-        {tab === 'ln' && (lnSelected
-          ? <LnOrderDetail orderId={lnSelected} onBack={() => setLnSelected(null)} />
-          : <LnOrderList onSelect={setLnSelected} />)}
-        {tab === 'onchain' && (ocSelected
-          ? <OnchainOrderDetail orderId={ocSelected} onBack={() => setOcSelected(null)} />
-          : <OnchainOrderList onSelect={setOcSelected} />)}
+        {tab === 'ln' && (orderId
+          ? <LnOrderDetail key={orderId} orderId={orderId} onBack={back} />
+          : <LnOrderList onSelect={select} />)}
+        {tab === 'onchain' && (orderId
+          ? <OnchainOrderDetail key={orderId} orderId={orderId} onBack={back} />
+          : <OnchainOrderList onSelect={select} />)}
       </main>
     </div>
   );

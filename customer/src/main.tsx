@@ -11,7 +11,8 @@ import { Maintenance } from './Maintenance';
  * 다시 열 때 false로.
  *
  * `__LOCAL_OPEN__` — prod 데몬과 로컬에서 실결제 테스트를 하려고 prod 빌드를 여는 스위치
- * (`pnpm preview:customer`). 빌드 때 박히는 상수라 배포 빌드에서는 위 분기 제거가 그대로다.
+ * (`pnpm preview:customer` = `vite build --mode localopen`). 빌드 때 박히는 상수라 배포 빌드에서는 위 분기
+ * 제거가 그대로다.
  */
 const MAINTENANCE = true;
 

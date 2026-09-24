@@ -103,7 +103,10 @@ docker inspect --format '{{.State.Health.Status}}' lnpay-daemon   # healthy = �
    - `htlcs[].expiry_height`가 채워지는가(선제 settle·조기 종결의 근거)
    **로컬에서 유저 앱까지 붙여 실결제로 볼 때** (배포 전, 공사 중 그대로):
    - `lnpay/.env`에 `VITE_NOSTR_SINCE=<epoch>` — 어드민 데몬 탭 "받기 시작"의 괄호 안 숫자. 없으면 옛 오더가 유저 앱에 뜬다
-   - `pnpm preview:customer` → `localhost:4174` (prod 빌드인데 공사 중 화면만 로컬에서 연다 — 배포 빌드는 그대로 닫힘)
+   - `pnpm preview:customer` → `localhost:4174` (prod 빌드를 `--mode localopen`으로 — 공사 중 화면만 로컬에서 연다,
+     배포 빌드는 그대로 닫힘). 그래도 공사 중 화면이면 **4174를 쥔 옛 preview 서버**를 의심한다 — 터미널에
+     "Port 4174 is already in use"가 떴을 것이다(`ss -ltnp | grep 4174`로 찾아 끈다). 공사 중 화면이 로컬에서는
+     빌드 커밋을 보여준다
    - 고객·후원자는 **다른 키**여야 한다 → 브라우저 프로필 2개(시크릿 창은 닫으면 키가 날아간다)
    - ⚠️ **결제는 이 노드 밖의 지갑으로.** 데몬 LND가 낸 인보이스를 같은 LND가 결제하면 셀프 결제라 LND가 기본으로
      거부한다. 브리지(boltz 경유)가 이 LND로 내거나 받는 인보이스가 그 경우다(boltz는 `allowSelfPayment`를 켜지 않는다)

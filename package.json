@@ -11,7 +11,7 @@
     "dev:admin": "pnpm --filter @sajwo-tracker/admin dev",
     "build:admin": "pnpm --filter @sajwo-tracker/admin build",
     "preview:admin": "pnpm build:admin && pnpm --filter @sajwo-tracker/admin preview",
-    "preview:customer": "LNPAY_LOCAL_OPEN=1 pnpm build:customer && pnpm --filter @sajwo-tracker/customer preview",
+    "preview:customer": "pnpm --filter @sajwo-tracker/customer build --mode localopen && pnpm --filter @sajwo-tracker/customer preview",
     "build:daemon": "pnpm --filter @sajwo-tracker/daemon build",
     "build:userscript": "node customer/userscript/esbuild.config.mjs",
     "build:userscript:dev": "SAJWO_DEV=true node customer/userscript/esbuild.config.mjs",

@@ -58,7 +58,15 @@ export function OnchainOrderDetail({ orderId, onBack }: { orderId: string; onBac
     if (!detail) void sendCommand('oc.detail', { orderId });
   }, [orderId, detail]);
 
-  if (!order) return <p style={styles.note}>오더를 불러오는 중…</p>;
+  // 주소로 바로 열면(새로고침·링크) 오더가 캐시에 오기 전일 수 있다 — 그 사이에도 돌아갈 길은 있어야 한다
+  if (!order) {
+    return (
+      <div style={styles.column}>
+        <button style={styles.back} onClick={onBack}>← 목록</button>
+        <p style={styles.note}>오더를 불러오는 중… (데몬 epoch 전의 오더거나 id가 틀렸으면 오지 않습니다)</p>
+      </div>
+    );
+  }
   const display = onchainStateDisplay(order.state);
   const deadline = currentOnchainDeadline(order);
 

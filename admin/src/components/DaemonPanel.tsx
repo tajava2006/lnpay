@@ -57,7 +57,7 @@ export function DaemonPanel() {
             <dt>받기 시작</dt>
             <dd>
               {typeof state.epoch === 'number'
-                ? `${new Date(state.epoch * 1000).toLocaleString('ko-KR')} — 이 전의 오더는 보지 않는다`
+                ? `${new Date(state.epoch * 1000).toLocaleString('ko-KR')} (${state.epoch}) — 이 전의 오더는 보지 않는다. 유저 앱 VITE_NOSTR_SINCE도 이 값`
                 : '모름 — 데몬이 옛 버전이다(다시 빌드). 그 전까지 오더 목록은 비어 있다'}
             </dd>
             <dt>릴레이</dt><dd>{state.relays.join(', ')}</dd>

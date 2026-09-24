@@ -101,7 +101,15 @@ docker inspect --format '{{.State.Health.Status}}' lnpay-daemon   # healthy = �
      "추적 실패"로 재시도한다(두 번 지급은 LND가 막는다)
    - 결제 기한이 지난 미결제 홀드 인보이스를 LND가 스스로 취소하는가(데몬 시계도 치우지만)
    - `htlcs[].expiry_height`가 채워지는가(선제 settle·조기 종결의 근거)
-4. 온체인은 signet 드릴을 **dev 데몬**으로 따로 돌린다 — `ONCHAIN-SIGNET-DRILL.md`.
+   **로컬에서 유저 앱까지 붙여 실결제로 볼 때** (배포 전, 공사 중 그대로):
+   - `lnpay/.env`에 `VITE_NOSTR_SINCE=<epoch>` — 어드민 데몬 탭 "받기 시작"의 괄호 안 숫자. 없으면 옛 오더가 유저 앱에 뜬다
+   - `pnpm preview:customer` → `localhost:4174` (prod 빌드인데 공사 중 화면만 로컬에서 연다 — 배포 빌드는 그대로 닫힘)
+   - 고객·후원자는 **다른 키**여야 한다 → 브라우저 프로필 2개(시크릿 창은 닫으면 키가 날아간다)
+   - ⚠️ **결제는 이 노드 밖의 지갑으로.** 데몬 LND가 낸 인보이스를 같은 LND가 결제하면 셀프 결제라 LND가 기본으로
+     거부한다. 브리지(boltz 경유)가 이 LND로 내거나 받는 인보이스가 그 경우다(boltz는 `allowSelfPayment`를 켜지 않는다)
+   - 포트는 고정(4173 어드민 / 4174 유저, `strictPort`) — 오리진이 바뀌면 localStorage의 키가 달라져 다른 사람이 된다
+4. 온체인은 signet 드릴을 **dev 데몬**으로 따로 돌린다 — `ONCHAIN-SIGNET-DRILL.md`. ⚠️ `lnpay-data/`를 같이 쓰면 안 된다
+   (데몬은 모드를 DB에 박지 않는다 — dev에서 만든 오더가 prod 태그로 다시 나갈 수 있다). 데이터 디렉터리를 따로.
 
 ## 5. 옛 구조 걷어내기 (VPS)
 

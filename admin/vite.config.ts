@@ -25,4 +25,9 @@ export default defineConfig({
   server: {
     port: 5175,
   },
+  // `pnpm preview:admin` — 오리진(=로그인 세션·캐시)이 흔들리지 않게 고정. 유저 앱 preview는 4174
+  preview: {
+    port: 4173,
+    strictPort: true,
+  },
 });

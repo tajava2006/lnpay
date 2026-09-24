@@ -9,12 +9,15 @@ import { Maintenance } from './Maintenance';
  * 앱은 **동적 import**로 부른다 — 이 값이 true인 빌드에서는 그 분기가 통째로 빠져서
  * 앱 코드가 번들에 아예 안 들어간다(구독·저장소·푸시 등록이 돌 여지가 없다).
  * 다시 열 때 false로.
+ *
+ * `__LOCAL_OPEN__` — prod 데몬과 로컬에서 실결제 테스트를 하려고 prod 빌드를 여는 스위치
+ * (`pnpm preview:customer`). 빌드 때 박히는 상수라 배포 빌드에서는 위 분기 제거가 그대로다.
  */
 const MAINTENANCE = true;
 
 const root = createRoot(document.getElementById('root')!);
 
-if (MAINTENANCE && !import.meta.env.DEV) {
+if (MAINTENANCE && !import.meta.env.DEV && !__LOCAL_OPEN__) {
   root.render(
     <StrictMode>
       <Maintenance />

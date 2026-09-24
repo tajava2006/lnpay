@@ -29,7 +29,9 @@
 
 ⚠️ **먼저 확인** (데몬):
 
-- 데몬을 **dev 모드**로 따로 띄운다 — `LNPAY_MODE=dev`(태그가 `-dev`로 갈려 운영 데이터와 안 섞인다),
+- 데몬을 **dev 모드**로 따로 띄운다 — `LNPAY_MODE=dev`(태그가 `-dev`로 갈려 운영 데이터와 안 섞인다).
+  ⚠️ **데이터 디렉터리도 따로**(`LNPAY_DATA_DIR` — compose의 `./lnpay-data`를 같이 쓰지 않는다). 데몬은 모드를 DB에
+  박지 않아서, 같은 DB면 dev 오더가 prod 데몬에 넘어가 prod 태그로 다시 나간다. 그리고
   `LNPAY_ONCHAIN_NETWORK=signet`, 필요하면 `LNPAY_ONCHAIN_API`(공개 mempool.space가 막히면). 네트워크는
   배포 설정이라 운영 중에 바꾸지 않는다 — 진행 중 주문의 주소가 다른 체인의 것이 된다.
 - 어드민 앱(dev 빌드) 데몬 탭 → 운영 설정에서 **"온체인 새 의뢰 받기"**를 켠다(기본 꺼짐).

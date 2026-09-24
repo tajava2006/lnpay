@@ -117,6 +117,13 @@ export class Daemon {
       const t = tagValue(event, 't');
       const action = tagValue(event, 'action');
       if (t === deps.tags.admin && action === ADMIN_ACTIONS.COMMAND) return adminHandler;
+      if (action === ADMIN_ACTIONS.COMMAND) {
+        // 어드민 앱을 다른 모드로 띄웠다(`pnpm dev:admin`은 -dev 태그) — 서로 못 보는데 아무 말이 없으면 한참 헤맨다
+        log.warn('다른 모드의 운영자 명령 — 어드민 앱 빌드 모드와 LNPAY_MODE를 맞춰야 한다', {
+          got: t ?? null, expected: deps.tags.admin, from: event.pubkey.slice(0, 8),
+        });
+        return null;
+      }
       if ((t === deps.tags.ln || t === deps.tags.onchain) && action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
         return chatForwarder;
       }

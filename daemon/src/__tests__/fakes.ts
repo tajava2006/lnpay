@@ -13,7 +13,7 @@ import type { PublishReport, RelayTransport, Subscription } from '../nostr/trans
 import type { AppKey } from '../secrets';
 import { tagsFor } from '../config';
 import { Db } from '../db';
-import { silentLogger } from '../log';
+import { silentLogger, type Logger } from '../log';
 import { Daemon } from '../runtime';
 import type { OrderDirectory, OrderParties } from '../orders/directory';
 import type { LnDeps } from '../ln';
@@ -176,6 +176,7 @@ export function createHarness(opts: {
   operators?: number;
   ln?: (clock: { now: number }) => LnDeps;
   onchain?: (clock: { now: number }) => OcDeps;
+  log?: Logger;
 } = {}): Harness {
   const clock = { now: T0 };
   const relay = new FakeRelay(() => clock.now);
@@ -192,7 +193,7 @@ export function createHarness(opts: {
         db, transport: relay, appKey: appKeyOf(app), seed: new Uint8Array(32).fill(7),
         mode: 'dev', tags: TEST_TAGS, relays: ['wss://fake'], operators: operators.map(o => o.pubkey),
         epoch: Math.floor(T0 / 1000) - 3600, lookbackSec: 3600, resubscribeSec: 300,
-        tickMs: 15_000, holdMs: 1_500, nowMs: () => clock.now, log: silentLogger, directory,
+        tickMs: 15_000, holdMs: 1_500, nowMs: () => clock.now, log: opts.log ?? silentLogger, directory,
         ...(lnDeps ? { ln: lnDeps } : {}),
         ...(ocDeps ? { onchain: ocDeps } : {}),
       });

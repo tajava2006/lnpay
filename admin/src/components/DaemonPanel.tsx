@@ -6,7 +6,7 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import {
-  ADMIN_STATE_STALE_SEC, MAX_DEPOSIT_PCT,
+  ADMIN_STATE_STALE_SEC, CLIENT_TAG_ADMIN, MAX_DEPOSIT_PCT,
   type AdminAlert, type AdminCommandResult, type DaemonSettings,
 } from '@sajwo-tracker/shared';
 import { sendCommand } from '../daemon/client';
@@ -62,10 +62,22 @@ export function DaemonPanel() {
             </dd>
           </dl>
         ) : (
-          <p style={styles.note}>
-            데몬이 이 운영자 키로 상태를 보내면 여기 뜹니다. 한참 안 뜨면 데몬 설정의
-            <code> LNPAY_OPERATORS</code>에 이 키가 들어 있는지 확인하세요.
-          </p>
+          <div style={styles.note}>
+            <p style={styles.note}>
+              데몬이 이 운영자 키로 상태를 보내면 여기 뜹니다. 이 앱은 <code>{CLIENT_TAG_ADMIN}</code> 태그로
+              데몬을 찾고 있습니다. 한참 안 뜨면:
+            </p>
+            <ol style={styles.hintList}>
+              {/* 2026-09-24 실제로 이걸로 헤맸다 — pnpm dev는 -dev 태그라 prod 데몬과 서로 못 본다 */}
+              <li>
+                <b>데몬 모드와 이 빌드가 같은가</b> — <code>LNPAY_MODE=prod</code> 데몬이면 이 앱도 prod 빌드여야
+                합니다. <code>pnpm dev:admin</code>은 <code>-dev</code> 태그라 prod 데몬과 서로 못 봅니다.
+                로컬에서 prod로 보려면 <code>pnpm preview:admin</code>.
+              </li>
+              <li>데몬 설정 <code>LNPAY_OPERATORS</code>에 이 로그인 키(hex)가 들어 있는가.</li>
+              <li>데몬 로그에 "다른 모드의 운영자 명령"이 찍히는가 (ping을 누른 뒤).</li>
+            </ol>
+          </div>
         )}
         <PingButton />
       </section>
@@ -212,6 +224,7 @@ const styles = {
   bad: { background: '#FEE2E2', color: '#991B1B' },
   dl: { display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 16px', margin: 0, fontSize: 13, color: '#374151', wordBreak: 'break-all' as const },
   note: { fontSize: 12, color: '#6B7280', margin: 0 },
+  hintList: { fontSize: 12, color: '#6B7280', margin: '6px 0 0', paddingLeft: 18, lineHeight: 1.6 },
   warnText: { color: '#B45309' },
   button: { padding: '8px 16px', fontSize: 13, fontWeight: 600 as const, background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
   smallButton: { padding: '6px 12px', fontSize: 12, background: '#E5E7EB', color: '#374151', border: 'none', borderRadius: 6, cursor: 'pointer' },

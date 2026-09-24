@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Event } from 'nostr-tools/core';
 import { tagsFor } from '../config';
 import { Db } from '../db';
+import { silentLogger } from '../log';
 import { backoffMs } from '../effects';
 import { DAEMON_VERSION, type Daemon } from '../runtime';
 import { ADMIN_ACTIONS } from '@sajwo-tracker/shared/core';
@@ -87,12 +88,15 @@ describe('명령 확인 (§5.2)', () => {
     expect(results(h)).toHaveLength(0);
   });
 
-  it('다른 트랙 태그로 온 명령은 받지 않는다', async () => {
-    const h = harness();
+  /** 2026-09-24: `pnpm dev:admin`(-dev 태그)으로 prod 데몬에 붙으려다 아무 말 없이 안 됐다 — 로그로라도 말한다 */
+  it('다른 모드 태그로 온 명령은 받지 않고, 그렇다고 로그에 남긴다', async () => {
+    const warnings: string[] = [];
+    const h = createHarness({ log: { ...silentLogger, warn: msg => { warnings.push(msg); } } });
     const daemon = h.start(new Db(':memory:'));
     h.relay.inject(adminCommand(h.operator, h.app.pubkey, tagsFor('prod').admin, { cmd: 'ping' }, sec(h)));
     await settle(h, daemon);
     expect(results(h)).toHaveLength(0);
+    expect(warnings.some(w => /다른 모드의 운영자 명령/.test(w))).toBe(true);
   });
 });
 

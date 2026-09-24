@@ -2,11 +2,12 @@
  * 오더 목록 (PLAN-DAEMON §6)
  *
  * 공개 오더 이벤트를 그대로 보여준다. 줄을 누르면 상세·판정·채팅으로 간다.
+ * 데몬이 받기 시작한 뒤(epoch)의 오더만 있다 — 옛 프론트 어드민 시절 것은 피드가 거른다.
  */
 import { useSyncExternalStore } from 'react';
 import { isTerminalState, stateDisplay } from '@sajwo-tracker/shared';
 import { isOnchainTerminal, onchainStateDisplay } from '@sajwo-tracker/shared/onchain';
-import { lnOrders, onchainOrders } from '../daemon/stores';
+import { daemonEpoch, daemonState, lnOrders, onchainOrders } from '../daemon/stores';
 
 interface Row {
   orderId: string;
@@ -20,6 +21,7 @@ interface Row {
 
 export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void }) {
   const orders = useSyncExternalStore(lnOrders.subscribe, lnOrders.get);
+  const empty = useEmptyText();
   const rows: Row[] = Object.values(orders).map(o => {
     const d = stateDisplay(o.state);
     return {
@@ -27,11 +29,12 @@ export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void 
       amount: `${o.price.toLocaleString()}원`, updatedAt: o.updatedAt, done: isTerminalState(o.state),
     };
   });
-  return <Table title="라이트닝 오더" rows={rows} onSelect={onSelect} />;
+  return <Table title="라이트닝 오더" rows={rows} onSelect={onSelect} empty={empty} />;
 }
 
 export function OnchainOrderList({ onSelect }: { onSelect: (orderId: string) => void }) {
   const orders = useSyncExternalStore(onchainOrders.subscribe, onchainOrders.get);
+  const empty = useEmptyText();
   const rows: Row[] = Object.values(orders).map(o => {
     const d = onchainStateDisplay(o.state);
     return {
@@ -39,18 +42,27 @@ export function OnchainOrderList({ onSelect }: { onSelect: (orderId: string) => 
       amount: `${o.amountSat.toLocaleString()} sats`, updatedAt: o.updatedAt, done: isOnchainTerminal(o.state),
     };
   });
-  return <Table title="온체인 오더" rows={rows} onSelect={onSelect} />;
+  return <Table title="온체인 오더" rows={rows} onSelect={onSelect} empty={empty} />;
 }
 
-function Table({ title, rows, onSelect, note }: {
-  title: string; rows: Row[]; onSelect?: (orderId: string) => void; note?: string;
+/** 비어 있는 이유 — epoch를 모르면 아직 구독을 열지 않았다 */
+function useEmptyText(): string {
+  useSyncExternalStore(daemonState.subscribe, daemonState.get);
+  const epoch = daemonEpoch();
+  return epoch === null
+    ? '데몬 상태를 받으면 불러옵니다 (데몬이 받기 시작한 뒤의 오더만).'
+    : `오더가 없습니다 (${new Date(epoch * 1000).toLocaleString('ko-KR')} 이후).`;
+}
+
+function Table({ title, rows, onSelect, note, empty }: {
+  title: string; rows: Row[]; onSelect?: (orderId: string) => void; note?: string; empty: string;
 }) {
   const sorted = [...rows].sort((a, b) => Number(a.done) - Number(b.done) || b.updatedAt - a.updatedAt);
   return (
     <section style={styles.card}>
       <h2 style={styles.h2}>{title} <span style={styles.note}>{rows.length}건{note ? ` · ${note}` : ''}</span></h2>
       {rows.length === 0 ? (
-        <p style={styles.note}>릴레이에 오더가 없습니다.</p>
+        <p style={styles.note}>{empty}</p>
       ) : (
         <div style={styles.scroll}>
           <table style={styles.table}>

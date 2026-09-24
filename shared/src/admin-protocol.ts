@@ -165,6 +165,11 @@ export interface AdminState {
   daemonVersion: string;
   mode: 'prod' | 'dev';
   startedAt: number;
+  /**
+   * 데몬이 받기 시작한 시각 (`LNPAY_EPOCH`, 첫 부팅 때 고정). 오더는 전부 이 뒤에 만들어졌다 —
+   * 어드민은 이 전의 오더 이벤트(옛 프론트 어드민 시절)를 구독하지도, 보여주지도 않는다.
+   */
+  epoch: number;
   /** 이 상태를 만든 시각 — 어드민 화면은 이게 오래되면 "데몬 응답 없음"을 띄운다 */
   heartbeatAt: number;
   relays: string[];

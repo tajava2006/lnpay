@@ -54,6 +54,12 @@ export function DaemonPanel() {
           <dl style={styles.dl}>
             <dt>버전</dt><dd>{state.daemonVersion} ({state.mode})</dd>
             <dt>시작</dt><dd>{new Date(state.startedAt * 1000).toLocaleString('ko-KR')}</dd>
+            <dt>받기 시작</dt>
+            <dd>
+              {typeof state.epoch === 'number'
+                ? `${new Date(state.epoch * 1000).toLocaleString('ko-KR')} — 이 전의 오더는 보지 않는다`
+                : '모름 — 데몬이 옛 버전이다(다시 빌드). 그 전까지 오더 목록은 비어 있다'}
+            </dd>
             <dt>릴레이</dt><dd>{state.relays.join(', ')}</dd>
             <dt>효과 대기</dt>
             <dd>

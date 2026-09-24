@@ -19,6 +19,8 @@ export interface AdminContext {
   directory: OrderDirectory;
   version: string;
   startedAt: number;
+  /** 받기 시작한 시각 (`resolveEpoch`) — 운영자 상태에 실어 어드민이 그 전 오더를 거른다 */
+  epoch: number;
   nowMs: () => number;
   log: Logger;
 }

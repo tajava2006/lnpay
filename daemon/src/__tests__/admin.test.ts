@@ -11,6 +11,8 @@ import {
   type AdminChatCopy, type AdminState,
 } from '@sajwo-tracker/shared/core';
 import { raiseAlert } from '../admin/alerts';
+import { Db } from '../db';
+import { resolveEpoch } from '../nostr/ingress';
 import { STATE_INTERVAL_MS } from '../admin/state';
 import { checkTarget } from '../orders/directory';
 import {
@@ -97,6 +99,20 @@ describe('운영자 상태 (§5.3)', () => {
     const second = latestState(h, h.operator);
     expect(second.event.created_at).toBeGreaterThan(first.event.created_at);
     expect(second.state.heartbeatAt).toBeGreaterThan(first.state.heartbeatAt);
+  });
+
+  it('받기 시작한 시각(epoch)을 싣는다 — 어드민이 그 전의 오더를 거르는 기준', async () => {
+    const h = createHarness();
+    const epoch = h.sec() - 3600; // 하네스가 넘기는 값
+    const daemon = h.start();
+    await daemon.tick();
+    expect(latestState(h, h.operator).state.epoch).toBe(epoch);
+  });
+
+  it('epoch는 첫 부팅 값에 고정된다 — 설정을 바꿔도 움직이지 않는다', () => {
+    const db = new Db(':memory:');
+    expect(resolveEpoch(db, 1_000)).toBe(1_000);
+    expect(resolveEpoch(db, 2_000)).toBe(1_000);
   });
 
   /** addressable은 created_at이 같으면 id가 작은 쪽이 남는다 — 같은 초 두 발행에서 옛 상태가 남으면 안 된다 */

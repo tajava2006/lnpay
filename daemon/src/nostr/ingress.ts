@@ -29,6 +29,17 @@ const MAX_FUTURE_SKEW_SEC = 5 * 60;
 const KV_EPOCH = 'ingress.epoch';
 const KV_CURSOR = 'ingress.cursor';
 
+/**
+ * "여기부터 받는다" — 첫 부팅 때 설정값을 박고, 이후에는 박힌 값을 쓴다(`LNPAY_EPOCH`를 바꿔도 안 움직인다).
+ * 어드민 앱도 이 값을 받아 그 전의 오더(옛 프론트 어드민 시절)를 보지 않는다.
+ */
+export function resolveEpoch(db: Db, configured: number): number {
+  const saved = db.kvGet(KV_EPOCH);
+  if (saved !== undefined) return Number(saved);
+  db.kvSet(KV_EPOCH, String(configured));
+  return configured;
+}
+
 export class Ingress {
   private sub: Subscription | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -43,13 +54,7 @@ export class Ingress {
     /** 새 이벤트가 들어왔음을 알린다 — 틱을 기다리지 않고 처리하게 */
     private readonly onNew: () => void = () => {},
   ) {
-    const saved = db.kvGet(KV_EPOCH);
-    if (saved === undefined) {
-      db.kvSet(KV_EPOCH, String(opts.epoch));
-      this.epoch = opts.epoch;
-    } else {
-      this.epoch = Number(saved);
-    }
+    this.epoch = resolveEpoch(db, opts.epoch);
   }
 
   start(): void {

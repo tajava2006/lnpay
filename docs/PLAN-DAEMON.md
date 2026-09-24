@@ -266,6 +266,18 @@ content = NIP-44(운영자 → APP, { cmd, args, orderId?, expectVersion? })
 `HistoryPage`(지금은 어드민 기기의 IDB)는 종결 오더의 공개 이벤트 + 오더별 비공개 상세로 다시 만든다.
 보존 기간이 지난 것은 데몬 DB에만 남는다 — 필요해지면 조회 명령을 추가한다.
 
+**저장 정책 (2026-09-24 확정).** 장부는 데몬 SQLite 하나다. 어드민 브라우저는 **캐시만** 가진다 — localStorage
+`admin2:*`(데몬 상태·채팅 사본·두 트랙 오더·상세), IndexedDB 없음, 명령 결과는 메모리. 날아가도 릴레이에서
+다시 채워지고 로그아웃하면 비운다. 캐시는 릴레이보다 오래 살지 않는다(`pruneStores` — 보존이 끝난 오더·상세,
+그 오더의 채팅).
+
+**epoch 컷.** 옛 프론트 어드민이 **같은 APP 키·같은 태그**로 낸 오더가 릴레이에 남아 있다(NIP-40을 안 지키는
+릴레이도 있다). 그래서 데몬이 운영자 상태에 `epoch`(첫 부팅 때 고정된 `LNPAY_EPOCH`)를 싣고, 어드민은
+epoch를 알 때만 오더를 `since: epoch`로 구독하며 받을 때도 거른다. **epoch를 모르면(상태 전·옛 데몬) 오더를
+하나도 보여주지 않는다.** 옛 어드민 저장소(`admin:*`·`admin-history`·VAPID 키 등)는 부팅 때 한 번 **전부**
+지운다 — 지금 로그인 세션만 남긴다(`admin/src/legacy-storage.ts`. 옛 거래는 전부 종결·버린 테스트, VAPID 키는
+`vapid.key`로 따로 백업됨 — 운영자 확인).
+
 ---
 
 # §7. 라이트닝 트랙 — 옮기면서 고칠 것
@@ -512,7 +524,8 @@ VAPID 키 파일). 문서: PROTOCOL 라이트닝 절은 고쳤고, ARCHITECTURE�
 ### P5 출시 준비 — 🟡 코드·문서 완료, 운영 PC 작업 남음 (2026-09-24)
 
 - my-server `docker-compose.yml`에 `lnpay-daemon` 서비스(포트 없음, `ark-net`, 호스트 LND REST `172.28.0.1:8080`,
-  `lnpay-secrets/`·`lnpay-data/`) + `.gitignore`. **my-server 쪽은 커밋하지 않았다**(별도 레포 — 확인 뒤).
+  `lnpay-secrets/`·`lnpay-data/`) + `.gitignore` (my-server `b485a09`).
+- 어드민 epoch 컷·캐시 청소·옛 저장소 청소 (§6 저장 정책) — 옛 오더가 어드민에 보이던 것을 막는다.
 - 데몬이 하루 한 번 DB 스냅숏(`backup.ts`, `VACUUM INTO`, 최근 7벌).
 - VAPID 개인키 되찾기 스크립트(`daemon/scripts/recover-vapid.mjs` — 옛 어드민의 릴레이 백업을 APP 키로 푼다).
 - 옛 웹 푸시 중계 설정(`deploy/nginx-push-proxy.conf`) 삭제 — 데몬이 직접 보낸다.

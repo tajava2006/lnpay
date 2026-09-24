@@ -44,6 +44,7 @@ export function buildAdminState(ctx: AdminContext): AdminState {
     daemonVersion: ctx.version,
     mode: ctx.mode,
     startedAt: ctx.startedAt,
+    epoch: ctx.epoch,
     heartbeatAt: nowSec(ctx),
     relays: [...ctx.relays],
     settings: loadSettings(ctx.db),

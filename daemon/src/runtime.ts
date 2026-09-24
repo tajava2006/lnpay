@@ -15,7 +15,7 @@ import type { Db } from './db';
 import { Dispatcher, tagValue, type Router } from './dispatch';
 import { Effects } from './effects';
 import type { Logger } from './log';
-import { Ingress } from './nostr/ingress';
+import { Ingress, resolveEpoch } from './nostr/ingress';
 import { createPublishExecutor, PUBLISH_EFFECT } from './nostr/publisher';
 import type { RelayTransport } from './nostr/transport';
 import { createAdminHandler, createBaseCommands, type CommandRegistry } from './admin/commands';
@@ -88,7 +88,7 @@ export class Daemon {
     this.admin = {
       db, effects: this.effects, appKey: deps.appKey, operators: deps.operators, tags: deps.tags,
       mode: deps.mode, relays: deps.relays, directory,
-      version: DAEMON_VERSION, startedAt: Math.floor(nowMs() / 1000), nowMs, log,
+      version: DAEMON_VERSION, startedAt: Math.floor(nowMs() / 1000), epoch: resolveEpoch(db, deps.epoch), nowMs, log,
     };
 
     this.effects.register(PUBLISH_EFFECT, createPublishExecutor(deps.transport, nowMs));

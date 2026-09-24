@@ -149,14 +149,15 @@ export function deleteOrder(orderId: string): void {
   notify();
 }
 
-/** 삭제 가능한 주문을 모두 삭제한다. 거래 중인 건이 있으면 false 반환. */
-export function clearDeletableOrders(canDelete: (o: CustomerOrder) => boolean): boolean {
-  const allDeletable = Object.values(orders).every(canDelete);
-  if (!allDeletable) return false;
-  orders = {};
+/** 지워도 되는 주문만 지운다 — 진행 중인 건 남긴다. 지운 개수를 돌려준다 */
+export function clearDeletableOrders(canDelete: (o: CustomerOrder) => boolean): number {
+  const kept = Object.fromEntries(Object.entries(orders).filter(([, o]) => !canDelete(o)));
+  const removed = Object.keys(orders).length - Object.keys(kept).length;
+  if (removed === 0) return 0;
+  orders = kept;
   saveToStorage();
   notify();
-  return true;
+  return removed;
 }
 
 export function markSynced(): void {

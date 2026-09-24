@@ -9,7 +9,7 @@ import { REQUEST_ACTIONS } from '@sajwo-tracker/shared/core';
 import { computeEscrowSat, computePayoutSat } from '@sajwo-tracker/shared/ln';
 import { BTC_KRW, createLnHarness, latestOrderEvent, tagOf } from './ln-fakes';
 import {
-  DAY, HOUR, claim, confirmPaid, messagesTo, openOrder, payEscrow, remit, sendAccount, setDeposits,
+  DAY, HOUR, claim, confirmPaid, messagesTo, openOrder, payEscrow, remit, sendAccount, setAutoApprove, setDeposits,
   submitInvoice, toRemitted,
 } from './ln-helpers';
 
@@ -169,12 +169,15 @@ describe('보증금 (D5)', () => {
     expect(h.order(orderId)!.state).toBe('claimed');
     const required = messagesTo(h, h.sponsor.pubkey, REQUEST_ACTIONS.DEPOSIT_REQUIRED);
     expect(required).toHaveLength(1);
+    // 공개 오더가 "보증금 대기"를 싣는다 — 양쪽 화면이 아직 "후원자 찾는 중"으로 그린다
+    expect(tagOf(latestOrderEvent(h.relay.published, orderId), 'sponsor-deposit')).toBe('pending');
 
     h.node.pay(tagOf(required[0], 'bolt11')!);
     await h.run();
     const o = h.order(orderId)!;
     expect(o.state).toBe('verified');
     expect(o.sponsor_deposit_hash).toBeTruthy();
+    expect(tagOf(latestOrderEvent(h.relay.published, orderId), 'sponsor-deposit')).toBeUndefined();
 
     await payEscrow(h, orderId);
     await submitInvoice(h, orderId);
@@ -182,6 +185,38 @@ describe('보증금 (D5)', () => {
     expect(h.order(orderId)!.state).toBe('paid');
     expect(h.node.stateOf(o.sponsor_deposit_hash!)).toBe('cancelled');
     expect(messagesTo(h, h.sponsor.pubkey, REQUEST_ACTIONS.DEPOSIT_CANCELLED)).toHaveLength(1);
+  });
+
+  it('보증금이 들어오면 승인 전이라도 "대기"가 풀린다 · 보증금이 없으면 처음부터 없다', async () => {
+    const h = await createLnHarness();
+    setAutoApprove(h, false);
+    setDeposits(h, 0, 3);
+    const orderId = await openOrder(h);
+    await claim(h, orderId);
+    h.node.pay(tagOf(messagesTo(h, h.sponsor.pubkey, REQUEST_ACTIONS.DEPOSIT_REQUIRED)[0], 'bolt11')!);
+    await h.run();
+    const ev = latestOrderEvent(h.relay.published, orderId);
+    expect(tagOf(ev, 'state')).toBe('claimed');
+    expect(tagOf(ev, 'sponsor-deposit')).toBeUndefined();
+    expect(tagOf(ev, 'sponsor-deposit-payment-hash')).toBe(h.order(orderId)!.sponsor_deposit_hash);
+
+    setDeposits(h, 0, 0);
+    const plain = await openOrder(h);
+    await claim(h, plain);
+    expect(tagOf(latestOrderEvent(h.relay.published, plain), 'state')).toBe('claimed');
+    expect(tagOf(latestOrderEvent(h.relay.published, plain), 'sponsor-deposit')).toBeUndefined();
+  });
+
+  it('클레임이 풀리면 "대기"도 사라진다', async () => {
+    const h = await createLnHarness();
+    setDeposits(h, 0, 3);
+    const orderId = await openOrder(h);
+    await claim(h, orderId);
+    h.advance(15 * 60 + 90);
+    await h.run();
+    const ev = latestOrderEvent(h.relay.published, orderId);
+    expect(tagOf(ev, 'state')).toBe('requested');
+    expect(tagOf(ev, 'sponsor-deposit')).toBeUndefined();
   });
 
   /** AUDIT-EXPIRY F6 — 보증금 없이 클레임만 걸어 두는 공짜 점유 */
@@ -254,5 +289,33 @@ describe('유저 알림 (웹 푸시)', () => {
     await sendAccount(h, orderId);
     await remit(h, orderId); // remitted — 고객에게 알림을 보내야 하지만 구독이 죽었다
     expect(h.push.sent.length).toBe(sentBefore);
+  });
+
+  /** 2026-09-24 mainnet 드릴 — 클레임 뒤 보증금 인보이스가 나왔는데 알림이 없었다(상태 전이가 아니라서) */
+  it('보증금을 내야 할 때도 알린다 — 인보이스마다 한 번', async () => {
+    const h = await createLnHarness();
+    const { nip44Encrypt } = await import('@sajwo-tracker/shared/core');
+    const { lnRequest } = await import('./ln-fakes');
+    const subscribe = async (who: typeof h.sponsor, endpoint: string) => {
+      const sub = { endpoint, p256dh: 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', auth: 'BTBZMqHH6r4Tts7J_aSIgg' };
+      await h.send(lnRequest(who, h.app.pubkey, null, REQUEST_ACTIONS.PUSH_SUBSCRIPTION, h.sec(), [],
+        nip44Encrypt(JSON.stringify(sub), who.secretKey, h.app.pubkey)));
+    };
+    await subscribe(h.customer, 'https://push.example/customer');
+    await subscribe(h.sponsor, 'https://push.example/sponsor');
+    const to = (endpoint: string) => h.push.sent.filter(s => s.url === endpoint).length;
+    expect(to('https://push.example/customer')).toBe(1); // 등록 확인
+    expect(to('https://push.example/sponsor')).toBe(1);
+
+    setDeposits(h, 2, 3);
+    const orderId = await openOrder(h);
+    expect(to('https://push.example/customer')).toBe(2); // 고객 보증금
+    h.node.pay(tagOf(messagesTo(h, h.customer.pubkey, REQUEST_ACTIONS.DEPOSIT_REQUIRED)[0], 'bolt11')!);
+    await h.run();
+
+    await claim(h, orderId);
+    expect(to('https://push.example/sponsor')).toBe(2); // 후원자 보증금
+    await h.run(4);
+    expect(to('https://push.example/sponsor')).toBe(2); // 다시 돌아도 한 번
   });
 });

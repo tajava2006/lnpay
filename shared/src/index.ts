@@ -81,12 +81,14 @@ export { InvoicePayBlock } from './components/InvoicePayBlock';
 export { OrderProgress } from './components/OrderProgress';
 
 // 거래 진행도 (고객·후원자 공용 단계 모델)
-export { STATE_DISPLAY, stateDisplay } from './order-display';
+export { SPONSOR_DEPOSIT_PENDING_DISPLAY, STATE_DISPLAY, lnOrderDisplay, stateDisplay } from './order-display';
 export type { StateDisplay } from './order-display';
-export { canAttachParsedOrder, canSendAccountInfo, PROGRESS_STEPS, resolveProgress, stepActor } from './order-progress';
+export {
+  canAttachParsedOrder, canSendAccountInfo, PROGRESS_STEPS, resolveProgress, stepActor, summarizeProgress,
+} from './order-progress';
 export type {
   ProgressRole, StepStatus, StepActor, StepAction,
-  ProgressStep, ProgressContext, ResolvedStep, Progress, TerminalInfo,
+  ProgressStep, ProgressContext, ResolvedStep, Progress, TerminalInfo, ProgressSummary,
 } from './order-progress';
 
 // 후원자-오더 관계 판정

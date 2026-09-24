@@ -33,12 +33,12 @@ import type { AccountInfoEvent } from '../types';
 // ── Admin kind 30402 ───────────────────────────────
 
 /** 오더북에 반영하고, 내가 클레임한 건이면 IDB 아카이브도 갱신한다. */
-export function handleAdminOrder(event: Event): void {
+export function handleAdminOrder(event: Event, myPubkey: string): void {
   const parsed = parseEvent(event);
   if (!parsed) return;
 
   upsertOrder(parsed);
-  void syncOrderToIdb(parsed);
+  void syncOrderToIdb(parsed, myPubkey);
 
   // 오더보다 먼저 도착한 계좌가 있으면 이제 발신자를 판정할 수 있다.
   const buffered = accountAwaitingOrder.get(parsed.orderId);
@@ -78,24 +78,24 @@ export function handleInboxEvent(event: Event): boolean {
     const orderId = extractOrderId(event.tags);
     const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
     if (orderId && bolt11) {
-      setDepositBolt11(orderId, bolt11);
+      setDepositBolt11(orderId, bolt11, event.created_at);
       console.log('[후원자] 보증금 요구:', orderId);
     }
     return true;
   }
   if (action === REQUEST_ACTIONS.DEPOSIT_ACCEPTED && event.pubkey === APP_PUBKEY) {
     const orderId = extractOrderId(event.tags);
-    if (orderId) setDepositStatus(orderId, 'accepted');
+    if (orderId) setDepositStatus(orderId, 'accepted', event.created_at);
     return true;
   }
   if (action === REQUEST_ACTIONS.DEPOSIT_CANCELLED && event.pubkey === APP_PUBKEY) {
     const orderId = extractOrderId(event.tags);
-    if (orderId) setDepositStatus(orderId, 'cancelled');
+    if (orderId) setDepositStatus(orderId, 'cancelled', event.created_at);
     return true;
   }
   if (action === REQUEST_ACTIONS.DEPOSIT_SETTLED && event.pubkey === APP_PUBKEY) {
     const orderId = extractOrderId(event.tags);
-    if (orderId) setDepositStatus(orderId, 'settled');
+    if (orderId) setDepositStatus(orderId, 'settled', event.created_at);
     return true;
   }
 
@@ -120,10 +120,17 @@ export function handleInboxEvent(event: Event): boolean {
 
 // ── IDB 동기화 (fire-and-forget) ─────────────────────
 
-async function syncOrderToIdb(order: Parameters<typeof idbUpsertOrder>[0]): Promise<void> {
+/**
+ * 내가 후원자인 오더는 IDB에 남긴다 — 릴레이는 보존이 끝나면 지우고, 내 거래 기록은 여기뿐이다.
+ * 한 번 들어간 오더는 계속 갱신한다(클레임이 풀려 내가 빠져도 — "풀렸다"가 남는다).
+ *
+ * 예전엔 "이미 있으면 갱신"만 있고 **넣는 쪽이 없어서** 후원자의 내 거래가 늘 비어 있었다
+ * (앱 통합 때 빠졌다, 2026-09-24 발견).
+ */
+async function syncOrderToIdb(order: Parameters<typeof idbUpsertOrder>[0], myPubkey: string): Promise<void> {
   try {
-    const exists = await idbHasOrder(order.orderId);
-    if (exists) await idbUpsertOrder(order);
+    const mine = order.sponsorPubkey === myPubkey;
+    if (mine || await idbHasOrder(order.orderId)) await idbUpsertOrder(order);
   } catch (err) {
     console.warn('[Sponsor] IDB order sync failed for', order.orderId, err);
   }

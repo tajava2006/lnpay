@@ -9,7 +9,7 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { nip19 } from 'nostr-tools';
-import { stateDisplay, type AdminCommandResult, type AdminLnOrderDetail, type Order } from '@sajwo-tracker/shared';
+import { lnOrderDisplay, type AdminCommandResult, type AdminLnOrderDetail, type Order } from '@sajwo-tracker/shared';
 import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
 import { sendCommand } from '../daemon/client';
 import { chats, lnDetails, lnOrders } from '../daemon/stores';
@@ -57,7 +57,8 @@ export function LnOrderDetail({ orderId, onBack }: { orderId: string; onBack: ()
   }, [orderId, detail]);
 
   const state = detail?.state ?? order?.state;
-  const display = state ? stateDisplay(state) : null;
+  // 보증금 대기는 공개 오더가 싣는다 — 상태가 아직 claimed일 때만 먹는다
+  const display = state ? lnOrderDisplay({ state, sponsorDepositPending: order?.sponsorDepositPending }) : null;
 
   return (
     <div style={styles.column}>

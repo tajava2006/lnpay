@@ -4,6 +4,7 @@ import {
   resolveProgress,
   stepActor,
   sponsorRelation,
+  summarizeProgress,
 } from '../index';
 import type { OrderState } from '../index';
 
@@ -178,5 +179,53 @@ describe('강제 종결 (admin_closed)', () => {
 
   it('환불된다는 설명이 붙는다', () => {
     expect(resolveProgress('customer', 'admin_closed').terminal?.description).toContain('환불');
+  });
+});
+
+/**
+ * 후원자 보증금을 기다리는 클레임 (2026-09-24 mainnet 드릴)
+ *
+ * 상태는 claimed인데 진행도가 "후원자 확정 · 에스크로 대기 중"으로 떴다 — 실제로는 후원자가 보증금을
+ * 내야 하고, 안 내면 클레임이 풀린다. 아직 확정이 아니다.
+ */
+describe('후원자 보증금 대기', () => {
+  const pending = { sponsorDepositPending: true };
+
+  it('사다리는 "후원자 찾는 중"에 서고, 후원자 차례다', () => {
+    const sponsor = resolveProgress('sponsor', 'claimed', pending);
+    expect(sponsor.currentIndex).toBe(idx('requested'));
+    expect(sponsor.steps[idx('requested')]!.isMyTurn).toBe(true);
+    expect(sponsor.steps[idx('claimed')]!.status).toBe('upcoming');
+    expect(resolveProgress('customer', 'claimed', pending).steps[idx('requested')]!.isMyTurn).toBe(false);
+  });
+
+  it('보증금이 걸려 있으면 보증금 안내에서 "요구될 수 있음"을 뗀다', () => {
+    const optional = (p: ReturnType<typeof resolveProgress>) =>
+      p.steps[idx('requested')]!.actions.filter(a => /보증금/.test(a.text)).map(a => a.optional);
+    expect(optional(resolveProgress('sponsor', 'claimed', pending))).toEqual([false]);
+    expect(optional(resolveProgress('sponsor', 'requested'))).toEqual([true]);
+    expect(optional(resolveProgress('customer', 'claimed', pending))).toEqual([false]);
+  });
+
+  it('보증금이 들어왔거나 없으면 "후원자 확정"', () => {
+    expect(resolveProgress('sponsor', 'claimed').currentIndex).toBe(idx('claimed'));
+    expect(summarizeProgress('customer', 'claimed').title).toBe('후원자 확정');
+    expect(summarizeProgress('customer', 'claimed', pending).title).toBe('후원자 찾는 중');
+  });
+
+  it('"지금은 보증금 없이 운영 중" 같은 운영값 추측을 박지 않는다 — 설정은 데몬에 있다', () => {
+    const texts = PROGRESS_STEPS.flatMap(s => [...s.customer, ...s.sponsor]).map(a => a.text).join('\n');
+    expect(texts).not.toMatch(/보증금 없이 운영/);
+  });
+});
+
+describe('summarizeProgress', () => {
+  it('종결이면 종결 이름, 차례 없음', () => {
+    expect(summarizeProgress('customer', 'expired')).toEqual({ title: '기한 만료', terminal: true, isMyTurn: false, actor: null });
+  });
+
+  it('진행 중이면 현재 단계와 누구 차례인지', () => {
+    expect(summarizeProgress('customer', 'verified')).toMatchObject({ title: '고객 결제', isMyTurn: true, actor: 'customer' });
+    expect(summarizeProgress('sponsor', 'verified')).toMatchObject({ isMyTurn: false, actor: 'customer' });
   });
 });

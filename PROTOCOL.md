@@ -134,6 +134,7 @@ Admin이 유일한 발행자이므로 모든 오더의 주소에 Admin pubkey가
 | `sponsor-invoice` | bolt11 | 검증을 통과한 지급처 (invoiced 이후) |
 | `disbursed` | `true` | 지급 완료 |
 | `customer-deposit-payment-hash` / `sponsor-deposit-payment-hash` | hex | 받은 보증금 |
+| `sponsor-deposit` | `pending` | `claimed`인데 후원자 보증금을 아직 안 냈다 — 양쪽 앱이 진행도를 **"후원자 찾는 중"**, 배지를 **"보증금 대기"**로 그린다(안 내면 클레임이 풀리므로 아직 확정이 아니다). 보증금이 들어오면 빠지고 `sponsor-deposit-payment-hash`가 생긴다 |
 | `close-reason` | `LnCloseReason` | 종결 사유 — 화면이 "왜 끝났는지"를 말한다(아래 표) |
 
 > **거래 마감(`deadline`)과 보존(`expiration`)을 가른다** (PLAN-DAEMON §7 L-1, 2026-09-24).
@@ -818,11 +819,11 @@ Sponsor가 클레임만 하고 KRW를 입금하지 않는 트롤링을 차단한
 Sponsor                          Admin
    │                               │
    │  ① claim 발행                 │
-   │  (kind 1111 + bolt11)         │
+   │  (kind 1111)                  │
    │ ─────────────────────────────→│
    │                               │
    │  ② deposit hold invoice       │
-   │ ←─────────────────────────────│  (deposit-required)
+   │ ←─────────────────────────────│  (deposit-required + 웹 푸시, 30402에 sponsor-deposit=pending)
    │                               │
    │  ③ hold invoice 결제          │
    │ ─────────────────────────────→│  (deposit-accepted → 승인 가능)
@@ -833,10 +834,15 @@ Sponsor                          Admin
    │ ←─── BTC 즉시 반환 ───────────│
 ```
 
-**보증금 생명주기**:
-- `paid` / `sponsor_wins` → cancel (전액 환불): 정상 거래 또는 Sponsor 승리
-- `customer_wins` → settle (몰수): Sponsor 트롤링 인정
-- 기타 → Admin 수동 판단
+**보증금 생명주기** — 진실은 닫기 사유 표(`shared/src/ln/outcomes.ts` `CLOSE_RULES`):
+- 후원자 보증금 몰수는 둘뿐이다: `customer_wins`(분쟁 패배), `expired:no-invoice`(에스크로 뒤 인보이스 미등록 이탈)
+- 그 밖에는 전부 cancel (전액 환불)
+- 제한 시간(15분) 안에 안 내면 클레임이 풀린다(`claimed → requested`) — 낸 게 없으니 몰수도 없다
+
+**클레임 뒤 보증금을 기다리는 동안은 아직 "후원자 찾는 중"이다** (2026-09-24 mainnet 드릴). 예전엔 상태가
+`claimed`라 양쪽 진행도가 "후원자 확정 · 에스크로 대기 중"으로 떴고, 보증금 인보이스에는 알림도 없었다(전이가
+아니라서). 이제 30402가 `sponsor-deposit=pending`을 싣고, 인보이스가 생기면 그 사람에게 웹 푸시가 간다
+(고객 보증금도 같다). 푸시를 누르면 그 오더 화면(`?order=`)이 열린다.
 
 #### Lightning 노드 블랙리스트 (보류, 추가 방어)
 

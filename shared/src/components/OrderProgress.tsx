@@ -7,6 +7,8 @@ interface Props {
   state: OrderState;
   /** escrowed 단계에서 고객이 계좌정보를 이미 보냈는지 — 누구 차례인지 갈린다 */
   accountInfoSent?: boolean;
+  /** 후원자 보증금 대기 — 사다리가 "후원자 찾는 중"에 선다 */
+  sponsorDepositPending?: boolean;
 }
 
 const ACTOR_LABEL: Record<string, string> = {
@@ -21,8 +23,8 @@ const ACTOR_LABEL: Record<string, string> = {
  * 각 단계의 할 일을 늘 펼쳐두어 사용설명서 역할을 겸한다 —
  * 처음 쓰는 사람이 다음에 뭘 해야 하는지 따로 찾아보지 않아도 되게.
  */
-export function OrderProgress({ role, state, accountInfoSent }: Props) {
-  const { steps, terminal, total } = resolveProgress(role, state, { accountInfoSent });
+export function OrderProgress({ role, state, accountInfoSent, sponsorDepositPending }: Props) {
+  const { steps, terminal, total } = resolveProgress(role, state, { accountInfoSent, sponsorDepositPending });
 
   return (
     <div style={styles.container}>

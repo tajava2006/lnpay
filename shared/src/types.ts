@@ -42,6 +42,11 @@ export interface Order {
   /** 후원자 보증금 hold invoice payment hash (cancel/settle용) */
   sponsorDepositPaymentHash?: string;
   /**
+   * `claimed`인데 후원자 보증금이 아직이다 — 진행도는 "후원자 찾는 중", 배지는 "보증금 대기".
+   * 보증금이 들어오면 사라지고 `sponsorDepositPaymentHash`가 생긴다
+   */
+  sponsorDepositPending?: boolean;
+  /**
    * 이 이벤트가 릴레이에서 사라지는 시각 (NIP-40). `expiration`(거래 마감)과 다르다 —
    * 진행 중 거래는 마감 뒤에도 이어지므로 목록에서 지울 때는 이걸 본다 (PLAN-DAEMON §7 L-1).
    */

@@ -526,6 +526,15 @@ VAPID 키 파일). 문서: PROTOCOL 라이트닝 절은 고쳤고, ARCHITECTURE�
 - my-server `docker-compose.yml`에 `lnpay-daemon` 서비스(포트 없음, `ark-net`, 호스트 LND REST `172.28.0.1:8080`,
   `lnpay-secrets/`·`lnpay-data/`) + `.gitignore` (my-server `b485a09`).
 - 어드민 epoch 컷·캐시 청소·옛 저장소 청소 (§6 저장 정책) — 옛 오더가 어드민에 보이던 것을 막는다.
+- **라이트닝 mainnet 드릴 피드백 (2026-09-24, 기능 문제는 없음)**:
+  - 후원자 보증금을 기다리는 `claimed`가 "후원자 확정 · 에스크로 대기 중"으로 보였다 → 30402에 `sponsor-deposit=pending`,
+    진행도는 "후원자 찾는 중", 배지는 "보증금 대기". 보증금 인보이스(고객·후원자)에 웹 푸시(전이가 아니라 빠져 있었다).
+    푸시 링크에 `?order=`를 실어 누르면 그 오더 화면이 열린다(두 트랙 공통).
+  - 같은 의뢰가 탭마다 다른 컴포넌트였다(에스크로 결제는 의뢰하기 탭에서만) → 유저 앱 `src/ln/LnOrderCard` 하나로.
+    할 일은 `card-view.ts`가 데이터(역할·상태·역할별 로컬 기록)로 정한다. 온체인 카드와 같은 원칙.
+  - 어드민 분쟁 채팅이 고객·후원자 섞여 있었다 → 대화별로 나누고 입력칸도 따로(`splitThreads`).
+  - 덤으로 발견: 후원자 오더를 IDB에 **넣는 코드가 없어** 후원자의 내 거래가 늘 비어 있었다(앱 통합 때 빠짐).
+    보증금 스토어는 다시 잡은 클레임의 새 인보이스를 옛 "환불됨"으로 가렸다(이벤트 시각으로 가름).
 - 데몬이 하루 한 번 DB 스냅숏(`backup.ts`, `VACUUM INTO`, 최근 7벌).
 - VAPID 개인키 되찾기 스크립트(`daemon/scripts/recover-vapid.mjs` — 옛 어드민의 릴레이 백업을 APP 키로 푼다).
 - 옛 웹 푸시 중계 설정(`deploy/nginx-push-proxy.conf`) 삭제 — 데몬이 직접 보낸다.

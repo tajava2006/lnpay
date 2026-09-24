@@ -16,6 +16,7 @@ import {
 } from '@sajwo-tracker/shared/core';
 import { CLOSE_RULES, lnOrderTags, lnRetention, type LnCloseReason } from '@sajwo-tracker/shared/ln';
 import { nowSec } from '../admin/context';
+import { loadSettings } from '../admin/settings';
 import type { EffectExecutor } from '../effects';
 import { isLiveHold } from '../hold';
 import type { RelayTransport } from '../nostr/transport';
@@ -171,6 +172,17 @@ export function createProbeExecutor(ctx: LnContext): EffectExecutor<ProbePayload
 
 // ── 공개 오더 (30402) ───────────────────────────────────────
 
+/**
+ * 클레임은 됐는데 후원자 보증금을 아직 안 냈다 — 양쪽 화면이 "후원자 찾는 중 · 보증금 대기"로 그린다.
+ * 살아 있는 보증금 인보이스가 있거나, 설정이 보증금을 요구하면(시세가 없어 아직 못 만들었을 때) 대기다.
+ */
+function sponsorDepositPending(ctx: LnContext, order: LnOrderRow): boolean {
+  if (order.state !== 'claimed' || !order.sponsor || order.sponsor_deposit_hash) return false;
+  const dep = ctx.holds.current('ln-sponsor-deposit', order.order_id, order.sponsor);
+  if (dep && isLiveHold(dep)) return true;
+  return loadSettings(ctx.db).ln.sponsorDepositPct > 0;
+}
+
 export function buildOrderEvent(ctx: LnContext, order: LnOrderRow, createdAt: number) {
   const tags = lnOrderTags({
     orderId: order.order_id,
@@ -186,6 +198,7 @@ export function buildOrderEvent(ctx: LnContext, order: LnOrderRow, createdAt: nu
     ...(order.disbursed ? { disbursed: true } : {}),
     ...(order.customer_deposit_hash ? { depositPaymentHash: order.customer_deposit_hash } : {}),
     ...(order.sponsor_deposit_hash ? { sponsorDepositPaymentHash: order.sponsor_deposit_hash } : {}),
+    ...(sponsorDepositPending(ctx, order) ? { sponsorDepositPending: true } : {}),
     ...(order.close_reason ? { closeReason: order.close_reason } : {}),
   }, ctx.tags.ln, lnRetention(order.state, order.deadline, createdAt));
   return finalizeEvent({ kind: SAJWO_REQUEST_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);

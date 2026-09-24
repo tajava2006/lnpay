@@ -7,7 +7,7 @@ import { startSubscriptions, stopSubscriptions } from './nostr/service';
 import { Dashboard } from './buyer/components/Dashboard';
 import { startCleanup as startBuyerCleanup, stopCleanup as stopBuyerCleanup } from './buyer/order-store';
 import { OrderBook } from './sponsor/components/OrderBook';
-import { OrderDetail } from './sponsor/components/OrderDetail';
+import { LnOrderDetail } from './ln/LnOrderDetail';
 import { startCleanup as startSponsorCleanup, stopCleanup as stopSponsorCleanup } from './sponsor/order-store';
 import { HistoryPage } from './history/HistoryPage';
 import { OnchainOrderBook } from './onchain/components/OnchainOrderBook';
@@ -129,6 +129,7 @@ function AppContent() {
     setDetailOrderId(null);
   }, [track, tab]);
 
+  const openFromRequests = useCallback((orderId: string) => openDetail(orderId, 'request'), [openDetail]);
   const openFromBook = useCallback((orderId: string) => openDetail(orderId, 'fulfill'), [openDetail]);
   const openFromHistory = useCallback((orderId: string) => openDetail(orderId, 'history'), [openDetail]);
 
@@ -227,9 +228,9 @@ function AppContent() {
             <OnchainMyOrders myPubkey={myPubkey} onSelectOrder={openFromHistory} />
           )
         ) : detailOrderId ? (
-          <OrderDetail orderId={detailOrderId} onBack={closeDetail} tracker={tracker} />
+          <LnOrderDetail orderId={detailOrderId} onBack={closeDetail} tracker={tracker} />
         ) : tab === 'request' ? (
-          <Dashboard tracker={tracker} />
+          <Dashboard tracker={tracker} onSelectOrder={openFromRequests} />
         ) : tab === 'fulfill' ? (
           <OrderBook tracker={tracker} onSelectOrder={openFromBook} />
         ) : (

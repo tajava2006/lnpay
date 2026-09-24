@@ -11,6 +11,10 @@
  *
  * 이탈 종료(cancelled / sponsor_wins / customer_wins)는 선형 사다리를 깨므로
  * 단계로 넣지 않고 terminal로 따로 돌려준다.
+ *
+ * **후원자 보증금을 기다리는 `claimed`는 아직 "후원자 찾는 중"이다** (2026-09-24 mainnet 드릴).
+ * 상태는 claimed지만 보증금을 안 내면 클레임이 풀려 다른 후원자에게 간다 — 확정이 아니다.
+ * 그래서 오더의 `sponsorDepositPending`이 있으면 사다리를 한 칸 앞에 세운다.
  */
 import type { OrderState } from './constants';
 
@@ -27,6 +31,8 @@ export interface StepAction {
    * 성공 여부에 달려 있어, 아직 오지 않은 단계에서는 요구될지 알 수 없다.
    */
   optional?: boolean;
+  /** 후원자 보증금 안내 — 보증금이 실제로 걸려 있으면(`sponsorDepositPending`) 조건부 표시를 뗀다 */
+  sponsorDeposit?: boolean;
 }
 
 export interface ProgressStep {
@@ -42,6 +48,8 @@ export interface ProgressStep {
 export interface ProgressContext {
   /** escrowed 단계에서 고객이 계좌정보를 이미 보냈는지 */
   accountInfoSent?: boolean;
+  /** claimed인데 후원자 보증금이 아직이다 — 사다리는 "후원자 찾는 중"에 선다 */
+  sponsorDepositPending?: boolean;
 }
 
 export const PROGRESS_STEPS: readonly ProgressStep[] = [
@@ -51,11 +59,19 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     actor: 'sponsor',
     customer: [
       { text: '후원자가 의뢰를 가져갈 때까지 기다립니다.' },
+      {
+        text: '후원자가 보증금을 내야 확정됩니다. 제한 시간 안에 안 내면 다른 후원자를 다시 기다립니다.',
+        optional: true, sponsorDeposit: true,
+      },
     ],
     sponsor: [
       { text: "'사줄게'를 누르면 이 의뢰를 맡게 됩니다. 먼저 누른 분에게 배정됩니다." },
+      {
+        text: '보증금 인보이스가 오면 결제해야 배정이 확정됩니다. 제한 시간 안에 안 내면 다른 후원자에게 넘어갑니다. '
+          + '인보이스를 등록하지 않고 떠나거나 분쟁에서 지면 몰수되고, 그 밖에는 돌려받습니다.',
+        optional: true, sponsorDeposit: true,
+      },
       { text: 'BTC 받을 인보이스는 지금이 아니라, 고객이 결제를 마친 뒤에 등록합니다.' },
-      { text: '장난 의뢰를 막기 위해 보증금이 요구될 수 있습니다. 지금은 보증금 없이 운영 중입니다.', optional: true },
     ],
   },
   {
@@ -180,6 +196,11 @@ export function stepActor(state: OrderState, ctx: ProgressContext = {}): StepAct
   return idx === undefined ? 'admin' : PROGRESS_STEPS[idx]!.actor;
 }
 
+/** 사다리에서 설 자리 — 보증금을 기다리는 클레임은 아직 확정이 아니다 */
+function ladderState(state: OrderState, ctx: ProgressContext): OrderState {
+  return state === 'claimed' && ctx.sponsorDepositPending ? 'requested' : state;
+}
+
 export interface ResolvedStep {
   index: number;
   state: OrderState;
@@ -231,7 +252,7 @@ export function resolveProgress(
     ? (terminal.state === 'cancelled' || terminal.state === 'admin_closed' || terminal.state === 'expired')
       ? -1
       : STEP_INDEX.get('remitted')!
-    : STEP_INDEX.get(state) ?? -1;
+    : STEP_INDEX.get(ladderState(state, ctx)) ?? -1;
 
   const currentIndex = terminal ? -1 : doneThrough;
 
@@ -243,6 +264,7 @@ export function resolveProgress(
       : 'upcoming';
 
     const actor = stepActor(step.state, ctx);
+    const actions = role === 'customer' ? step.customer : step.sponsor;
 
     return {
       index,
@@ -251,11 +273,34 @@ export function resolveProgress(
       status,
       actor,
       isMyTurn: status === 'current' && actor === role,
-      actions: role === 'customer' ? step.customer : step.sponsor,
+      actions: ctx.sponsorDepositPending
+        ? actions.map(a => (a.sponsorDeposit ? { ...a, optional: false } : a))
+        : actions,
     };
   });
 
   return { steps, currentIndex, terminal, total: PROGRESS_STEPS.length };
+}
+
+/** 목록 카드 한 줄 — 지금 어느 단계이고 누구 차례인가. 상세의 사다리와 같은 말을 쓴다 */
+export interface ProgressSummary {
+  title: string;
+  terminal: boolean;
+  isMyTurn: boolean;
+  /** 지금 움직여야 하는 쪽. 종결이면 null */
+  actor: StepActor | null;
+}
+
+export function summarizeProgress(
+  role: ProgressRole,
+  state: OrderState,
+  ctx: ProgressContext = {},
+): ProgressSummary {
+  const { steps, currentIndex, terminal } = resolveProgress(role, state, ctx);
+  if (terminal) return { title: terminal.label, terminal: true, isMyTurn: false, actor: null };
+  const step = steps[currentIndex];
+  if (!step) return { title: state, terminal: false, isMyTurn: false, actor: null };
+  return { title: step.title, terminal: false, isMyTurn: step.isMyTurn, actor: step.actor };
 }
 
 /**

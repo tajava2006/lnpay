@@ -5,7 +5,7 @@
  * 데몬이 받기 시작한 뒤(epoch)의 오더만 있다 — 옛 프론트 어드민 시절 것은 피드가 거른다.
  */
 import { useSyncExternalStore } from 'react';
-import { isTerminalState, stateDisplay } from '@sajwo-tracker/shared';
+import { isTerminalState, lnOrderDisplay } from '@sajwo-tracker/shared';
 import { isOnchainTerminal, onchainStateDisplay } from '@sajwo-tracker/shared/onchain';
 import { daemonEpoch, daemonState, lnOrders, onchainOrders } from '../daemon/stores';
 
@@ -23,7 +23,7 @@ export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void 
   const orders = useSyncExternalStore(lnOrders.subscribe, lnOrders.get);
   const empty = useEmptyText();
   const rows: Row[] = Object.values(orders).map(o => {
-    const d = stateDisplay(o.state);
+    const d = lnOrderDisplay(o);
     return {
       orderId: o.orderId, label: d.label, color: d.color, bg: d.bg,
       amount: `${o.price.toLocaleString()}원`, updatedAt: o.updatedAt, done: isTerminalState(o.state),

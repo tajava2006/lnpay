@@ -82,3 +82,14 @@ export function notifyAccountArrived(ctx: LnContext, order: LnOrderRow, commitme
   if (!order.sponsor) return;
   deliver(ctx, order.sponsor, NOTIFY.sponsorShouldRemit(), order.order_id, `ln:${order.order_id}:account:${commitment}`);
 }
+
+/**
+ * 보증금을 내라 — 전이가 아니라 홀드 인보이스가 생긴 순간이다. 후원자 보증금은 제한 시간이 짧고 안 내면
+ * 클레임이 풀린다(2026-09-24 드릴: 알림이 안 와 몰랐다). 인보이스마다 한 번.
+ */
+export function notifyDepositRequired(
+  ctx: LnContext, pubkey: string, orderId: string, role: 'customer' | 'sponsor', paymentHash: string,
+): void {
+  const notice = role === 'sponsor' ? NOTIFY.sponsorShouldPayDeposit() : NOTIFY.customerShouldPayDeposit();
+  deliver(ctx, pubkey, notice, orderId, `ln:${orderId}:deposit:${paymentHash}`);
+}

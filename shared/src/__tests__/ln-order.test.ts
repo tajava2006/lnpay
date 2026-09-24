@@ -39,6 +39,15 @@ describe('오더 코덱 왕복', () => {
     });
   });
 
+  it('후원자 보증금 대기가 왕복한다 — 없으면 칸 자체가 없다', () => {
+    const base = { orderId: 'o2', state: 'claimed' as const, customerPubkey: 'c'.repeat(64), sponsorPubkey: 's'.repeat(64),
+      price: 50_000, deadline: NOW + DAY };
+    const pending = parseLnOrderEvent(sign(lnOrderTags({ ...base, sponsorDepositPending: true }, 't', NOW + DAY)), APP)!;
+    expect(pending.sponsorDepositPending).toBe(true);
+    const paid = parseLnOrderEvent(sign(lnOrderTags(base, 't', NOW + DAY)), APP)!;
+    expect(paid).not.toHaveProperty('sponsorDepositPending');
+  });
+
   it('APP이 서명한 것만 — 누구나 30402를 낼 수 있다', () => {
     const tags = lnOrderTags({ orderId: 'o1', state: 'requested', customerPubkey: 'c', price: 1, deadline: NOW }, 't', NOW);
     expect(parseLnOrderEvent(sign(tags, generateSecretKey()), APP)).toBeNull();

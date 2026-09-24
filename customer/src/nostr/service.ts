@@ -51,7 +51,7 @@ export function startSubscriptions(): Promise<void> {
     const stopOrders = subscribeOrders(relays, {
       onOrder: (event) => {
         buyer.handleAdminOrder(event, myPubkey);
-        sponsor.handleAdminOrder(event);
+        sponsor.handleAdminOrder(event, myPubkey);
       },
       onEose: () => {
         if (ordersEosed) return;

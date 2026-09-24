@@ -20,6 +20,7 @@
  * 막히는 게 이 파일의 존재 이유다.
  */
 import type { OrderState } from './constants';
+import type { Order } from './types';
 
 export interface StateDisplay {
   /** 배지에 쓰는 한국어 */
@@ -55,4 +56,14 @@ export const STATE_DISPLAY: Record<OrderState, StateDisplay> = {
  */
 export function stateDisplay(state: string): StateDisplay {
   return STATE_DISPLAY[state as OrderState] ?? { label: state, color: '#666666', bg: '#F3F4F6' };
+}
+
+/** 후원자 보증금을 기다리는 클레임 — 상태는 `claimed`지만 아직 확정이 아니다(안 내면 풀린다) */
+export const SPONSOR_DEPOSIT_PENDING_DISPLAY: StateDisplay = { label: '보증금 대기', color: '#C2410C', bg: '#FFF7ED' };
+
+/** 라이트닝 오더의 배지 — 상태에 후원자 보증금 대기를 얹는다 */
+export function lnOrderDisplay(order: Pick<Order, 'state' | 'sponsorDepositPending'>): StateDisplay {
+  return order.state === 'claimed' && order.sponsorDepositPending
+    ? SPONSOR_DEPOSIT_PENDING_DISPLAY
+    : stateDisplay(order.state);
 }

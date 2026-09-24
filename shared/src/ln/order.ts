@@ -74,6 +74,11 @@ export interface LnOrderFields {
   disbursed?: boolean;
   depositPaymentHash?: string;
   sponsorDepositPaymentHash?: string;
+  /**
+   * 클레임은 됐지만 후원자 보증금을 아직 안 냈다. 보증금이 들어오거나(`sponsorDepositPaymentHash`) 클레임이
+   * 풀리기 전까지 거래는 **아직 후원자를 찾는 중**이다 — 양쪽 화면이 이걸로 진행도와 배지를 그린다
+   */
+  sponsorDepositPending?: boolean;
   /** 종결 사유 (`LnCloseReason`) — 화면이 "왜 끝났는지"를 말하게 */
   closeReason?: string;
 }
@@ -96,6 +101,7 @@ export function lnOrderTags(order: LnOrderFields, clientTag: string, retainUntil
   if (order.disbursed) tags.push(['disbursed', 'true']);
   if (order.depositPaymentHash) tags.push(['customer-deposit-payment-hash', order.depositPaymentHash]);
   if (order.sponsorDepositPaymentHash) tags.push(['sponsor-deposit-payment-hash', order.sponsorDepositPaymentHash]);
+  if (order.sponsorDepositPending) tags.push(['sponsor-deposit', 'pending']);
   if (order.closeReason) tags.push(['close-reason', order.closeReason]);
   return tags;
 }
@@ -132,6 +138,7 @@ export function parseLnOrderEvent(event: Event, appPubkey: string): Order | null
     ...(tag(event, 'disbursed') === 'true' ? { disbursed: true } : {}),
     ...(depositPaymentHash ? { depositPaymentHash } : {}),
     ...(sponsorDepositPaymentHash ? { sponsorDepositPaymentHash } : {}),
+    ...(tag(event, 'sponsor-deposit') === 'pending' ? { sponsorDepositPending: true } : {}),
     ...(payoutSat > 0 ? { payoutSat } : {}),
     ...(sponsorInvoice ? { sponsorInvoice } : {}),
     ...(closeReason ? { closeReason } : {}),

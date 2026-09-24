@@ -97,7 +97,8 @@ export function requestDetail(ctx: LnContext, orderId: string): void {
   ctx.effects.enqueue(LN_DETAIL_EFFECT, { orderId }, { dedup: `ln.detail:${orderId}` });
 }
 
-function requestProjection(ctx: LnContext, orderId: string): void {
+/** 공개 오더와 운영자 상세를 다시 낸다 — 오더 행이 안 바뀌어도 싣는 값이 바뀔 때(보증금 대기 등) */
+export function requestProjection(ctx: LnContext, orderId: string): void {
   ctx.effects.enqueue(LN_ORDER_PUBLISH_EFFECT, { orderId }, { dedup: `ln.order:${orderId}` });
   requestDetail(ctx, orderId);
 }

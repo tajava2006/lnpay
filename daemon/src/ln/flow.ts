@@ -17,9 +17,10 @@ import { loadSettings } from '../admin/settings';
 import { isLiveHold, type HoldHooks, type HoldPurpose, type HoldRow } from '../hold';
 import type { LnContext } from './context';
 import { sendDepositRequired, sendDepositStatus } from './messages';
-import { notifyLnTransition } from './notify';
+import { notifyDepositRequired, notifyLnTransition } from './notify';
 import {
-  deleteDraft, getDraft, getOrder, insertOrder, requestDetail, updateOrder, type LnDraftRow, type LnOrderRow,
+  deleteDraft, getDraft, getOrder, insertOrder, requestDetail, requestProjection, updateOrder, type LnDraftRow,
+  type LnOrderRow,
 } from './store';
 import {
   CUSTOMER_DEPOSIT_MARGIN_SEC, CUSTOMER_DEPOSIT_PAY_SEC, DEADLINE_GRACE_SEC, ESCROW_HOLD_MARGIN_SEC,
@@ -59,13 +60,20 @@ export function createLnHoldHooks(ctx: LnContext): HoldHooks {
     created(inv) {
       switch (inv.purpose) {
         case 'ln-customer-deposit':
-          if (getDraft(ctx, inv.order_id)) sendDepositRequired(ctx, inv.order_id, inv.party, inv.bolt11, inv.pay_by, inv.payment_hash);
-          else ctx.holds.dispose(inv.payment_hash, 'cancel');
+          if (getDraft(ctx, inv.order_id)) {
+            sendDepositRequired(ctx, inv.order_id, inv.party, inv.bolt11, inv.pay_by, inv.payment_hash);
+            notifyDepositRequired(ctx, inv.party, inv.order_id, 'customer', inv.payment_hash);
+          } else {
+            ctx.holds.dispose(inv.payment_hash, 'cancel');
+          }
           return;
         case 'ln-sponsor-deposit': {
           const order = getOrder(ctx, inv.order_id);
           if (order && order.state === 'claimed' && order.sponsor === inv.party && !order.pending_close) {
             sendDepositRequired(ctx, inv.order_id, inv.party, inv.bolt11, inv.pay_by, inv.payment_hash);
+            notifyDepositRequired(ctx, inv.party, inv.order_id, 'sponsor', inv.payment_hash);
+            // 공개 오더의 "보증금 대기"를 다시 싣는다 — 클레임 뒤에 비율을 올렸으면 클레임 때는 없었다
+            requestProjection(ctx, order.order_id);
           } else {
             ctx.holds.dispose(inv.payment_hash, 'cancel');
           }

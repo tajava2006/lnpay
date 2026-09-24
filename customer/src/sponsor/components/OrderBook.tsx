@@ -2,8 +2,9 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
 import type { Order } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
-import { getUserPubkey, storage, isTerminalState } from '@sajwo-tracker/shared';
+import { getUserPubkey, storage, isTerminalState, sponsorRelation } from '@sajwo-tracker/shared';
 import { isClaimableLn } from '@sajwo-tracker/shared/ln';
+import { LnOrderCard } from '../../ln/LnOrderCard';
 import { OrderCard } from './OrderCard';
 
 interface Props {
@@ -59,19 +60,28 @@ export function OrderBook({ tracker, onSelectOrder }: Props) {
     return <div style={styles.message}>지금 올라온 의뢰가 없습니다</div>;
   }
 
+  // 내가 사주는 의뢰는 위에 따로 — 할 일이 있는 자리다. 내가 참여한 의뢰(사주는 것·올린 것)는 어느 탭에서든
+  // 같은 카드(LnOrderCard)로 그린다. 남의 의뢰만 오더북 카드다
+  const sponsoring = activeOrders.filter(o => sponsorRelation(o, myPubkey) === 'mine');
+  const book = activeOrders.filter(o => sponsorRelation(o, myPubkey) !== 'mine');
+
   return (
     <div>
       {!synced && <div style={styles.syncBadge}>동기화 중...</div>}
+      {sponsoring.length > 0 && (
+        <>
+          <h2 className="section-title">내가 사주는 중</h2>
+          <div style={{ ...styles.list, marginBottom: 24 }}>
+            {sponsoring.map(o => <LnOrderCard key={o.orderId} orderId={o.orderId} tracker={tracker} onOpen={onSelectOrder} />)}
+          </div>
+          {book.length > 0 && <h2 className="section-title">오더북</h2>}
+        </>
+      )}
       <div style={styles.list}>
-        {activeOrders.map((order: Order) => (
-          <OrderCard
-            key={order.orderId}
-            order={order}
-            now={now}
-            tracker={tracker}
-            myPubkey={myPubkey}
-            onSelectOrder={onSelectOrder}
-          />
+        {book.map((order: Order) => (
+          sponsorRelation(order, myPubkey) === 'own'
+            ? <LnOrderCard key={order.orderId} orderId={order.orderId} tracker={tracker} onOpen={onSelectOrder} />
+            : <OrderCard key={order.orderId} order={order} now={now} myPubkey={myPubkey} />
         ))}
       </div>
     </div>

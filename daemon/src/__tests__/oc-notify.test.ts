@@ -172,6 +172,10 @@ describe('통로 형식은 라이트닝과 공유한다', () => {
   it('푸시 태그로 주문별 묶음이 된다', () => {
     expect(asPush(ONCHAIN_NOTIFY.customerShouldConfirm(), 'order-1').tag).toBe('order-1');
   });
+
+  it('오더를 알면 누르면 그 오더 화면이 열린다 — 할 일이 거기 카드에 있다', () => {
+    expect(asPush(ONCHAIN_NOTIFY.customerShouldFund(), 'order-1').url).toBe('/?track=onchain&tab=history&order=order-1');
+  });
 });
 
 describe('사다리 밖 상태', () => {

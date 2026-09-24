@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { idbGetOrdersPage, getUserPubkey, storage, stateDisplay } from '@sajwo-tracker/shared';
-import type { Order, PriceTracker } from '@sajwo-tracker/shared';
-
 /**
- * 내가 이 주문에 어느 역할로 참여했는가.
+ * 내 거래 — 내가 고객이거나 후원자인 라이트닝 의뢰 전부
  *
- * 별도 칼럼을 두지 않는다 — Order가 customerPubkey/sponsorPubkey를 둘 다
- * 들고 있고, 그 값은 Admin이 서명한 kind 30402에서 온 권위 있는 값이다.
- * 칼럼은 쓰는 시점에 틀리거나 낡을 수 있지만 이건 그럴 수 없다.
+ * 진행 중인 것은 위(라이브 스토어), 지난 것은 아래(IDB — 릴레이가 보존 끝에 지워도 남는다). 둘 다 어느
+ * 탭에서나 같은 `LnOrderCard`다 — 여기서도 결제·인보이스·송금·컨펌이 된다(2026-09-24 드릴: 예전엔
+ * 여기서 들어간 상세에 할 일이 없었다).
  *
- * 한 주문에서 둘 다 참일 수 있는 경로는 자기 클레임뿐인데 Admin FSM이
- * 막으므로(handleClaim), 이 판정은 항상 하나로 떨어진다.
+ * 역할은 칼럼 없이 pubkey 비교로 유도한다 — 오더의 customerPubkey/sponsorPubkey는 APP이 서명한 값이다.
+ * 한 주문에서 둘 다 참일 수 있는 경로는 자기 클레임뿐인데 데몬이 막는다.
  */
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { idbGetOrdersPage, isTerminalState, type Order, type PriceTracker } from '@sajwo-tracker/shared';
+import { subscribe as subscribeOrders, getSnapshot as getOrderSnapshot } from '../sponsor/order-store';
+import { LnOrderCard } from '../ln/LnOrderCard';
+import { useMyPubkey } from '../ln/use-ln-card';
+
 type Role = 'buyer' | 'sponsor' | null;
 
 function roleOf(order: Order, myPubkey: string | null): Role {
@@ -29,11 +31,6 @@ const FILTERS: Array<{ key: Filter; label: string }> = [
   { key: 'sponsor', label: '내가 사준 것' },
 ];
 
-const ROLE_BADGE: Record<Exclude<Role, null>, { label: string; bg: string; color: string }> = {
-  buyer: { label: '샀음', bg: '#EEF2FF', color: '#4338CA' },
-  sponsor: { label: '사줬음', bg: '#ECFDF5', color: '#047857' },
-};
-
 interface Props {
   onSelectOrder: (orderId: string) => void;
   tracker: PriceTracker;
@@ -42,21 +39,18 @@ interface Props {
 const PAGE_SIZE = 20;
 
 export function HistoryPage({ onSelectOrder, tracker }: Props) {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [past, setPast] = useState<Order[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [myPubkey, setMyPubkey] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
-
-  useEffect(() => {
-    void getUserPubkey(storage).then(setMyPubkey);
-  }, []);
+  const myPubkey = useMyPubkey();
+  const live = useSyncExternalStore(subscribeOrders, getOrderSnapshot);
 
   const loadPage = useCallback(async (cursor?: number) => {
     setLoading(true);
     try {
       const page = await idbGetOrdersPage(cursor, PAGE_SIZE);
-      setOrders(prev => cursor ? [...prev, ...page] : page);
+      setPast(prev => (cursor ? [...prev, ...page] : page));
       setHasMore(page.length >= PAGE_SIZE);
     } catch (err) {
       console.warn('[HistoryPage] IDB load failed:', err);
@@ -70,19 +64,24 @@ export function HistoryPage({ onSelectOrder, tracker }: Props) {
   }, [loadPage]);
 
   const loadMore = useCallback(() => {
-    const last = orders[orders.length - 1];
+    const last = past[past.length - 1];
     if (loading || !hasMore || !last) return;
     void loadPage(last.createdAt);
-  }, [loading, hasMore, orders, loadPage]);
+  }, [loading, hasMore, past, loadPage]);
 
-  // BTC 시세로 sats 환산
-  const snap = tracker.getSnapshot();
-  const btcPrice = snap.price;
-
-  const visible = useMemo(
-    () => (filter === 'all' ? orders : orders.filter(o => roleOf(o, myPubkey) === filter)),
-    [orders, filter, myPubkey],
+  const keep = useCallback(
+    (o: Order) => (filter === 'all' ? true : roleOf(o, myPubkey) === filter),
+    [filter, myPubkey],
   );
+
+  // 진행 중 — 라이브 스토어의 내 의뢰, 기한 임박순
+  const active = useMemo(() => Object.values(live)
+    .filter(o => roleOf(o, myPubkey) !== null && !isTerminalState(o.state) && keep(o))
+    .sort((a, b) => (a.expiration || Infinity) - (b.expiration || Infinity)),
+  [live, myPubkey, keep]);
+
+  const activeIds = useMemo(() => new Set(active.map(o => o.orderId)), [active]);
+  const done = useMemo(() => past.filter(o => !activeIds.has(o.orderId) && keep(o)), [past, activeIds, keep]);
 
   return (
     <div>
@@ -98,76 +97,29 @@ export function HistoryPage({ onSelectOrder, tracker }: Props) {
         ))}
       </div>
 
-      {visible.length === 0 && !loading && (
-        <div style={styles.empty}>
-          {orders.length === 0 ? '거래 이력이 없습니다' : '이 조건에 맞는 거래가 없습니다'}
-        </div>
+      {active.length > 0 && (
+        <>
+          <h2 className="section-title">진행 중</h2>
+          <div style={{ ...styles.list, marginBottom: 24 }}>
+            {active.map(o => <LnOrderCard key={o.orderId} orderId={o.orderId} tracker={tracker} onOpen={onSelectOrder} />)}
+          </div>
+        </>
       )}
 
+      {done.length > 0 && <h2 className="section-title">지난 거래</h2>}
+      {active.length === 0 && done.length === 0 && !loading && (
+        <div style={styles.empty}>
+          {past.length === 0 ? '거래 이력이 없습니다' : '이 조건에 맞는 거래가 없습니다'}
+        </div>
+      )}
       <div style={styles.list}>
-        {visible.map(order => {
-          const sats = btcPrice !== null && btcPrice > 0
-            ? Math.round((order.price / btcPrice) * 1e8)
-            : null;
-
-          return (
-            <button
-              key={order.orderId}
-              style={styles.card}
-              onClick={() => onSelectOrder(order.orderId)}
-            >
-              <div style={styles.top}>
-                <div style={styles.orderInfo}>
-                  <span style={styles.orderId}>#{order.orderId}</span>
-                  <span style={styles.price}>
-                    {order.price.toLocaleString()}원
-                  </span>
-                  {sats !== null && (
-                    <span style={styles.sats}>~{sats.toLocaleString()} sats</span>
-                  )}
-                </div>
-                <span style={styles.badgeGroup}>
-                  {(() => {
-                    const role = roleOf(order, myPubkey);
-                    if (!role) return null;
-                    const meta = ROLE_BADGE[role];
-                    return (
-                      <span style={{ ...styles.roleBadge, background: meta.bg, color: meta.color }}>
-                        {meta.label}
-                      </span>
-                    );
-                  })()}
-                  <span style={{
-                    ...styles.stateBadge,
-                    background: stateDisplay(order.state).bg,
-                    color: stateDisplay(order.state).color,
-                  }}>
-                    {stateDisplay(order.state).label}
-                  </span>
-                </span>
-              </div>
-              <div style={styles.meta}>
-                <span>
-                  {new Date(order.createdAt * 1000).toLocaleString('ko-KR', {
-                    year: 'numeric', month: 'short', day: 'numeric',
-                    hour: '2-digit', minute: '2-digit',
-                  })}
-                </span>
-                {order.disbursed && (
-                  <span style={styles.disbursed}>송금 완료</span>
-                )}
-              </div>
-            </button>
-          );
-        })}
+        {done.map(o => (
+          <LnOrderCard key={o.orderId} orderId={o.orderId} archived={o} tracker={tracker} onOpen={onSelectOrder} />
+        ))}
       </div>
 
       {hasMore && (
-        <button
-          style={styles.loadMore}
-          onClick={loadMore}
-          disabled={loading}
-        >
+        <button style={styles.loadMore} onClick={loadMore} disabled={loading}>
           {loading ? '불러오는 중...' : '더 보기'}
         </button>
       )}
@@ -176,120 +128,17 @@ export function HistoryPage({ onSelectOrder, tracker }: Props) {
 }
 
 const styles = {
-  filterRow: {
-    display: 'flex',
-    gap: 6,
-    marginBottom: 12,
-    flexWrap: 'wrap' as const,
-  },
+  filterRow: { display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' as const },
   chip: {
-    padding: '6px 12px',
-    borderRadius: 999,
-    border: '1px solid #E5E7EB',
-    background: '#fff',
-    color: '#6B7280',
-    fontSize: 13,
-    fontWeight: 500 as const,
-    cursor: 'pointer' as const,
-    fontFamily: 'inherit',
+    padding: '6px 12px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280',
+    fontSize: 13, fontWeight: 500 as const, cursor: 'pointer' as const, fontFamily: 'inherit',
   },
-  chipOn: {
-    background: '#4F46E5',
-    borderColor: '#4F46E5',
-    color: '#fff',
-    fontWeight: 600 as const,
-  },
-  badgeGroup: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 0,
-  },
-  roleBadge: {
-    display: 'inline-block',
-    borderRadius: 6,
-    padding: '4px 8px',
-    fontSize: 11,
-    fontWeight: 700 as const,
-    whiteSpace: 'nowrap' as const,
-  },
-  list: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: 8,
-  },
-  card: {
-    display: 'block',
-    width: '100%',
-    background: '#fff',
-    border: '1px solid #E5E7EB',
-    borderRadius: 8,
-    padding: '14px 20px',
-    cursor: 'pointer' as const,
-    textAlign: 'left' as const,
-    fontFamily: 'inherit',
-  },
-  top: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  orderInfo: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: 12,
-  },
-  orderId: {
-    fontSize: 15,
-    fontWeight: 600 as const,
-    color: '#333',
-  },
-  price: {
-    fontSize: 18,
-    fontWeight: 700 as const,
-    color: '#4F46E5',
-  },
-  sats: {
-    fontSize: 12,
-    color: '#999',
-  },
-  stateBadge: {
-    display: 'inline-block',
-    borderRadius: 6,
-    padding: '4px 10px',
-    fontSize: 12,
-    fontWeight: 600 as const,
-  },
-  meta: {
-    display: 'flex',
-    gap: 12,
-    fontSize: 12,
-    color: '#999',
-    alignItems: 'center',
-  },
-  disbursed: {
-    color: '#059669',
-    fontWeight: 500 as const,
-  },
-  empty: {
-    textAlign: 'center' as const,
-    padding: 48,
-    color: '#666',
-    fontSize: 14,
-  },
+  chipOn: { background: '#4F46E5', borderColor: '#4F46E5', color: '#fff', fontWeight: 600 as const },
+  list: { display: 'flex', flexDirection: 'column' as const, gap: 12 },
+  empty: { textAlign: 'center' as const, padding: 48, color: '#666', fontSize: 14 },
   loadMore: {
-    display: 'block',
-    width: '100%',
-    padding: '12px 0',
-    marginTop: 12,
-    fontSize: 13,
-    fontWeight: 500 as const,
-    color: '#4F46E5',
-    background: '#EEF2FF',
-    border: '1px solid #C7D2FE',
-    borderRadius: 8,
-    cursor: 'pointer' as const,
+    display: 'block', width: '100%', marginTop: 12, padding: '10px 0', fontSize: 13, fontWeight: 500 as const,
+    color: '#4F46E5', background: '#fff', border: '1px solid #C7D2FE', borderRadius: 8, cursor: 'pointer',
     fontFamily: 'inherit',
   },
-} as const;
+};

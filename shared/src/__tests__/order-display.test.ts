@@ -9,7 +9,9 @@
  * 여기서는 타입이 못 보는 것을 본다: 문구가 비어 있진 않은지, 색이 진짜 색인지.
  */
 import { describe, it, expect } from 'vitest';
-import { ORDER_STATES, STATE_DISPLAY, stateDisplay, type OrderState } from '@sajwo-tracker/shared';
+import {
+  ORDER_STATES, SPONSOR_DEPOSIT_PENDING_DISPLAY, STATE_DISPLAY, lnOrderDisplay, stateDisplay, type OrderState,
+} from '@sajwo-tracker/shared';
 
 const ALL = Object.values(ORDER_STATES) as OrderState[];
 
@@ -58,5 +60,14 @@ describe('모르는 상태 폴백', () => {
     for (const state of ALL) {
       expect(stateDisplay(state)).toEqual(STATE_DISPLAY[state]);
     }
+  });
+});
+
+describe('라이트닝 배지 — 후원자 보증금 대기', () => {
+  it('claimed + 대기면 "보증금 대기", 아니면 상태 배지 그대로', () => {
+    expect(lnOrderDisplay({ state: 'claimed', sponsorDepositPending: true })).toBe(SPONSOR_DEPOSIT_PENDING_DISPLAY);
+    expect(lnOrderDisplay({ state: 'claimed' })).toEqual(STATE_DISPLAY.claimed);
+    // 다른 상태에 표시가 남아 있어도(옛 이벤트) 배지는 상태를 따른다
+    expect(lnOrderDisplay({ state: 'verified', sponsorDepositPending: true })).toEqual(STATE_DISPLAY.verified);
   });
 });

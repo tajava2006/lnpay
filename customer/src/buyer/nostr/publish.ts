@@ -64,7 +64,7 @@ function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
 }
 
 /** 상태 통보 이벤트 빌드 (payment-confirm, cancel-request) — 기한 직후에도 도착해야 한다 */
-function buildNotificationEvent(order: CustomerOrder, action: RequestAction): EventTemplate {
+function buildNotificationEvent(order: Pick<CustomerOrder, 'orderId'>, action: RequestAction): EventTemplate {
   const now = Math.floor(Date.now() / 1000);
   return {
     kind: SAJWO_REQUEST_EVENT_KIND,
@@ -128,7 +128,7 @@ export async function publishOrderRequest(order: CustomerOrder): Promise<Publish
 
 /** 상태 통보를 릴레이에 발행한다 (payment-confirm, cancel-request). */
 export async function publishNotification(
-  order: CustomerOrder,
+  order: Pick<CustomerOrder, 'orderId'>,
   action: Exclude<RequestAction, 'order-request' | 'claim' | 'account-info' | 'remit-request'>,
 ): Promise<PublishResult> {
   const template = buildNotificationEvent(order, action);
@@ -143,7 +143,7 @@ export async function publishNotification(
  * 커밋먼트 자체는 공개 태그라 솔트가 없으면 계좌번호가 브루트포스된다(감사 A-1).
  */
 export async function publishAccountInfo(
-  order: CustomerOrder,
+  order: Pick<CustomerOrder, 'orderId' | 'sponsorPubkey'>,
   accountInfo: AccountInfo,
 ): Promise<PublishResult> {
   const sponsorPubkey = order.sponsorPubkey;
@@ -191,7 +191,7 @@ export async function publishAccountInfo(
  * dispute-message는 증거 보존 목적으로 expiration 없음.
  */
 export async function prepareDisputeMessage(
-  order: CustomerOrder,
+  order: Pick<CustomerOrder, 'orderId'>,
   payload: DisputeMessagePayload,
 ): Promise<PreparedChatMessage> {
   const sk = await getSecretKey(storage);

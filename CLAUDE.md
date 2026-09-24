@@ -62,6 +62,7 @@ sajwo-tracker/                ← pnpm workspace 모노레포
     src/buyer/                ←   고객 역할 (의뢰하기 탭)
     src/sponsor/              ←   후원자 역할 (사주기 탭 — 첫 화면)
     src/history/              ←   내 거래 탭 (역할은 pubkey 비교로 유도, 칼럼 없음)
+    src/ln/                   ←   라이트닝 의뢰 카드 하나(LnOrderCard) — 세 탭·상세 공용. 할 일은 card-view.ts가 데이터로 정한다
     src/nostr/                ←   통합 구독 (소켓 한 벌) → 역할별 핸들러 팬아웃
   customer/userscript/        ← 쿠팡 자동파싱 유저스크립트 (esbuild IIFE 번들)
   sponsor/                    ← 정적 리다이렉트 껍데기 (구 후원자 도메인 전환 안내)

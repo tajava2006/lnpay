@@ -56,10 +56,12 @@ export interface Notice {
  * 기본값(라이트닝 + 사주기)은 쿼리 없이 루트다 — 주소가 짧을수록 알림에서
  * 돌아왔을 때 덜 낯설다.
  */
-function path(notice: Notice): string {
+function path(notice: Notice, orderId?: string): string {
   const params = new URLSearchParams();
   if (notice.track === 'onchain') params.set('track', 'onchain');
   if (notice.tab !== 'fulfill') params.set('tab', notice.tab);
+  // 오더를 알면 그 오더 화면으로 — 할 일(결제·인보이스·계좌·송금)이 거기 카드에 있다
+  if (orderId) params.set('order', orderId);
   const query = params.toString();
   return query ? `/?${query}` : '/';
 }
@@ -69,9 +71,12 @@ export function asDirectMessage(n: Notice): string {
   return `[페어바이] ${n.body}\n${APP_URL}${path(n)}`;
 }
 
-/** Web Push 페이로드 — 제목·본문이 나뉘고 링크는 클릭 대상이 된다. */
-export function asPush(n: Notice, tag?: string): { title: string; body: string; url: string; tag?: string } {
-  return { title: '페어바이', body: n.body, url: path(n), ...(tag ? { tag } : {}) };
+/**
+ * Web Push 페이로드 — 제목·본문이 나뉘고 링크는 클릭 대상이 된다.
+ * 오더 id는 묶음 태그이자 목적지다(누르면 그 오더 화면이 열린다).
+ */
+export function asPush(n: Notice, orderId?: string): { title: string; body: string; url: string; tag?: string } {
+  return { title: '페어바이', body: n.body, url: path(n, orderId), ...(orderId ? { tag: orderId } : {}) };
 }
 
 /**
@@ -104,6 +109,12 @@ export const NOTIFY = {
     ({ body: '후원자가 확정되었습니다. 결제하시면 거래가 시작됩니다.', tab: 'request' }),
 
   /** 결제가 확인됐다. 이제 후원자가 받을 인보이스를 등록할 차례다. */
+  // 보증금 — 전이가 아니라 홀드 인보이스가 생길 때 보낸다(클레임·의뢰 직후 화면을 떠났을 수 있다)
+  customerShouldPayDeposit: (): Notice =>
+    ({ body: '보증금을 결제하면 의뢰가 오더북에 올라갑니다.', tab: 'request' }),
+  sponsorShouldPayDeposit: (): Notice =>
+    ({ body: '보증금을 결제하면 의뢰가 확정됩니다. 제한 시간 안에 결제해 주세요.', tab: 'fulfill' }),
+
   sponsorShouldRegisterInvoice: (): Notice =>
     ({ body: '고객이 결제를 마쳤습니다. BTC 받을 인보이스를 등록해 주세요.', tab: 'fulfill' }),
 

@@ -13,6 +13,7 @@
  *
  * 전부 NIP-44 암호문이고 `t`는 어드민 태그(`CLIENT_TAG_ADMIN`)다.
  */
+import type { OrderState } from './constants';
 import type { DisputeMessagePayload } from './types';
 
 export const ADMIN_ACTIONS = {
@@ -30,6 +31,19 @@ export const ADMIN_STATE_KIND = 30078;
 /** 운영자마다 따로 둔다 — 한 d에 여러 수신자를 쓰면 서로 덮는다 */
 export function adminStateDTag(adminTag: string, operatorPubkey: string): string {
   return `lnpay-admin:${adminTag}:state:${operatorPubkey}`;
+}
+
+/**
+ * 오더별 비공개 상세 (§5.3) — 공개 오더 이벤트에 없는 것(인보이스 상태, 지급 오류, 버전 등).
+ * 운영자마다 따로 둔다(상태와 같은 이유).
+ */
+export function adminOrderDTag(adminTag: string, track: TrackName, orderId: string, operatorPubkey: string): string {
+  return `${adminOrderDTagPrefix(adminTag, track)}${orderId}:${operatorPubkey}`;
+}
+
+/** 이 트랙의 오더 상세 d 태그가 시작하는 모양 — 피드가 상태 이벤트와 가를 때 */
+export function adminOrderDTagPrefix(adminTag: string, track: TrackName): string {
+  return `lnpay-admin:${adminTag}:order:${track}:`;
 }
 
 // ── 명령 ─────────────────────────────────────────────────────
@@ -157,6 +171,53 @@ export interface AdminState {
   /** 아직 확인하지 않은 경보 */
   alerts: AdminAlert[];
   effects: { pending: number; dead: number };
+}
+
+// ── 라이트닝 오더 상세 ───────────────────────────────────────
+
+export type AdminLnInvoicePurpose = 'escrow' | 'customer-deposit' | 'sponsor-deposit';
+
+export interface AdminLnInvoice {
+  purpose: AdminLnInvoicePurpose;
+  /** 내는 사람 */
+  party: string;
+  amountSat: number;
+  status: 'creating' | 'open' | 'accepted' | 'settled' | 'cancelled';
+  /** 이때까지 안 내면 취소한다 */
+  payBy: number;
+  /** 잡힌 HTLC의 만기 블록 — 에스크로가 실제로 죽는 때 */
+  htlcExpiryHeight?: number;
+}
+
+export interface AdminLnOrderDetail {
+  v: 1;
+  orderId: string;
+  /** 오더를 바꾸는 명령은 이 값을 `OrderTarget.version`에 실어야 한다 */
+  version: number;
+  state: OrderState;
+  customer: string;
+  sponsor?: string;
+  price: number;
+  deadline: number;
+  payoutSat?: number;
+  /** 에스크로를 이미 받았다(선제 settle 포함) — 고객 승 판정이면 환불을 손으로 해야 한다 */
+  escrowSettled: boolean;
+  sponsorInvoice?: string;
+  disbursed: boolean;
+  payoutError?: string;
+  /** 닫는 중 — 사유 (`LnCloseReason`) */
+  pendingClose?: string;
+  closeReason?: string;
+  claimedAt?: number;
+  accountSentAt?: number;
+  /** 고객이 보낸 계좌의 커밋먼트 — 후원자가 공개한 계좌와 대조한다 */
+  accountCommitment?: string;
+  remittedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+  invoices: AdminLnInvoice[];
+  /** 이 상세를 만들 때 본 블록 높이 (모르면 없다) */
+  blockHeight?: number;
 }
 
 /** 상태 이벤트가 이만큼 안 오면 데몬이 죽은 것으로 본다 (발행 주기의 몇 배) */

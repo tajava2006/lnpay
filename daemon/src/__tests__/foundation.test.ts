@@ -17,6 +17,9 @@ const baseEnv = {
   LNPAY_SEED_FILE: '/s/seed',
   LNPAY_APP_KEY_FILE: '/s/app',
   LNPAY_OPERATORS: OP,
+  LNPAY_LND_URL: 'https://host.docker.internal:8080',
+  LNPAY_LND_CERT_FILE: '/s/tls.cert',
+  LNPAY_LND_MACAROON_FILE: '/s/lnpay.macaroon',
 };
 
 describe('설정 — 틀리면 뜨지 않는다', () => {
@@ -44,6 +47,13 @@ describe('설정 — 틀리면 뜨지 않는다', () => {
 
   it('숫자가 아니면 거부', () => {
     expect(() => loadConfig({ ...baseEnv, LNPAY_TICK_MS: 'fast' })).toThrow();
+  });
+
+  /** 매크룬이 헤더로 간다 */
+  it('LND는 https만, 접속 정보가 없으면 거부', () => {
+    expect(() => loadConfig({ ...baseEnv, LNPAY_LND_URL: 'http://lnd:8080' })).toThrow(/https/);
+    expect(() => loadConfig({ ...baseEnv, LNPAY_LND_MACAROON_FILE: '' })).toThrow(/MACAROON/);
+    expect(loadConfig(baseEnv).vapidKeyFile).toBeUndefined();
   });
 });
 

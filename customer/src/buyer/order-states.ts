@@ -76,6 +76,12 @@ const ADMIN_STATE_META: Record<OrderState, DisplayMeta> = {
     textColor: '#6B7280',
     isFinal: true,
   },
+  expired: {
+    label: '기한 만료',
+    bgColor: '#F3F4F6',
+    textColor: '#6B7280',
+    isFinal: true,
+  },
   sponsor_wins: {
     label: '후원자 승리',
     bgColor: '#CCFBF1',

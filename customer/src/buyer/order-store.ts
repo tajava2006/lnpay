@@ -9,8 +9,8 @@
  *   Nostr 구독 → applyAdminUpdate → localStorage + listeners
  *   Dashboard → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
-import type { CustomerOrder } from './types';
-import type { OrderState, AccountInfo } from '@sajwo-tracker/shared';
+import type { AdminOrderUpdate, CustomerOrder } from './types';
+import type { AccountInfo } from '@sajwo-tracker/shared';
 
 type OrderMap = Record<string, CustomerOrder>;
 type Listener = () => void;
@@ -82,22 +82,19 @@ export function markPublished(orderId: string, raw: string): void {
 }
 
 /**
- * Admin 오더 상태를 오버레이한다.
- * adminState/bolt11/sponsorPubkey가 변경된 경우에만 갱신.
+ * Admin 오더 상태를 오버레이한다. 바뀐 게 있을 때만 갱신한다.
  */
-export function applyAdminUpdate(
-  orderId: string,
-  adminState: OrderState,
-  bolt11?: string,
-  sponsorPubkey?: string,
-): void {
+export function applyAdminUpdate(update: AdminOrderUpdate): void {
+  const { orderId, adminState, bolt11, sponsorPubkey, retainUntil, closeReason } = update;
   const existing = orders[orderId];
   if (!existing) return;
 
-  const stateChanged = existing.adminState !== adminState;
-  const bolt11Changed = bolt11 != null && existing.bolt11 !== bolt11;
-  const sponsorChanged = sponsorPubkey != null && existing.sponsorPubkey !== sponsorPubkey;
-  if (!stateChanged && !bolt11Changed && !sponsorChanged) return;
+  const changed = existing.adminState !== adminState
+    || (bolt11 != null && existing.bolt11 !== bolt11)
+    || (sponsorPubkey != null && existing.sponsorPubkey !== sponsorPubkey)
+    || (retainUntil != null && existing.retainUntil !== retainUntil)
+    || (closeReason != null && existing.closeReason !== closeReason);
+  if (!changed) return;
 
   orders = {
     ...orders,
@@ -106,6 +103,8 @@ export function applyAdminUpdate(
       adminState,
       ...(bolt11 != null ? { bolt11 } : {}),
       ...(sponsorPubkey != null ? { sponsorPubkey } : {}),
+      ...(retainUntil != null ? { retainUntil } : {}),
+      ...(closeReason != null ? { closeReason } : {}),
     },
   };
   saveToStorage();
@@ -172,14 +171,15 @@ const CLEANUP_INTERVAL = 60_000; // 60초
 let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * 만료된 주문을 localStorage에서 삭제한다.
+ * 보존이 끝난 주문을 localStorage에서 삭제한다.
  *
  * 이 정리는 IDB 아카이브가 생긴 뒤에야 안전해졌다. 그전에는 지우면 기록이
  * 아무 데도 안 남았다 — 릴레이도 만료된 오더를 지우기 때문이다. 지금은
  * 고객 역할 오더도 IDB에 보존되므로(buyer/nostr/service.ts) 여기서는
  * 표시용 사본만 정리하면 된다.
  *
- * 후원자 오더북과 같은 규칙: 상태 무관, expiration 기준으로만 판단.
+ * 기준은 데몬이 준 **보존 기한**(`retainUntil`)이다 — 쿠팡 기한(`expiration`)으로 지우면 진행 중
+ * 거래가 기한에 화면에서 사라진다(PLAN-DAEMON §7 L-1). 데몬 오더를 아직 못 받은 주문만 기한으로 지운다.
  * 미발행 주문(expiration === 0)은 아직 만료 개념이 없으므로 남긴다.
  */
 function purgeExpired(): void {
@@ -187,9 +187,10 @@ function purgeExpired(): void {
   const before = Object.keys(orders).length;
 
   orders = Object.fromEntries(
-    Object.entries(orders).filter(([, o]) =>
-      o.expiration === 0 || o.expiration > now,
-    ),
+    Object.entries(orders).filter(([, o]) => {
+      const until = o.retainUntil ?? o.expiration;
+      return until === 0 || until > now;
+    }),
   );
 
   if (Object.keys(orders).length === before) return;

@@ -4,7 +4,7 @@
  * 데몬 상태와 오더는 localStorage에 남긴다 — 새로고침 직후에도 마지막으로 본 것을 띄우고, 피드가
  * 따라오면 갱신한다. 명령 결과는 그 세션의 것이라 메모리에만 둔다.
  */
-import type { AdminChatCopy, AdminCommandResult, AdminState, Order } from '@sajwo-tracker/shared';
+import type { AdminChatCopy, AdminCommandResult, AdminLnOrderDetail, AdminState, Order } from '@sajwo-tracker/shared';
 import type { OnchainOrder } from '@sajwo-tracker/shared/onchain';
 
 export interface Store<T> {
@@ -65,6 +65,14 @@ export const commands = createStore<Record<string, CommandView>>({});
 export const chats = createStore<Record<string, AdminChatCopy[]>>({}, 'admin2:chats');
 
 export const lnOrders = createStore<Record<string, Order>>({}, 'admin2:ln-orders');
+
+export interface LnDetailView {
+  detail: AdminLnOrderDetail;
+  eventAt: number;
+}
+
+/** 라이트닝 오더별 비공개 상세 (데몬 → 이 운영자). 판정 명령은 여기 버전을 싣는다 */
+export const lnDetails = createStore<Record<string, LnDetailView>>({}, 'admin2:ln-details');
 export const onchainOrders = createStore<Record<string, OnchainOrder>>({}, 'admin2:onchain-orders');
 
 export function clearStores(): void {
@@ -72,5 +80,6 @@ export function clearStores(): void {
   commands.set({});
   chats.set({});
   lnOrders.set({});
+  lnDetails.set({});
   onchainOrders.set({});
 }

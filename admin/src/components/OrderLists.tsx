@@ -1,8 +1,8 @@
 /**
- * 오더 목록 — 보기 전용 (PLAN-DAEMON §6)
+ * 오더 목록 (PLAN-DAEMON §6)
  *
- * 공개 오더 이벤트를 그대로 보여준다. 상세·판정·채팅은 트랙을 데몬으로 옮기면서(P3 라이트닝·P4 온체인)
- * 명령과 함께 다시 붙는다 — 지금 여기 버튼을 달면 집행할 곳이 없다.
+ * 공개 오더 이벤트를 그대로 보여준다. 라이트닝은 줄을 누르면 상세·판정·채팅으로 간다(P3). 온체인은
+ * 데몬으로 옮기기 전(P4)이라 아직 보기 전용이다 — 버튼을 달면 집행할 곳이 없다.
  */
 import { useSyncExternalStore } from 'react';
 import { isTerminalState, stateDisplay } from '@sajwo-tracker/shared';
@@ -19,7 +19,7 @@ interface Row {
   done: boolean;
 }
 
-export function LnOrderList() {
+export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void }) {
   const orders = useSyncExternalStore(lnOrders.subscribe, lnOrders.get);
   const rows: Row[] = Object.values(orders).map(o => {
     const d = stateDisplay(o.state);
@@ -28,7 +28,7 @@ export function LnOrderList() {
       amount: `${o.price.toLocaleString()}원`, updatedAt: o.updatedAt, done: isTerminalState(o.state),
     };
   });
-  return <Table title="라이트닝 오더" rows={rows} />;
+  return <Table title="라이트닝 오더" rows={rows} onSelect={onSelect} />;
 }
 
 export function OnchainOrderList() {
@@ -40,14 +40,16 @@ export function OnchainOrderList() {
       amount: `${o.amountSat.toLocaleString()} sats`, updatedAt: o.updatedAt, done: isOnchainTerminal(o.state),
     };
   });
-  return <Table title="온체인 오더" rows={rows} />;
+  return <Table title="온체인 오더" rows={rows} note="보기 전용" />;
 }
 
-function Table({ title, rows }: { title: string; rows: Row[] }) {
+function Table({ title, rows, onSelect, note }: {
+  title: string; rows: Row[]; onSelect?: (orderId: string) => void; note?: string;
+}) {
   const sorted = [...rows].sort((a, b) => Number(a.done) - Number(b.done) || b.updatedAt - a.updatedAt);
   return (
     <section style={styles.card}>
-      <h2 style={styles.h2}>{title} <span style={styles.note}>{rows.length}건 · 보기 전용</span></h2>
+      <h2 style={styles.h2}>{title} <span style={styles.note}>{rows.length}건{note ? ` · ${note}` : ''}</span></h2>
       {rows.length === 0 ? (
         <p style={styles.note}>릴레이에 오더가 없습니다.</p>
       ) : (
@@ -58,7 +60,11 @@ function Table({ title, rows }: { title: string; rows: Row[] }) {
             </thead>
             <tbody>
               {sorted.map(r => (
-                <tr key={r.orderId} style={r.done ? styles.doneRow : undefined}>
+                <tr
+                  key={r.orderId}
+                  style={{ ...(r.done ? styles.doneRow : {}), ...(onSelect ? styles.clickable : {}) }}
+                  onClick={onSelect ? () => onSelect(r.orderId) : undefined}
+                >
                   <td style={{ ...styles.td, ...styles.mono }}>{r.orderId}</td>
                   <td style={styles.td}><span style={{ ...styles.badge, color: r.color, background: r.bg }}>{r.label}</span></td>
                   <td style={styles.td}>{r.amount}</td>
@@ -84,4 +90,5 @@ const styles = {
   mono: { fontFamily: 'monospace', fontSize: 12 },
   badge: { padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 600 as const },
   doneRow: { opacity: 0.55 },
+  clickable: { cursor: 'pointer' },
 };

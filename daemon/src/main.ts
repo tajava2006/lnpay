@@ -4,15 +4,18 @@
  * 무엇 하나라도 틀리면 **뜨지 않는다**(설정·비밀 검증). docker의 재시작 정책이 계속 되살리려 하겠지만,
  * 반쯤 맞는 설정으로 조용히 도는 것보다 크래시 루프가 눈에 띈다.
  */
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { VAPID_PUBLIC_KEY, createPriceTracker, freshPrice } from '@sajwo-tracker/shared/core';
 import { loadConfig } from './config';
 import { Db } from './db';
+import { createLndNode } from './ln';
 import { createLogger } from './log';
 import { discoverAppRelays } from './nostr/discovery';
 import { createPoolTransport } from './nostr/transport';
+import { vapidKeyPairMatches } from './push/crypto';
 import { Daemon } from './runtime';
-import { readAppKeyFile, readSeedFile } from './secrets';
+import { readAppKeyFile, readMacaroonHex, readSeedFile, readVapidKeyFile } from './secrets';
 
 async function main(): Promise<void> {
   const log = createLogger();
@@ -30,6 +33,27 @@ async function main(): Promise<void> {
     if (found.fallback) log.warn('APP의 kind 10002를 못 찾아 폴백 릴레이를 쓴다', { relays });
   }
   log.info('릴레이', { relays, mode: config.mode });
+
+  const node = createLndNode({
+    url: config.lnd.url,
+    cert: readFileSync(config.lnd.certFile),
+    macaroonHex: readMacaroonHex(config.lnd.macaroonFile),
+  });
+  log.info('LND', { url: config.lnd.url, height: await node.blockHeight() });
+
+  let push = null;
+  if (config.vapidKeyFile) {
+    const privateD = readVapidKeyFile(config.vapidKeyFile);
+    // 짝이 아닌 키는 크롬에서만 조용히 실패한다(파폭은 통과) — 부팅에서 막는다
+    if (!await vapidKeyPairMatches(VAPID_PUBLIC_KEY, privateD)) throw new Error('VAPID 개인키가 공개키의 짝이 아니다');
+    push = { privateD, publicKey: VAPID_PUBLIC_KEY, subject: config.vapidSubject };
+  } else {
+    log.warn('VAPID 키가 없어 웹 푸시를 보내지 않는다');
+  }
+
+  // 시세는 거래소 웹소켓 셋의 중간값. 둘 이상이 1분 안에 값을 줘야 믿는다(금액이 정해지는 유일한 입력)
+  const prices = createPriceTracker();
+  prices.start();
 
   const transport = createPoolTransport(relays);
   const daemon = new Daemon({
@@ -49,11 +73,13 @@ async function main(): Promise<void> {
     nowMs: () => Date.now(),
     log,
     dataDir: config.dataDir,
+    ln: { node, price: () => freshPrice(prices.getSnapshot(), Date.now()), push },
   });
 
   const shutdown = async (signal: string) => {
     log.info('종료 신호', { signal });
     await daemon.stop();
+    prices.stop();
     transport.close();
     db.close();
     process.exit(0);

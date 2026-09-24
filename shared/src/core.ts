@@ -14,6 +14,7 @@ export {
   CLIENT_TAG_ADMIN,
   DISCOVERY_RELAYS,
   FALLBACK_RELAYS,
+  VAPID_PUBLIC_KEY,
   REQUEST_ACTIONS,
   ORDER_STATES,
   TERMINAL_STATES,
@@ -25,11 +26,14 @@ export { nip44Encrypt, nip44Decrypt } from './crypto';
 
 export {
   ADMIN_ACTIONS, ADMIN_COMMAND_TTL_SEC, ADMIN_STATE_KIND, ADMIN_STATE_STALE_SEC, DEFAULT_SETTINGS,
-  MAX_CHAT_TEXT, MAX_DEPOSIT_PCT, adminStateDTag, applySettingsPatch,
+  MAX_CHAT_TEXT, MAX_DEPOSIT_PCT, adminOrderDTag, adminOrderDTagPrefix, adminStateDTag, applySettingsPatch,
 } from './admin-protocol';
 export type {
-  AdminAlert, AdminChatCopy, AdminCommand, AdminCommandResult, AdminState, DaemonSettings,
-  OrderTarget, TrackName,
+  AdminAlert, AdminChatCopy, AdminCommand, AdminCommandResult, AdminLnInvoice, AdminLnInvoicePurpose,
+  AdminLnOrderDetail, AdminState, DaemonSettings, OrderTarget, TrackName,
 } from './admin-protocol';
 export type { DisputeMessagePayload, AccountInfo } from './types';
 export { extractOrderId, orderRef } from './order-ref';
+
+export { createPriceTracker, freshPrice } from './price';
+export type { PriceTracker, PriceSnapshot } from './price';

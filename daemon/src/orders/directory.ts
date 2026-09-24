@@ -19,6 +19,20 @@ export interface OrderDirectory {
 /** 아직 트랙이 없을 때 — 아무 오더도 모른다 */
 export const EMPTY_DIRECTORY: OrderDirectory = { lookup: () => null };
 
+/** 여러 목록을 잇는다 — 앞에서 찾으면 그걸 쓴다 */
+export function composeDirectories(directories: readonly OrderDirectory[]): OrderDirectory {
+  if (directories.length === 0) return EMPTY_DIRECTORY;
+  return {
+    lookup(track, orderId) {
+      for (const d of directories) {
+        const found = d.lookup(track, orderId);
+        if (found) return found;
+      }
+      return null;
+    },
+  };
+}
+
 export function isTrack(value: unknown): value is TrackName {
   return value === 'ln' || value === 'onchain';
 }

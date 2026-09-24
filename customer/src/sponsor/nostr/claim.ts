@@ -24,6 +24,7 @@ import {
   type AccountInfoRequest,
   type PreparedChatMessage,
 } from '@sajwo-tracker/shared';
+import { lnRequestExpiration } from '@sajwo-tracker/shared/ln';
 import type { EventTemplate } from 'nostr-tools/core';
 
 /**
@@ -40,7 +41,7 @@ import type { EventTemplate } from 'nostr-tools/core';
  *   ['action', 'claim']                    - 요청 종류
  *   ['p', APP_PUBKEY]                      - Admin 디스커버리용
  *   ['t', CLIENT_TAG]                      - 클라이언트 식별
- *   ['expiration', ...]                    - 오더 만료 시각
+ *   ['expiration', ...]                    - 요청 보존 (lnRequestExpiration)
  */
 export async function publishClaim(order: Order): Promise<boolean> {
   const sk = await getSecretKey(storage);
@@ -56,9 +57,8 @@ export async function publishClaim(order: Order): Promise<boolean> {
     ['t', CLIENT_TAG],
   ];
 
-  if (order.expiration > 0) {
-    tags.push(['expiration', String(order.expiration)]);
-  }
+  // 요청의 보존 — 쿠팡 기한이 아니다(기한 직후의 송금 완료가 릴레이에서 거절되면 안 된다)
+  tags.push(['expiration', String(lnRequestExpiration(now))]);
 
   const template = {
     kind: SAJWO_REQUEST_EVENT_KIND,
@@ -114,7 +114,7 @@ export async function publishClaim(order: Order): Promise<boolean> {
  *   ['action', 'remit-request']            - 요청 종류
  *   ['p', APP_PUBKEY]                      - Admin 디스커버리용
  *   ['t', CLIENT_TAG]                      - 클라이언트 식별
- *   ['expiration', ...]                    - 오더 만료 시각
+ *   ['expiration', ...]                    - 요청 보존 (lnRequestExpiration)
  */
 export async function publishRemitRequest(order: Order): Promise<boolean> {
   const sk = await getSecretKey(storage);
@@ -130,9 +130,8 @@ export async function publishRemitRequest(order: Order): Promise<boolean> {
     ['t', CLIENT_TAG],
   ];
 
-  if (order.expiration > 0) {
-    tags.push(['expiration', String(order.expiration)]);
-  }
+  // 요청의 보존 — 쿠팡 기한이 아니다(기한 직후의 송금 완료가 릴레이에서 거절되면 안 된다)
+  tags.push(['expiration', String(lnRequestExpiration(now))]);
 
   const template = {
     kind: SAJWO_REQUEST_EVENT_KIND,
@@ -256,7 +255,7 @@ export async function publishAccountReveal(order: Order): Promise<boolean> {
  * 금액은 오더의 `payout` 태그와 **정확히** 일치해야 어드민이 받아준다.
  */
 export async function publishSponsorInvoice(
-  order: { orderId: string; expiration: number },
+  order: { orderId: string },
   bolt11: string,
 ): Promise<boolean> {
   const [sk, relays] = await Promise.all([
@@ -264,16 +263,17 @@ export async function publishSponsorInvoice(
     getReadRelays(storage),
   ]);
 
+  const now = Math.floor(Date.now() / 1000);
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: now,
     tags: [
       ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
       ['action', REQUEST_ACTIONS.SPONSOR_INVOICE],
       ['t', CLIENT_TAG],
       ['p', APP_PUBKEY],
       ['bolt11', bolt11],
-      ['expiration', String(order.expiration)],
+      ['expiration', String(lnRequestExpiration(now))],
     ],
     content: '',
   };

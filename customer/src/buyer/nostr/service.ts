@@ -36,7 +36,7 @@ export function handleAdminOrder(event: Event, myPubkey: string): void {
   const update = parseAdminEvent(event, myPubkey);
   if (!update) return;
 
-  applyAdminUpdate(update.orderId, update.adminState, update.bolt11, update.sponsorPubkey);
+  applyAdminUpdate(update);
 
   // 릴레이는 만료 시 오더를 지운다. 내가 관여한 거래의 영구 기록은 IDB뿐이다.
   void archiveOrder(event);

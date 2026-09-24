@@ -97,16 +97,21 @@ const CLEANUP_INTERVAL = 60_000; // 60초
 let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * 만료된 오더를 삭제한다. 상태 무관 — expiration 기준으로만 판단.
+ * 릴레이 보존이 끝난 오더를 지운다 (`retainUntil`).
+ *
+ * 예전엔 `expiration`(= 쿠팡 기한)으로 지워서 **진행 중 거래가 기한에 화면에서 사라졌다** — 기한 직후의
+ * 송금 완료·입금 확인·분쟁이 제일 중요한 순간인데. 데몬은 진행 중이면 보존을 넉넉히 늘린다(L-1).
+ * `retainUntil`이 없는 옛 이벤트만 기한으로 지운다.
  */
 function purgeExpired(): void {
   const now = Math.floor(Date.now() / 1000);
   const before = Object.keys(orders).length;
 
   orders = Object.fromEntries(
-    Object.entries(orders).filter(([, o]) =>
-      o.expiration === 0 || o.expiration > now,
-    ),
+    Object.entries(orders).filter(([, o]) => {
+      const until = o.retainUntil ?? o.expiration;
+      return until === 0 || until > now;
+    }),
   );
 
   if (Object.keys(orders).length === before) return;

@@ -45,6 +45,12 @@ export interface DaemonConfig {
   tickMs: number;
   /** 받은 이벤트를 이만큼 묵혔다가 created_at 순으로 처리한다 (릴레이마다 도착 순서가 다르다) */
   holdMs: number;
+  /** LND REST (§14 D3). 호스트 LND를 boltz와 같은 방식으로 쓴다 */
+  lnd: { url: string; certFile: string; macaroonFile: string };
+  /** 없으면 웹 푸시를 보내지 않는다(거래는 그대로 돈다) */
+  vapidKeyFile: string | undefined;
+  /** VAPID `sub` — 푸시 서비스가 문제 생겼을 때 연락할 곳 */
+  vapidSubject: string;
 }
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -93,7 +99,26 @@ export function loadConfig(env: Record<string, string | undefined>): DaemonConfi
     resubscribeSec: optionalInt(env, 'LNPAY_RESUBSCRIBE_SEC') ?? 5 * 60,
     tickMs: optionalInt(env, 'LNPAY_TICK_MS') ?? 15_000,
     holdMs: optionalInt(env, 'LNPAY_HOLD_MS') ?? 1_500,
+    lnd: {
+      url: lndUrl(required(env, 'LNPAY_LND_URL')),
+      certFile: required(env, 'LNPAY_LND_CERT_FILE'),
+      macaroonFile: required(env, 'LNPAY_LND_MACAROON_FILE'),
+    },
+    vapidKeyFile: env.LNPAY_VAPID_KEY_FILE?.trim() || undefined,
+    vapidSubject: env.LNPAY_VAPID_SUBJECT?.trim() || 'https://customer.hoppe-relay.it.com',
   };
+}
+
+function lndUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`LNPAY_LND_URL이 주소가 아니다: ${value}`);
+  }
+  // 매크룬이 헤더로 간다 — 평문으로 보내지 않는다
+  if (url.protocol !== 'https:') throw new Error('LNPAY_LND_URL은 https여야 한다');
+  return value;
 }
 
 function list(value: string | undefined): string[] {

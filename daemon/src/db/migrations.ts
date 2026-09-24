@@ -63,4 +63,83 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 3,
+    sql: `
+      -- 라이트닝 오더. 공개 이벤트(30402)의 원천 — 발행은 이 행의 투영이다
+      CREATE TABLE ln_orders (
+        order_id              TEXT PRIMARY KEY,
+        state                 TEXT NOT NULL,
+        customer              TEXT NOT NULL,
+        sponsor               TEXT,
+        price                 INTEGER NOT NULL,
+        deadline              INTEGER NOT NULL,
+        payout_sat            INTEGER,
+        escrow_hash           TEXT,
+        escrow_bolt11         TEXT,
+        escrow_settled        INTEGER NOT NULL DEFAULT 0,
+        sponsor_invoice       TEXT,
+        disbursed             INTEGER NOT NULL DEFAULT 0,
+        payout_error          TEXT,
+        customer_deposit_hash TEXT,
+        sponsor_deposit_hash  TEXT,
+        pending_close         TEXT,
+        close_reason          TEXT,
+        claimed_at            INTEGER,
+        account_sent_at       INTEGER,
+        account_commitment    TEXT,
+        remitted_at           INTEGER,
+        created_at            INTEGER NOT NULL,
+        updated_at            INTEGER NOT NULL,
+        version               INTEGER NOT NULL DEFAULT 1,
+        published_at          INTEGER NOT NULL DEFAULT 0
+      );
+
+      -- 고객 보증금을 기다리는 의뢰 — 결제되면 ln_orders로 간다
+      CREATE TABLE ln_drafts (
+        order_id    TEXT PRIMARY KEY,
+        customer    TEXT NOT NULL,
+        price       INTEGER NOT NULL,
+        deadline    INTEGER NOT NULL,
+        created_at  INTEGER NOT NULL
+      );
+
+      -- 우리가 낸 홀드 인보이스 전부. 프리이미지는 저장하지 않는다 — 시드에서 다시 만든다(DM-005)
+      CREATE TABLE ln_invoices (
+        payment_hash       TEXT PRIMARY KEY,
+        purpose            TEXT NOT NULL,
+        order_id           TEXT NOT NULL,
+        party              TEXT NOT NULL,
+        attempt            INTEGER NOT NULL,
+        amount_sat         INTEGER NOT NULL,
+        bolt11             TEXT NOT NULL,
+        pay_by             INTEGER NOT NULL,
+        cltv_blocks        INTEGER NOT NULL,
+        status             TEXT NOT NULL DEFAULT 'open',
+        htlc_expiry_height INTEGER,
+        created_at         INTEGER NOT NULL,
+        updated_at         INTEGER NOT NULL,
+        UNIQUE (purpose, order_id, party, attempt)
+      );
+      CREATE INDEX ln_invoices_order ON ln_invoices (order_id);
+      CREATE INDEX ln_invoices_live ON ln_invoices (status);
+
+      -- 웹 푸시 구독 (유저가 push-subscription으로 등록)
+      CREATE TABLE push_subs (
+        endpoint   TEXT PRIMARY KEY,
+        pubkey     TEXT NOT NULL,
+        p256dh     TEXT NOT NULL,
+        auth       TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        dead_at    INTEGER
+      );
+      CREATE INDEX push_subs_pubkey ON push_subs (pubkey);
+
+      -- 한 번만 보내야 하는 알림 (같은 전이를 두 번 울리지 않게)
+      CREATE TABLE notices (
+        key     TEXT PRIMARY KEY,
+        sent_at INTEGER NOT NULL
+      );
+    `,
+  },
 ];

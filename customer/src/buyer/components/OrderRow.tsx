@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CustomerOrder } from '../types';
 import { canSendAccountInfo } from '@sajwo-tracker/shared';
+import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
 import type { AccountInfo, PriceTracker } from '@sajwo-tracker/shared';
 import { getDisplayMeta, isDeletable, isCancellable, isFinal } from '../order-states';
 import { publishOrderRequest, publishNotification, publishAccountInfo } from '../nostr/publish';
@@ -217,6 +218,11 @@ export function OrderRow({ order, tracker, now }: Props) {
               color: isExpired ? '#DC2626' : isUrgent ? '#D97706' : '#999',
             }}>
               {formatTimeLeft(order.expiration, now)}
+            </div>
+          )}
+          {isFinal(order) && order.closeReason && isLnCloseReason(order.closeReason) && (
+            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+              {LN_CLOSE_REASON_LABEL[order.closeReason]}
             </div>
           )}
         </td>

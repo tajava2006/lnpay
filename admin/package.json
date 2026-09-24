@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@sajwo-tracker/shared": "workspace:*",
-    "bolt11": "^1.4.1",
     "nostr-tools": "^2.25.2",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.8",

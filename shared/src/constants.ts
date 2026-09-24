@@ -141,6 +141,11 @@ export const ORDER_STATES = {
    * "왜 취소됐지"를 구분할 수 없다.
    */
   ADMIN_CLOSED: 'admin_closed',
+  /**
+   * 쿠팡 가상계좌 기한(`deadline`)이 지나 원화가 더는 갈 수 없어 데몬이 닫았다.
+   * `remitted` 전까지만 온다 — 그 뒤는 분쟁 판정으로 끝난다(PLAN-DAEMON §7 L-2).
+   */
+  EXPIRED: 'expired',
 } as const;
 export type OrderState = typeof ORDER_STATES[keyof typeof ORDER_STATES];
 
@@ -159,6 +164,7 @@ export const TERMINAL_STATES: ReadonlySet<OrderState> = new Set<OrderState>([
   ORDER_STATES.SPONSOR_WINS,
   ORDER_STATES.CUSTOMER_WINS,
   ORDER_STATES.ADMIN_CLOSED,
+  ORDER_STATES.EXPIRED,
 ]);
 
 export function isTerminalState(state: OrderState | undefined): boolean {

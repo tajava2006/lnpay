@@ -41,6 +41,13 @@ export interface Order {
   depositPaymentHash?: string;
   /** 후원자 보증금 hold invoice payment hash (cancel/settle용) */
   sponsorDepositPaymentHash?: string;
+  /**
+   * 이 이벤트가 릴레이에서 사라지는 시각 (NIP-40). `expiration`(거래 마감)과 다르다 —
+   * 진행 중 거래는 마감 뒤에도 이어지므로 목록에서 지울 때는 이걸 본다 (PLAN-DAEMON §7 L-1).
+   */
+  retainUntil?: number;
+  /** 종결 사유 (`LnCloseReason`). 종결된 오더에만 */
+  closeReason?: string;
   raw: object;
 }
 

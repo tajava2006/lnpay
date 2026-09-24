@@ -3,6 +3,7 @@
  */
 import type { Event } from 'nostr-tools/core';
 import { APP_PUBKEY, SAJWO_REQUEST_EVENT_KIND, REQUEST_ACTIONS, nip44Decrypt, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
+import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
 
 /**
  * Customer 로컬 주문
@@ -55,6 +56,10 @@ export interface CustomerOrder {
   depositStatus?: 'accepted' | 'cancelled' | 'settled';
   /** Admin 오더에서 수신한 Sponsor pubkey (claimed 이후) */
   sponsorPubkey?: string;
+  /** 릴레이 보존 기한 (오더 이벤트의 NIP-40) — 목록에서 지우는 기준. 기한(`expiration`)과 다르다 */
+  retainUntil?: number;
+  /** 종결 사유 (`LnCloseReason`) — 왜 끝났는지 */
+  closeReason?: string;
   /** 전달 완료된 계좌정보 (로컬 전용, 재전송 방지) */
   accountInfo?: AccountInfo;
 }
@@ -98,6 +103,8 @@ export interface AdminOrderUpdate {
   adminState: OrderState;
   bolt11?: string;
   sponsorPubkey?: string;
+  retainUntil?: number;
+  closeReason?: string;
 }
 
 /**
@@ -113,11 +120,16 @@ export function parseAdminEvent(event: Event, myPubkey: string): AdminOrderUpdat
   const orderId = event.tags.find(t => t[0] === 'd')?.[1];
   if (!orderId) return null;
 
-  const adminState = (event.tags.find(t => t[0] === 'state')?.[1] ?? 'requested') as OrderState;
-  const bolt11 = event.tags.find(t => t[0] === 'bolt11')?.[1];
-  const sponsorPubkey = event.tags.find(t => t[0] === 'sponsor')?.[1];
-
-  return { orderId, adminState, bolt11, sponsorPubkey };
+  const order = parseLnOrderEvent(event, APP_PUBKEY);
+  if (!order) return null;
+  return {
+    orderId,
+    adminState: order.state,
+    bolt11: order.bolt11,
+    sponsorPubkey: order.sponsorPubkey,
+    retainUntil: order.retainUntil,
+    closeReason: order.closeReason,
+  };
 }
 
 /** 유저스크립트가 보낸 쿠팡 상태 변화 (자기암호화 페이로드) */

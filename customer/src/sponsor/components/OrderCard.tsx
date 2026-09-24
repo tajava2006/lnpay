@@ -81,11 +81,12 @@ export function OrderCard({ order, now, tracker, myPubkey, onSelectOrder }: Prop
   // 계좌는 `invoiced`부터 온다 — 내 인보이스가 검증된 뒤라야 고객이 발행한다.
   // `escrowed`는 그 앞 단계, 즉 **내가 인보이스를 낼 차례**다.
   //
-  // `invoiced`에서도 거절 통보가 와 있으면 다시 띄운다 — 지급 직전에 인보이스가
+  // `invoiced`·`remitted`에서도 거절 통보가 와 있으면 다시 띄운다 — 지급 직전에 인보이스가
   // 만료된 경우다. 이때 거래는 살아 있고 필요한 건 새 인보이스뿐이라,
-  // 폼이 안 보이면 후원자가 할 수 있는 게 없어진다.
+  // 폼이 안 보이면 후원자가 할 수 있는 게 없어진다(지급 뒤 재제출은 내역 상세에서).
   const needsInvoice = isMine
-    && (order.state === 'escrowed' || (order.state === 'invoiced' && !!claimError));
+    && (order.state === 'escrowed'
+      || ((order.state === 'invoiced' || order.state === 'remitted') && !!claimError));
   const showAccountInfo = isMine && order.state === 'invoiced' && accountInfo;
   const showWaitingAccount = isMine && order.state === 'invoiced' && !accountInfo;
   const canRemit = isMine && order.state === 'invoiced' && accountInfo;

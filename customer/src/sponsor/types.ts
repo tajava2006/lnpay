@@ -1,5 +1,6 @@
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, SAJWO_REQUEST_KIND, type Order, type OrderState } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, SAJWO_REQUEST_KIND, type Order } from '@sajwo-tracker/shared';
+import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
 
 // ── account-info 이벤트 파싱 ─────────────────────────
 
@@ -46,49 +47,12 @@ export function parseAccountInfoEvent(event: Event): AccountInfoEvent | null {
 // ── kind 30402 오더 이벤트 파싱 ──────────────────────
 
 /**
- * kind 30402 이벤트를 Order로 파싱한다.
- * Admin(APP_PUBKEY)이 발행한 이벤트만 수용.
+ * kind 30402 이벤트를 Order로 파싱한다. Admin(APP_PUBKEY)이 발행한 것만.
+ *
+ * 규칙은 shared `parseLnOrderEvent` 한 곳에 있다 — 데몬이 만드는 쪽과 같은 파일이다. 여기 따로 두었을 때
+ * 발행만 하고 안 읽은 태그(payout)가 에코에 증발한 적이 있다(2026-09-19). `expiration`은 **쿠팡 기한**,
+ * 릴레이 보존은 `retainUntil`이다(PLAN-DAEMON §7 L-1).
  */
 export function parseEvent(event: Event): Order | null {
-  if (event.pubkey !== APP_PUBKEY) return null;
-
-  const orderId = event.tags.find(t => t[0] === 'd')?.[1];
-  if (!orderId) return null;
-
-  const status = (event.tags.find(t => t[0] === 'status')?.[1] ?? 'active') as 'active' | 'sold';
-  const state = (event.tags.find(t => t[0] === 'state')?.[1] ?? 'requested') as OrderState;
-  const customerPubkey = event.tags.find(t => t[0] === 'customer')?.[1] ?? '';
-  const sponsorPubkey = event.tags.find(t => t[0] === 'sponsor')?.[1];
-
-  const priceTag = event.tags.find(t => t[0] === 'price');
-  const price = priceTag?.[1] ? Number(priceTag[1]) : 0;
-
-  const expirationTag = event.tags.find(t => t[0] === 'expiration')?.[1];
-  const expiration = expirationTag ? Number(expirationTag) : 0;
-
-  // payout / sponsor-invoice
-  //
-  // **발행만 하고 읽지 않으면 없는 것과 같다.** 어드민은 전이 때 payoutSat을
-  // 오더에 담아 발행하는데, 릴레이 에코가 돌아오면 upsertOrder가 파싱본으로
-  // 통째로 갈아끼운다 — 여기서 안 읽으면 그 순간 값이 증발한다.
-  // 그러면 후원자 화면엔 "0 sats"가 뜨고 인보이스는 전부 AMOUNT_MISMATCH로
-  // 거절된다(2026-09-19 prd에서 실제로 발생).
-  const payoutTag = event.tags.find(t => t[0] === 'payout')?.[1];
-  const payoutSat = payoutTag ? Number(payoutTag) : undefined;
-  const sponsorInvoice = event.tags.find(t => t[0] === 'sponsor-invoice')?.[1];
-
-  return {
-    orderId,
-    status,
-    state,
-    customerPubkey,
-    ...(sponsorPubkey ? { sponsorPubkey } : {}),
-    ...(payoutSat && payoutSat > 0 ? { payoutSat } : {}),
-    ...(sponsorInvoice ? { sponsorInvoice } : {}),
-    price,
-    createdAt: event.created_at,
-    updatedAt: event.created_at,
-    expiration,
-    raw: event,
-  };
+  return parseLnOrderEvent(event, APP_PUBKEY);
 }

@@ -54,3 +54,17 @@ export function readSeedFile(path: string): Uint8Array {
 export function readAppKeyFile(path: string, expectedPubkey: string): AppKey {
   return parseAppKey(readFileSync(path, 'utf8'), expectedPubkey);
 }
+
+/** LND 매크룬 (바이너리 파일) → REST 헤더에 싣는 hex. **admin.macaroon 대신 권한을 줄인 것**(§4.7) */
+export function readMacaroonHex(path: string): string {
+  const bytes = readFileSync(path);
+  if (bytes.length === 0) throw new Error('매크룬 파일이 비었다');
+  return bytes.toString('hex');
+}
+
+/** VAPID 개인키 — P-256 d, base64url 43자 (`VAPID_PUBLIC_KEY`의 짝인지는 부팅 때 서명으로 확인한다) */
+export function readVapidKeyFile(path: string): string {
+  const value = readFileSync(path, 'utf8').trim();
+  if (!/^[A-Za-z0-9_-]{43}$/.test(value)) throw new Error('VAPID 개인키는 base64url 43자여야 한다');
+  return value;
+}

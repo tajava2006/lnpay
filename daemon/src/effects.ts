@@ -30,6 +30,8 @@ export interface EffectExecutor<P> {
   onDone?(payload: P, result: unknown): void;
   /** 포기했을 때 (경보 자리) — 역시 기록 트랜잭션 안 */
   onDead?(payload: P, error: string): void;
+  /** 재시도로 미룰 때 — 실패 사유를 남길 자리(지급 오류 등). 재시도 기록과 같은 트랜잭션 */
+  onRetry?(payload: P, error: string): void;
   /** 이만큼 실패하면 포기한다. 기본은 포기하지 않는다 — 돈이 걸린 효과는 대개 끝까지 가야 한다 */
   maxAttempts?: number;
 }
@@ -97,6 +99,13 @@ export class Effects {
     }
   }
 
+  /** 기다리는 효과를 지금 당장 돌게 앞당긴다 (운영자의 "다시 시도"). 있었으면 true */
+  expedite(dedup: string): boolean {
+    return this.db.run(
+      `UPDATE effects SET next_at = ? WHERE dedup = ? AND status = 'pending'`, this.now(), dedup,
+    ).changes > 0;
+  }
+
   pendingCount(kind?: string): number {
     const row = kind
       ? this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM effects WHERE status = 'pending' AND kind = ?`, kind)
@@ -146,10 +155,13 @@ export class Effects {
       this.kill({ ...row, attempts }, executor, JSON.parse(row.payload), `${attempts}회 실패: ${error}`);
       return;
     }
-    this.db.run(
-      `UPDATE effects SET attempts = ?, next_at = ?, last_error = ? WHERE id = ?`,
-      attempts, this.now() + (delayMs ?? backoffMs(attempts)), error, row.id,
-    );
+    this.db.tx(() => {
+      this.db.run(
+        `UPDATE effects SET attempts = ?, next_at = ?, last_error = ? WHERE id = ?`,
+        attempts, this.now() + (delayMs ?? backoffMs(attempts)), error, row.id,
+      );
+      executor.onRetry?.(JSON.parse(row.payload), error);
+    });
     this.log.warn('효과 재시도 예정', { id: row.id, kind: row.kind, attempts, error });
   }
 

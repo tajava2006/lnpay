@@ -3,6 +3,7 @@ import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
 import type { Order } from '@sajwo-tracker/shared';
 import type { PriceTracker } from '@sajwo-tracker/shared';
 import { getUserPubkey, storage, isTerminalState } from '@sajwo-tracker/shared';
+import { isClaimableLn } from '@sajwo-tracker/shared/ln';
 import { OrderCard } from './OrderCard';
 
 interface Props {
@@ -32,12 +33,17 @@ export function OrderBook({ tracker, onSelectOrder }: Props) {
     return () => clearInterval(interval);
   }, []);
 
-  // 활성 오더만 표시 (만료 안 된 + 비종료 상태), 만료 임박순
+  // 비종료 오더만, 기한 임박순.
+  //
+  // 의뢰(requested)는 **클레임할 틈이 있는 것만** — 기한 1시간 안쪽은 데몬이 클레임을 받지 않는다.
+  // 진행 중인 내 거래는 기한이 지나도 남긴다 — 기한 직후의 송금 완료·판정이 제일 중요한 순간이다
+  // (PLAN-DAEMON §7 L-1). 남의 진행 중 거래는 기한까지만.
   const activeOrders = Object.values(orders)
-    .filter((o: Order) =>
-      !isTerminalState(o.state)
-      && (o.expiration === 0 || o.expiration > now),
-    )
+    .filter((o: Order) => {
+      if (isTerminalState(o.state)) return false;
+      if (o.state === 'requested') return isClaimableLn(o, now);
+      return (myPubkey !== null && o.sponsorPubkey === myPubkey) || o.expiration > now;
+    })
     .sort((a: Order, b: Order) => {
       if (a.expiration === 0 && b.expiration === 0) return 0;
       if (a.expiration === 0) return 1;

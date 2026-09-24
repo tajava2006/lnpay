@@ -138,7 +138,7 @@ const STEP_INDEX: ReadonlyMap<OrderState, number> = new Map(
 );
 
 export interface TerminalInfo {
-  state: 'cancelled' | 'sponsor_wins' | 'customer_wins' | 'admin_closed';
+  state: 'cancelled' | 'sponsor_wins' | 'customer_wins' | 'admin_closed' | 'expired';
   label: string;
   description: string;
 }
@@ -159,6 +159,10 @@ const TERMINALS: Record<TerminalInfo['state'], Omit<TerminalInfo, 'state'>> = {
   admin_closed: {
     label: '강제 종결',
     description: '거래가 오래 멈춰 있어 에스크로가 정리했습니다. 결제한 금액은 환불됩니다.',
+  },
+  expired: {
+    label: '기한 만료',
+    description: '입금 기한이 지나 거래가 끝났습니다. 결제한 금액은 환불됩니다.',
   },
 };
 
@@ -213,7 +217,7 @@ export function resolveProgress(
 ): Progress {
   const terminal: TerminalInfo | null =
     state === 'cancelled' || state === 'sponsor_wins'
-    || state === 'customer_wins' || state === 'admin_closed'
+    || state === 'customer_wins' || state === 'admin_closed' || state === 'expired'
       ? { state, ...TERMINALS[state] }
       : null;
 
@@ -224,7 +228,7 @@ export function resolveProgress(
   // 강제 종결은 escrowed일 수도 invoiced일 수도 있고, 상태만으로는 구분되지 않는다.
   // 모르면 추측하지 않는다. 안 일어난 단계를 완료로 그리면 화면이 거짓말을 한다.
   const doneThrough = terminal
-    ? (terminal.state === 'cancelled' || terminal.state === 'admin_closed')
+    ? (terminal.state === 'cancelled' || terminal.state === 'admin_closed' || terminal.state === 'expired')
       ? -1
       : STEP_INDEX.get('remitted')!
     : STEP_INDEX.get(state) ?? -1;

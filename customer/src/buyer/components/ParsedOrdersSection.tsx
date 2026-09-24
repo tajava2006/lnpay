@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import { canAttachParsedOrder } from '@sajwo-tracker/shared';
+import { LN_MAX_DEADLINE_LEAD_SEC, LN_MIN_CLAIM_LEAD_SEC } from '@sajwo-tracker/shared/ln';
 import { subscribeParsed, getParsedSnapshot, removeParsedOrder } from '../parsed-store';
 import {
   subscribe, getSnapshot, addOrder, markPublished, attachParsedToOrder,
@@ -93,6 +94,12 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
     setRequesting(true);
     try {
       const now = Math.floor(Date.now() / 1000);
+      // 쿠팡 기한이 너무 가까우면 데몬이 받지 않는다(후원자가 붙을 틈이 없다). 조용히 사라지게 두지 않는다
+      const deadline = Math.min(Math.floor(payload.expirationDate / 1000), now + LN_MAX_DEADLINE_LEAD_SEC - 60);
+      if (deadline - now < LN_MIN_CLAIM_LEAD_SEC + 5 * 60) {
+        alert('입금 기한이 한 시간 남짓밖에 남지 않아 후원자를 구할 수 없습니다. 새로 주문해 주세요.');
+        return;
+      }
       const order: CustomerOrder = {
         // 수동 주문과 같은 랜덤 id. 쿠팡 번호를 쓰면 공개 태그로 새어나간다(감사 A-3).
         orderId: newOrderId(),
@@ -100,7 +107,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
         price: payload.price,
         memo: payload.productName,
         createdAt: now,
-        expiration: Math.floor(payload.expirationDate / 1000),
+        expiration: deadline,
         source: 'parsed',
         fixedAccountInfo: {
           bankName: payload.bankName,

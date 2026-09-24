@@ -12,8 +12,12 @@ import {
   OrderProgress, stateDisplay } from '@sajwo-tracker/shared';
 import type { Order, PriceTracker, DisputeMessagePayload, ChatMessage } from '@sajwo-tracker/shared';
 
+import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
 import { prepareDisputeMessage, publishAccountReveal } from '../nostr/claim';
 import { subscribeRevealRequests, getRevealRequestSnapshot } from '../reveal-request-store';
+import { subscribe as subscribeOrders, getSnapshot as getOrderSnapshot } from '../order-store';
+import { subscribeClaimErrors, getClaimErrorSnapshot, clearClaimError, rejectReasonText } from '../claim-error-store';
+import { SponsorInvoiceForm } from './SponsorInvoiceForm';
 
 interface Props {
   orderId: string;
@@ -22,14 +26,19 @@ interface Props {
 }
 
 export function OrderDetail({ orderId, onBack, tracker }: Props) {
-  const [order, setOrder] = useState<Order | null>(null);
+  const [archived, setArchived] = useState<Order | null>(null);
+  // 릴레이에서 살아 있는 오더가 있으면 그걸 본다 — IDB 사본은 연 순간의 것이라 지급 완료 같은 변화를 놓친다
+  const live = useSyncExternalStore(subscribeOrders, getOrderSnapshot)[orderId];
+  const order = live ?? archived;
+  const claimErrors = useSyncExternalStore(subscribeClaimErrors, getClaimErrorSnapshot);
+  const claimError = claimErrors[orderId];
   const [myPubkey, setMyPubkey] = useState<string | null>(null);
   const [hasAccountInfo, setHasAccountInfo] = useState(false);
   const [revealing, setRevealing] = useState(false);
 
   // Load order + own pubkey + account info availability
   useEffect(() => {
-    void idbGetOrder(orderId).then(o => { if (o) setOrder(o); });
+    void idbGetOrder(orderId).then(o => { if (o) setArchived(o); });
     void getUserPubkey(storage).then(setMyPubkey);
     void idbGetRequestsByOrderId(orderId).then(reqs => {
       setHasAccountInfo(reqs.some(r => r.action === 'account-info' && r.accountInfo));
@@ -133,7 +142,7 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
           </span>
           {order.expiration > 0 && (
             <span>
-              만료: {new Date(order.expiration * 1000).toLocaleString('ko-KR', {
+              입금 기한: {new Date(order.expiration * 1000).toLocaleString('ko-KR', {
                 year: 'numeric', month: 'short', day: 'numeric',
                 hour: '2-digit', minute: '2-digit',
               })}
@@ -141,7 +150,20 @@ export function OrderDetail({ orderId, onBack, tracker }: Props) {
           )}
         </div>
         {order.disbursed && <div style={styles.disbursed}>BTC 수령 완료</div>}
+        {order.closeReason && isLnCloseReason(order.closeReason) && (
+          <div style={styles.closeReason}>종료 사유: {LN_CLOSE_REASON_LABEL[order.closeReason]}</div>
+        )}
       </div>
+
+      {/* 지급 전에 인보이스가 만료됐다 — 거래는 끝났지만 BTC는 아직이다(재제출하면 바로 지급된다) */}
+      {myRole === 'sponsor' && (order.state === 'paid' || order.state === 'sponsor_wins')
+        && !order.disbursed && claimError && (
+        <SponsorInvoiceForm
+          order={order}
+          onSubmitted={() => clearClaimError(orderId)}
+          notice={rejectReasonText(claimError)}
+        />
+      )}
 
       <div style={styles.progressWrap}>
         <OrderProgress
@@ -251,6 +273,11 @@ const styles = {
     gap: 16,
     fontSize: 12,
     color: '#999',
+  },
+  closeReason: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#6B7280',
   },
   disbursed: {
     marginTop: 8,

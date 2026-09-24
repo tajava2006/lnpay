@@ -114,10 +114,10 @@ export type { PreparedChatMessage } from './chat-send';
 // 운영자 ↔ 데몬 약속 (PLAN-DAEMON §5)
 export {
   ADMIN_ACTIONS, ADMIN_COMMAND_TTL_SEC, ADMIN_STATE_KIND, ADMIN_STATE_STALE_SEC, DEFAULT_SETTINGS,
-  MAX_CHAT_TEXT, MAX_DEPOSIT_PCT, adminStateDTag, applySettingsPatch,
+  MAX_CHAT_TEXT, MAX_DEPOSIT_PCT, adminOrderDTag, adminOrderDTagPrefix, adminStateDTag, applySettingsPatch,
 } from './admin-protocol';
 export type {
-  AdminAlert, AdminChatCopy, AdminCommand, AdminCommandResult, AdminState, DaemonSettings,
-  OrderTarget, TrackName,
+  AdminAlert, AdminChatCopy, AdminCommand, AdminCommandResult, AdminLnInvoice, AdminLnInvoicePurpose,
+  AdminLnOrderDetail, AdminState, DaemonSettings, OrderTarget, TrackName,
 } from './admin-protocol';
 export { orderRef } from './order-ref';

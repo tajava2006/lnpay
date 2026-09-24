@@ -23,10 +23,11 @@ import { createChatForwarder } from './admin/chat';
 import type { AdminContext } from './admin/context';
 import { STATE_EFFECT, STATE_INTERVAL_MS, createStateExecutor, requestStatePublish } from './admin/state';
 import type { DaemonMode, DaemonTags } from './config';
-import { EMPTY_DIRECTORY, type OrderDirectory } from './orders/directory';
+import { composeDirectories, type OrderDirectory } from './orders/directory';
+import { createLnDirectory, installLnTrack, type LnDeps, type LnTrack } from './ln';
 import type { AppKey } from './secrets';
 
-export const DAEMON_VERSION = '0.2.0';
+export const DAEMON_VERSION = '0.3.0';
 
 export interface DaemonDeps {
   db: Db;
@@ -44,7 +45,9 @@ export interface DaemonDeps {
   holdMs: number;
   nowMs: () => number;
   log: Logger;
-  /** 트랙 모듈이 채운다(P3·P4). 없으면 아무 오더도 모른다 */
+  /** 라이트닝 트랙 (노드·시세·푸시). 없으면 라이트닝 요청을 받지 않는다 — 테스트가 명령 채널만 볼 때 */
+  ln?: LnDeps;
+  /** 테스트가 오더를 심는 목록. 트랙 목록 앞에 붙는다 */
   directory?: OrderDirectory;
   /** 있으면 틱마다 하트비트 파일을 쓴다 (docker healthcheck) */
   dataDir?: string;
@@ -56,6 +59,7 @@ export class Daemon {
   readonly dispatcher: Dispatcher;
   readonly admin: AdminContext;
   readonly commands: CommandRegistry;
+  readonly ln: LnTrack | null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private ticking = false;
   private stopped = true;
@@ -65,9 +69,13 @@ export class Daemon {
     const { db, nowMs, log } = deps;
     this.effects = new Effects(db, nowMs, log);
 
+    const directory = composeDirectories([
+      ...(deps.directory ? [deps.directory] : []),
+      ...(deps.ln ? [createLnDirectory(db)] : []),
+    ]);
     this.admin = {
       db, effects: this.effects, appKey: deps.appKey, operators: deps.operators, tags: deps.tags,
-      mode: deps.mode, relays: deps.relays, directory: deps.directory ?? EMPTY_DIRECTORY,
+      mode: deps.mode, relays: deps.relays, directory,
       version: DAEMON_VERSION, startedAt: Math.floor(nowMs() / 1000), nowMs, log,
     };
 
@@ -77,6 +85,8 @@ export class Daemon {
     this.commands = createBaseCommands();
     const adminHandler = createAdminHandler(this.admin, this.commands);
     const chatForwarder = createChatForwarder(this.admin);
+    this.ln = deps.ln ? installLnTrack(this.admin, this.commands, deps.transport, deps.seed, deps.ln) : null;
+    const lnHandlers = this.ln?.handlers;
 
     const route: Router = event => {
       // 우리가 낸 것(어드민이 보낸 분쟁 메시지 등)도 `p=APP`이라 되돌아온다 — 처리할 게 없다
@@ -87,7 +97,8 @@ export class Daemon {
       if ((t === deps.tags.ln || t === deps.tags.onchain) && action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
         return chatForwarder;
       }
-      return null; // 라이트닝(P3)·온체인(P4) 핸들러가 여기 붙는다
+      if (t === deps.tags.ln && action && lnHandlers) return lnHandlers.get(action) ?? null;
+      return null; // 온체인(P4) 핸들러가 여기 붙는다
     };
     this.dispatcher = new Dispatcher(db, route, nowMs, deps.holdMs, log);
 
@@ -122,6 +133,7 @@ export class Daemon {
     this.ticking = true;
     try {
       this.dispatcher.runPending();
+      if (this.ln) await this.ln.watcher.poll();
       this.heartbeat();
       await this.effects.runDue();
     } catch (e) {

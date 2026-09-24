@@ -102,7 +102,9 @@ Admin만 발행하고 Admin만 읽는 비공개 설정 데이터 (kind 30078 NIP
 
 ### 발행자
 
-**Admin만 발행한다.** Customer/Sponsor는 kind 30402를 발행하지 않는다.
+**Admin만 발행한다** — 지금은 운영 PC의 **데몬**이 APP 키로 서명한다(PLAN-DAEMON, 2026-09-24~).
+Customer/Sponsor는 kind 30402를 발행하지 않는다. 데몬 DB가 진실이고 이 이벤트는 그 투영이다 —
+`created_at`은 오더마다 단조 증가한다(같은 초 두 발행에서 옛 상태가 남지 않게).
 
 ### Addressable Event 주소 체계
 
@@ -123,29 +125,36 @@ Admin이 유일한 발행자이므로 모든 오더의 주소에 Admin pubkey가
 | `state` | OrderState | Admin FSM의 세부 상태 (아래 상태 머신 참조) |
 | `customer` | pubkey | 주문 요청자(Customer)의 pubkey |
 | `price` | 금액 (string), `KRW` | NIP-99 가격 태그. 입금해야 할 금액과 통화 |
-| `expiration` | unix timestamp (seconds) | NIP-40: 무통장입금 기한. 이 시각 이후 릴레이가 이벤트를 삭제할 수 있음 |
-
-> ⚠️ **이미 지난 `expiration`을 실으면 릴레이가 발행 자체를 거절한다.**
-> 실측(2026-09-19): nos.lol·relay.wisp.talk 모두 `invalid: event expired`.
->
-> 그래서 만료된 오더를 종결(취소·분쟁 판정·강제 종결)할 때는 유예를 준다
-> (`publishExpiration`, 7일). 종결 이벤트는 "왜 끝났는지"를 알리려고 내는 것이라
-> 도달하지 못하면 의미가 없다. 진행 중인 오더의 만료는 늘리지 않는다 — 끝난 줄
-> 알았던 거래가 되살아난 것처럼 보인다.
+| `deadline` | unix timestamp (seconds) | **쿠팡 가상계좌 기한** — 원화를 보낼 수 있는 마지막 시각. 카운트다운·오더북 필터·자동 종결의 기준 |
+| `expiration` | unix timestamp (seconds) | NIP-40 **보존 기한**(`lnRetention`) — 거래 마감이 아니다. 아래 참조 |
 | `t` | `sajwo-tracker` | 클라이언트 식별. 다른 30402 이벤트와 구분하기 위한 필수 태그 |
+| `sponsor` | pubkey | 클레임한 후원자 (claimed 이후) |
+| `bolt11` | 에스크로 홀드 인보이스 | verified 이후 — 고객이 결제한다 |
+| `payout` | sats | 후원자가 받을 금액(승인 시 시세로 확정). 후원자 인보이스는 이 값과 **정확히** 같아야 한다 |
+| `sponsor-invoice` | bolt11 | 검증을 통과한 지급처 (invoiced 이후) |
+| `disbursed` | `true` | 지급 완료 |
+| `customer-deposit-payment-hash` / `sponsor-deposit-payment-hash` | hex | 받은 보증금 |
+| `close-reason` | `LnCloseReason` | 종결 사유 — 화면이 "왜 끝났는지"를 말한다(아래 표) |
+
+> **거래 마감(`deadline`)과 보존(`expiration`)을 가른다** (PLAN-DAEMON §7 L-1, 2026-09-24).
+> 예전엔 `expiration` 하나가 둘을 겸해서, 기한 직후의 송금 완료·판정·종결 발행이 릴레이에서
+> 거절됐고(`invalid: event expired`, 2026-09-19 실측) 앱들은 진행 중 거래를 기한에 지웠다.
+> 이제 보존은: `requested` = 기한(오더북에서 저절로 사라진다), 진행 중 = `max(기한, 지금) + 30일`,
+> 종결 = 지금 + 7일. 앱은 **보존**으로 목록을 정리하고, 카운트다운은 **기한**으로 한다.
+> `deadline` 태그가 없는 옛 이벤트는 `expiration`을 기한으로 읽는다.
 
 ### 상태 머신 (Admin 단일 FSM)
 
 ```
 requested → claimed → verified → escrowed → invoiced ─→ remitted ─→ paid
-                                                │                ├──→ sponsor_wins
-                                                └──→ paid        └──→ customer_wins
+    ↑          │                                │                ├──→ sponsor_wins
+    └──────────┘ (클레임 되돌림)                └──→ paid        └──→ customer_wins
 
 cancelled: requested, claimed, verified에서만 전이 가능
   (escrowed 이후는 상대방이 행동할 수 있으므로 일방 취소 불가)
-터미널: paid, cancelled, sponsor_wins, customer_wins, admin_closed
-
-admin_closed: escrowed, invoiced에서만. 어드민 전용
+expired:   requested ~ invoiced에서, 쿠팡 기한(escrowed·invoiced는 + 유예 1시간)이 지나면 데몬이
+admin_closed: escrowed, invoiced에서만. 운영자 명령
+터미널: paid, cancelled, sponsor_wins, customer_wins, admin_closed, expired
 ```
 
 > `escrowed → paid` 지름길은 **2026-09-18에 제거**했다. 후원자 인보이스를 에스크로
@@ -167,21 +176,24 @@ admin_closed: escrowed, invoiced에서만. 어드민 전용
 | `sponsor_wins` | 분쟁: 후원자 승리 — Admin이 송금 증거 확인, hold invoice settle (최종) | `sold` |
 | `customer_wins` | 분쟁: 고객 승리 — 송금 증거 불충분, hold invoice 환불 (최종) | `sold` |
 | `admin_closed` | **어드민 강제 종결** — 방치된 거래를 끊고 에스크로 환불 (최종) | `sold` |
+| `expired` | **기한 만료** — 쿠팡 기한이 지나 원화가 갈 수 없어 데몬이 닫았다 (최종). 처리는 사유별(아래) | `sold` |
 
 상태 전이 규칙:
 
 | from | to | 트리거 |
 |------|-----|--------|
-| requested | claimed | Sponsor claim 수신 + Admin 수락 |
-| requested | cancelled | 만료 또는 Customer 취소 |
-| claimed | verified | Admin이 금액 확정 + hold invoice 발행 (자동 승인) |
-| claimed | cancelled | 만료 또는 취소 |
+| requested | claimed | Sponsor claim 수신 (기한이 1시간 넘게 남았을 때만) |
+| requested | cancelled | Customer 취소 |
+| claimed | requested | 후원자 보증금 15분 미납, 또는 운영자 되돌림 |
+| claimed | verified | 데몬이 금액 확정 + 에스크로 인보이스를 **실제로 만든 뒤** (자동 승인 또는 운영자) |
+| claimed | cancelled | Customer 취소 |
 | verified | escrowed | Customer hold invoice 결제 |
-| verified | cancelled | Customer 이탈 |
+| verified | cancelled | Customer 취소, 또는 결제 기한(≤24h, 기한 30분 전까지) 넘김 |
+| requested ~ invoiced | expired | 쿠팡 기한 경과 (escrowed·invoiced는 + 유예 1시간), 또는 에스크로 HTLC 만기가 기한보다 먼저 옴 |
 | escrowed | invoiced | Sponsor `sponsor-invoice` 수신 + 금액·소유자·만료 검증 통과 |
 | invoiced | remitted | Sponsor가 KRW 송금 완료 주장 |
 | invoiced | paid | Customer가 직접 입금 컨펌 (Sponsor 시그널 없이) |
-| remitted | paid | Customer가 입금 컨펌 |
+| remitted | paid | Customer가 입금 컨펌 — **settle이 성공한 뒤에** `paid`가 발행된다(DM-003) |
 | remitted | sponsor_wins | 분쟁: Admin이 송금 증거 확인 → hold invoice settle → Sponsor에게 BTC 전달 |
 | remitted | customer_wins | 분쟁: 증거 불충분 → hold invoice 환불 → Customer BTC 반환 |
 | escrowed \| invoiced | admin_closed | 어드민이 방치된 거래를 끊음 → hold invoice 취소(환불) |
@@ -197,8 +209,32 @@ admin_closed: escrowed, invoiced에서만. 어드민 전용
 > `escrowed` 이후 상태에서는 `cancelled`로 전이할 수 없다.
 > 에스크로가 잡힌 시점부터 Sponsor가 행동할 수 있으므로, Customer 일방의 취소를 허용하면
 > 어뷰징 벡터가 생긴다 (상세: [THREAT-MODEL.md](THREAT-MODEL.md) §T-002).
-> Sponsor가 미행동 시 hold invoice는 CLTV timeout으로 자동 환불되며, 앱 상태는 `escrowed`로 유지된다.
-> `remitted`는 반드시 분쟁 판정(paid / sponsor_wins / customer_wins)으로만 종결된다.
+> Sponsor가 미행동 시 기한(+ 유예)에 데몬이 `expired`로 닫고 에스크로를 돌려준다(예전엔 CLTV 타임아웃까지
+> `escrowed`로 방치됐다). `remitted`는 반드시 판정(paid / sponsor_wins / customer_wins)으로만 종결된다 —
+> 원화가 갔다는 주장이 있으면 기한으로 자르지 않는다. 대신 에스크로 HTLC 만기가 가까우면 데몬이 **먼저
+> settle해 두고**(비대칭 손실 원칙, 만기 36블록 전) 운영자를 부른다.
+
+### 종결 사유 → 에스크로·보증금 처리
+
+사유가 곧 처리다(`shared/src/ln/outcomes.ts`의 `CLOSE_RULES`, `Record`라 사유를 추가하면 빌드가 깨진다).
+종결 상태 하나에 정반대 처리가 섞여 있어서다 — `cancelled`에 보증금을 돌려주는 경우와 가져가는 경우가 있다.
+종결 이벤트의 `close-reason` 태그가 이 값이다.
+
+| 사유 | 종결 | 에스크로 | 고객 보증금 | 후원자 보증금 |
+|---|---|---|---|---|
+| `paid` | paid | settle → 지급 | 환불 | 환불 |
+| `sponsor_wins` | sponsor_wins | settle → 지급 | 환불 | 환불 |
+| `customer_wins` | customer_wins | 환불 | 환불 | **몰수** |
+| `admin_closed` | admin_closed | 환불 | 환불 | 환불 |
+| `cancel:customer` (후원자 전) | cancelled | — | 환불 | — |
+| `cancel:customer-after-claim` | cancelled | 환불 | **몰수** | 환불 |
+| `cancel:unpaid-escrow` | cancelled | 무효 | **몰수** | 환불 |
+| `expired:no-sponsor` · `expired:not-approved` | expired | — | 환불 | 환불 |
+| `expired:unpaid-escrow` | expired | 무효 | **몰수** | 환불 |
+| `expired:no-invoice` (escrowed) | expired | 환불 | 환불 | **몰수** (§14 D4) |
+| `expired:no-remit` (invoiced) | expired | 환불 | 환불 | 환불 (계좌가 나간 뒤라 원화가 오갔을 수 있다) |
+
+고객 보증금은 에스크로가 잡히는 순간(`escrowed`) 돌려준다 — 실결제가 담보를 대신한다.
 
 > `state` 태그는 다중 문자이므로 릴레이 인덱싱이 보장되지 않는다.
 > 필터링은 클라이언트 사이드에서 수행한다.
@@ -226,6 +262,7 @@ Lightning invoice 등 비트코인 결제 정보는 태그로 전달한다.
     ["customer", "<customer-pubkey>"],
     ["price", "22950", "KRW"],
     ["t", "sajwo-tracker"],
+    ["deadline", "1770458336"],
     ["expiration", "1770458336"]
   ],
   "content": "",
@@ -254,14 +291,15 @@ Admin이 요청을 검토하고 타당하면 kind 30402를 갱신한다.
 | `action` | 요청 종류 | 아래 표 참조 |
 | `t` | `sajwo-tracker` | 클라이언트 식별 |
 | `p` | Admin pubkey | Admin이 `#p` 필터로 수신 |
-| `expiration` | unix timestamp (seconds) | 관련 오더와 동일한 만료 시각 |
+| `expiration` | unix timestamp (seconds) | 요청의 **보존** — 지금 + 7일(`lnRequestExpiration`). 오더 기한이 아니다(아래) |
 
 ### 요청 종류 (action 태그 값)
 
 | action | 발행자 | 설명 | 추가 태그 |
 |--------|--------|------|-----------|
-| `order-request` | Customer | 사줘 요청 신청 | `['price', 금액, 'KRW']` |
-| `claim` | Sponsor | 클레임 신청 | `['bolt11', invoice]` |
+| `order-request` | Customer | 사줘 요청 신청 | `['price', 금액, 'KRW']`, `['deadline', 쿠팡 기한]` (지금 + 1시간 ~ 7일) |
+| `claim` | Sponsor | 클레임 신청 | — (인보이스는 에스크로 뒤 `sponsor-invoice`로) |
+| `sponsor-invoice` | Sponsor | 지급받을 인보이스 | `['bolt11', invoice]` — escrowed에서 처음, invoiced·remitted, **지급 전이면 paid·sponsor_wins에서도** 교체 |
 | `payment-confirm` | Customer | 입금 완료 신고 | — |
 | `cancel-request` | Customer | 주문 취소 신고 | — |
 | `account-info` | Customer | Sponsor에게 계좌정보 전달 | `['p', sponsorPubkey]`, `['commitment', sha256(salt+plaintext)]` |
@@ -269,7 +307,7 @@ Admin이 요청을 검토하고 타당하면 kind 30402를 갱신한다.
 | `dispute-message` | Customer / Sponsor / Admin | 분쟁 채팅 메시지 (NIP-44 암호화) | `['p', recipientPubkey]`, content=NIP-44 JSON |
 | `parsed-order` | 유저스크립트 | 쿠팡 주문 자동 감지 알림 | `['p', ownPubkey]`, content=NIP-44 자기암호화 |
 | `coupang-status` | 유저스크립트 | 쿠팡 입금/취소 감지 알림 | `['p', ownPubkey]`, content=NIP-44 자기암호화. **a-tag 없음** |
-| `claim-price-error` | Admin | 클레임 금액이 시세 범위 밖 | `['expected-sats', n]` |
+| `claim-price-error` | Admin | 후원자 인보이스 거절·경고 | `['reason', DECODE_FAILED\|AMOUNT_MISMATCH\|EXPIRES_TOO_SOON\|EXPIRED_BEFORE_PAYOUT\|LIQUIDITY_WARNING\|ESCROW_ENDING_SOON]`, `['expected-sats', n]` |
 | `deposit-required` | Admin | 보증금 hold invoice 전달 | `['p', recipientPubkey]`, `['bolt11', invoice]` |
 | `deposit-accepted` / `-cancelled` / `-settled` | Admin | 보증금 상태 변경 알림 | `['p', recipientPubkey]` |
 | `reveal-request` | Admin | 분쟁 중재용 계좌정보 공개 요청 | `['p', sponsorPubkey]` |
@@ -322,13 +360,12 @@ sajwo orderId를 모르기 때문이다(위 참조).
 addressable event의 주소(`30402:<admin-pubkey>:<orderId>`)는 구성 요소가 모두 알려져 있으므로 a-tag을 넣을 수 있다.
 Nostr 릴레이는 a-tag 대상 이벤트의 존재 여부를 검증하지 않는다.
 
-### 만료 태그 통일
+### 요청의 만료 = 보존 7일
 
-오더와 관련된 모든 kind 1111 이벤트에 오더와 동일한 만료 시각을 부여한다.
-
-- 오더가 만료되면 관련된 모든 요청 이벤트도 릴레이에서 함께 정리된다
-- 만료된 과거 요청이 릴레이에 남아 불필요하게 수신되는 것을 방지한다
-- Admin이 오프라인이었다가 복귀했을 때, 이미 만료된 요청을 받아 처리하려는 상황을 차단한다
+요청 이벤트의 `expiration`은 **지금 + 7일**이다(`lnRequestExpiration`). 예전엔 오더 기한을 그대로 썼는데,
+그러면 **기한 직후의 송금 완료·입금 확인이 릴레이에서 거절된다** — 그 요청들이 제일 중요한 순간이다.
+7일이면 데몬이 잠시 꺼져 있어도 복귀해서 받는다(데몬은 이벤트 id로 한 번만 처리한다). 오래된 요청을
+판단하지 않는 건 데몬 몫이다 — 상태 전이 검사와, 송금 완료는 `created_at ≤ 기한 + 유예`로 거른다.
 
 **예외: `dispute-message`는 만료 태그를 포함하지 않는다.**
 dispute-message는 메인 구독(kind 1111)으로 수신되지만, localStorage가 아닌 IndexedDB(messages 스토어)에만 저장된다.

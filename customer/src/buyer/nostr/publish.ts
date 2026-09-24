@@ -28,6 +28,7 @@ import {
   type PreparedChatMessage,
   storage,
 } from '@sajwo-tracker/shared';
+import { lnRequestExpiration } from '@sajwo-tracker/shared/ln';
 import type { CustomerOrder } from '../types';
 
 export interface PublishResult {
@@ -38,45 +39,43 @@ export interface PublishResult {
   raw?: string;
 }
 
-/** kind 1111 order-request 이벤트 빌드 */
+/**
+ * kind 1111 order-request 이벤트 빌드
+ *
+ * 쿠팡 기한은 `deadline` 태그로, `expiration`은 **요청 이벤트의 보존**으로 따로 싣는다(PLAN-DAEMON §7
+ * L-1). 예전엔 둘이 같았다 — 그래서 기한 직후의 송금 완료·입금 확인이 릴레이에서 거절됐다.
+ */
 function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
-  const tags: string[][] = [
-    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
-    ['action', 'order-request'],
-    ['price', String(order.price), 'KRW'],
-    ['t', CLIENT_TAG],
-    ['p', APP_PUBKEY],
-  ];
-
-  if (order.expiration > 0) {
-    tags.push(['expiration', String(order.expiration)]);
-  }
-
+  const now = Math.floor(Date.now() / 1000);
   return {
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
-    tags,
+    created_at: now,
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['action', 'order-request'],
+      ['price', String(order.price), 'KRW'],
+      ['deadline', String(order.expiration)],
+      ['t', CLIENT_TAG],
+      ['p', APP_PUBKEY],
+      ['expiration', String(lnRequestExpiration(now))],
+    ],
     content: '',
   };
 }
 
-/** 상태 통보 이벤트 빌드 (payment-confirm, cancel-request) */
+/** 상태 통보 이벤트 빌드 (payment-confirm, cancel-request) — 기한 직후에도 도착해야 한다 */
 function buildNotificationEvent(order: CustomerOrder, action: RequestAction): EventTemplate {
-  const tags: string[][] = [
-    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
-    ['action', action],
-    ['t', CLIENT_TAG],
-    ['p', APP_PUBKEY],
-  ];
-
-  if (order.expiration > 0) {
-    tags.push(['expiration', String(order.expiration)]);
-  }
-
+  const now = Math.floor(Date.now() / 1000);
   return {
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
-    tags,
+    created_at: now,
+    tags: [
+      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['action', action],
+      ['t', CLIENT_TAG],
+      ['p', APP_PUBKEY],
+      ['expiration', String(lnRequestExpiration(now))],
+    ],
     content: '',
   };
 }
@@ -165,13 +164,12 @@ export async function publishAccountInfo(
     ['commitment', commitment],
   ];
 
-  if (order.expiration > 0) {
-    tags.push(['expiration', String(order.expiration)]);
-  }
+  const now = Math.floor(Date.now() / 1000);
+  tags.push(['expiration', String(lnRequestExpiration(now))]);
 
   const template = {
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: now,
     tags,
     content: encrypted,
   };

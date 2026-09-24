@@ -6,7 +6,8 @@
     ".": "./src/index.ts",
     "./constants": "./src/constants.ts",
     "./onchain": "./src/onchain/index.ts",
-    "./core": "./src/core.ts"
+    "./core": "./src/core.ts",
+    "./ln": "./src/ln/index.ts"
   },
   "dependencies": {
     "@noble/curves": "2.4.0",

@@ -4,7 +4,7 @@
  * | 구독 | 무엇 |
  * |---|---|
  * | kind 1111 · `#p`=운영자 · `#t`=어드민 | 명령 결과, 분쟁 채팅 사본 |
- * | kind 30078 · APP · `#d`=이 운영자의 상태 | 데몬 상태(하트비트·설정·경보) |
+ * | kind 30078 · APP · `#p`=운영자 · `#t`=어드민 | 데몬 상태(하트비트·설정·경보), 오더별 상세 |
  * | kind 30402 · APP · `#t`=라이트닝/온체인 | 공개 오더 (보기 전용) |
  *
  * **APP이 서명한 것만** 믿는다 — 운영자 앞으로 온 결과를 아무나 흉내 낼 수 있다.
@@ -13,15 +13,15 @@
 import type { Event } from 'nostr-tools/core';
 import {
   ADMIN_ACTIONS, ADMIN_STATE_KIND, APP_PUBKEY, CLIENT_TAG, CLIENT_TAG_ADMIN, CLIENT_TAG_ONCHAIN,
-  SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, adminStateDTag, createSubscriptionGuard,
+  SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, adminOrderDTagPrefix, adminStateDTag, createSubscriptionGuard,
   createSubscriptionPool, getReadRelays, storage,
-  type AdminChatCopy, type AdminCommandResult, type AdminState,
+  type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type AdminState,
 } from '@sajwo-tracker/shared';
 import { parseOnchainOrder } from '@sajwo-tracker/shared/onchain';
+import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
 import { getSigner } from '../nostr/nip46';
-import { parseOrderEvent } from '../types';
 import { receiveResult } from './client';
-import { chats, daemonState, lnOrders, onchainOrders } from './stores';
+import { chats, daemonState, lnDetails, lnOrders, onchainOrders } from './stores';
 
 const guard = createSubscriptionGuard('데몬피드');
 
@@ -35,10 +35,18 @@ export function startDaemonFeed(operatorPubkey: string): Promise<void> {
       { kinds: [SAJWO_REQUEST_EVENT_KIND], '#p': [operatorPubkey], '#t': [CLIENT_TAG_ADMIN] },
       { onevent: (event: Event) => void onAdminEvent(event) },
     );
+    const stateDTag = adminStateDTag(CLIENT_TAG_ADMIN, operatorPubkey);
+    const lnDetailPrefix = adminOrderDTagPrefix(CLIENT_TAG_ADMIN, 'ln');
     const state = pool.subscribeMany(
       relays,
-      { kinds: [ADMIN_STATE_KIND], authors: [APP_PUBKEY], '#d': [adminStateDTag(CLIENT_TAG_ADMIN, operatorPubkey)] },
-      { onevent: (event: Event) => void onStateEvent(event) },
+      { kinds: [ADMIN_STATE_KIND], authors: [APP_PUBKEY], '#p': [operatorPubkey], '#t': [CLIENT_TAG_ADMIN] },
+      {
+        onevent: (event: Event) => {
+          const d = event.tags.find(t => t[0] === 'd')?.[1] ?? '';
+          if (d === stateDTag) void onStateEvent(event);
+          else if (d.startsWith(lnDetailPrefix)) void onLnDetailEvent(event);
+        },
+      },
     );
     const orders = pool.subscribeMany(
       relays,
@@ -99,10 +107,25 @@ async function onStateEvent(event: Event): Promise<void> {
   }
 }
 
+async function onLnDetailEvent(event: Event): Promise<void> {
+  if (event.pubkey !== APP_PUBKEY) return;
+  try {
+    const detail = await decrypt(event.content) as AdminLnOrderDetail;
+    lnDetails.update(prev => {
+      const existing = prev[detail.orderId];
+      return existing && existing.eventAt >= event.created_at
+        ? prev
+        : { ...prev, [detail.orderId]: { detail, eventAt: event.created_at } };
+    });
+  } catch (e) {
+    console.warn('[데몬피드] 오더 상세를 못 열었다', e);
+  }
+}
+
 function onOrderEvent(event: Event): void {
   const t = event.tags.find(tag => tag[0] === 't')?.[1];
   if (t === CLIENT_TAG) {
-    const order = parseOrderEvent(event);
+    const order = parseLnOrderEvent(event, APP_PUBKEY);
     if (!order) return;
     lnOrders.update(prev => {
       const existing = prev[order.orderId];

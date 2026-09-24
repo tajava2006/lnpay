@@ -19,7 +19,8 @@ export type InvoiceRejectReason =
   | 'AMOUNT_MISMATCH'
   | 'EXPIRES_TOO_SOON'
   | 'EXPIRED_BEFORE_PAYOUT'
-  | 'LIQUIDITY_WARNING';
+  | 'LIQUIDITY_WARNING'
+  | 'ESCROW_ENDING_SOON';
 
 export interface ClaimPriceError {
   reason?: InvoiceRejectReason;
@@ -81,6 +82,8 @@ export function rejectReasonText(e: ClaimPriceError): string {
       return '인보이스가 만료됐습니다. 새로 만들어 등록해 주세요 — 거래는 그대로 진행됩니다.';
     case 'LIQUIDITY_WARNING':
       return '경로 확인에 실패했습니다. 등록은 됐지만 받지 못할 수 있으니 인바운드 용량을 확인해 주세요.';
+    case 'ESCROW_ENDING_SOON':
+      return '고객 결제(에스크로)가 곧 만료돼 인보이스를 받지 않았습니다. 원화를 보내지 마세요 — 거래는 곧 종료됩니다.';
     default:
       return `현재 시세 기준 ${e.expectedSats.toLocaleString()} sats로 재발행해 주세요.`;
   }

@@ -42,6 +42,7 @@ export const STATE_DISPLAY: Record<OrderState, StateDisplay> = {
   sponsor_wins: { label: '후원자 승리', color: '#0F766E', bg: '#CCFBF1' },
   customer_wins: { label: '고객 승리', color: '#0E7490', bg: '#CFFAFE' },
   admin_closed: { label: '강제 종결', color: '#B45309', bg: '#FEF3C7' },
+  expired: { label: '기한 만료', color: '#6B7280', bg: '#F3F4F6' },
 };
 
 /**

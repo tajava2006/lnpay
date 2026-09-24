@@ -11,6 +11,7 @@ import { storage, subscribeRelayLists } from '@sajwo-tracker/shared';
 import { clearSession, loadSession, restoreSigner } from './nostr/nip46';
 import { LoginScreen } from './components/LoginScreen';
 import { DaemonPanel } from './components/DaemonPanel';
+import { LnOrderDetail } from './components/LnOrderDetail';
 import { LnOrderList, OnchainOrderList } from './components/OrderLists';
 import { startDaemonFeed, stopDaemonFeed } from './daemon/feed';
 import { clearStores } from './daemon/stores';
@@ -31,6 +32,7 @@ function restoreOperator(): string | null {
 export function App() {
   const [operator, setOperator] = useState<string | null>(restoreOperator);
   const [tab, setTab] = useState<Tab>('daemon');
+  const [lnSelected, setLnSelected] = useState<string | null>(null);
 
   useEffect(() => subscribeRelayLists(storage), []);
 
@@ -77,7 +79,9 @@ export function App() {
       </nav>
       <main>
         {tab === 'daemon' && <DaemonPanel />}
-        {tab === 'ln' && <LnOrderList />}
+        {tab === 'ln' && (lnSelected
+          ? <LnOrderDetail orderId={lnSelected} onBack={() => setLnSelected(null)} />
+          : <LnOrderList onSelect={setLnSelected} />)}
         {tab === 'onchain' && <OnchainOrderList />}
       </main>
     </div>

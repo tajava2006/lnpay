@@ -6,21 +6,19 @@ import type { CustomerOrder } from '../types';
 const DEFAULT_EXPIRY_HOURS = 24;
 
 /**
- * 의뢰 유효기간 선택지.
+ * 의뢰 유효기간 선택지 — 이 값이 오더의 `deadline`(원화를 보낼 수 있는 마지막 시각)이 된다.
  *
- * 길게 잡아도 안전하다 — 홀드 인보이스 수명은 여기서 분리돼 있어서(escrow-window.ts)
- * 후원자가 붙은 뒤 하루 안에 결제하면 된다. 예전엔 이 값이 곧 CLTV라 길게 잡으면
- * 채널 상한을 넘어 터졌다.
+ * **1주가 상한이다**(`LN_MAX_DEADLINE_LEAD_SEC`). 데몬은 에스크로·보증금 홀드 인보이스의 CLTV를 기한에서
+ * 잡는데, 기한이 멀면 결제자 쪽 CLTV 상한을 넘어 결제가 안 된다 — 그래서 그보다 먼 의뢰는 받지 않는다
+ * (2026-09-24, PLAN-DAEMON §7). 예전엔 1개월·3개월도 있었다.
  *
  * 쿠팡 가상계좌는 하루면 죽으므로 **주문은 후원자가 붙은 뒤에** 넣는 게 맞다.
- * 그래서 긴 유효기간이 의미가 있다.
+ * 그래서 유효기간이 가상계좌보다 긴 게 의미가 있다.
  */
 const EXPIRY_OPTIONS = [
   { hours: 24, label: '1일' },
   { hours: 72, label: '3일' },
   { hours: 24 * 7, label: '1주' },
-  { hours: 24 * 30, label: '1개월' },
-  { hours: 24 * 90, label: '3개월' },
 ] as const;
 
 export function OrderForm() {

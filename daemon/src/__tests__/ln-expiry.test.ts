@@ -242,6 +242,19 @@ describe('에스크로 만기 (L-3) — 선제 settle과 판정', () => {
     expect(h.order(orderId)!.disbursed).toBe(1);
   });
 
+  /** 정리 효과가 도는 중에 관찰이 먼저 결과를 보면, 우리가 한 settle을 남이 한 것으로 오인한다 */
+  it('선제 settle 응답이 유실돼도 "데몬이 하지 않은 settle" 경보를 내지 않는다', async () => {
+    const h = await warmHarness();
+    const orderId = await toRemitted(h);
+    h.node.throwAfter.settleInvoice = 1;
+    h.node.height = escrowExpiryHeight(h, orderId) - SAFETY_SETTLE_BLOCKS;
+    await h.run(2);
+    h.advance(60);
+    await h.run(4);
+    expect(h.order(orderId)!.escrow_settled).toBe(1);
+    expect(openAlerts(h.ln).some(a => /하지 않은 settle/.test(a.message))).toBe(false);
+  });
+
   it('선제 settle 뒤 고객 승이면 자동 환불이 안 된다 — 경보로 알린다 (L-7)', async () => {
     const h = await warmHarness();
     const orderId = await toRemitted(h);

@@ -1,12 +1,11 @@
 /**
- * 라이트닝 효과 실행기 — 노드를 부르는 곳은 여기뿐이다 (PLAN-DAEMON §4.5)
+ * 라이트닝 효과 실행기 — 노드를 부르는 곳은 여기와 `../hold`뿐이다 (PLAN-DAEMON §4.5)
  *
  * 전부 **멱등**하다. 실행 도중이나 기록 직전에 죽으면 재시작 뒤 처음부터 다시 돈다:
  *
  * | 효과 | 멱등하게 만드는 법 |
  * |---|---|
- * | `ln.hold.create` | 해시가 시드에서 정해진다 — 먼저 조회해서 있으면 그걸 쓴다 |
- * | `ln.hold.dispose` · `ln.close` | 먼저 조회: 이미 settled/cancelled면 그 결과를 적는다 |
+ * | `ln.close` | 인보이스마다 먼저 조회: 이미 settled/cancelled면 그 결과를 적는다 (`hold.settleOrCancel`) |
  * | `ln.payout` | 먼저 결제를 추적: 이미 나갔으면 끝, 진행 중이면 기다린다 |
  * | `ln.order.publish` · `ln.detail` | 발행하는 순간의 DB로 만든다(주소형 이벤트라 최신 한 장만 남는다) |
  */
@@ -16,21 +15,17 @@ import {
   type AdminLnInvoice, type AdminLnOrderDetail,
 } from '@sajwo-tracker/shared/core';
 import { CLOSE_RULES, lnOrderTags, lnRetention, type LnCloseReason } from '@sajwo-tracker/shared/ln';
-import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import type { EffectExecutor } from '../effects';
+import { isLiveHold } from '../hold';
 import type { RelayTransport } from '../nostr/transport';
 import { readBolt11 } from './bolt11';
 import type { LnContext } from './context';
 import {
-  abandonClose, afterDisposal, afterHoldCreated, finishClose, preimageOf,
-  type HoldCreatePayload, type HoldDisposePayload, type OrderPayload, type ProbePayload,
+  LN_HOLD_PURPOSES, abandonClose, finishClose, type LnHoldPurpose, type OrderPayload, type ProbePayload,
 } from './flow';
-import type { HoldLookup, LnNode } from './lnd';
 import { sendInvoiceRejected } from './messages';
-import {
-  LIVE_INVOICE_STATUSES, getInvoice, getOrder, invoicesOf, updateOrder, type LnInvoiceRow, type LnOrderRow,
-} from './store';
+import { getOrder, updateOrder, type LnOrderRow } from './store';
 
 /** 지급 한 번에 기다리는 시간 */
 const PAY_TIMEOUT_SEC = 60;
@@ -42,85 +37,6 @@ const IN_FLIGHT_RECHECK_MS = 30_000;
 const DETAIL_RETENTION_SEC = 30 * 24 * 60 * 60;
 
 type Final = 'settled' | 'cancelled';
-
-/** 조회 결과를 보고 원하는 쪽으로 정리한다. 이미 정리됐으면 그 결과 */
-async function dispose(
-  ctx: LnContext, node: LnNode, inv: LnInvoiceRow, want: 'settle' | 'cancel', lookup: HoldLookup | null,
-): Promise<Final> {
-  if (!lookup) return 'cancelled'; // 만들어진 적 없다
-  if (lookup.state === 'settled') return 'settled';
-  if (lookup.state === 'cancelled') return 'cancelled';
-  if (want === 'settle' && lookup.state === 'accepted') {
-    await node.settleInvoice(preimageOf(ctx, inv));
-    return 'settled';
-  }
-  // 안 낸 인보이스는 몰수할 것도 없다 — settle을 원해도 취소한다
-  await node.cancelInvoice(inv.payment_hash);
-  return 'cancelled';
-}
-
-// ── 홀드 인보이스 ───────────────────────────────────────────
-
-export function createHoldCreateExecutor(ctx: LnContext): EffectExecutor<HoldCreatePayload> {
-  return {
-    async run({ paymentHash }) {
-      const inv = getInvoice(ctx, paymentHash);
-      if (!inv) return { status: 'dead', error: '모르는 인보이스' };
-      const existing = await ctx.node.lookupInvoice(paymentHash);
-
-      if (inv.status !== 'creating') {
-        // 만들기 전에 취소됐다. 지난 시도가 노드에 만들어 놓고 죽었으면 치운다
-        if (existing && (existing.state === 'open' || existing.state === 'accepted')) {
-          await ctx.node.cancelInvoice(paymentHash);
-        }
-        return { status: 'done', result: {} };
-      }
-      if (existing) return { status: 'done', result: { bolt11: existing.bolt11 } };
-
-      const expirySec = inv.pay_by - nowSec(ctx);
-      if (expirySec < 60) return { status: 'done', result: { tooLate: true } };
-      const { bolt11 } = await ctx.node.addHoldInvoice({
-        paymentHash, amountSat: inv.amount_sat, expirySec, cltvBlocks: inv.cltv_blocks,
-        memo: `pairbuy ${inv.purpose.replace('ln-', '')} ${inv.order_id}`,
-      });
-      return { status: 'done', result: { bolt11 } };
-    },
-    onDone({ paymentHash }, result) {
-      afterHoldCreated(ctx, paymentHash, result as { bolt11?: string; tooLate?: boolean });
-    },
-  };
-}
-
-export function createHoldDisposeExecutor(ctx: LnContext): EffectExecutor<HoldDisposePayload> {
-  return {
-    async run({ paymentHash, action }) {
-      const inv = getInvoice(ctx, paymentHash);
-      if (!inv) return { status: 'dead', error: '모르는 인보이스' };
-      const lookup = await ctx.node.lookupInvoice(paymentHash);
-      return { status: 'done', result: { final: await dispose(ctx, ctx.node, inv, action, lookup) } };
-    },
-    onDone({ paymentHash, action }, result) {
-      const inv = getInvoice(ctx, paymentHash);
-      if (!inv) return;
-      const final = (result as { final: Final }).final;
-      afterDisposal(ctx, inv, final);
-      // 에스크로를 따로 settle하는 건 선제 settle(§7 L-3)뿐이다 — 판정은 아직이라 사람이 봐야 한다
-      if (inv.purpose !== 'ln-escrow' || action !== 'settle') return;
-      const orderId = inv.order_id;
-      if (final === 'settled') {
-        raiseAlert(ctx, {
-          dedup: `ln:${orderId}:safety-settled`, level: 'warn', track: 'ln', orderId,
-          message: '에스크로 만기가 가까워 먼저 정산했다 — 분쟁 판정이 필요하다',
-        });
-      } else {
-        raiseAlert(ctx, {
-          dedup: `ln:${orderId}:safety-settle-missed`, level: 'anomaly', track: 'ln', orderId,
-          message: '선제 정산 전에 에스크로가 취소됐다 — 고객에게 환불됐다. 후원자 송금 여부를 확인해야 한다',
-        });
-      }
-    },
-  };
-}
 
 // ── 닫기 ────────────────────────────────────────────────────
 
@@ -139,32 +55,33 @@ export function createCloseExecutor(ctx: LnContext): EffectExecutor<OrderPayload
       const rule = CLOSE_RULES[order.pending_close as LnCloseReason];
       const finals: Record<string, Final> = {};
 
-      const escrow = order.escrow_hash ? getInvoice(ctx, order.escrow_hash) : undefined;
+      const holds = ctx.holds;
+      const escrow = order.escrow_hash ? holds.get(order.escrow_hash) : undefined;
       if (rule.escrow === 'settle') {
         if (!escrow) return { status: 'dead', error: '에스크로가 없다' };
         const lookup = await ctx.node.lookupInvoice(escrow.payment_hash);
         if (lookup?.state !== 'accepted' && lookup?.state !== 'settled') {
           return { status: 'dead', error: `에스크로를 받을 수 없다 (${lookup?.state ?? '노드에 없음'})` };
         }
-        finals[escrow.payment_hash] = await dispose(ctx, ctx.node, escrow, 'settle', lookup);
+        finals[escrow.payment_hash] = await holds.settleOrCancel(escrow, 'settle', lookup);
       } else if (escrow) {
-        finals[escrow.payment_hash] = await dispose(ctx, ctx.node, escrow, 'cancel', await ctx.node.lookupInvoice(escrow.payment_hash));
+        finals[escrow.payment_hash] = await holds.settleOrCancel(escrow, 'cancel', await ctx.node.lookupInvoice(escrow.payment_hash));
       }
 
-      for (const inv of invoicesOf(ctx, orderId)) {
+      for (const inv of holds.of(orderId, LN_HOLD_PURPOSES)) {
         if (inv.purpose === 'ln-escrow') {
           // 지금 에스크로가 아닌 옛 시도(승인 되돌림)가 살아 있으면 돌려준다
-          if (inv.payment_hash !== order.escrow_hash && LIVE_INVOICE_STATUSES.includes(inv.status)) {
-            finals[inv.payment_hash] = await dispose(ctx, ctx.node, inv, 'cancel', await ctx.node.lookupInvoice(inv.payment_hash));
+          if (inv.payment_hash !== order.escrow_hash && isLiveHold(inv)) {
+            finals[inv.payment_hash] = await holds.settleOrCancel(inv, 'cancel', await ctx.node.lookupInvoice(inv.payment_hash));
           }
           continue;
         }
-        if (!LIVE_INVOICE_STATUSES.includes(inv.status)) continue;
+        if (!isLiveHold(inv)) continue;
         const disposition = inv.purpose === 'ln-customer-deposit' ? rule.customerDeposit
           : inv.party === order.sponsor ? rule.sponsorDeposit
           : 'refund'; // 클레임했다 풀린 옛 후원자 — 잘못이 가려진 적 없다
         const want = disposition === 'forfeit' ? 'settle' : 'cancel';
-        finals[inv.payment_hash] = await dispose(ctx, ctx.node, inv, want, await ctx.node.lookupInvoice(inv.payment_hash));
+        finals[inv.payment_hash] = await holds.settleOrCancel(inv, want, await ctx.node.lookupInvoice(inv.payment_hash));
       }
       return { status: 'done', result: { finals } };
     },
@@ -300,7 +217,7 @@ export function createOrderPublishExecutor(ctx: LnContext, transport: RelayTrans
 
 // ── 운영자 상세 (30078, 운영자별) ───────────────────────────
 
-const PURPOSE_NAME: Record<LnInvoiceRow['purpose'], AdminLnInvoice['purpose']> = {
+const PURPOSE_NAME: Record<LnHoldPurpose, AdminLnInvoice['purpose']> = {
   'ln-escrow': 'escrow',
   'ln-customer-deposit': 'customer-deposit',
   'ln-sponsor-deposit': 'sponsor-deposit',
@@ -329,8 +246,8 @@ export function buildLnDetail(ctx: LnContext, order: LnOrderRow, blockHeight?: n
     ...(order.remitted_at ? { remittedAt: order.remitted_at } : {}),
     createdAt: order.created_at,
     updatedAt: order.updated_at,
-    invoices: invoicesOf(ctx, order.order_id).map(inv => ({
-      purpose: PURPOSE_NAME[inv.purpose],
+    invoices: ctx.holds.of(order.order_id, LN_HOLD_PURPOSES).map(inv => ({
+      purpose: PURPOSE_NAME[inv.purpose as LnHoldPurpose],
       party: inv.party,
       amountSat: inv.amount_sat,
       status: inv.status,

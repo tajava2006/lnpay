@@ -67,7 +67,8 @@ export function xonlyFromPrivkey(privkey: Uint8Array): string {
 async function hmacSha256(key: Uint8Array, message: string): Promise<Uint8Array> {
   const imported = await crypto.subtle.importKey(
     'raw',
-    key as unknown as BufferSource,
+    // 복사본은 `Uint8Array<ArrayBuffer>`라 DOM·Node 타입 양쪽의 BufferSource에 맞는다 (데몬도 이 파일을 쓴다)
+    new Uint8Array(key),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign'],

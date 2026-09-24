@@ -15,27 +15,21 @@ import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import { loadSettings } from '../admin/settings';
 import { tagValue, type Handler, type HandlerResult, type InboxEvent } from '../dispatch';
+import { isOrderId } from '../orders/id';
 import { PUSH_WELCOME } from './notify-messages';
 import { isPushSubscriptionPayload, queuePush, saveSubscription } from '../push/send';
 import { readBolt11 } from './bolt11';
 import type { LnContext } from './context';
 import {
-  LN_PROBE_EFFECT, beginClose, disposeInvoice, planCustomerDeposit, planSponsorDeposit, requestPayout,
-  type ProbePayload,
+  LN_PROBE_EFFECT, beginClose, planCustomerDeposit, planSponsorDeposit, requestPayout, type ProbePayload,
 } from './flow';
 import { sendInvoiceRejected } from './messages';
 import { notifyAccountArrived, notifyLnTransition } from './notify';
-import {
-  currentInvoice, deleteDraft, getDraft, getInvoice, getOrder, insertOrder, isOurPaymentHash, updateOrder,
-  type LnOrderRow,
-} from './store';
+import { deleteDraft, getDraft, getOrder, insertOrder, updateOrder, type LnOrderRow } from './store';
 import {
   DEADLINE_GRACE_SEC, INVOICE_ESCROW_MIN_BLOCKS, MAX_DEADLINE_LEAD_SEC, MIN_CLAIM_LEAD_SEC,
   MIN_SPONSOR_INVOICE_LIFETIME_SEC,
 } from './timing';
-
-/** 유저 앱이 만드는 모양(`Date.now().toString(36)` + 난수). 시드 파생 scope에 들어가므로 좁게 받는다 */
-const ORDER_ID = /^[0-9A-Za-z_-]{4,64}$/;
 
 /** 지급 직전에 재제출하는 인보이스는 바로 쓰이므로 짧아도 된다 */
 const MIN_REPLACEMENT_LIFETIME_SEC = 10 * 60;
@@ -71,7 +65,7 @@ function withOrder(ctx: LnContext, handler: OrderHandler): Handler {
 
 function orderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
   const orderId = extractOrderId(event.tags);
-  if (!orderId || !ORDER_ID.test(orderId)) return ignored('bad-order-id');
+  if (!isOrderId(orderId)) return ignored('bad-order-id');
   const price = Number(tagValue(event, 'price'));
   if (!Number.isInteger(price) || price <= 0 || price > MAX_PRICE_KRW) return ignored('bad-price');
 
@@ -136,7 +130,7 @@ const sponsorInvoice: OrderHandler = (ctx, event, order) => {
   const info = readBolt11(bolt11);
   if (!info) return reject('DECODE_FAILED');
   // 우리 인보이스(에스크로·보증금)를 지급처로 내밀면 우리 돈으로 우리 홀드를 채우게 된다
-  if (isOurPaymentHash(ctx, info.paymentHash)) return ignored('our-invoice');
+  if (ctx.holds.isOurs(info.paymentHash)) return ignored('our-invoice');
   // 범위가 아니라 **정확 일치** — 금액을 정한 게 우리다
   if (info.amountSat !== payout) return reject('AMOUNT_MISMATCH');
   const now = nowSec(ctx);
@@ -145,7 +139,7 @@ const sponsorInvoice: OrderHandler = (ctx, event, order) => {
 
   // 에스크로가 곧 죽는데 계좌 관문을 열면 후원자가 죽은 에스크로를 보고 원화를 보낸다
   if (order.state === 'escrowed' || order.state === 'invoiced') {
-    const escrow = order.escrow_hash ? getInvoice(ctx, order.escrow_hash) : undefined;
+    const escrow = order.escrow_hash ? ctx.holds.get(order.escrow_hash) : undefined;
     const height = knownHeight(ctx);
     if (escrow?.htlc_expiry_height && height && escrow.htlc_expiry_height - height < INVOICE_ESCROW_MIN_BLOCKS) {
       return reject('ESCROW_ENDING_SOON');
@@ -227,8 +221,8 @@ function cancelRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
   if (draft) {
     if (draft.customer !== event.pubkey) return ignored('not-customer');
     deleteDraft(ctx, orderId);
-    const dep = currentInvoice(ctx, 'ln-customer-deposit', orderId, draft.customer);
-    if (dep) disposeInvoice(ctx, dep.payment_hash, 'cancel');
+    const dep = ctx.holds.current('ln-customer-deposit', orderId, draft.customer);
+    if (dep) ctx.holds.dispose(dep.payment_hash, 'cancel');
     return ok;
   }
 

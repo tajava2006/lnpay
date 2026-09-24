@@ -55,6 +55,12 @@ describe('설정 — 틀리면 뜨지 않는다', () => {
     expect(() => loadConfig({ ...baseEnv, LNPAY_LND_MACAROON_FILE: '' })).toThrow(/MACAROON/);
     expect(loadConfig(baseEnv).vapidKeyFile).toBeUndefined();
   });
+
+  it('온체인은 네트워크를 적어야 켜진다 — 모르는 네트워크는 거부', () => {
+    expect(loadConfig(baseEnv).onchain).toBeUndefined();
+    expect(loadConfig({ ...baseEnv, LNPAY_ONCHAIN_NETWORK: 'signet' }).onchain).toEqual({ network: 'signet', apiUrl: undefined });
+    expect(() => loadConfig({ ...baseEnv, LNPAY_ONCHAIN_NETWORK: 'regtest' })).toThrow(/ONCHAIN_NETWORK/);
+  });
 });
 
 describe('비밀', () => {

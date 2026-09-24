@@ -14,6 +14,7 @@
  * 전부 NIP-44 암호문이고 `t`는 어드민 태그(`CLIENT_TAG_ADMIN`)다.
  */
 import type { OrderState } from './constants';
+import type { OnchainOrder } from './onchain/order';
 import type { DisputeMessagePayload } from './types';
 
 export const ADMIN_ACTIONS = {
@@ -218,6 +219,53 @@ export interface AdminLnOrderDetail {
   invoices: AdminLnInvoice[];
   /** 이 상세를 만들 때 본 블록 높이 (모르면 없다) */
   blockHeight?: number;
+}
+
+// ── 온체인 오더 상세 ─────────────────────────────────────────
+
+export interface AdminOcBond {
+  role: 'customer' | 'sponsor';
+  party: string;
+  amountSat: number;
+  status: AdminLnInvoice['status'];
+  payBy: number;
+  htlcExpiryHeight?: number;
+}
+
+export interface AdminOcUtxo {
+  txid: string;
+  vout: number;
+  valueSat: number;
+}
+
+export interface AdminOcOrderDetail {
+  v: 1;
+  orderId: string;
+  /** 오더를 바꾸는 명령은 이 값을 `OrderTarget.version`에 실어야 한다 */
+  version: number;
+  /** 공개 오더와 같은 모양 (데몬이 가진 최신) */
+  order: Omit<OnchainOrder, 'raw'>;
+  /** 후원자가 받을 주소·feerate — 공개하지 않는 값이다(운영자에게만) */
+  payoutAddress?: string;
+  feerateSatPerVb?: number;
+  /** 환불·고객승·구조가 가는 고객 주소 */
+  refundAddress?: string;
+  /** 검증한 후원자 사전서명을 들고 있는가 */
+  hasPresig: boolean;
+  /** 고객 계좌의 솔티드 커밋먼트 — 후원자가 공개한 계좌와 대조한다(계좌 이의 판정) */
+  accountCommitment?: string;
+  /** 우리가 뿌린 종결 tx */
+  outboxTxid?: string;
+  lastSignRequestAt?: number;
+  /** 보증금 HTLC 만료 **추정** — 판정이 이걸 넘기면 몰수할 게 없다 */
+  customerBondExpiresAt?: number;
+  sponsorBondExpiresAt?: number;
+  bonds: AdminOcBond[];
+  /** 보증금 결제를 기다리는 후원자 수 */
+  candidates: number;
+  /** 약정 밖의 자금 — 구조 대상 */
+  strays: AdminOcUtxo[];
+  rescues: Array<AdminOcUtxo & { feeSat: number; destination: string; broadcastTxid?: string }>;
 }
 
 /** 상태 이벤트가 이만큼 안 오면 데몬이 죽은 것으로 본다 (발행 주기의 몇 배) */

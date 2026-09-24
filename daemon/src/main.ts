@@ -7,6 +7,7 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { VAPID_PUBLIC_KEY, createPriceTracker, freshPrice } from '@sajwo-tracker/shared/core';
+import { MempoolChainAdapter } from '@sajwo-tracker/shared/onchain';
 import { loadConfig } from './config';
 import { Db } from './db';
 import { createLndNode } from './ln';
@@ -32,7 +33,7 @@ async function main(): Promise<void> {
     relays = found.relays;
     if (found.fallback) log.warn('APP의 kind 10002를 못 찾아 폴백 릴레이를 쓴다', { relays });
   }
-  log.info('릴레이', { relays, mode: config.mode });
+  log.info('릴레이', { relays, mode: config.mode, onchain: config.onchain?.network ?? '꺼짐' });
 
   const node = createLndNode({
     url: config.lnd.url,
@@ -74,6 +75,15 @@ async function main(): Promise<void> {
     log,
     dataDir: config.dataDir,
     ln: { node, price: () => freshPrice(prices.getSnapshot(), Date.now()), push },
+    ...(config.onchain ? {
+      onchain: {
+        network: config.onchain.network,
+        // 공개 mempool.space는 우리 IP를 막은 적이 있다(2026-09-04) — 자체 인스턴스를 가리킬 수 있게
+        chain: new MempoolChainAdapter({
+          network: config.onchain.network, ...(config.onchain.apiUrl ? { baseUrl: config.onchain.apiUrl } : {}),
+        }),
+      },
+    } : {}),
   });
 
   const shutdown = async (signal: string) => {

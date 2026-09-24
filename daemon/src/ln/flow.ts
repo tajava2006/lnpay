@@ -2,30 +2,24 @@
  * 라이트닝 거래의 동작들 — 요청 핸들러·워처·운영자 명령이 같은 함수를 부른다.
  *
  * 전부 **트랜잭션 안에서, 네트워크 없이** 돈다. 돈이 움직이는 일은 효과 의도로만 쌓는다(DM-002).
- * 효과의 결과를 전제로 한 전이(`verified`·종결 상태·`disbursed`)는 효과의 `onDone`이 여기 함수를
- * 불러서 한다(DM-003).
+ * 효과의 결과를 전제로 한 전이(`verified`·종결 상태·`disbursed`)는 효과의 `onDone`이나 홀드 인보이스
+ * 후속 처리(`createLnHoldHooks`)가 여기 함수를 불러서 한다(DM-003).
  *
- * ── 인보이스 한 장의 일생
- *
- * ```
- * planHold ─ creating ─(ln.hold.create)→ open ─(워처: 결제됨)→ accepted ─(ln.hold.dispose|ln.close)→ settled/cancelled
- *                 └──────────────────────────(기한 넘김·주문 닫힘)──────────────→ cancelled
- * ```
+ * 인보이스 한 장의 일생(만들기·관찰·정리)은 `../hold`가 맡는다 — 온체인 보증금과 같은 기계다.
  */
 import {
-  CLOSE_RULES, canTransition, computeEscrowSat, computePayoutSat, type LnCloseReason,
+  CLOSE_RULES, canTransition, computeEscrowSat, computePayoutSat, expiryReasonFor, type LnCloseReason,
 } from '@sajwo-tracker/shared/ln';
 import { isTerminalState } from '@sajwo-tracker/shared/core';
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import { loadSettings } from '../admin/settings';
-import { derivePreimage, paymentHashOf, preimageScope } from '../derive';
+import { isLiveHold, type HoldHooks, type HoldPurpose, type HoldRow } from '../hold';
 import type { LnContext } from './context';
 import { sendDepositRequired, sendDepositStatus } from './messages';
 import { notifyLnTransition } from './notify';
 import {
-  currentInvoice, deleteDraft, getDraft, getInvoice, getOrder, insertOrder, invoicesOf, nextAttempt,
-  setInvoice, updateOrder, type LnDraftRow, type LnInvoicePurpose, type LnInvoiceRow, type LnOrderRow,
+  deleteDraft, getDraft, getOrder, insertOrder, requestDetail, updateOrder, type LnDraftRow, type LnOrderRow,
 } from './store';
 import {
   CUSTOMER_DEPOSIT_MARGIN_SEC, CUSTOMER_DEPOSIT_PAY_SEC, DEADLINE_GRACE_SEC, ESCROW_HOLD_MARGIN_SEC,
@@ -33,149 +27,156 @@ import {
   cltvBlocksFor, escrowPayBy,
 } from './timing';
 
-export const LN_HOLD_CREATE_EFFECT = 'ln.hold.create';
-export const LN_HOLD_DISPOSE_EFFECT = 'ln.hold.dispose';
 export const LN_CLOSE_EFFECT = 'ln.close';
 export const LN_PAYOUT_EFFECT = 'ln.payout';
 export const LN_PROBE_EFFECT = 'ln.probe';
 
-export interface HoldCreatePayload { paymentHash: string }
-export interface HoldDisposePayload { paymentHash: string; action: 'settle' | 'cancel' }
 export interface OrderPayload { orderId: string }
 export interface ProbePayload { orderId: string; bolt11: string }
+
+/** 라이트닝 트랙의 홀드 목적 */
+export const LN_HOLD_PURPOSES = ['ln-escrow', 'ln-customer-deposit', 'ln-sponsor-deposit'] as const satisfies readonly HoldPurpose[];
+export type LnHoldPurpose = typeof LN_HOLD_PURPOSES[number];
 
 /** 결제 기한까지 이보다 짧게 남으면 보증금 인보이스를 새로 만들지 않는다 */
 const MIN_DEPOSIT_PAY_WINDOW_SEC = 5 * 60;
 
-// ── 프리이미지 ──────────────────────────────────────────────
-
-function scopeOf(purpose: LnInvoicePurpose, orderId: string, party: string): string {
-  // 후원자 보증금만 사람을 넣는다 — 한 주문에 클레임했다 풀린 후원자가 여럿일 수 있다
-  return preimageScope(purpose, orderId, purpose === 'ln-sponsor-deposit' ? party : undefined);
-}
-
-/** 시드에서 다시 만든다(DM-005). 해시가 안 맞으면 파생 규칙이 틀어진 것 — 던진다 */
-export function preimageOf(ctx: LnContext, inv: LnInvoiceRow): string {
-  const preimage = derivePreimage(ctx.seed, scopeOf(inv.purpose, inv.order_id, inv.party), inv.attempt);
-  if (paymentHashOf(preimage) !== inv.payment_hash) {
-    throw new Error(`프리이미지가 해시와 맞지 않는다: ${inv.payment_hash}`);
-  }
-  return Buffer.from(preimage).toString('hex');
-}
-
-// ── 인보이스 ────────────────────────────────────────────────
-
-/**
- * 홀드 인보이스를 **계획**한다 — 해시가 시드에서 미리 정해지므로 행을 먼저 쓰고, 노드 호출은 효과가 한다.
- *
- * @param holdUntil HTLC가 살아 있어야 하는 시각 (CLTV가 여기서 나온다)
- */
-export function planHold(
+/** 라이트닝 홀드 인보이스를 계획한다 — CLTV는 `holdUntil`까지 */
+function planLnHold(
   ctx: LnContext,
-  p: { purpose: LnInvoicePurpose; orderId: string; party: string; amountSat: number; payBy: number; holdUntil: number },
-): LnInvoiceRow {
-  const now = nowSec(ctx);
-  const attempt = nextAttempt(ctx, p.purpose, p.orderId, p.party);
-  const hash = paymentHashOf(derivePreimage(ctx.seed, scopeOf(p.purpose, p.orderId, p.party), attempt));
-  ctx.db.run(
-    `INSERT INTO ln_invoices (payment_hash, purpose, order_id, party, attempt, amount_sat, bolt11, pay_by,
-       cltv_blocks, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, 'creating', ?, ?)`,
-    hash, p.purpose, p.orderId, p.party, attempt, p.amountSat, p.payBy, cltvBlocksFor(p.holdUntil - now), now, now,
-  );
-  ctx.effects.enqueue<HoldCreatePayload>(LN_HOLD_CREATE_EFFECT, { paymentHash: hash }, { dedup: `ln.hold:${hash}` });
-  return getInvoice(ctx, hash)!;
+  p: { purpose: LnHoldPurpose; orderId: string; party: string; amountSat: number; payBy: number; holdUntil: number },
+): HoldRow {
+  return ctx.holds.plan({ ...p, cltvBlocks: cltvBlocksFor(p.holdUntil - nowSec(ctx)) });
 }
 
-/** 인보이스를 정리한다 — settle(받기) 또는 cancel(돌려주기). 결과는 `afterDisposal`이 받는다 */
-export function disposeInvoice(ctx: LnContext, paymentHash: string, action: 'settle' | 'cancel'): void {
-  ctx.effects.enqueue<HoldDisposePayload>(LN_HOLD_DISPOSE_EFFECT, { paymentHash, action }, { dedup: `ln.dispose:${paymentHash}` });
-}
-
-/** 노드가 인보이스를 만들었다 (`ln.hold.create`의 onDone) */
-export function afterHoldCreated(ctx: LnContext, paymentHash: string, result: { bolt11?: string; tooLate?: boolean }): void {
-  const inv = getInvoice(ctx, paymentHash);
-  if (!inv || inv.status !== 'creating') return; // 그 사이 취소됐다 — 효과가 노드 쪽을 치웠다
-
-  if (result.tooLate || !result.bolt11) {
-    setInvoice(ctx, paymentHash, { status: 'cancelled' });
-    holdCouldNotBeCreated(ctx, inv);
-    return;
-  }
-  setInvoice(ctx, paymentHash, { status: 'open', bolt11: result.bolt11 });
-  const created = getInvoice(ctx, paymentHash)!;
-
-  switch (inv.purpose) {
-    case 'ln-customer-deposit': {
-      if (getDraft(ctx, inv.order_id)) {
-        sendDepositRequired(ctx, inv.order_id, inv.party, created.bolt11, inv.pay_by, paymentHash);
-      } else {
-        disposeInvoice(ctx, paymentHash, 'cancel');
-      }
-      return;
-    }
-    case 'ln-sponsor-deposit': {
-      const order = getOrder(ctx, inv.order_id);
-      if (order && order.state === 'claimed' && order.sponsor === inv.party && !order.pending_close) {
-        sendDepositRequired(ctx, inv.order_id, inv.party, created.bolt11, inv.pay_by, paymentHash);
-      } else {
-        disposeInvoice(ctx, paymentHash, 'cancel');
-      }
-      return;
-    }
-    case 'ln-escrow': {
-      const order = getOrder(ctx, inv.order_id);
-      if (order && order.state === 'claimed' && order.escrow_hash === paymentHash && !order.pending_close) {
-        const verified = updateOrder(ctx, order.order_id, { state: 'verified', escrow_bolt11: created.bolt11 });
-        notifyLnTransition(ctx, verified);
-      } else {
-        disposeInvoice(ctx, paymentHash, 'cancel');
-      }
-      return;
-    }
-  }
-}
-
-/** 결제 기한 안에 노드가 인보이스를 못 만들었다(노드가 오래 꺼져 있었다) */
-function holdCouldNotBeCreated(ctx: LnContext, inv: LnInvoiceRow): void {
-  ctx.log.warn('홀드 인보이스를 기한 안에 못 만들었다', { orderId: inv.order_id, purpose: inv.purpose });
-  const order = getOrder(ctx, inv.order_id);
-  switch (inv.purpose) {
-    case 'ln-customer-deposit':
-      deleteDraft(ctx, inv.order_id);
-      return;
-    case 'ln-sponsor-deposit':
-      // 후원자 탓이 아니다 — 클레임을 풀어 다른 후원자(또는 같은 후원자)가 다시 잡게
-      if (order?.state === 'claimed' && order.sponsor === inv.party && !order.pending_close) {
-        revertClaim(ctx, order);
-      }
-      return;
-    case 'ln-escrow':
-      // 승인을 되돌린다 — 자동 승인이 켜져 있으면 다음 틱에 다시 시도한다
-      if (order?.state === 'claimed' && order.escrow_hash === inv.payment_hash) {
-        updateOrder(ctx, order.order_id, { escrow_hash: null, payout_sat: null });
-      }
-      return;
-  }
-}
+// ── 홀드 인보이스 후속 처리 ─────────────────────────────────
 
 /**
- * 인보이스 정리가 끝났다 (`ln.hold.dispose` 또는 `ln.close`가 부른다). 상태를 적고, 보증금이면 당사자에게
- * 알린다. `wasSeen` = 유저가 이 인보이스를 받은 적이 있다(아직 만들어지기 전에 취소된 건 알릴 것이 없다).
+ * 라이트닝 목적의 홀드 인보이스가 바뀌었을 때 거래를 움직인다. 전부 `../hold`가 트랜잭션 안에서 부른다.
  */
-export function afterDisposal(ctx: LnContext, inv: LnInvoiceRow, final: 'settled' | 'cancelled'): void {
-  if (inv.status === final) return;
-  const wasSeen = inv.status === 'open' || inv.status === 'accepted';
-  setInvoice(ctx, inv.payment_hash, { status: final });
+export function createLnHoldHooks(ctx: LnContext): HoldHooks {
+  return {
+    created(inv) {
+      switch (inv.purpose) {
+        case 'ln-customer-deposit':
+          if (getDraft(ctx, inv.order_id)) sendDepositRequired(ctx, inv.order_id, inv.party, inv.bolt11, inv.pay_by, inv.payment_hash);
+          else ctx.holds.dispose(inv.payment_hash, 'cancel');
+          return;
+        case 'ln-sponsor-deposit': {
+          const order = getOrder(ctx, inv.order_id);
+          if (order && order.state === 'claimed' && order.sponsor === inv.party && !order.pending_close) {
+            sendDepositRequired(ctx, inv.order_id, inv.party, inv.bolt11, inv.pay_by, inv.payment_hash);
+          } else {
+            ctx.holds.dispose(inv.payment_hash, 'cancel');
+          }
+          return;
+        }
+        case 'ln-escrow': {
+          const order = getOrder(ctx, inv.order_id);
+          if (order && order.state === 'claimed' && order.escrow_hash === inv.payment_hash && !order.pending_close) {
+            const verified = updateOrder(ctx, order.order_id, { state: 'verified', escrow_bolt11: inv.bolt11 });
+            notifyLnTransition(ctx, verified);
+          } else {
+            ctx.holds.dispose(inv.payment_hash, 'cancel');
+          }
+          return;
+        }
+      }
+    },
 
-  if (inv.purpose === 'ln-escrow') {
-    if (final === 'settled') {
+    // 결제 기한 안에 노드가 인보이스를 못 만들었다(노드가 오래 꺼져 있었다)
+    createFailed(inv) {
       const order = getOrder(ctx, inv.order_id);
-      if (order && !order.escrow_settled) updateOrder(ctx, order.order_id, { escrow_settled: 1 });
-    }
-    return;
-  }
-  if (wasSeen) sendDepositStatus(ctx, inv.order_id, inv.party, final, inv.payment_hash);
+      switch (inv.purpose) {
+        case 'ln-customer-deposit':
+          deleteDraft(ctx, inv.order_id);
+          return;
+        case 'ln-sponsor-deposit':
+          // 후원자 탓이 아니다 — 클레임을 풀어 다른 후원자(또는 같은 후원자)가 다시 잡게
+          if (order?.state === 'claimed' && order.sponsor === inv.party && !order.pending_close) revertClaim(ctx, order);
+          return;
+        case 'ln-escrow':
+          // 승인을 되돌린다 — 자동 승인이 켜져 있으면 다음 틱에 다시 시도한다
+          if (order?.state === 'claimed' && order.escrow_hash === inv.payment_hash) {
+            updateOrder(ctx, order.order_id, { escrow_hash: null, payout_sat: null });
+          }
+          return;
+      }
+    },
+
+    accepted(inv) {
+      if (inv.purpose === 'ln-customer-deposit') onCustomerDepositAccepted(ctx, inv);
+      else if (inv.purpose === 'ln-sponsor-deposit') onSponsorDepositAccepted(ctx, inv);
+      else onEscrowAccepted(ctx, inv);
+    },
+
+    // 노드가 스스로 취소했다 — 결제 기한 만료, 또는 HTLC 만기 직전의 자동 취소
+    nodeCancelled(before) {
+      const order = getOrder(ctx, before.order_id);
+      if (before.purpose === 'ln-customer-deposit') {
+        if (getDraft(ctx, before.order_id)) deleteDraft(ctx, before.order_id);
+        sendDepositStatus(ctx, before.order_id, before.party, 'cancelled', before.payment_hash);
+        return;
+      }
+      if (before.purpose === 'ln-sponsor-deposit') {
+        sendDepositStatus(ctx, before.order_id, before.party, 'cancelled', before.payment_hash);
+        if (order?.state === 'claimed' && order.sponsor === before.party && !order.sponsor_deposit_hash && !order.pending_close) {
+          revertClaim(ctx, order);
+        }
+        return;
+      }
+      // 에스크로
+      if (!order || order.escrow_hash !== before.payment_hash || order.pending_close) return;
+      if (order.state === 'verified') {
+        beginClose(ctx, order, 'cancel:unpaid-escrow');
+        return;
+      }
+      if (before.status === 'accepted') {
+        // 잡혀 있던 에스크로를 노드가 만기로 돌려줬다 — 여기까지 오면 안 된다(기한·선제 settle이 먼저)
+        raiseAlert(ctx, {
+          dedup: `ln:${order.order_id}:escrow-timed-out`, level: 'anomaly', track: 'ln', orderId: order.order_id,
+          message: `에스크로 HTLC가 만기로 고객에게 돌아갔다(${order.state}) — 후원자 송금 여부를 확인해야 한다`,
+        });
+        const reason = expiryReasonFor(order.state, order.sponsor !== null);
+        if (reason) beginClose(ctx, order, reason);
+      }
+    },
+
+    /** 정리가 끝났다 — 보증금이면 당사자에게 알린다(유저가 본 적 없는 건 알릴 게 없다) */
+    disposed(before, final, via) {
+      if (before.purpose !== 'ln-escrow') {
+        if (before.status === 'open' || before.status === 'accepted') {
+          sendDepositStatus(ctx, before.order_id, before.party, final, before.payment_hash);
+        }
+        return;
+      }
+      const order = getOrder(ctx, before.order_id);
+      if (final === 'settled' && order && !order.escrow_settled) updateOrder(ctx, order.order_id, { escrow_settled: 1 });
+      // 에스크로를 따로 settle하는 건 선제 settle(§7 L-3)뿐이다 — 판정은 아직이라 사람이 봐야 한다
+      if (via !== 'settle') return;
+      const orderId = before.order_id;
+      raiseAlert(ctx, final === 'settled'
+        ? {
+            dedup: `ln:${orderId}:safety-settled`, level: 'warn', track: 'ln', orderId,
+            message: '에스크로 만기가 가까워 먼저 정산했다 — 분쟁 판정이 필요하다',
+          }
+        : {
+            dedup: `ln:${orderId}:safety-settle-missed`, level: 'anomaly', track: 'ln', orderId,
+            message: '선제 정산 전에 에스크로가 취소됐다 — 고객에게 환불됐다. 후원자 송금 여부를 확인해야 한다',
+          });
+    },
+
+    changed(orderId) {
+      if (getOrder(ctx, orderId)) requestDetail(ctx, orderId);
+    },
+
+    // 닫기 효과가 돌고 있으면 그쪽이 이 오더의 인보이스 결과를 적는다
+    busy(inv) {
+      return ctx.db.get(
+        `SELECT 1 FROM effects WHERE status = 'pending' AND dedup = ?`, `ln.close:${inv.order_id}`,
+      ) !== undefined;
+    },
+  };
 }
 
 // ── 의뢰 (고객 보증금) ──────────────────────────────────────
@@ -194,7 +195,7 @@ export function planCustomerDeposit(ctx: LnContext, draft: LnDraftRow, pct: numb
     return true;
   }
   const amountSat = Math.max(1, Math.round((draft.price / btc) * 1e8 * pct / 100));
-  planHold(ctx, {
+  planLnHold(ctx, {
     purpose: 'ln-customer-deposit', orderId: draft.order_id, party: draft.customer, amountSat,
     payBy, holdUntil: draft.deadline + CUSTOMER_DEPOSIT_MARGIN_SEC,
   });
@@ -202,11 +203,11 @@ export function planCustomerDeposit(ctx: LnContext, draft: LnDraftRow, pct: numb
 }
 
 /** 고객 보증금이 들어왔다 → 오더가 생긴다 */
-export function onCustomerDepositAccepted(ctx: LnContext, inv: LnInvoiceRow): void {
+function onCustomerDepositAccepted(ctx: LnContext, inv: HoldRow): void {
   const draft = getDraft(ctx, inv.order_id);
   if (!draft || draft.customer !== inv.party || getOrder(ctx, inv.order_id)) {
     // 의뢰가 이미 버려졌다(기한 넘김 직전 결제) — 돌려준다
-    disposeInvoice(ctx, inv.payment_hash, 'cancel');
+    ctx.holds.dispose(inv.payment_hash, 'cancel');
     return;
   }
   deleteDraft(ctx, draft.order_id);
@@ -226,7 +227,7 @@ export function planSponsorDeposit(ctx: LnContext, order: LnOrderRow, pct: numbe
   const basis = btc ? computePayoutSat(order.price, btc) : null;
   if (!basis) return false;
   const now = nowSec(ctx);
-  planHold(ctx, {
+  planLnHold(ctx, {
     purpose: 'ln-sponsor-deposit', orderId: order.order_id, party: order.sponsor,
     amountSat: Math.max(1, Math.round(basis * pct / 100)),
     payBy: now + SPONSOR_DEPOSIT_PAY_SEC,
@@ -235,11 +236,11 @@ export function planSponsorDeposit(ctx: LnContext, order: LnOrderRow, pct: numbe
   return true;
 }
 
-export function onSponsorDepositAccepted(ctx: LnContext, inv: LnInvoiceRow): void {
+function onSponsorDepositAccepted(ctx: LnContext, inv: HoldRow): void {
   const order = getOrder(ctx, inv.order_id);
   if (!order || order.state !== 'claimed' || order.sponsor !== inv.party || order.pending_close) {
     // 그 사이 클레임이 풀렸다 — 돌려준다
-    disposeInvoice(ctx, inv.payment_hash, 'cancel');
+    ctx.holds.dispose(inv.payment_hash, 'cancel');
     return;
   }
   updateOrder(ctx, order.order_id, { sponsor_deposit_hash: inv.payment_hash });
@@ -251,11 +252,10 @@ export function onSponsorDepositAccepted(ctx: LnContext, inv: LnInvoiceRow): voi
  * 후원자 탓이어도(보증금 미납) 낸 게 없으니 돌려줄 것도 없고, 운영자가 푸는 건 몰수 판단이 아니다.
  */
 export function revertClaim(ctx: LnContext, order: LnOrderRow): LnOrderRow {
-  for (const inv of invoicesOf(ctx, order.order_id)) {
-    const live = inv.status === 'creating' || inv.status === 'open' || inv.status === 'accepted';
-    if (!live) continue;
+  for (const inv of ctx.holds.of(order.order_id, LN_HOLD_PURPOSES)) {
+    if (!isLiveHold(inv)) continue;
     if (inv.purpose === 'ln-escrow' || (inv.purpose === 'ln-sponsor-deposit' && inv.party === order.sponsor)) {
-      disposeInvoice(ctx, inv.payment_hash, 'cancel');
+      ctx.holds.dispose(inv.payment_hash, 'cancel');
     }
   }
   return updateOrder(ctx, order.order_id, {
@@ -295,7 +295,7 @@ export function approve(ctx: LnContext, order: LnOrderRow): ApproveError | null 
   const payBy = escrowPayBy(order.deadline, now);
   // HTLC는 기한 + 유예까지 거래가 이어질 수 있게, 그 뒤로 분쟁 여유를 더 산다(L-3)
   const holdUntil = Math.max(payBy, order.deadline + DEADLINE_GRACE_SEC) + ESCROW_HOLD_MARGIN_SEC;
-  const inv = planHold(ctx, {
+  const inv = planLnHold(ctx, {
     purpose: 'ln-escrow', orderId: order.order_id, party: order.customer,
     amountSat: computeEscrowSat(payoutSat), payBy, holdUntil,
   });
@@ -305,10 +305,10 @@ export function approve(ctx: LnContext, order: LnOrderRow): ApproveError | null 
 }
 
 /** 에스크로가 잡혔다 (`verified → escrowed`). 고객 보증금은 여기서 돌려준다 — 실결제가 담보를 대신한다 */
-export function onEscrowAccepted(ctx: LnContext, inv: LnInvoiceRow): void {
+function onEscrowAccepted(ctx: LnContext, inv: HoldRow): void {
   const order = getOrder(ctx, inv.order_id);
   if (!order || order.escrow_hash !== inv.payment_hash) {
-    disposeInvoice(ctx, inv.payment_hash, 'cancel');
+    ctx.holds.dispose(inv.payment_hash, 'cancel');
     return;
   }
   if (order.pending_close || isTerminalState(order.state)) return; // 닫는 효과가 처리한다
@@ -317,8 +317,8 @@ export function onEscrowAccepted(ctx: LnContext, inv: LnInvoiceRow): void {
   const escrowed = updateOrder(ctx, order.order_id, { state: 'escrowed' });
   notifyLnTransition(ctx, escrowed);
   if (order.customer_deposit_hash) {
-    const dep = getInvoice(ctx, order.customer_deposit_hash);
-    if (dep && (dep.status === 'open' || dep.status === 'accepted')) disposeInvoice(ctx, dep.payment_hash, 'cancel');
+    const dep = ctx.holds.get(order.customer_deposit_hash);
+    if (dep && (dep.status === 'open' || dep.status === 'accepted')) ctx.holds.dispose(dep.payment_hash, 'cancel');
   }
 }
 
@@ -348,10 +348,7 @@ export function finishClose(ctx: LnContext, orderId: string, finals: Record<stri
   const reason = order.pending_close as LnCloseReason;
   const rule = CLOSE_RULES[reason];
 
-  for (const [hash, final] of Object.entries(finals)) {
-    const inv = getInvoice(ctx, hash);
-    if (inv) afterDisposal(ctx, inv, final);
-  }
+  for (const [hash, final] of Object.entries(finals)) ctx.holds.recordDisposal(hash, final, 'batch');
 
   const escrowFinal = order.escrow_hash ? finals[order.escrow_hash] : undefined;
   if (rule.escrow === 'cancel' && escrowFinal === 'settled') {
@@ -387,6 +384,6 @@ export function requestPayout(ctx: LnContext, orderId: string): void {
 }
 
 /** 이 사람의 지금 보증금 인보이스 (있으면) */
-export function sponsorDepositOf(ctx: LnContext, order: LnOrderRow): LnInvoiceRow | undefined {
-  return order.sponsor ? currentInvoice(ctx, 'ln-sponsor-deposit', order.order_id, order.sponsor) : undefined;
+export function sponsorDepositOf(ctx: LnContext, order: LnOrderRow): HoldRow | undefined {
+  return order.sponsor ? ctx.holds.current('ln-sponsor-deposit', order.order_id, order.sponsor) : undefined;
 }

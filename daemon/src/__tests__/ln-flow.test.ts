@@ -7,7 +7,6 @@
 import { describe, expect, it } from 'vitest';
 import { REQUEST_ACTIONS } from '@sajwo-tracker/shared/core';
 import { computeEscrowSat, computePayoutSat } from '@sajwo-tracker/shared/ln';
-import { invoicesOf } from '../ln/store';
 import { BTC_KRW, createLnHarness, latestOrderEvent, tagOf } from './ln-fakes';
 import {
   DAY, HOUR, claim, confirmPaid, messagesTo, openOrder, payEscrow, remit, sendAccount, setDeposits,
@@ -134,7 +133,7 @@ describe('보증금 (D5)', () => {
     expect(required).toHaveLength(1);
     const depositBolt11 = tagOf(required[0], 'bolt11')!;
     // 보증금 = 의뢰 금액의 2%
-    const dep = invoicesOf(h.ln, orderId)[0]!;
+    const dep = h.ln.holds.of(orderId)[0]!;
     expect(dep.amount_sat).toBe(Math.round((100_000 / BTC_KRW) * 1e8 * 0.02));
 
     h.node.pay(depositBolt11);

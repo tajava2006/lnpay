@@ -142,4 +142,31 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 4,
+    sql: `
+      -- 온체인 오더. data = 공개 이벤트에 싣는 OnchainOrder(raw 제외), meta = 비공개
+      -- (후원자 받을 주소·사전서명·환불 주소·outbox·구조…). 필드가 많고 shared 타입이 진실이라 JSON으로 둔다
+      CREATE TABLE oc_orders (
+        order_id     TEXT PRIMARY KEY,
+        state        TEXT NOT NULL,
+        data         TEXT NOT NULL,
+        meta         TEXT NOT NULL DEFAULT '{}',
+        version      INTEGER NOT NULL DEFAULT 1,
+        published_at INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX oc_orders_state ON oc_orders (state);
+
+      -- 보증금 결제를 기다리는 의뢰(고객)·클레임(후원자). 홀드 인보이스와 1:1
+      CREATE TABLE oc_candidates (
+        payment_hash TEXT PRIMARY KEY,
+        order_id     TEXT NOT NULL,
+        type         TEXT NOT NULL,
+        party        TEXT NOT NULL,
+        info         TEXT NOT NULL,
+        created_at   INTEGER NOT NULL
+      );
+      CREATE INDEX oc_candidates_order ON oc_candidates (order_id);
+    `,
+  },
 ];

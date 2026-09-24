@@ -15,13 +15,13 @@ import {
   ADMIN_ACTIONS, ADMIN_STATE_KIND, APP_PUBKEY, CLIENT_TAG, CLIENT_TAG_ADMIN, CLIENT_TAG_ONCHAIN,
   SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, adminOrderDTagPrefix, adminStateDTag, createSubscriptionGuard,
   createSubscriptionPool, getReadRelays, storage,
-  type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type AdminState,
+  type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type AdminOcOrderDetail, type AdminState,
 } from '@sajwo-tracker/shared';
 import { parseOnchainOrder } from '@sajwo-tracker/shared/onchain';
 import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
 import { getSigner } from '../nostr/nip46';
 import { receiveResult } from './client';
-import { chats, daemonState, lnDetails, lnOrders, onchainOrders } from './stores';
+import { chats, daemonState, lnDetails, lnOrders, ocDetails, onchainOrders } from './stores';
 
 const guard = createSubscriptionGuard('데몬피드');
 
@@ -37,6 +37,7 @@ export function startDaemonFeed(operatorPubkey: string): Promise<void> {
     );
     const stateDTag = adminStateDTag(CLIENT_TAG_ADMIN, operatorPubkey);
     const lnDetailPrefix = adminOrderDTagPrefix(CLIENT_TAG_ADMIN, 'ln');
+    const ocDetailPrefix = adminOrderDTagPrefix(CLIENT_TAG_ADMIN, 'onchain');
     const state = pool.subscribeMany(
       relays,
       { kinds: [ADMIN_STATE_KIND], authors: [APP_PUBKEY], '#p': [operatorPubkey], '#t': [CLIENT_TAG_ADMIN] },
@@ -45,6 +46,7 @@ export function startDaemonFeed(operatorPubkey: string): Promise<void> {
           const d = event.tags.find(t => t[0] === 'd')?.[1] ?? '';
           if (d === stateDTag) void onStateEvent(event);
           else if (d.startsWith(lnDetailPrefix)) void onLnDetailEvent(event);
+          else if (d.startsWith(ocDetailPrefix)) void onOcDetailEvent(event);
         },
       },
     );
@@ -119,6 +121,21 @@ async function onLnDetailEvent(event: Event): Promise<void> {
     });
   } catch (e) {
     console.warn('[데몬피드] 오더 상세를 못 열었다', e);
+  }
+}
+
+async function onOcDetailEvent(event: Event): Promise<void> {
+  if (event.pubkey !== APP_PUBKEY) return;
+  try {
+    const detail = await decrypt(event.content) as AdminOcOrderDetail;
+    ocDetails.update(prev => {
+      const existing = prev[detail.orderId];
+      return existing && existing.eventAt >= event.created_at
+        ? prev
+        : { ...prev, [detail.orderId]: { detail, eventAt: event.created_at } };
+    });
+  } catch (e) {
+    console.warn('[데몬피드] 온체인 상세를 못 열었다', e);
   }
 }
 

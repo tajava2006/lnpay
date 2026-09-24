@@ -12,6 +12,7 @@ import { clearSession, loadSession, restoreSigner } from './nostr/nip46';
 import { LoginScreen } from './components/LoginScreen';
 import { DaemonPanel } from './components/DaemonPanel';
 import { LnOrderDetail } from './components/LnOrderDetail';
+import { OnchainOrderDetail } from './components/OnchainOrderDetail';
 import { LnOrderList, OnchainOrderList } from './components/OrderLists';
 import { startDaemonFeed, stopDaemonFeed } from './daemon/feed';
 import { clearStores } from './daemon/stores';
@@ -33,6 +34,7 @@ export function App() {
   const [operator, setOperator] = useState<string | null>(restoreOperator);
   const [tab, setTab] = useState<Tab>('daemon');
   const [lnSelected, setLnSelected] = useState<string | null>(null);
+  const [ocSelected, setOcSelected] = useState<string | null>(null);
 
   useEffect(() => subscribeRelayLists(storage), []);
 
@@ -82,7 +84,9 @@ export function App() {
         {tab === 'ln' && (lnSelected
           ? <LnOrderDetail orderId={lnSelected} onBack={() => setLnSelected(null)} />
           : <LnOrderList onSelect={setLnSelected} />)}
-        {tab === 'onchain' && <OnchainOrderList />}
+        {tab === 'onchain' && (ocSelected
+          ? <OnchainOrderDetail orderId={ocSelected} onBack={() => setOcSelected(null)} />
+          : <OnchainOrderList onSelect={setOcSelected} />)}
       </main>
     </div>
   );

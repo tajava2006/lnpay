@@ -30,7 +30,7 @@ export {
 } from './admin-protocol';
 export type {
   AdminAlert, AdminChatCopy, AdminCommand, AdminCommandResult, AdminLnInvoice, AdminLnInvoicePurpose,
-  AdminLnOrderDetail, AdminState, DaemonSettings, OrderTarget, TrackName,
+  AdminLnOrderDetail, AdminOcBond, AdminOcOrderDetail, AdminOcUtxo, AdminState, DaemonSettings, OrderTarget, TrackName,
 } from './admin-protocol';
 export type { DisputeMessagePayload, AccountInfo } from './types';
 export { extractOrderId, orderRef } from './order-ref';

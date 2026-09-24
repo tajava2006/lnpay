@@ -65,14 +65,14 @@ sajwo-tracker/                ← pnpm workspace 모노레포
     src/nostr/                ←   통합 구독 (소켓 한 벌) → 역할별 핸들러 팬아웃
   customer/userscript/        ← 쿠팡 자동파싱 유저스크립트 (esbuild IIFE 번들)
   sponsor/                    ← 정적 리다이렉트 껍데기 (구 후원자 도메인 전환 안내)
-  admin/                      ← @sajwo-tracker/admin (React 19 SPA, 순수 프론트엔드 에스크로)
-  daemon/                     ← @sajwo-tracker/daemon — 어드민 데몬 (Node 24, 운영 PC). **전환 중** — docs/PLAN-DAEMON.md
+  admin/                      ← @sajwo-tracker/admin (React 19 SPA) — 데몬 리모컨 (운영자 키로 명령만)
+  daemon/                     ← @sajwo-tracker/daemon — 어드민 데몬 (Node 24, 운영 PC). 판단·집행 전부 — docs/PLAN-DAEMON.md
 ```
 
-> ⚠️ **어드민을 데몬으로 옮기는 중이다**(2026-09-24~, `docs/PLAN-DAEMON.md`). **라이트닝은 옮겼다**(P3) —
-> FSM·판단·LND·보증금·지급·알림이 전부 데몬에 있고, 어드민 앱은 명령만 보내는 리모컨이다. 온체인은 P4
-> (`admin/legacy/`에 모아 둠). 아래 "순수 프론트엔드 배포"·"Admin이 유일한 FSM 소유자(발행 우선 패턴)"
-> 서술은 **옛 구조**다. 새 코드는 데몬 불변조건(DM-001~009)을 따른다. 데몬은 shared를
+> ⚠️ **어드민을 데몬으로 옮겼다**(2026-09-24, `docs/PLAN-DAEMON.md` — P5 배포 전). **라이트닝(P3)·온체인(P4)**의
+> FSM·판단·LND·보증금·지급·체인 감시·서명·알림이 전부 데몬에 있고, 어드민 앱은 명령만 보내는 리모컨이다.
+> 홀드 인보이스는 두 트랙이 `daemon/src/hold` 한 기계를 쓴다. 아래 "순수 프론트엔드 배포"·"Admin이 유일한
+> FSM 소유자(발행 우선 패턴)" 서술은 **옛 구조**다. 새 코드는 데몬 불변조건(DM-001~009)을 따른다. 데몬은 shared를
 > **`@sajwo-tracker/shared/core`·`/ln`·`/onchain`으로만** 가져간다 — 루트 입구는 React·localStorage를 끌고 온다.
 >
 > 라이트닝 오더의 **`deadline` 태그 = 쿠팡 기한, `expiration` = 릴레이 보존**이다(L-1). 목록 정리는 보존으로,
@@ -121,7 +121,7 @@ sajwo-tracker/                ← pnpm workspace 모노레포
 | [DESIGN-DEPOSIT.md](docs/DESIGN-DEPOSIT.md) | ~200 | S-001 보증금(Fidelity Bond) 구현 시 설계 참조 |
 | [SECURITY-ROADMAP.md](SECURITY-ROADMAP.md) | ~250 | 보안/아키텍처 개선 항목 추적, 우선순위별 해결 계획 |
 | [TODO.md](TODO.md) | ~80 | 미구현 기능 목록 확인 시 |
-| [PLAN-DAEMON.md](docs/PLAN-DAEMON.md) | ~500 | **어드민 데몬 전환 플랜 (2026-09-24~, 진행 중).** 판단·집행을 운영 PC 롱러닝 데몬으로, 어드민 페이지는 명령만 보내는 리모컨으로. 불변조건 DM-001~009 · 명령 채널 · 단계 P0~P5 · 결정 D1~D9. **어드민·데몬 코드를 만질 때 여기부터** |
+| [PLAN-DAEMON.md](docs/PLAN-DAEMON.md) | ~540 | **어드민 데몬 전환 플랜 (2026-09-24~, 진행 중).** 판단·집행을 운영 PC 롱러닝 데몬으로, 어드민 페이지는 명령만 보내는 리모컨으로. 불변조건 DM-001~009 · 명령 채널 · 단계 P0~P5 · 결정 D1~D9. **어드민·데몬 코드를 만질 때 여기부터** |
 | [PLAN-ONCHAIN-TRACK.md](docs/PLAN-ONCHAIN-TRACK.md) | ~4700 | **온체인 2-of-3 taproot 트랙 구현 플랜 + 리뷰 기록(§14).** 별도 FSM·별도 CLIENT_TAG. 본문 §1~§13이 현행이고 §11에 단계별 진행이 기록된다. 온체인 코드를 만질 때 **여기부터** |
 | [AUDIT-2026-09-13.md](docs/AUDIT-2026-09-13.md) | ~230 | **미처리 보안·문서·공학 개선 항목의 작업 목록.** 개선 작업을 집을 때 여기부터 |
 | [AUDIT-ONCHAIN-EXPIRY.md](docs/AUDIT-ONCHAIN-EXPIRY.md) | ~190 | **온체인 트랙 만료 전수조사.** 시간 값·부등식·발견(O-F1~O-F5). 온체인 마감을 만질 때 |

@@ -24,7 +24,11 @@ import type { AdminContext } from './admin/context';
 import { STATE_EFFECT, STATE_INTERVAL_MS, createStateExecutor, requestStatePublish } from './admin/state';
 import type { DaemonMode, DaemonTags } from './config';
 import { composeDirectories, type OrderDirectory } from './orders/directory';
+import { raiseStuckEffects } from './admin/stuck';
+import { Holds } from './hold';
 import { createLnDirectory, installLnTrack, type LnDeps, type LnTrack } from './ln';
+import { createOcDirectory, installOcTrack, type OcDeps, type OcTrack } from './onchain';
+import { PUSH_EFFECT, createPushExecutor } from './push/send';
 import type { AppKey } from './secrets';
 
 export const DAEMON_VERSION = '0.3.0';
@@ -47,6 +51,8 @@ export interface DaemonDeps {
   log: Logger;
   /** 라이트닝 트랙 (노드·시세·푸시). 없으면 라이트닝 요청을 받지 않는다 — 테스트가 명령 채널만 볼 때 */
   ln?: LnDeps;
+  /** 온체인 트랙 (체인·네트워크). 보증금이 LN이라 `ln`이 있어야 한다. 없으면 온체인 요청을 받지 않는다 */
+  onchain?: OcDeps;
   /** 테스트가 오더를 심는 목록. 트랙 목록 앞에 붙는다 */
   directory?: OrderDirectory;
   /** 있으면 틱마다 하트비트 파일을 쓴다 (docker healthcheck) */
@@ -60,6 +66,8 @@ export class Daemon {
   readonly admin: AdminContext;
   readonly commands: CommandRegistry;
   readonly ln: LnTrack | null;
+  readonly onchain: OcTrack | null;
+  readonly holds: Holds | null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private ticking = false;
   private stopped = true;
@@ -69,9 +77,11 @@ export class Daemon {
     const { db, nowMs, log } = deps;
     this.effects = new Effects(db, nowMs, log);
 
+    if (deps.onchain && !deps.ln) throw new Error('온체인 트랙은 라이트닝 노드가 있어야 한다 (보증금이 홀드 인보이스다)');
     const directory = composeDirectories([
       ...(deps.directory ? [deps.directory] : []),
       ...(deps.ln ? [createLnDirectory(db)] : []),
+      ...(deps.onchain ? [createOcDirectory(db)] : []),
     ]);
     this.admin = {
       db, effects: this.effects, appKey: deps.appKey, operators: deps.operators, tags: deps.tags,
@@ -85,8 +95,19 @@ export class Daemon {
     this.commands = createBaseCommands();
     const adminHandler = createAdminHandler(this.admin, this.commands);
     const chatForwarder = createChatForwarder(this.admin);
-    this.ln = deps.ln ? installLnTrack(this.admin, this.commands, deps.transport, deps.seed, deps.ln) : null;
+    // 홀드 인보이스(라이트닝 에스크로·보증금, 온체인 보증금)는 LN 노드가 있어야 돈다
+    this.holds = deps.ln ? new Holds({ ...this.admin, node: deps.ln.node, seed: deps.seed }) : null;
+    this.holds?.install();
+    if (deps.ln) this.effects.register(PUSH_EFFECT, createPushExecutor(db, deps.ln.push, nowMs, log));
+    this.ln = deps.ln && this.holds
+      ? installLnTrack(this.admin, this.commands, deps.transport, deps.seed, this.holds, deps.ln)
+      : null;
+    this.onchain = deps.onchain && deps.ln && this.holds
+      ? installOcTrack(this.admin, this.commands, deps.transport, this.holds,
+        { seed: deps.seed, price: deps.ln.price, push: deps.ln.push }, deps.onchain)
+      : null;
     const lnHandlers = this.ln?.handlers;
+    const ocHandlers = this.onchain?.handlers;
 
     const route: Router = event => {
       // 우리가 낸 것(어드민이 보낸 분쟁 메시지 등)도 `p=APP`이라 되돌아온다 — 처리할 게 없다
@@ -98,7 +119,8 @@ export class Daemon {
         return chatForwarder;
       }
       if (t === deps.tags.ln && action && lnHandlers) return lnHandlers.get(action) ?? null;
-      return null; // 온체인(P4) 핸들러가 여기 붙는다
+      if (t === deps.tags.onchain && action && ocHandlers) return ocHandlers.get(action) ?? null;
+      return null;
     };
     this.dispatcher = new Dispatcher(db, route, nowMs, deps.holdMs, log);
 
@@ -132,8 +154,13 @@ export class Daemon {
     if (this.ticking) return;
     this.ticking = true;
     try {
+      if (this.onchain) await this.onchain.watcher.refreshFees();
       this.dispatcher.runPending();
+      // 인보이스 관찰이 먼저 — 결제된 것이 시계 판단(미납 → 취소)보다 앞서야 한다
+      if (this.holds) await this.holds.poll();
       if (this.ln) await this.ln.watcher.poll();
+      if (this.onchain) await this.onchain.watcher.poll();
+      this.deps.db.tx(() => raiseStuckEffects(this.admin));
       this.heartbeat();
       await this.effects.runDue();
     } catch (e) {

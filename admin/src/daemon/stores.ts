@@ -4,7 +4,9 @@
  * 데몬 상태와 오더는 localStorage에 남긴다 — 새로고침 직후에도 마지막으로 본 것을 띄우고, 피드가
  * 따라오면 갱신한다. 명령 결과는 그 세션의 것이라 메모리에만 둔다.
  */
-import type { AdminChatCopy, AdminCommandResult, AdminLnOrderDetail, AdminState, Order } from '@sajwo-tracker/shared';
+import type {
+  AdminChatCopy, AdminCommandResult, AdminLnOrderDetail, AdminOcOrderDetail, AdminState, Order,
+} from '@sajwo-tracker/shared';
 import type { OnchainOrder } from '@sajwo-tracker/shared/onchain';
 
 export interface Store<T> {
@@ -75,6 +77,14 @@ export interface LnDetailView {
 export const lnDetails = createStore<Record<string, LnDetailView>>({}, 'admin2:ln-details');
 export const onchainOrders = createStore<Record<string, OnchainOrder>>({}, 'admin2:onchain-orders');
 
+export interface OcDetailView {
+  detail: AdminOcOrderDetail;
+  eventAt: number;
+}
+
+/** 온체인 오더별 비공개 상세 (받을 주소·보증금·구조 대상 등) — 명령은 여기 버전을 싣는다 */
+export const ocDetails = createStore<Record<string, OcDetailView>>({}, 'admin2:oc-details');
+
 export function clearStores(): void {
   daemonState.set({ state: null, eventAt: null });
   commands.set({});
@@ -82,4 +92,5 @@ export function clearStores(): void {
   lnOrders.set({});
   lnDetails.set({});
   onchainOrders.set({});
+  ocDetails.set({});
 }

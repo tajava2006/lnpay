@@ -942,6 +942,12 @@ seal/wrap의 `created_at`은 NIP-59 요구대로 최대 이틀 전으로 흩뿌�
 
 ## 온체인 트랙 (2-of-3 taproot) — 별도 FSM
 
+> **집행자는 데몬이다**(PLAN-DAEMON P4, 2026-09-24). 이 절의 "어드민"은 운영 PC의 데몬(APP 키)을 뜻한다.
+> 어드민 키는 주문마다 **시드에서 파생**한다(`HMAC-SHA256(seed, "lnpay/onchain-admin/v1/<orderId>/<n>")`) —
+> 키 저장소·릴레이 백업·"백업이 확인돼야 주소를 낸다"가 없어졌다. 판정·계좌 이의·구조는 운영자가 명령으로
+> 내린다(`oc.rule` · `oc.account-dispute` · `oc.rescue` · `oc.resend`), 나머지는 데몬 워처가 자동이다.
+> 보증금(LN 홀드 인보이스)은 라이트닝과 같은 기계(`daemon/src/hold`)로 만들고 정리한다.
+
 > 라이트닝 트랙과 **완전히 분리된 트랙**이다. 설계 근거와 공격 분석은
 > [docs/PLAN-ONCHAIN-TRACK.md](docs/PLAN-ONCHAIN-TRACK.md)가 진실이고, 여기에는
 > **프로토콜로 굳은 것**만 적는다.
@@ -1080,7 +1086,7 @@ swept:     어드민이 만들지 않는다 — **체인에서 관측**한다 (�
 | 세 키가 하나라도 겹치면 주소를 만들지 않는다 | `assertEscrowKeys()` |
 | 서명 요청은 **FSM이 허락할 때만** — 화면과 어드민 핸들러가 같은 함수 | `canActOnSignRequest()` |
 | 유저는 서명 요청을 **자기 기록으로 다시 만들어 txid 대조** 후, 다시 만든 tx에 서명 | `checkSignRequest()` → `buildCosignature()` |
-| 어드민은 **마지막에** 서명하고, raw tx를 기록 → `settling` 커밋 → 브로드캐스트 | `handleOnchainCosign()` · `settleThroughOutbox()` |
+| 어드민은 **마지막에** 서명하고, raw tx(outbox)와 `settling`을 **한 트랜잭션에** 적은 뒤 브로드캐스트(효과) | 데몬 `onchain/flow.ts` `ocCosign()` · `enterSettling()` |
 | 후원자는 원화 전에 **펀딩을 체인에서 직접** 확인 (outpoint · 주소 · 금액 · 컨펌) | `checkFundingOnChain()` |
 | 후원자 feerate 경계: `1 ≤ r ≤ max(100, 5×fastest)`, 수수료 ≤ 금액의 20% | `releaseFeerateProblem()` |
 | 최저가는 신선한 시세보다 3% 이상 아래 | `reserveProblem()` |

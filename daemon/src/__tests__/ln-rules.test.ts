@@ -10,7 +10,7 @@ import {
 } from '@sajwo-tracker/shared/core';
 import { finalizeEvent } from 'nostr-tools/pure';
 import { openAlerts } from '../admin/alerts';
-import { STUCK_EFFECT_ATTEMPTS } from '../ln/timing';
+import { STUCK_EFFECT_ATTEMPTS } from '../admin/stuck';
 import { TEST_TAGS, adminCommand, eventsTo, newKey, openResult, type TestKey } from './fakes';
 import { createLnHarness, lnRequest, makeInvoice, tagOf, type LnHarness } from './ln-fakes';
 import {

@@ -51,6 +51,11 @@ export interface DaemonConfig {
   vapidKeyFile: string | undefined;
   /** VAPID `sub` — 푸시 서비스가 문제 생겼을 때 연락할 곳 */
   vapidSubject: string;
+  /**
+   * 온체인 트랙. 없으면 온체인 요청을 받지 않는다. **배포 설정이다** — 진행 중 거래가 있는데 네트워크를
+   * 바꾸면 이미 낸 주소가 다른 체인의 것이 된다(그래서 `config.set`에 없다, §5.5).
+   */
+  onchain: { network: 'mainnet' | 'signet' | 'testnet'; apiUrl: string | undefined } | undefined;
 }
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -106,7 +111,19 @@ export function loadConfig(env: Record<string, string | undefined>): DaemonConfi
     },
     vapidKeyFile: env.LNPAY_VAPID_KEY_FILE?.trim() || undefined,
     vapidSubject: env.LNPAY_VAPID_SUBJECT?.trim() || 'https://customer.hoppe-relay.it.com',
+    onchain: onchainConfig(env),
   };
+}
+
+function onchainConfig(env: Record<string, string | undefined>): DaemonConfig['onchain'] {
+  const network = env.LNPAY_ONCHAIN_NETWORK?.trim();
+  if (!network) return undefined;
+  if (network !== 'mainnet' && network !== 'signet' && network !== 'testnet') {
+    throw new Error(`LNPAY_ONCHAIN_NETWORK는 mainnet|signet|testnet: ${network}`);
+  }
+  const apiUrl = env.LNPAY_ONCHAIN_API?.trim() || undefined;
+  if (apiUrl && !/^https?:\/\//.test(apiUrl)) throw new Error(`LNPAY_ONCHAIN_API가 주소가 아니다: ${apiUrl}`);
+  return { network, apiUrl };
 }
 
 function lndUrl(value: string): string {

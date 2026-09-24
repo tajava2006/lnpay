@@ -295,7 +295,7 @@ content = NIP-44(운영자 → APP, { cmd, args, orderId?, expectVersion? })
 
 | | |
 |---|---|
-| **그대로 옮긴다** | `state-machine`·`timing`·`policy`·tx 빌더·검증(shared), `decide`·`watcher`·`service`·`publish`·`deposit-lifecycle`·`funding`(admin → daemon). 리뷰 #8의 O-017~O-021 전부 |
+| **그대로 옮긴다** (✅ P4) | `state-machine`·`timing`·`policy`·tx 빌더·검증(shared), `decide`·`watcher`·`service`·`publish`·`deposit-lifecycle`·`funding`(admin → daemon). 리뷰 #8의 O-017~O-021 전부 |
 | **없어진다** | `lease`·`backup`(단일 집행자), `key-store`(시드 파생), `sign-request-log`·`rescue-store`·`alert-store`·`config`의 로컬 저장(→ DB), `pending-deposit-store`·`escrow-meta-store`·`order-store`(→ DB) |
 | **바뀐다** | 어드민 키 = 시드 파생(§4.7). 판정·계좌 이의·구조는 운영자 명령(§5.5). 운영자 알림은 NIP-17 DM 유지 |
 
@@ -474,6 +474,40 @@ compose 서비스 등록도 P5로 옮겼다(돌릴 게 생긴 뒤에).
 ⬜ **남긴 것**: 소액 mainnet 드릴(실 LND — 특히 `/v2/router/track/{hash}`의 해시 인코딩, 홀드 인보이스 만료
 취소, `htlcs[].expiry_height`), 실제 릴레이·벙커로 어드민 ↔ 데몬 왕복, 운영 PC 배포(P5 — 권한 줄인 매크룬 굽기,
 VAPID 키 파일). 문서: PROTOCOL 라이트닝 절은 고쳤고, ARCHITECTURE·THREAT-MODEL은 P5에서 데몬 기준으로 다시 쓴다.
+
+### P4 온체인 — ✅ 코드 완료 (2026-09-24)
+
+- **홀드 인보이스를 한 기계로** — `daemon/src/hold/`(`Holds`): 계획(시드 파생 해시) · 만들기 · 관찰(매 틱 노드에
+  묻기) · 정리(settle/cancel), 전부 조회 먼저. 목적(`purpose`)마다 트랙이 후속 처리(`HoldHooks`)를 등록한다 —
+  라이트닝 에스크로·보증금과 온체인 보증금이 같은 코드를 탄다. 효과 이름 `hold.create`·`hold.dispose`.
+  오래 실패하는 효과 경보는 데몬 전체로(`admin/stuck.ts`).
+- **온체인** `daemon/src/onchain/` — 순수 판단(`decide`·`funding`·`deposit`)과 알림 표(`notify-messages`)는
+  `git mv`로 그대로 옮겼다(바뀐 건 outbox 마무리 경로가 없어진 것 하나). `service.ts`는 `flow.ts`로 옮겨
+  **트랜잭션 안·네트워크 없이** 다시 짰다. 수수료는 워처가 틱 맨 앞에 받아 두고(`fees.ts`, 10분 지나면 모름)
+  핸들러가 그 값으로 보증금·최소 거래액·릴리스 feerate 상한을 본다. 저장은 `oc_orders`(공개 필드 JSON +
+  비공개 `meta`) · `oc_candidates`(보증금 대기 의뢰·클레임) — 프론트의 사이드 스토어 다섯 개가 여기로 모였다.
+- **없어진 것**(§8 그대로): 소유권 리스·백업, 키 저장소(시드 파생), 로컬 스토어 전부, 옛 LN 어댑터(`lightning/*`),
+  `admin/legacy/` 통째. 동시성 가드(`ifUnchangedSince`)는 버전 확인 하나로 — 워처는 조회하는 사이 버전이 바뀌면 쉰다.
+- **바뀐 동작**:
+  - outbox와 `settling`을 **한 트랜잭션에** 적고 뿌리는 건 효과다 — 리뷰 #8 R3("발행 실패 → 엉뚱한 쪽 몰수")가
+    구조적으로 없어졌다. 브로드캐스트 실패는 효과가 8번까지 다시(같은 바이트), 멤풀 이탈은 워처가 다시 쌓는다.
+  - 마감 확인은 **요청이 만들어진 시각**(`min(created_at, now)`)으로 — 데몬이 잠깐 꺼져 있던 사이 마감 안에 보낸
+    사전서명·계좌·송금 주장이 늦게 처리돼도 정직한 쪽이 몰수되지 않게. 이미 결정된 거래는 상태 확인이 먼저 막는다.
+  - 재시작 워밍업(2분) 동안 시계 행동(`cancel`·`settle`·`dispute`)을 미룬다(라이트닝과 같다).
+  - 운영자 알림 = 경보(분쟁 진입·몰수금 처리·구조 대상·키 유출 의심 등). 고객 "마감 임박"은 송금 주장당 한 번.
+  - 새 의뢰는 `onchain.acceptNewOrders`가 켜져 있어야 받는다(기본 꺼짐) — 네트워크(`LNPAY_ONCHAIN_NETWORK`)를
+    안 적으면 트랙 자체가 없다.
+- **어드민** — 온체인 목록 → 상세(공개 오더 + 운영자 상세: 받을 주소·환불 주소·보증금·HTLC 만료 추정·구조 대상)
+  · 판정·계좌 이의 판정·서명 요청 재전송·구조 버튼 · 분쟁 채팅(두 트랙 공용 컴포넌트로 뺐다).
+- 테스트: 데몬 301(온체인 e2e 19 · 요청 검증 20 · 워처 10 · 보증금 16, 순수 판단 119는 옮긴 그대로). 서명은
+  진짜다 — 고객·후원자 키로 PSBT에 서명하면 데몬이 검증해 시드 파생 키로 완성한다. 가짜 체인은 esplora처럼
+  소모된 UTXO를 빼고 증인을 돌려준다. **변이 확인 21종 중 19종 잡힘**. 살아남은 둘은 도달할 입력이 없는
+  이중 방어다: 최종 서명의 보낸 사람 확인(서명 자체가 서명자를 묶는다), 보증금 "받은 것만 처리"(정리 효과가
+  어차피 멱등). 처음 돌렸을 때 8종이 살아남아 테스트를 조였다(제3자의 **유효한** 사전서명, 마감 뒤 사전서명,
+  `settling` 중 중복 서명, 거절이 유저에게 가는지, 당사자 아닌 분쟁, 옛 사실로 리오그, 마감 재기록 차이).
+
+⬜ **남긴 것**: signet 드릴(`ONCHAIN-SIGNET-DRILL.md`를 데몬 대상으로 — 실제 esplora 응답·브로드캐스트 에러 문구,
+실제 LND 홀드 인보이스), 운영 PC 배포(P5).
 
 ---
 

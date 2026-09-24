@@ -93,8 +93,6 @@ export const PAY_BY_SKEW_SEC = 60;
 /** 재시작 직후 이 시간 동안은 기한 만료로 닫지 않는다 — 꺼져 있던 동안 쌓인 요청을 먼저 받는다 */
 export const CATCHUP_WARMUP_SEC = 2 * MIN;
 
-/** 효과가 이만큼 실패하면 사람을 부른다 (지급 실패·settle 실패 — L-4) */
-export const STUCK_EFFECT_ATTEMPTS = 6;
 
 /** 초 단위 기간 → 최종 CLTV 블록 수 (상·하한 안으로) */
 export function cltvBlocksFor(spanSec: number): number {

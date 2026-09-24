@@ -17,6 +17,7 @@ import { silentLogger } from '../log';
 import { Daemon } from '../runtime';
 import type { OrderDirectory, OrderParties } from '../orders/directory';
 import type { LnDeps } from '../ln';
+import type { OcDeps } from '../onchain';
 import type { TrackName } from '@sajwo-tracker/shared/core';
 
 export class FakeRelay implements RelayTransport {
@@ -171,13 +172,18 @@ export interface Harness {
   settle(daemon: Daemon): Promise<void>;
 }
 
-export function createHarness(opts: { operators?: number; ln?: (clock: { now: number }) => LnDeps } = {}): Harness {
+export function createHarness(opts: {
+  operators?: number;
+  ln?: (clock: { now: number }) => LnDeps;
+  onchain?: (clock: { now: number }) => OcDeps;
+} = {}): Harness {
   const clock = { now: T0 };
   const relay = new FakeRelay(() => clock.now);
   const app = newKey();
   const operators = Array.from({ length: opts.operators ?? 1 }, () => newKey());
   const directory = new FakeDirectory();
   const lnDeps = opts.ln?.(clock);
+  const ocDeps = opts.onchain?.(clock);
   const h: Harness = {
     relay, app, operators, operator: operators[0]!, directory, clock,
     sec: () => Math.floor(clock.now / 1000),
@@ -188,6 +194,7 @@ export function createHarness(opts: { operators?: number; ln?: (clock: { now: nu
         epoch: Math.floor(T0 / 1000) - 3600, lookbackSec: 3600, resubscribeSec: 300,
         tickMs: 15_000, holdMs: 1_500, nowMs: () => clock.now, log: silentLogger, directory,
         ...(lnDeps ? { ln: lnDeps } : {}),
+        ...(ocDeps ? { onchain: ocDeps } : {}),
       });
       daemon.ingress.reopen(); // 타이머 없이 구독만 연다 — 시계는 테스트가 돌린다
       return daemon;

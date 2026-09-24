@@ -1,8 +1,7 @@
 /**
  * 오더 목록 (PLAN-DAEMON §6)
  *
- * 공개 오더 이벤트를 그대로 보여준다. 라이트닝은 줄을 누르면 상세·판정·채팅으로 간다(P3). 온체인은
- * 데몬으로 옮기기 전(P4)이라 아직 보기 전용이다 — 버튼을 달면 집행할 곳이 없다.
+ * 공개 오더 이벤트를 그대로 보여준다. 줄을 누르면 상세·판정·채팅으로 간다.
  */
 import { useSyncExternalStore } from 'react';
 import { isTerminalState, stateDisplay } from '@sajwo-tracker/shared';
@@ -31,7 +30,7 @@ export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void 
   return <Table title="라이트닝 오더" rows={rows} onSelect={onSelect} />;
 }
 
-export function OnchainOrderList() {
+export function OnchainOrderList({ onSelect }: { onSelect: (orderId: string) => void }) {
   const orders = useSyncExternalStore(onchainOrders.subscribe, onchainOrders.get);
   const rows: Row[] = Object.values(orders).map(o => {
     const d = onchainStateDisplay(o.state);
@@ -40,7 +39,7 @@ export function OnchainOrderList() {
       amount: `${o.amountSat.toLocaleString()} sats`, updatedAt: o.updatedAt, done: isOnchainTerminal(o.state),
     };
   });
-  return <Table title="온체인 오더" rows={rows} note="보기 전용" />;
+  return <Table title="온체인 오더" rows={rows} onSelect={onSelect} />;
 }
 
 function Table({ title, rows, onSelect, note }: {

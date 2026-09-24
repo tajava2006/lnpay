@@ -9,14 +9,11 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { nip19 } from 'nostr-tools';
-import {
-  MAX_CHAT_TEXT, stateDisplay,
-  type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type Order,
-} from '@sajwo-tracker/shared';
+import { stateDisplay, type AdminCommandResult, type AdminLnOrderDetail, type Order } from '@sajwo-tracker/shared';
 import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
 import { sendCommand } from '../daemon/client';
 import { chats, lnDetails, lnOrders } from '../daemon/stores';
-import { CommitmentBadge } from './CommitmentBadge';
+import { DisputeChat } from './DisputeChat';
 
 const INVOICE_PURPOSE: Record<AdminLnOrderDetail['invoices'][number]['purpose'], string> = {
   escrow: '에스크로',
@@ -78,7 +75,11 @@ export function LnOrderDetail({ orderId, onBack }: { orderId: string; onBack: ()
         <section style={styles.card}><p style={styles.note}>데몬 상세를 기다리는 중… (명령은 상세가 와야 보낼 수 있습니다)</p></section>
       )}
       {detail && <Actions detail={detail} />}
-      <Chat orderId={orderId} detail={detail} order={order} messages={messages} />
+      <DisputeChat
+        track="ln" orderId={orderId} messages={messages}
+        customer={detail?.customer ?? order?.customerPubkey} sponsor={detail?.sponsor ?? order?.sponsorPubkey}
+        accountCommitment={detail?.accountCommitment}
+      />
     </div>
   );
 }
@@ -214,63 +215,6 @@ function Actions({ detail }: { detail: AdminLnOrderDetail }) {
   );
 }
 
-function Chat({ orderId, detail, order, messages }: {
-  orderId: string; detail: AdminLnOrderDetail | undefined; order: Order | undefined; messages: AdminChatCopy[];
-}) {
-  const customer = detail?.customer ?? order?.customerPubkey;
-  const sponsor = detail?.sponsor ?? order?.sponsorPubkey;
-  const [to, setTo] = useState<'customer' | 'sponsor'>('customer');
-  const [text, setText] = useState('');
-  const [status, setStatus] = useState<string | null>(null);
-  const recipient = to === 'customer' ? customer : sponsor;
-
-  const roleName = (m: AdminChatCopy) => m.role === 'admin' ? `운영자 → ${m.to === customer ? '고객' : '후원자'}`
-    : m.role === 'customer' ? '고객' : m.role === 'sponsor' ? '후원자' : '?';
-
-  return (
-    <section style={styles.card}>
-      <h3 style={styles.h3}>분쟁 채팅 <span style={styles.note}>{messages.length}건</span></h3>
-      {messages.map(m => (
-        <div key={m.originalId} style={m.role === 'admin' ? styles.mine : styles.theirs}>
-          <div style={styles.note}>{roleName(m)} · {time(m.sentAt)}</div>
-          {m.payload.type === 'text' && <div>{m.payload.content}</div>}
-          {m.payload.type === 'account-reveal' && m.payload.accountInfo && (
-            <div>
-              <div>계좌 공개: {m.payload.accountInfo.bankName} {m.payload.accountInfo.accountNumber} ({m.payload.accountInfo.holderName})</div>
-              {detail?.accountCommitment
-                ? <CommitmentBadge accountInfo={m.payload.accountInfo} commitment={detail.accountCommitment} salt={m.payload.commitmentSalt} />
-                : <div style={styles.note}>대조할 커밋먼트가 없습니다(고객이 계좌를 보낸 기록이 없음)</div>}
-            </div>
-          )}
-        </div>
-      ))}
-      <div style={styles.row}>
-        <select style={styles.select} value={to} onChange={e => setTo(e.target.value as 'customer' | 'sponsor')}>
-          <option value="customer">고객에게</option>
-          <option value="sponsor" disabled={!sponsor}>후원자에게</option>
-        </select>
-        <input
-          style={styles.textInput} value={text} maxLength={MAX_CHAT_TEXT} placeholder="메시지"
-          onChange={e => setText(e.target.value)}
-        />
-        <button
-          style={styles.button}
-          disabled={!recipient || text.trim() === ''}
-          onClick={() => {
-            setStatus('보내는 중…');
-            void sendCommand('chat.send', { track: 'ln', orderId, to: recipient, text })
-              .then(r => { setStatus(resultText(r)); if (r?.ok) setText(''); })
-              .catch(e => setStatus(e instanceof Error ? e.message : String(e)));
-          }}
-        >
-          보내기
-        </button>
-      </div>
-      {status && <p style={styles.note}>{status}</p>}
-    </section>
-  );
-}
-
 const styles = {
   column: { display: 'flex', flexDirection: 'column' as const, gap: 16 },
   card: { background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' as const, gap: 12 },
@@ -289,8 +233,4 @@ const styles = {
   td: { padding: '8px', borderBottom: '1px solid #F3F4F6' },
   button: { padding: '8px 14px', fontSize: 13, fontWeight: 600 as const, background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
   danger: { padding: '8px 14px', fontSize: 13, fontWeight: 600 as const, background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
-  mine: { alignSelf: 'flex-end', background: '#EEF2FF', borderRadius: 8, padding: '8px 12px', maxWidth: '80%', fontSize: 13 },
-  theirs: { alignSelf: 'flex-start', background: '#F3F4F6', borderRadius: 8, padding: '8px 12px', maxWidth: '80%', fontSize: 13 },
-  select: { padding: '8px', fontSize: 13, border: '1px solid #D1D5DB', borderRadius: 6 },
-  textInput: { flex: 1, minWidth: 160, padding: '8px', fontSize: 13, border: '1px solid #D1D5DB', borderRadius: 6 },
 };

@@ -7,15 +7,15 @@ import type { Db } from '../db';
 import type { Handler } from '../dispatch';
 import type { RelayTransport } from '../nostr/transport';
 import type { OrderDirectory } from '../orders/directory';
-import { PUSH_EFFECT, createPushExecutor, type PushConfig } from '../push/send';
+import type { Holds } from '../hold';
+import type { PushConfig } from '../push/send';
 import { registerLnCommands } from './commands';
 import type { LnContext } from './context';
 import {
-  createCloseExecutor, createDetailExecutor, createHoldCreateExecutor, createHoldDisposeExecutor,
-  createOrderPublishExecutor, createPayoutExecutor, createProbeExecutor,
+  createCloseExecutor, createDetailExecutor, createOrderPublishExecutor, createPayoutExecutor, createProbeExecutor,
 } from './effects';
 import {
-  LN_CLOSE_EFFECT, LN_HOLD_CREATE_EFFECT, LN_HOLD_DISPOSE_EFFECT, LN_PAYOUT_EFFECT, LN_PROBE_EFFECT,
+  LN_CLOSE_EFFECT, LN_HOLD_PURPOSES, LN_PAYOUT_EFFECT, LN_PROBE_EFFECT, createLnHoldHooks,
 } from './flow';
 import { createLnHandlers, knownHeight } from './handlers';
 import type { LnNode } from './lnd';
@@ -54,19 +54,18 @@ export function installLnTrack(
   registry: CommandRegistry,
   transport: RelayTransport,
   seed: Uint8Array,
+  holds: Holds,
   deps: LnDeps,
 ): LnTrack {
-  const ctx: LnContext = { ...admin, node: deps.node, seed, price: deps.price, push: deps.push };
+  const ctx: LnContext = { ...admin, node: deps.node, seed, holds, price: deps.price, push: deps.push };
   const { effects } = ctx;
 
-  effects.register(LN_HOLD_CREATE_EFFECT, createHoldCreateExecutor(ctx));
-  effects.register(LN_HOLD_DISPOSE_EFFECT, createHoldDisposeExecutor(ctx));
+  holds.register(LN_HOLD_PURPOSES, createLnHoldHooks(ctx));
   effects.register(LN_CLOSE_EFFECT, createCloseExecutor(ctx));
   effects.register(LN_PAYOUT_EFFECT, createPayoutExecutor(ctx));
   effects.register(LN_PROBE_EFFECT, createProbeExecutor(ctx));
   effects.register(LN_ORDER_PUBLISH_EFFECT, createOrderPublishExecutor(ctx, transport));
   effects.register(LN_DETAIL_EFFECT, createDetailExecutor(ctx, transport, () => knownHeight(ctx)));
-  effects.register(PUSH_EFFECT, createPushExecutor(ctx.db, deps.push, ctx.nowMs, ctx.log));
 
   registerLnCommands(registry, ctx);
   return { ctx, watcher: new LnWatcher(ctx), handlers: createLnHandlers(ctx) };

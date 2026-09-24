@@ -13,6 +13,7 @@ import { finalizeEvent, generateSecretKey } from 'nostr-tools/pure';
 import { SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, orderRef } from '@sajwo-tracker/shared/core';
 import type { HoldLookup, HoldState, LnNode, PayResult, PayStatus } from '../ln/lnd';
 import type { PushConfig } from '../push/send';
+import type { OcDeps } from '../onchain';
 import type { Daemon } from '../runtime';
 import type { LnContext } from '../ln/context';
 import { getOrder, type LnOrderRow } from '../ln/store';
@@ -281,7 +282,9 @@ export interface LnHarness extends Harness {
 /** 1 BTC = 1.5억 원 — 10만 원이면 66,667 sats */
 export const BTC_KRW = 150_000_000;
 
-export async function createLnHarness(opts: { operators?: number } = {}): Promise<LnHarness> {
+export async function createLnHarness(
+  opts: { operators?: number; onchain?: (clock: { now: number }) => OcDeps } = {},
+): Promise<LnHarness> {
   const push = await pushSink();
   const price = { value: BTC_KRW as number | null };
   let node!: FakeLnNode;

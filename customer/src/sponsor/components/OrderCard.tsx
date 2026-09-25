@@ -6,26 +6,16 @@
  * 의뢰를 탭마다 다른 버튼으로 보게 됐다.
  */
 import { useState } from 'react';
-import { lnOrderDisplay, sponsorRelation } from '@sajwo-tracker/shared';
+import { lnOrderDisplay, remainingText, sponsorRelation } from '@sajwo-tracker/shared';
 import type { Order } from '@sajwo-tracker/shared';
 import { publishClaim } from '../nostr/claim';
+import { ui } from '../../ui';
 
 interface Props {
   order: Order;
   now: number;
   /** 내 pubkey. 아직 로딩 중이면 null — 남의 거래로 단정하지 않는다 */
   myPubkey: string | null;
-}
-
-function formatTimeLeft(expiration: number, now: number): string {
-  if (expiration === 0) return '기한 없음';
-  const diff = expiration - now;
-  if (diff <= 0) return '만료됨';
-  const hours = Math.floor(diff / 3600);
-  const minutes = Math.floor((diff % 3600) / 60);
-  if (hours > 0) return `${hours}시간 ${minutes}분 남음`;
-  if (minutes > 0) return `${minutes}분 ${diff % 60}초 남음`;
-  return `${diff % 60}초 남음`;
 }
 
 function formatDate(unixSeconds: number): string {
@@ -56,9 +46,9 @@ export function OrderCard({ order, now, myPubkey }: Props) {
   return (
     <div style={isTaken ? { ...styles.card, ...styles.cardTaken } : styles.card}>
       <div style={styles.top}>
-        <span style={styles.price}>{order.price.toLocaleString()}원</span>
-        <span style={{ ...styles.timeLeft, color: isUrgent ? '#DC2626' : '#666' }}>
-          {formatTimeLeft(order.expiration, now)}
+        <span style={ui.price}>{order.price.toLocaleString()}원</span>
+        <span style={{ ...ui.timeLeft, color: isUrgent ? '#DC2626' : '#666' }}>
+          {order.expiration === 0 ? '기한 없음' : remainingText(order.expiration - now, '기한 지남')}
         </span>
       </div>
 
@@ -79,7 +69,7 @@ export function OrderCard({ order, now, myPubkey }: Props) {
             </p>
           </>
         ) : (
-          <div style={styles.statusRow}>
+          <div style={ui.statusRow}>
             <span style={{ ...styles.statusBadge, background: badge.bg, color: badge.color }}>{badge.label}</span>
             {isTaken && <span style={styles.lockBadge}>다른 후원자가 진행 중</span>}
           </div>
@@ -107,15 +97,12 @@ const styles = {
     background: '#FAFAFA', opacity: 0.72, boxShadow: 'none', border: '1px dashed #D1D5DB',
   },
   top: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  price: { fontSize: 20, fontWeight: 600 as const, color: '#4F46E5' },
-  timeLeft: { fontSize: 13, fontWeight: 500 as const },
   middle: { marginBottom: 8, display: 'flex', flexDirection: 'column' as const, gap: 8 },
   claimBtn: {
     alignSelf: 'flex-start' as const, background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 6,
     padding: '8px 16px', fontSize: 14, fontWeight: 600 as const,
   },
   hint: { fontSize: 12, color: '#888', margin: 0, lineHeight: 1.5 },
-  statusRow: { display: 'flex', flexWrap: 'wrap' as const, alignItems: 'center', gap: 6 },
   statusBadge: { display: 'inline-block', borderRadius: 6, padding: '6px 12px', fontSize: 13, fontWeight: 500 as const },
   lockBadge: {
     display: 'inline-block', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600 as const,

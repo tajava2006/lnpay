@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { InstallApp } from './InstallApp';
 import { checkPushSupport, subscribeToPush, getExistingSubscription, unsubscribeFromPush } from '../push/subscribe';
 import { publishPushSubscription } from '../push/publish';
+import { ui } from '../ui';
 
 type PushState =
   | { kind: 'checking' }
@@ -92,7 +93,7 @@ function PushSection({ state, onEnable, onDisable }: {
   onDisable: () => void;
 }) {
   return (
-    <div style={styles.card}>
+    <div style={ui.panel}>
       <div style={styles.cardHead}>
         <b>브라우저 알림</b>
         {state.kind === 'on' && <span style={styles.badgeOn}>켜짐</span>}
@@ -116,7 +117,7 @@ function PushSection({ state, onEnable, onDisable }: {
             물어볼 수 있습니다. 그것도 허용해 주세요.
           </p>
           {state.kind === 'error' && <p style={styles.err}>{state.message}</p>}
-          <button onClick={onEnable} style={styles.primaryBtn}>알림 켜기</button>
+          <button onClick={onEnable} style={ui.primaryButton}>알림 켜기</button>
         </>
       )}
 
@@ -185,13 +186,6 @@ const styles = {
     lineHeight: 1.6,
     color: '#374151',
   },
-  card: {
-    padding: 16,
-    background: '#F9FAFB',
-    border: '1px solid #E5E7EB',
-    borderRadius: 8,
-    marginBottom: 12,
-  },
   cardHead: {
     display: 'flex',
     alignItems: 'center',
@@ -217,16 +211,6 @@ const styles = {
     fontSize: 12,
     lineHeight: 1.6,
     color: '#9CA3AF',
-  },
-  primaryBtn: {
-    padding: '9px 20px',
-    background: '#4F46E5',
-    color: 'white',
-    border: 'none',
-    borderRadius: 6,
-    fontSize: 14,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
   },
   ghostBtn: {
     padding: '7px 16px',

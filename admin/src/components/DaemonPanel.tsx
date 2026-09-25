@@ -6,21 +6,14 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import {
-  ADMIN_STATE_STALE_SEC, CLIENT_TAG_ADMIN, MAX_DEPOSIT_PCT,
-  type AdminAlert, type AdminCommandResult, type DaemonSettings,
+  ADMIN_STATE_STALE_SEC, CLIENT_TAG_ADMIN, MAX_DEPOSIT_PCT, dateTimeText, useNow,
+  type AdminAlert, type DaemonSettings,
 } from '@sajwo-tracker/shared';
 import { ONCHAIN_WINDOWS, durationText, type OnchainWindows } from '@sajwo-tracker/shared/onchain';
 import { sendCommand } from '../daemon/client';
 import { daemonState } from '../daemon/stores';
-
-function useNow(intervalMs = 10_000): number {
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
-  useEffect(() => {
-    const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), intervalMs);
-    return () => clearInterval(t);
-  }, [intervalMs]);
-  return now;
-}
+import { commandResultText } from '../format';
+import { ui } from '../ui';
 
 function ago(sec: number): string {
   if (sec < 60) return `${Math.max(0, sec)}초 전`;
@@ -29,36 +22,31 @@ function ago(sec: number): string {
   return `${Math.floor(sec / 86400)}일 전`;
 }
 
-function resultText(result: AdminCommandResult | null): string {
-  if (!result) return '데몬 응답 없음 — 집행됐는지 모릅니다. 상태를 보고 판단하세요';
-  return result.ok ? '완료' : `거절: ${result.error}`;
-}
-
 export function DaemonPanel() {
   const view = useSyncExternalStore(daemonState.subscribe, daemonState.get);
-  const now = useNow();
+  const now = useNow(10_000);
   const { state, eventAt } = view;
 
   const age = eventAt === null ? null : now - eventAt;
   const alive = age !== null && age <= ADMIN_STATE_STALE_SEC;
 
   return (
-    <div style={styles.column}>
-      <section style={styles.card}>
+    <div style={ui.column}>
+      <section style={ui.card}>
         <div style={styles.row}>
           <h2 style={styles.h2}>데몬</h2>
-          <span style={{ ...styles.badge, ...(alive ? styles.ok : styles.bad) }}>
+          <span style={{ ...ui.badge, ...(alive ? styles.ok : styles.bad) }}>
             {age === null ? '신호 대기 중' : alive ? `정상 · ${ago(age)}` : `응답 없음 · ${ago(age)}`}
           </span>
         </div>
         {state ? (
-          <dl style={styles.dl}>
+          <dl style={ui.dl}>
             <dt>버전</dt><dd>{state.daemonVersion} ({state.mode})</dd>
-            <dt>시작</dt><dd>{new Date(state.startedAt * 1000).toLocaleString('ko-KR')}</dd>
+            <dt>시작</dt><dd>{dateTimeText(state.startedAt)}</dd>
             <dt>받기 시작</dt>
             <dd>
               {typeof state.epoch === 'number'
-                ? `${new Date(state.epoch * 1000).toLocaleString('ko-KR')} (${state.epoch}) — 이 전의 오더는 보지 않는다. 유저 앱 VITE_NOSTR_SINCE도 이 값`
+                ? `${dateTimeText(state.epoch)} (${state.epoch}) — 이 전의 오더는 보지 않는다. 유저 앱 VITE_NOSTR_SINCE도 이 값`
                 : '모름 — 데몬이 옛 버전이다(다시 빌드). 그 전까지 오더 목록은 비어 있다'}
             </dd>
             <dt>온체인 창</dt>
@@ -67,7 +55,7 @@ export function DaemonPanel() {
             <dt>효과 대기</dt>
             <dd>
               {state.effects.pending}건
-              {state.effects.dead > 0 && <span style={styles.warnText}> · 포기 {state.effects.dead}건</span>}
+              {state.effects.dead > 0 && <span style={ui.warnText}> · 포기 {state.effects.dead}건</span>}
             </dd>
           </dl>
         ) : (
@@ -109,7 +97,7 @@ function PingButton() {
           setBusy(true);
           const started = Date.now();
           void sendCommand('ping')
-            .then(r => setText(r?.ok ? `응답 ${((Date.now() - started) / 1000).toFixed(1)}초` : resultText(r)))
+            .then(r => setText(r?.ok ? `응답 ${((Date.now() - started) / 1000).toFixed(1)}초` : commandResultText(r, { unknown: '집행됐는지 모릅니다. 상태를 보고 판단하세요' })))
             .catch(e => setText(e instanceof Error ? e.message : String(e)))
             .finally(() => setBusy(false));
         }}
@@ -124,7 +112,7 @@ function PingButton() {
 function Alerts({ alerts }: { alerts: AdminAlert[] }) {
   const [status, setStatus] = useState<Record<number, string>>({});
   return (
-    <section style={styles.card}>
+    <section style={ui.card}>
       <h2 style={styles.h2}>경보 {alerts.length > 0 && <span style={styles.count}>{alerts.length}</span>}</h2>
       {alerts.length === 0 && <p style={styles.note}>사람이 볼 일이 없습니다.</p>}
       {alerts.map(a => (
@@ -133,14 +121,14 @@ function Alerts({ alerts }: { alerts: AdminAlert[] }) {
             <strong>{a.level === 'anomaly' ? '이상' : '주의'}</strong>
             {a.orderId && <span style={styles.mono}> {a.track}:{a.orderId}</span>}
             <p style={styles.alertMessage}>{a.message}</p>
-            <span style={styles.note}>{new Date(a.raisedAt * 1000).toLocaleString('ko-KR')}</span>
+            <span style={styles.note}>{dateTimeText(a.raisedAt)}</span>
           </div>
           <div style={styles.alertActions}>
             <button
               style={styles.smallButton}
               onClick={() => {
                 setStatus(s => ({ ...s, [a.id]: '보내는 중…' }));
-                void sendCommand('alert.ack', { id: a.id }).then(r => setStatus(s => ({ ...s, [a.id]: resultText(r) })));
+                void sendCommand('alert.ack', { id: a.id }).then(r => setStatus(s => ({ ...s, [a.id]: commandResultText(r, { unknown: '집행됐는지 모릅니다. 상태를 보고 판단하세요' }) })));
               }}
             >
               확인
@@ -165,7 +153,7 @@ function Settings({ settings }: { settings: DaemonSettings }) {
   const pct = (v: string) => Math.min(MAX_DEPOSIT_PCT, Math.max(0, Number(v) || 0));
 
   return (
-    <section style={styles.card}>
+    <section style={ui.card}>
       <h2 style={styles.h2}>운영 설정</h2>
       <label style={styles.field}>
         <input
@@ -209,7 +197,7 @@ function Settings({ settings }: { settings: DaemonSettings }) {
             setBusy(true);
             setStatus('보내는 중…');
             void sendCommand('config.set', { patch: draft })
-              .then(r => setStatus(resultText(r)))
+              .then(r => setStatus(commandResultText(r, { unknown: '집행됐는지 모릅니다. 상태를 보고 판단하세요' })))
               .catch(e => setStatus(e instanceof Error ? e.message : String(e)))
               .finally(() => setBusy(false));
           }}
@@ -251,17 +239,12 @@ function OnchainWindowsLine({ daemon }: { daemon: OnchainWindows | undefined }) 
 }
 
 const styles = {
-  column: { display: 'flex', flexDirection: 'column' as const, gap: 16 },
-  card: { background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' as const, gap: 12 },
   row: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const },
   h2: { fontSize: 17, margin: 0, color: '#333', display: 'flex', alignItems: 'center', gap: 8 },
-  badge: { padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600 as const },
   ok: { background: '#DCFCE7', color: '#166534' },
   bad: { background: '#FEE2E2', color: '#991B1B' },
-  dl: { display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 16px', margin: 0, fontSize: 13, color: '#374151', wordBreak: 'break-all' as const },
   note: { fontSize: 12, color: '#6B7280', margin: 0 },
   hintList: { fontSize: 12, color: '#6B7280', margin: '6px 0 0', paddingLeft: 18, lineHeight: 1.6 },
-  warnText: { color: '#B45309' },
   button: { padding: '8px 16px', fontSize: 13, fontWeight: 600 as const, background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
   smallButton: { padding: '6px 12px', fontSize: 12, background: '#E5E7EB', color: '#374151', border: 'none', borderRadius: 6, cursor: 'pointer' },
   count: { background: '#EF4444', color: '#fff', borderRadius: 999, padding: '1px 8px', fontSize: 12 },

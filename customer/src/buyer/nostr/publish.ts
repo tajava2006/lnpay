@@ -26,7 +26,7 @@ import {
   type AccountInfoEnvelope,
   type DisputeMessagePayload,
   type PreparedChatMessage,
-  storage,
+  storage, nowSec,
 } from '@sajwo-tracker/shared';
 import { lnRequestExpiration } from '@sajwo-tracker/shared/ln';
 import type { CustomerOrder } from '../types';
@@ -46,7 +46,7 @@ export interface PublishResult {
  * 예전엔 둘이 같았다 — 그래서 기한 직후의 송금 완료·입금 확인이 릴레이에서 거절됐다.
  */
 function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   return {
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: now,
@@ -65,7 +65,7 @@ function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
 
 /** 상태 통보 이벤트 빌드 (payment-confirm, cancel-request) — 기한 직후에도 도착해야 한다 */
 function buildNotificationEvent(order: Pick<CustomerOrder, 'orderId'>, action: RequestAction): EventTemplate {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   return {
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: now,
@@ -164,7 +164,7 @@ export async function publishAccountInfo(
     ['commitment', commitment],
   ];
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   tags.push(['expiration', String(lnRequestExpiration(now))]);
 
   const template = {
@@ -197,7 +197,7 @@ export async function prepareDisputeMessage(
   const sk = await getSecretKey(storage);
   const myPubkey = getPublicKey(sk);
   const encrypted = nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY);
-  const createdAt = Math.floor(Date.now() / 1000);
+  const createdAt = nowSec();
 
   const signed = finalizeEvent({
     kind: SAJWO_REQUEST_EVENT_KIND,

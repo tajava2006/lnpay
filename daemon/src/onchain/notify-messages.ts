@@ -26,7 +26,7 @@
 import {
   ACCOUNT_WINDOW_SEC, FUNDING_WINDOW_SEC, KRW_WINDOW_SEC, PRESIGN_WINDOW_SEC, durationText, type OnchainState,
 } from '@sajwo-tracker/shared/onchain';
-import type { Notice } from '../ln/notify-messages';
+import { NOTIFY, type Notice } from '../ln/notify-messages';
 
 export const ONCHAIN_NOTIFY = {
   // ── 고객 차례 ──
@@ -114,12 +114,7 @@ export const ONCHAIN_NOTIFY = {
     tab: 'history', track: 'onchain',
   }),
 
-  disputeResolved: (won: boolean): Notice => ({
-    body: won
-      ? '분쟁 판정이 끝났습니다. 회원님께 유리하게 결정되었습니다.'
-      : '분쟁 판정이 끝났습니다. 자세한 내용은 앱에서 확인해 주세요.',
-    tab: 'history', track: 'onchain',
-  }),
+  disputeResolved: (won: boolean): Notice => ({ ...NOTIFY.disputeResolved(won), track: 'onchain' }),
 
   /** 종결 tx가 컨펌됐다. */
   released: (role: 'customer' | 'sponsor'): Notice => ({

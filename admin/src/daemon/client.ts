@@ -10,7 +10,7 @@ import type { EventTemplate } from 'nostr-tools/core';
 import { SimplePool } from 'nostr-tools/pool';
 import {
   ADMIN_ACTIONS, ADMIN_COMMAND_TTL_SEC, APP_PUBKEY, CLIENT_TAG_ADMIN, SAJWO_REQUEST_EVENT_KIND,
-  getReadRelays, storage, type AdminCommandResult,
+  getReadRelays, storage, type AdminCommandResult, nowSec,
 } from '@sajwo-tracker/shared';
 import { getSigner } from '../nostr/nip46';
 import { commands } from './stores';
@@ -24,7 +24,7 @@ export async function sendCommand(cmd: string, args?: Record<string, unknown>): 
   const signer = getSigner();
   if (!signer) throw new Error('로그인되지 않음');
 
-  const createdAt = Math.floor(Date.now() / 1000);
+  const createdAt = nowSec();
   const content = await signer.nip44Encrypt(APP_PUBKEY, JSON.stringify(args ? { cmd, args } : { cmd }));
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_EVENT_KIND,

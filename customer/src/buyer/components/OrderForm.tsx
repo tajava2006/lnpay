@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { addOrder } from '../order-store';
 import { newOrderId } from '../order-id';
 import type { CustomerOrder } from '../types';
+import { nowSec } from '@sajwo-tracker/shared';
 
 const DEFAULT_EXPIRY_HOURS = 24;
 
@@ -34,7 +35,7 @@ export function OrderForm() {
       return;
     }
 
-    const now = Math.floor(Date.now() / 1000);
+    const now = nowSec();
     const hours = Number(expiryHours) || DEFAULT_EXPIRY_HOURS;
     const expiration = now + hours * 3600;
 

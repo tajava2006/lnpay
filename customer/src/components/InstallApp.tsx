@@ -27,6 +27,7 @@
  * 사파리 탭에서는 PushManager 자체가 없다.
  */
 import { useEffect, useState } from 'react';
+import { ui } from '../ui';
 
 /** 크롬 계열이 주는 설치 프롬프트 이벤트. 표준 타입에 없어 직접 좁힌다. */
 interface InstallPromptEvent extends Event {
@@ -78,7 +79,7 @@ export function InstallApp() {
 
   if (installed) {
     return (
-      <div style={styles.box}>
+      <div style={ui.panel}>
         <b style={styles.title}>앱으로 실행 중</b>
         <p style={styles.text}>홈 화면에서 연 상태입니다. 알림을 켤 수 있습니다.</p>
       </div>
@@ -87,19 +88,19 @@ export function InstallApp() {
 
   if (promptEvent) {
     return (
-      <div style={styles.box}>
+      <div style={ui.panel}>
         <b style={styles.title}>홈 화면에 추가</b>
         <p style={styles.text}>
           주소창 없이 앱처럼 열리고, 알림도 더 안정적으로 받습니다.
         </p>
-        <button onClick={handleInstall} style={styles.btn}>홈 화면에 추가</button>
+        <button onClick={handleInstall} style={ui.primaryButton}>홈 화면에 추가</button>
       </div>
     );
   }
 
   if (isIos()) {
     return (
-      <div style={styles.box}>
+      <div style={ui.panel}>
         <b style={styles.title}>홈 화면에 추가 (아이폰)</b>
         <p style={styles.text}>
           <b>아이폰은 알림을 받으려면 이 단계가 반드시 필요합니다.</b> 사파리가
@@ -122,7 +123,7 @@ export function InstallApp() {
 
   // 안드로이드인데 이벤트가 아직 안 왔거나, 데스크탑 브라우저가 지원하지 않는 경우.
   return (
-    <div style={styles.box}>
+    <div style={ui.panel}>
       <b style={styles.title}>홈 화면에 추가</b>
       <p style={styles.text}>
         브라우저 메뉴(⋮)에서 <b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 누르면
@@ -133,29 +134,12 @@ export function InstallApp() {
 }
 
 const styles = {
-  box: {
-    padding: 16,
-    background: '#F9FAFB',
-    border: '1px solid #E5E7EB',
-    borderRadius: 8,
-    marginBottom: 12,
-  },
   title: { fontSize: 15 },
   text: {
     margin: '8px 0 12px 0',
     fontSize: 13,
     lineHeight: 1.6,
     color: '#4B5563',
-  },
-  btn: {
-    padding: '9px 20px',
-    background: '#4F46E5',
-    color: 'white',
-    border: 'none',
-    borderRadius: 6,
-    fontSize: 14,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
   },
   steps: {
     margin: '0 0 8px 0',

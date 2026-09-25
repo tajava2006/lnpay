@@ -11,26 +11,11 @@
  * `presigned`는 **한 상태 안에서 주인이 바뀌므로**(O-013) 화면이 스스로
  * 판단하게 두면 갈린다.
  */
-import { useEffect, useState } from 'react';
+import { remainingText, useNow } from '@sajwo-tracker/shared';
 import { currentOnchainDeadline, type DeadlineViewer, type OnchainOrder } from '@sajwo-tracker/shared/onchain';
 
-function remainText(seconds: number): string {
-  if (seconds <= 0) return '마감 지남';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}시간 ${m}분 남음`;
-  if (m > 0) return `${m}분 ${s}초 남음`;
-  return `${s}초 남음`;
-}
-
 export function DeadlineCountdown({ order, role }: { order: OnchainOrder; role: DeadlineViewer }) {
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useNow();
 
   const deadline = currentOnchainDeadline(order, role);
   if (!deadline) return null;
@@ -45,7 +30,7 @@ export function DeadlineCountdown({ order, role }: { order: OnchainOrder; role: 
   return (
     <div style={{ ...styles.box, ...tone }}>
       <span style={styles.label}>{deadline.label}</span>
-      <strong style={styles.remain}>{remainText(remain)}</strong>
+      <strong style={styles.remain}>{remainingText(remain, '마감 지남')}</strong>
       {deadline.penalty && remain < 3600 && (
         <span style={styles.penalty}>{deadline.penalty}</span>
       )}

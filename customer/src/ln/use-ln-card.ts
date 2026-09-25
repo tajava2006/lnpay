@@ -5,8 +5,9 @@
  * `archived`로 넘긴다. 역할별 로컬 기록(고객 의뢰, 후원자 보증금·계좌·거절·공개 요청)은 역할과 상관없이
  * 다 읽어 `lnCardView`에 넘긴다 — 무엇을 쓸지는 거기서 역할로 정한다.
  */
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { getUserPubkey, storage, type Order } from '@sajwo-tracker/shared';
+import { useSyncExternalStore } from 'react';
+import { useNow, type Order } from '@sajwo-tracker/shared';
+import { useMyPubkey } from '../hooks';
 import { subscribe as subscribeLocal, getSnapshot as getLocalSnapshot } from '../buyer/order-store';
 import type { CustomerOrder } from '../buyer/types';
 import { subscribe as subscribeOrders, getSnapshot as getOrderSnapshot } from '../sponsor/order-store';
@@ -15,28 +16,6 @@ import { subscribeAccountInfo, getAccountInfoSnapshot } from '../sponsor/account
 import { subscribeClaimErrors, getClaimErrorSnapshot, rejectReasonText } from '../sponsor/claim-error-store';
 import { subscribeRevealRequests, getRevealRequestSnapshot } from '../sponsor/reveal-request-store';
 import { lnCardView, type LnCardView } from './card-view';
-
-let pubkeyPromise: Promise<string> | null = null;
-
-/** 내 pubkey — 모르는 동안 null (남의 거래로 단정하지 않는다) */
-export function useMyPubkey(): string | null {
-  const [pubkey, setPubkey] = useState<string | null>(null);
-  useEffect(() => {
-    pubkeyPromise ??= getUserPubkey(storage);
-    void pubkeyPromise.then(setPubkey);
-  }, []);
-  return pubkey;
-}
-
-/** 초 단위 지금 — 기한이 지나는 순간 결제 칸이 닫혀야 한다 */
-export function useNow(): number {
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
-  useEffect(() => {
-    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return now;
-}
 
 export interface LnCardData {
   view: LnCardView;

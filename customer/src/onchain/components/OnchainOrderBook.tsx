@@ -22,6 +22,7 @@ import { forgetMyClaim, getMyClaim, pendingClaim, rememberMyClaim, type MyClaim 
 import { clearNotice, getNoticesSnapshot, subscribeNotices } from '../notice-store';
 import { publishOnchainClaim } from '../nostr/publish';
 import { depositAmountText } from '../deposit-amount';
+import { ui } from '../../ui';
 
 interface Props {
   myPubkey: string | null;
@@ -41,9 +42,9 @@ export function OnchainOrderBook({ myPubkey, tracker }: Props) {
   const invoices = useSyncExternalStore(subscribeDepositInvoices, getDepositInvoicesSnapshot);
   const orders = myPubkey ? listedOrders(myPubkey) : [];
 
-  if (!myPubkey) return <p style={styles.empty}>키를 준비하는 중…</p>;
+  if (!myPubkey) return <p style={ui.empty}>키를 준비하는 중…</p>;
   if (orders.length === 0) {
-    return <p style={styles.empty}>지금은 올라온 의뢰가 없습니다.</p>;
+    return <p style={ui.empty}>지금은 올라온 의뢰가 없습니다.</p>;
   }
 
   return (
@@ -254,7 +255,6 @@ const styles = {
     border: '1px solid #D1D5DB', borderRadius: 8, cursor: 'pointer',
   },
   list: { display: 'flex', flexDirection: 'column' as const, gap: 12 },
-  empty: { fontSize: 14, color: '#6B7280', textAlign: 'center' as const, padding: '32px 0' },
   card: { border: '1px solid #E5E7EB', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 10 },
   row: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   amount: { fontSize: 18, color: '#111827' },

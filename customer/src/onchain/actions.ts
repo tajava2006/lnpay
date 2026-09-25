@@ -17,6 +17,7 @@ import {
 import { myOrderKey } from './keys';
 import { getMyClaim } from './claim-store';
 import type { SignCheck } from './verify';
+import { nowSec } from '@sajwo-tracker/shared';
 
 function descriptorOf(order: OnchainOrder) {
   if (!order.customerXonly || !order.sponsorXonly || !order.adminXonly) return null;
@@ -52,7 +53,7 @@ export async function buildPresignature(order: OnchainOrder): Promise<BuildResul
   if (order.state !== 'funded' || order.settlementKind) {
     return { ok: false, reason: '사전서명을 받는 단계가 아니다' };
   }
-  if (isPast(presignDeadlineOf(order), Math.floor(Date.now() / 1000))) {
+  if (isPast(presignDeadlineOf(order), nowSec())) {
     return { ok: false, reason: '사전서명 마감이 지났다' };
   }
 

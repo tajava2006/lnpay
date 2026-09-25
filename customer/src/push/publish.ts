@@ -20,7 +20,7 @@ import {
   REQUEST_ACTIONS,
   getReadRelays,
   getSecretKey,
-  storage,
+  storage, nowSec,
 } from '@sajwo-tracker/shared';
 import type { PushSubscriptionPayload } from './subscribe';
 
@@ -40,7 +40,7 @@ export async function publishPushSubscription(
 
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags: [
       ['action', REQUEST_ACTIONS.PUSH_SUBSCRIPTION],
       ['t', CLIENT_TAG],

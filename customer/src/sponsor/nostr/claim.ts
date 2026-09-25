@@ -22,7 +22,7 @@ import {
   idbGetRequestsByOrderId,
   type ClaimRequest,
   type AccountInfoRequest,
-  type PreparedChatMessage,
+  type PreparedChatMessage, nowSec,
 } from '@sajwo-tracker/shared';
 import { lnRequestExpiration } from '@sajwo-tracker/shared/ln';
 import type { EventTemplate } from 'nostr-tools/core';
@@ -48,7 +48,7 @@ export async function publishClaim(order: Order): Promise<boolean> {
   const relays = await getReadRelays(storage);
 
   const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`;
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
 
   const tags: string[][] = [
     ['a', aCoord],
@@ -121,7 +121,7 @@ export async function publishRemitRequest(order: Order): Promise<boolean> {
   const relays = await getReadRelays(storage);
 
   const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`;
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
 
   const tags: string[][] = [
     ['a', aCoord],
@@ -173,7 +173,7 @@ export async function prepareDisputeMessage(
   const sk = await getSecretKey(storage);
   const myPubkey = getPublicKey(sk);
   const encrypted = nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY);
-  const createdAt = Math.floor(Date.now() / 1000);
+  const createdAt = nowSec();
 
   const signed = finalizeEvent({
     kind: SAJWO_REQUEST_EVENT_KIND,
@@ -263,7 +263,7 @@ export async function publishSponsorInvoice(
     getReadRelays(storage),
   ]);
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   const template: EventTemplate = {
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: now,

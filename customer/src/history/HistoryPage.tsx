@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { idbGetOrdersPage, isTerminalState, type Order, type PriceTracker } from '@sajwo-tracker/shared';
 import { subscribe as subscribeOrders, getSnapshot as getOrderSnapshot } from '../sponsor/order-store';
 import { LnOrderCard } from '../ln/LnOrderCard';
-import { useMyPubkey } from '../ln/use-ln-card';
+import { useMyPubkey } from '../hooks';
 
 type Role = 'buyer' | 'sponsor' | null;
 

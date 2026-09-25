@@ -13,7 +13,7 @@
  *      받지 않는다 — 화면이 열어두면 원화만 헛되이 나간다
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { InvoicePayBlock } from '@sajwo-tracker/shared';
+import { BUTTON, InvoicePayBlock, useNow } from '@sajwo-tracker/shared';
 import {
   ACCOUNT_WINDOW_SEC, MempoolChainAdapter, accountDeadlineOf, canActOnSignRequest, canSendAccountInfoOnchain, durationText,
   isPast, krwDeadlineOf,
@@ -49,6 +49,7 @@ import { EscrowAddressPanel } from './EscrowAddressPanel';
 import { OnchainProgressBar } from './OnchainProgressBar';
 import { OnchainChat } from './OnchainChat';
 import { RecoveryPanel } from './RecoveryPanel';
+import { ui } from '../../ui';
 
 interface Props {
   myPubkey: string | null;
@@ -56,17 +57,6 @@ interface Props {
   onSelectOrder?: (orderId: string) => void;
 }
 
-const nowSec = () => Math.floor(Date.now() / 1000);
-
-/** 1초마다 다시 그린다 — 마감이 지나는 순간 버튼이 닫혀야 한다 */
-function useNow(): number {
-  const [now, setNow] = useState(nowSec);
-  useEffect(() => {
-    const id = setInterval(() => setNow(nowSec()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return now;
-}
 
 function chainFor(order: OnchainOrder): MempoolChainAdapter {
   return new MempoolChainAdapter({
@@ -82,7 +72,7 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
     subscribePendingRequests, getPendingRequestsSnapshot,
   );
 
-  if (!myPubkey) return <p style={styles.empty}>키를 준비하는 중…</p>;
+  if (!myPubkey) return <p style={ui.empty}>키를 준비하는 중…</p>;
   const orders = myOnchainOrders(myPubkey);
 
   /**
@@ -102,7 +92,7 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
     <div style={styles.list}>
 
       {orders.length === 0 && orphanInvoices.length === 0 && waiting.length === 0 && (
-        <p style={styles.empty}>아직 온체인 거래가 없습니다.</p>
+        <p style={ui.empty}>아직 온체인 거래가 없습니다.</p>
       )}
 
       {waiting.map(req => (
@@ -397,7 +387,7 @@ function AccountInfoForm({ order }: { order: OnchainOrder }) {
       <input style={styles.input} placeholder="계좌번호" value={number} onChange={e => setNumber(e.target.value)} />
       <input style={styles.input} placeholder="예금주" value={holder} onChange={e => setHolder(e.target.value)} />
       <button style={styles.primary} onClick={() => void send()} disabled={busy}>
-        {busy ? '보내는 중…' : '계좌 정보 전달'}
+        {busy ? '보내는 중…' : BUTTON.sendAccount}
       </button>
     </div>
   );
@@ -474,7 +464,7 @@ function RemitPanel({ order, now }: { order: OnchainOrder; now: number }) {
             .finally(() => setBusy(false));
         }}
       >
-        {sent ? '송금 완료를 알렸습니다' : busy ? '보내는 중…' : '원화 송금했어요'}
+        {sent ? '송금 완료를 알렸습니다' : busy ? '보내는 중…' : BUTTON.remitted}
       </button>
     </div>
   );
@@ -598,7 +588,7 @@ function SignPanel({ order, role, request }: {
             disabled={busy || (stale && !override)}
             onClick={() => void sign()}
           >
-            {busy ? '보내는 중…' : isRelease ? '원화 입금을 확인했어요' : '서명하고 보내기'}
+            {busy ? '보내는 중…' : isRelease ? BUTTON.confirmReleased : '서명하고 보내기'}
           </button>
         </>
       )}
@@ -650,7 +640,6 @@ function DisputeButton({ order, role, now }: {
 
 const styles = {
   list: { display: 'flex', flexDirection: 'column' as const, gap: 14 },
-  empty: { fontSize: 14, color: '#6B7280', textAlign: 'center' as const, padding: '32px 0' },
   card: { border: '1px solid #E5E7EB', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 12 },
   head: { display: 'flex', alignItems: 'center', gap: 8 },
   clickable: { cursor: 'pointer' },

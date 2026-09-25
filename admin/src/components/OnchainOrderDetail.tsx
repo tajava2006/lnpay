@@ -8,15 +8,16 @@
  * 여기에는 어드민 키가 없다. 서명은 데몬이 시드에서 파생한 키로 **마지막에** 한다.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { nip19 } from 'nostr-tools';
-import type { AdminCommandResult, AdminOcOrderDetail } from '@sajwo-tracker/shared';
+import { dateTimeText, type AdminOcOrderDetail } from '@sajwo-tracker/shared';
 import {
   OUTCOME_RULES, currentOnchainDeadline, explorerAddressUrl, explorerTxUrl, onchainStateDisplay,
   type BtcNetworkName, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { sendCommand } from '../daemon/client';
 import { chats, ocDetails, onchainOrders } from '../daemon/stores';
+import { WAITING_DETAIL_TEXT, commandResultText, satsText, shortNpub } from '../format';
 import { DisputeChat } from './DisputeChat';
+import { ui } from '../ui';
 
 const BOND_STATUS: Record<AdminOcOrderDetail['bonds'][number]['status'], string> = {
   creating: '만드는 중',
@@ -25,28 +26,6 @@ const BOND_STATUS: Record<AdminOcOrderDetail['bonds'][number]['status'], string>
   settled: '몰수',
   cancelled: '환불·만료',
 };
-
-function short(pubkey: string | undefined): string {
-  return pubkey ? `${nip19.npubEncode(pubkey).slice(0, 14)}…` : '—';
-}
-
-function time(sec: number | undefined): string {
-  return sec ? new Date(sec * 1000).toLocaleString('ko-KR') : '—';
-}
-
-function sats(n: number | undefined): string {
-  return n === undefined ? '—' : `${n.toLocaleString()} sats`;
-}
-
-function resultText(result: AdminCommandResult | null): string {
-  if (!result) return '데몬 응답 없음 — 집행됐는지 모릅니다. 상세가 갱신되는지 보고 판단하세요';
-  if (result.ok) return '완료';
-  switch (result.error) {
-    case 'stale-version': return '거절: 그 사이 오더가 바뀌었습니다(다른 기기 또는 체인). 상세를 다시 보고 판단하세요';
-    case 'no-fees': return '거절: 데몬이 네트워크 수수료를 아직 모릅니다 — 잠시 후 다시';
-    default: return `거절: ${result.error}`;
-  }
-}
 
 export function OnchainOrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void }) {
   const publicOrder = useSyncExternalStore(onchainOrders.subscribe, onchainOrders.get)[orderId];
@@ -62,9 +41,9 @@ export function OnchainOrderDetail({ orderId, onBack }: { orderId: string; onBac
   // 주소로 바로 열면(새로고침·링크) 오더가 캐시에 오기 전일 수 있다 — 그 사이에도 돌아갈 길은 있어야 한다
   if (!order) {
     return (
-      <div style={styles.column}>
-        <button style={styles.back} onClick={onBack}>← 목록</button>
-        <p style={styles.note}>오더를 불러오는 중… (데몬 epoch 전의 오더거나 id가 틀렸으면 오지 않습니다)</p>
+      <div style={ui.column}>
+        <button style={ui.back} onClick={onBack}>← 목록</button>
+        <p style={ui.note}>오더를 불러오는 중… (데몬 epoch 전의 오더거나 id가 틀렸으면 오지 않습니다)</p>
       </div>
     );
   }
@@ -72,37 +51,37 @@ export function OnchainOrderDetail({ orderId, onBack }: { orderId: string; onBac
   const deadline = currentOnchainDeadline(order);
 
   return (
-    <div style={styles.column}>
-      <button style={styles.back} onClick={onBack}>← 목록</button>
-      <section style={styles.card}>
-        <div style={styles.row}>
-          <h2 style={styles.h2}><span style={styles.mono}>{orderId}</span></h2>
-          <span style={{ ...styles.badge, color: display.color, background: display.bg }}>{display.label}</span>
-          <span style={styles.note}>{order.network}</span>
+    <div style={ui.column}>
+      <button style={ui.back} onClick={onBack}>← 목록</button>
+      <section style={ui.card}>
+        <div style={ui.row}>
+          <h2 style={ui.h2}><span style={styles.mono}>{orderId}</span></h2>
+          <span style={{ ...ui.badge, color: display.color, background: display.bg }}>{display.label}</span>
+          <span style={ui.note}>{order.network}</span>
         </div>
-        <dl style={styles.dl}>
-          <dt>금액</dt><dd>{sats(order.amountSat)}{order.priceKrw ? ` · 고정가 ${order.priceKrw.toLocaleString()}원` : ''}</dd>
+        <dl style={ui.dl}>
+          <dt>금액</dt><dd>{satsText(order.amountSat)}{order.priceKrw ? ` · 고정가 ${order.priceKrw.toLocaleString()}원` : ''}</dd>
           {order.reserveKrw && <><dt>최저가</dt><dd>{order.reserveKrw.toLocaleString()}원</dd></>}
-          <dt>고객</dt><dd style={styles.mono}>{short(order.customerPubkey)}</dd>
-          <dt>후원자</dt><dd style={styles.mono}>{short(order.sponsorPubkey)}</dd>
-          {deadline && <><dt>{deadline.label}</dt><dd>{time(deadline.at)}{deadline.penalty ? <span style={styles.note}> · {deadline.penalty}</span> : null}</dd></>}
+          <dt>고객</dt><dd style={styles.mono}>{shortNpub(order.customerPubkey)}</dd>
+          <dt>후원자</dt><dd style={styles.mono}>{shortNpub(order.sponsorPubkey)}</dd>
+          {deadline && <><dt>{deadline.label}</dt><dd>{dateTimeText(deadline.at)}{deadline.penalty ? <span style={ui.note}> · {deadline.penalty}</span> : null}</dd></>}
           {order.escrowAddress && <><dt>에스크로</dt><dd style={styles.mono}><Explore href={explorerAddressUrl(order.network, order.escrowAddress)} text={order.escrowAddress} /></dd></>}
           {order.fundingOutpoint && <><dt>펀딩</dt><dd style={styles.mono}><Explore href={explorerTxUrl(order.network, order.fundingOutpoint)} text={order.fundingOutpoint} /> ({order.fundingConfs}컨펌)</dd></>}
           {order.settlementKind && <><dt>종결 사유</dt><dd>{OUTCOME_RULES[order.settlementKind].label}</dd></>}
           {order.settlementTxid && <><dt>종결 tx</dt><dd style={styles.mono}><Explore href={explorerTxUrl(order.network, order.settlementTxid)} text={order.settlementTxid} /></dd></>}
-          {order.accountDisputedAt && <><dt>계좌 이의</dt><dd style={styles.warnText}>{time(order.accountDisputedAt)} — 후원자가 계좌를 쓸 수 없다고 했다</dd></>}
+          {order.accountDisputedAt && <><dt>계좌 이의</dt><dd style={ui.warnText}>{dateTimeText(order.accountDisputedAt)} — 후원자가 계좌를 쓸 수 없다고 했다</dd></>}
           {detail && <>
             <dt>버전</dt><dd>{detail.version}</dd>
             <dt>후원자 받을 주소</dt><dd style={styles.mono}><AddressLink network={order.network} address={detail.payoutAddress} /> {detail.feerateSatPerVb ? `(${detail.feerateSatPerVb} sat/vB)` : ''}</dd>
             <dt>고객 환불 주소</dt><dd style={styles.mono}><AddressLink network={order.network} address={detail.refundAddress} /></dd>
             <dt>사전서명</dt><dd>{detail.hasPresig ? '보관 중' : '—'}</dd>
-            {detail.lastSignRequestAt && <><dt>서명 요청</dt><dd>{time(detail.lastSignRequestAt)}</dd></>}
+            {detail.lastSignRequestAt && <><dt>서명 요청</dt><dd>{dateTimeText(detail.lastSignRequestAt)}</dd></>}
           </>}
         </dl>
       </section>
 
       {detail ? <Bonds detail={detail} /> : (
-        <section style={styles.card}><p style={styles.note}>데몬 상세를 기다리는 중… (명령은 상세가 와야 보낼 수 있습니다)</p></section>
+        <section style={ui.card}><p style={ui.note}>{WAITING_DETAIL_TEXT}</p></section>
       )}
       {detail && <Actions detail={detail} />}
       {detail && detail.strays.length > 0 && <Rescue detail={detail} />}
@@ -128,15 +107,15 @@ function Bonds({ detail }: { detail: AdminOcOrderDetail }) {
   const expiresOf = (role: 'customer' | 'sponsor') =>
     role === 'customer' ? detail.customerBondExpiresAt : detail.sponsorBondExpiresAt;
   return (
-    <section style={styles.card}>
-      <h3 style={styles.h3}>보증금 {detail.candidates > 0 && <span style={styles.note}>· 결제 대기 후원자 {detail.candidates}명</span>}</h3>
+    <section style={ui.card}>
+      <h3 style={ui.h3}>보증금 {detail.candidates > 0 && <span style={ui.note}>· 결제 대기 후원자 {detail.candidates}명</span>}</h3>
       {detail.bonds.map(b => (
-        <div key={b.role} style={styles.row}>
+        <div key={b.role} style={ui.row}>
           <strong>{b.role === 'customer' ? '고객' : '후원자'}</strong>
-          <span>{sats(b.amountSat)}</span>
+          <span>{satsText(b.amountSat)}</span>
           <span>{BOND_STATUS[b.status]}</span>
           {/* 몰수는 판정 시점에 집행된다 — 이 시각을 넘긴 판정은 몰수할 게 없을 수 있다 */}
-          <span style={styles.note}>HTLC 만료 추정 {time(expiresOf(b.role))}</span>
+          <span style={ui.note}>HTLC 만료 추정 {dateTimeText(expiresOf(b.role))}</span>
         </div>
       ))}
     </section>
@@ -192,7 +171,7 @@ function useCommand(detail: AdminOcOrderDetail) {
     setStatus('보내는 중…');
     const target = { track: 'onchain', orderId: detail.orderId, version: detail.version };
     void sendCommand(cmd, { ...args, target })
-      .then(r => setStatus(resultText(r)))
+      .then(r => setStatus(commandResultText(r)))
       .catch(e => setStatus(e instanceof Error ? e.message : String(e)))
       .finally(() => setBusy(false));
   };
@@ -204,17 +183,17 @@ function Actions({ detail }: { detail: AdminOcOrderDetail }) {
   const actions = actionsFor(detail);
   if (actions.length === 0) return null;
   return (
-    <section style={styles.card}>
-      <h3 style={styles.h3}>명령 <span style={styles.note}>버전 {detail.version} 기준</span></h3>
-      <div style={styles.row}>
+    <section style={ui.card}>
+      <h3 style={ui.h3}>명령 <span style={ui.note}>버전 {detail.version} 기준</span></h3>
+      <div style={ui.row}>
         {actions.map(a => (
-          <button key={`${a.cmd}:${a.label}`} disabled={busy} style={a.danger ? styles.danger : styles.button}
+          <button key={`${a.cmd}:${a.label}`} disabled={busy} style={a.danger ? ui.danger : ui.button}
             onClick={() => run(a.cmd, a.args, a.confirm)}>
             {a.label}
           </button>
         ))}
       </div>
-      {status && <p style={styles.note}>{status}</p>}
+      {status && <p style={ui.note}>{status}</p>}
     </section>
   );
 }
@@ -224,18 +203,18 @@ function Rescue({ detail }: { detail: AdminOcOrderDetail }) {
   const { status, busy, run } = useCommand(detail);
   const done = new Map(detail.rescues.map(r => [`${r.txid}:${r.vout}`, r]));
   return (
-    <section style={styles.card}>
-      <h3 style={styles.h3}>약정 밖의 자금 <span style={styles.note}>구조 — 고객 환불 주소로</span></h3>
+    <section style={ui.card}>
+      <h3 style={ui.h3}>약정 밖의 자금 <span style={ui.note}>구조 — 고객 환불 주소로</span></h3>
       {detail.strays.map(u => {
         const rescue = done.get(`${u.txid}:${u.vout}`);
         return (
-          <div key={`${u.txid}:${u.vout}`} style={styles.row}>
+          <div key={`${u.txid}:${u.vout}`} style={ui.row}>
             <span style={styles.mono}><Explore href={explorerTxUrl(detail.order.network, u.txid)} text={`${u.txid.slice(0, 12)}…:${u.vout}`} /></span>
-            <span>{sats(u.valueSat)}</span>
+            <span>{satsText(u.valueSat)}</span>
             {rescue?.broadcastTxid
-              ? <span style={styles.note}>돌려줌 (<Explore href={explorerTxUrl(detail.order.network, rescue.broadcastTxid)} text={`${rescue.broadcastTxid.slice(0, 12)}…`} />)</span>
+              ? <span style={ui.note}>돌려줌 (<Explore href={explorerTxUrl(detail.order.network, rescue.broadcastTxid)} text={`${rescue.broadcastTxid.slice(0, 12)}…`} />)</span>
               : (
-                <button style={styles.button} disabled={busy} onClick={() => run('oc.rescue', { txid: u.txid, vout: u.vout },
+                <button style={ui.button} disabled={busy} onClick={() => run('oc.rescue', { txid: u.txid, vout: u.vout },
                   '이 자금을 고객 환불 주소로 돌려주는 서명을 고객에게 요청합니다.')}>
                   {rescue ? '다시 요청' : '고객에게 돌려주기'}
                 </button>
@@ -243,24 +222,12 @@ function Rescue({ detail }: { detail: AdminOcOrderDetail }) {
           </div>
         );
       })}
-      {status && <p style={styles.note}>{status}</p>}
+      {status && <p style={ui.note}>{status}</p>}
     </section>
   );
 }
 
 const styles = {
-  column: { display: 'flex', flexDirection: 'column' as const, gap: 16 },
-  card: { background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' as const, gap: 12 },
-  row: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const },
-  h2: { fontSize: 17, margin: 0, color: '#333' },
-  h3: { fontSize: 15, margin: 0, color: '#333', display: 'flex', alignItems: 'baseline', gap: 8 },
-  back: { alignSelf: 'flex-start', padding: '6px 12px', fontSize: 13, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 6, cursor: 'pointer' },
-  badge: { padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600 as const },
-  dl: { display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 16px', margin: 0, fontSize: 13, color: '#374151', wordBreak: 'break-all' as const },
-  note: { fontSize: 12, color: '#6B7280', margin: 0, fontWeight: 400 as const },
-  warnText: { color: '#B45309' },
   mono: { fontFamily: 'monospace', fontSize: 12, overflowWrap: 'anywhere' as const },
   link: { color: '#2563EB' },
-  button: { padding: '8px 14px', fontSize: 13, fontWeight: 600 as const, background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
-  danger: { padding: '8px 14px', fontSize: 13, fontWeight: 600 as const, background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
 };

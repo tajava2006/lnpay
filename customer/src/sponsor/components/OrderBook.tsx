@@ -1,9 +1,8 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { subscribe, getSnapshot, getSyncedSnapshot } from '../order-store';
-import type { Order } from '@sajwo-tracker/shared';
-import type { PriceTracker } from '@sajwo-tracker/shared';
-import { getUserPubkey, storage, isTerminalState, sponsorRelation } from '@sajwo-tracker/shared';
+import { isTerminalState, sponsorRelation, useNow, type Order, type PriceTracker } from '@sajwo-tracker/shared';
 import { isClaimableLn } from '@sajwo-tracker/shared/ln';
+import { useMyPubkey } from '../../hooks';
 import { LnOrderCard } from '../../ln/LnOrderCard';
 import { OrderCard } from './OrderCard';
 
@@ -12,27 +11,14 @@ interface Props {
   onSelectOrder: (orderId: string) => void;
 }
 
-
 export function OrderBook({ tracker, onSelectOrder }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
   const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
 
   // 내 pubkey — 남의 거래인지 판정하는 데 쓴다. 로딩 전엔 null로 두어
   // '다른 후원자가 진행 중'이 깜빡였다 바뀌는 일이 없게 한다.
-  const [myPubkey, setMyPubkey] = useState<string | null>(null);
-  useEffect(() => {
-    void getUserPubkey(storage).then(setMyPubkey);
-  }, []);
-
-  // 매초 갱신하여 남은 시간 자동 업데이트
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(Math.floor(Date.now() / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const myPubkey = useMyPubkey();
+  const now = useNow();
 
   // 비종료 오더만, 기한 임박순.
   //

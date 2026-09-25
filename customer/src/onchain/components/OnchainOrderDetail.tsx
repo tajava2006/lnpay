@@ -14,6 +14,7 @@ import {
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
 import { getSignRequestsSnapshot, signRequestsFor, subscribeSignRequests } from '../sign-request-store';
 import { OnchainOrderCard } from './OnchainMyOrders';
+import { ui } from '../../ui';
 
 interface Props {
   orderId: string;
@@ -35,9 +36,9 @@ export function OnchainOrderDetail({ orderId, myPubkey, onBack }: Props) {
 
       {!order ? (
         // 다른 기기에서 열었거나 아직 동기화 전일 수 있다 — 없다고 단정하지 않는다.
-        <p style={styles.empty}>이 주문을 아직 못 받았습니다. 잠시 후 다시 보세요.</p>
+        <p style={ui.empty}>이 주문을 아직 못 받았습니다. 잠시 후 다시 보세요.</p>
       ) : !role || !myPubkey ? (
-        <p style={styles.empty}>내가 참여한 주문이 아닙니다.</p>
+        <p style={ui.empty}>내가 참여한 주문이 아닙니다.</p>
       ) : (
         <OnchainOrderCard
           order={order}
@@ -57,5 +58,4 @@ const styles = {
     alignSelf: 'flex-start', padding: '6px 10px', fontSize: 13,
     background: '#fff', border: '1px solid #D1D5DB', borderRadius: 8, cursor: 'pointer',
   },
-  empty: { fontSize: 14, color: '#6B7280', textAlign: 'center' as const, padding: '32px 0' },
 };

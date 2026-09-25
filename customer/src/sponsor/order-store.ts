@@ -9,6 +9,7 @@
  *   OrderBook → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
 import type { Order } from '@sajwo-tracker/shared';
+import { nowSec } from '@sajwo-tracker/shared';
 
 type OrderMap = Record<string, Order>;
 type Listener = () => void;
@@ -104,7 +105,7 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null;
  * `retainUntil`이 없는 옛 이벤트만 기한으로 지운다.
  */
 function purgeExpired(): void {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   const before = Object.keys(orders).length;
 
   orders = Object.fromEntries(

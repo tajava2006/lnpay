@@ -5,6 +5,7 @@
  * 서명 검증은 수행하지 않는다 (어드민이 probing으로 실제 유동성을 검증).
  */
 import { decode } from 'light-bolt11-decoder';
+import { nowSec } from '@sajwo-tracker/shared';
 
 export interface Bolt11Valid {
   valid: true;
@@ -65,7 +66,7 @@ export function decodeBolt11(invoice: string): Bolt11Result {
     : 0;
   const expiresAt = timestamp + decoded.expiry;
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   if (expiresAt <= now) {
     return { valid: false, error: '이미 만료된 invoice입니다. 새로운 invoice를 생성해 주세요.' };
   }

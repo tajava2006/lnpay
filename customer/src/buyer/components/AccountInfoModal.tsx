@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { AccountInfo } from '@sajwo-tracker/shared';
+import { BUTTON, type AccountInfo } from '@sajwo-tracker/shared';
 
 interface Props {
   orderId: string;
@@ -46,7 +46,7 @@ export function AccountInfoModal({ orderId, onClose, onSubmit, submitting }: Pro
       <div style={styles.backdrop} onClick={onClose} />
       <div style={styles.modal}>
         <div style={styles.header}>
-          <h3 style={styles.headerTitle}>계좌 정보 전달</h3>
+          <h3 style={styles.headerTitle}>{BUTTON.sendAccount}</h3>
           <button onClick={onClose} style={styles.closeBtn}>&times;</button>
         </div>
         <div style={styles.body}>

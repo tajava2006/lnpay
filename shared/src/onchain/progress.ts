@@ -27,8 +27,9 @@
  */
 import type { OnchainState, SettlementKind } from './state-machine';
 import {
-  ACCOUNT_WINDOW_SEC, FUNDING_WINDOW_SEC, KRW_WINDOW_SEC, PRESIGN_WINDOW_SEC, durationText,
+  ACCOUNT_WINDOW_SEC, COSIGN_WINDOW_SEC, FUNDING_WINDOW_SEC, KRW_WINDOW_SEC, PRESIGN_WINDOW_SEC, durationText,
 } from './timing';
+import { BUTTON, STEP_TEXT } from '../copy';
 
 export type OnchainRole = 'customer' | 'sponsor';
 export type StepStatus = 'done' | 'current' | 'upcoming';
@@ -67,6 +68,7 @@ const FUNDING = durationText(FUNDING_WINDOW_SEC);
 const PRESIGN = durationText(PRESIGN_WINDOW_SEC);
 const ACCOUNT = durationText(ACCOUNT_WINDOW_SEC);
 const KRW = durationText(KRW_WINDOW_SEC);
+const COSIGN = durationText(COSIGN_WINDOW_SEC);
 
 /**
  * 문구는 **나·상대방**으로 적는다 — 각 목록이 이미 한 역할에게만 보인다. 고객·후원자는 쿠팡 대리구매 시절의
@@ -124,13 +126,13 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     title: '계좌 전달 · 원화 송금',
     actor: 'customer',
     customer: [
-      { text: "'계좌 정보 전달'로 입금받을 은행·계좌번호·예금주를 보냅니다." },
+      { text: STEP_TEXT.sendAccount },
       { text: `**${ACCOUNT} 안에** 보내야 합니다. 넘기면 거래가 취소되고 **내 보증금이 몰수됩니다.**` },
       { text: `상대방이 원화를 보낼 때까지 기다립니다(계좌 전달 후 ${KRW}).` },
     ],
     sponsor: [
       { text: `상대방 계좌가 도착하면 **${KRW} 안에** 원화를 보냅니다. 시계는 계좌가 도착한 시점부터 갑니다.` },
-      { text: "송금을 마쳤으면 '원화 송금했어요'를 누릅니다." },
+      { text: STEP_TEXT.pressRemitted },
     ],
   },
   {
@@ -138,14 +140,14 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     title: '입금 확인',
     actor: 'customer',
     customer: [
-      { text: '내 계좌에 원화가 들어왔는지 확인합니다.' },
-      { text: "들어왔으면 '원화 입금을 확인했어요'를 누릅니다. **이때 비트코인이 상대방에게 넘어갑니다.**" },
-      { text: '**24시간 안에** 확인도 이의제기도 없으면 분쟁으로 넘어갑니다.' },
+      { text: STEP_TEXT.checkDeposit },
+      { text: `들어왔으면 '${BUTTON.confirmReleased}'를 누릅니다. **이때 비트코인이 상대방에게 넘어갑니다.**` },
+      { text: `**${COSIGN} 안에** 확인도 이의제기도 없으면 분쟁으로 넘어갑니다.` },
       { text: '입금이 없으면 누르지 말고 이의를 제기하세요.' },
     ],
     sponsor: [
       { text: '상대방의 입금 확인을 기다립니다.' },
-      { text: '상대방이 응답하지 않으면 24시간 뒤 자동으로 분쟁이 열립니다. 이체 내역을 준비해 두세요.' },
+      { text: `상대방이 응답하지 않으면 ${COSIGN} 뒤 자동으로 분쟁이 열립니다. 이체 내역을 준비해 두세요.` },
     ],
   },
   {

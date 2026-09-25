@@ -14,6 +14,7 @@ import { useState, useCallback, lazy, Suspense } from 'react';
 import type { Order } from '@sajwo-tracker/shared';
 import { publishSponsorInvoice } from '../nostr/claim';
 import { decodeBolt11 } from '../bolt11';
+import { nowSec } from '@sajwo-tracker/shared';
 
 // 폰 지갑에서 인보이스를 옮기는 현실적인 방법은 QR이다. 클레임 화면에 있던 걸
 // 인보이스를 실제로 입력하는 여기로 옮겼다.
@@ -61,7 +62,7 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
     if (sat !== payoutSat) {
       return `금액이 다릅니다. ${payoutSat.toLocaleString()} sats로 정확히 만들어 주세요 (지금 ${sat.toLocaleString()} sats).`;
     }
-    const remaining = decoded.expiresAt - Math.floor(Date.now() / 1000);
+    const remaining = decoded.expiresAt - nowSec();
     if (remaining < MIN_LIFETIME_SEC) {
       return '유효시간이 너무 짧습니다. 최소 6시간 이상으로 만들어 주세요 — 원화 송금과 입금 확인에 시간이 걸립니다.';
     }

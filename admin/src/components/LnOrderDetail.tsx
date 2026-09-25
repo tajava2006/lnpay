@@ -8,12 +8,13 @@
  * 채팅은 데몬이 중계한 사본이다(운영자 키로는 APP↔유저 대화를 못 연다).
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { nip19 } from 'nostr-tools';
-import { lnOrderDisplay, type AdminCommandResult, type AdminLnOrderDetail, type Order } from '@sajwo-tracker/shared';
+import { dateTimeText, lnOrderDisplay, type AdminLnOrderDetail, type Order } from '@sajwo-tracker/shared';
 import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
 import { sendCommand } from '../daemon/client';
 import { chats, lnDetails, lnOrders } from '../daemon/stores';
+import { WAITING_DETAIL_TEXT, commandResultText, shortNpub } from '../format';
 import { DisputeChat } from './DisputeChat';
+import { ui } from '../ui';
 
 const INVOICE_PURPOSE: Record<AdminLnOrderDetail['invoices'][number]['purpose'], string> = {
   escrow: '에스크로',
@@ -28,22 +29,6 @@ const INVOICE_STATUS: Record<AdminLnOrderDetail['invoices'][number]['status'], s
   settled: '받음',
   cancelled: '취소·환불',
 };
-
-function short(pubkey: string | undefined): string {
-  return pubkey ? `${nip19.npubEncode(pubkey).slice(0, 14)}…` : '—';
-}
-
-function time(sec: number | undefined): string {
-  return sec ? new Date(sec * 1000).toLocaleString('ko-KR') : '—';
-}
-
-function resultText(result: AdminCommandResult | null): string {
-  if (!result) return '데몬 응답 없음 — 집행됐는지 모릅니다. 상세가 갱신되는지 보고 판단하세요';
-  if (result.ok) return '완료';
-  return result.error === 'stale-version'
-    ? '거절: 그 사이 오더가 바뀌었습니다(다른 기기 또는 유저). 상세를 다시 보고 판단하세요'
-    : `거절: ${result.error}`;
-}
 
 export function LnOrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void }) {
   const order = useSyncExternalStore(lnOrders.subscribe, lnOrders.get)[orderId];
@@ -61,19 +46,19 @@ export function LnOrderDetail({ orderId, onBack }: { orderId: string; onBack: ()
   const display = state ? lnOrderDisplay({ state, sponsorDepositPending: order?.sponsorDepositPending }) : null;
 
   return (
-    <div style={styles.column}>
-      <button style={styles.back} onClick={onBack}>← 목록</button>
-      <section style={styles.card}>
-        <div style={styles.row}>
-          <h2 style={styles.h2}><span style={styles.mono}>{orderId}</span></h2>
-          {display && <span style={{ ...styles.badge, color: display.color, background: display.bg }}>{display.label}</span>}
-          {detail?.pendingClose && <span style={{ ...styles.badge, ...styles.pending }}>닫는 중 · {reasonLabel(detail.pendingClose)}</span>}
+    <div style={ui.column}>
+      <button style={ui.back} onClick={onBack}>← 목록</button>
+      <section style={ui.card}>
+        <div style={ui.row}>
+          <h2 style={ui.h2}><span style={styles.mono}>{orderId}</span></h2>
+          {display && <span style={{ ...ui.badge, color: display.color, background: display.bg }}>{display.label}</span>}
+          {detail?.pendingClose && <span style={{ ...ui.badge, ...styles.pending }}>닫는 중 · {reasonLabel(detail.pendingClose)}</span>}
         </div>
         <Summary order={order} detail={detail} />
       </section>
 
       {detail ? <Invoices detail={detail} /> : (
-        <section style={styles.card}><p style={styles.note}>데몬 상세를 기다리는 중… (명령은 상세가 와야 보낼 수 있습니다)</p></section>
+        <section style={ui.card}><p style={ui.note}>{WAITING_DETAIL_TEXT}</p></section>
       )}
       {detail && <Actions detail={detail} />}
       <DisputeChat
@@ -93,23 +78,23 @@ function Summary({ order, detail }: { order: Order | undefined; detail: AdminLnO
   const price = detail?.price ?? order?.price;
   const deadline = detail?.deadline ?? order?.expiration;
   return (
-    <dl style={styles.dl}>
+    <dl style={ui.dl}>
       <dt>금액</dt><dd>{price ? `${price.toLocaleString()}원` : '—'}{detail?.payoutSat ? ` · 지급 ${detail.payoutSat.toLocaleString()} sats` : ''}</dd>
-      <dt>쿠팡 기한</dt><dd>{time(deadline)}</dd>
-      <dt>고객</dt><dd style={styles.mono}>{short(detail?.customer ?? order?.customerPubkey)}</dd>
-      <dt>후원자</dt><dd style={styles.mono}>{short(detail?.sponsor ?? order?.sponsorPubkey)}</dd>
+      <dt>쿠팡 기한</dt><dd>{dateTimeText(deadline)}</dd>
+      <dt>고객</dt><dd style={styles.mono}>{shortNpub(detail?.customer ?? order?.customerPubkey)}</dd>
+      <dt>후원자</dt><dd style={styles.mono}>{shortNpub(detail?.sponsor ?? order?.sponsorPubkey)}</dd>
       {detail && <>
-        <dt>버전</dt><dd>{detail.version} <span style={styles.note}>· 갱신 {time(detail.updatedAt)}</span></dd>
+        <dt>버전</dt><dd>{detail.version} <span style={ui.note}>· 갱신 {dateTimeText(detail.updatedAt)}</span></dd>
         {detail.closeReason && <><dt>종결 사유</dt><dd>{reasonLabel(detail.closeReason)}</dd></>}
         <dt>지급</dt>
         <dd>
           {detail.disbursed ? '완료' : detail.sponsorInvoice ? '대기' : '인보이스 없음'}
-          {detail.payoutError && <span style={styles.warnText}> · 오류: {detail.payoutError}</span>}
+          {detail.payoutError && <span style={ui.warnText}> · 오류: {detail.payoutError}</span>}
         </dd>
-        {detail.escrowSettled && !detail.disbursed && <><dt>에스크로</dt><dd style={styles.warnText}>이미 받음(선제 정산) — 판정이 필요합니다</dd></>}
+        {detail.escrowSettled && !detail.disbursed && <><dt>에스크로</dt><dd style={ui.warnText}>이미 받음(선제 정산) — 판정이 필요합니다</dd></>}
         <dt>계좌 전달</dt>
-        <dd>{detail.accountSentAt ? `${time(detail.accountSentAt)} · 커밋먼트 ${detail.accountCommitment?.slice(0, 12)}…` : '—'}</dd>
-        {detail.remittedAt && <><dt>송금 완료</dt><dd>{time(detail.remittedAt)}</dd></>}
+        <dd>{detail.accountSentAt ? `${dateTimeText(detail.accountSentAt)} · 커밋먼트 ${detail.accountCommitment?.slice(0, 12)}…` : '—'}</dd>
+        {detail.remittedAt && <><dt>송금 완료</dt><dd>{dateTimeText(detail.remittedAt)}</dd></>}
       </>}
     </dl>
   );
@@ -118,18 +103,18 @@ function Summary({ order, detail }: { order: Order | undefined; detail: AdminLnO
 function Invoices({ detail }: { detail: AdminLnOrderDetail }) {
   if (detail.invoices.length === 0) return null;
   return (
-    <section style={styles.card}>
-      <h3 style={styles.h3}>홀드 인보이스 {detail.blockHeight && <span style={styles.note}>· 블록 {detail.blockHeight.toLocaleString()}</span>}</h3>
-      <table style={styles.table}>
-        <thead><tr><th style={styles.th}>무엇</th><th style={styles.th}>금액</th><th style={styles.th}>상태</th><th style={styles.th}>결제 기한</th><th style={styles.th}>HTLC 만기</th></tr></thead>
+    <section style={ui.card}>
+      <h3 style={ui.h3}>홀드 인보이스 {detail.blockHeight && <span style={ui.note}>· 블록 {detail.blockHeight.toLocaleString()}</span>}</h3>
+      <table style={ui.table}>
+        <thead><tr><th style={ui.th}>무엇</th><th style={ui.th}>금액</th><th style={ui.th}>상태</th><th style={ui.th}>결제 기한</th><th style={ui.th}>HTLC 만기</th></tr></thead>
         <tbody>
           {detail.invoices.map((inv, i) => (
             <tr key={i}>
-              <td style={styles.td}>{INVOICE_PURPOSE[inv.purpose]}</td>
-              <td style={styles.td}>{inv.amountSat.toLocaleString()} sats</td>
-              <td style={styles.td}>{INVOICE_STATUS[inv.status]}</td>
-              <td style={styles.td}>{time(inv.payBy)}</td>
-              <td style={styles.td}>
+              <td style={ui.td}>{INVOICE_PURPOSE[inv.purpose]}</td>
+              <td style={ui.td}>{inv.amountSat.toLocaleString()} sats</td>
+              <td style={ui.td}>{INVOICE_STATUS[inv.status]}</td>
+              <td style={ui.td}>{dateTimeText(inv.payBy)}</td>
+              <td style={ui.td}>
                 {inv.htlcExpiryHeight
                   ? `${inv.htlcExpiryHeight.toLocaleString()}${detail.blockHeight ? ` (${inv.htlcExpiryHeight - detail.blockHeight}블록 남음)` : ''}`
                   : '—'}
@@ -196,42 +181,27 @@ function Actions({ detail }: { detail: AdminLnOrderDetail }) {
     setStatus('보내는 중…');
     const target = { track: 'ln', orderId: detail.orderId, version: detail.version };
     void sendCommand(a.cmd, { ...a.args, target })
-      .then(r => setStatus(resultText(r)))
+      .then(r => setStatus(commandResultText(r)))
       .catch(e => setStatus(e instanceof Error ? e.message : String(e)))
       .finally(() => setBusy(false));
   };
 
   return (
-    <section style={styles.card}>
-      <h3 style={styles.h3}>명령 <span style={styles.note}>버전 {detail.version} 기준</span></h3>
-      <div style={styles.row}>
+    <section style={ui.card}>
+      <h3 style={ui.h3}>명령 <span style={ui.note}>버전 {detail.version} 기준</span></h3>
+      <div style={ui.row}>
         {actions.map(a => (
-          <button key={`${a.cmd}:${a.label}`} disabled={busy} style={a.danger ? styles.danger : styles.button} onClick={() => run(a)}>
+          <button key={`${a.cmd}:${a.label}`} disabled={busy} style={a.danger ? ui.danger : ui.button} onClick={() => run(a)}>
             {a.label}
           </button>
         ))}
       </div>
-      {status && <p style={styles.note}>{status}</p>}
+      {status && <p style={ui.note}>{status}</p>}
     </section>
   );
 }
 
 const styles = {
-  column: { display: 'flex', flexDirection: 'column' as const, gap: 16 },
-  card: { background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' as const, gap: 12 },
-  row: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const },
-  h2: { fontSize: 17, margin: 0, color: '#333' },
-  h3: { fontSize: 15, margin: 0, color: '#333', display: 'flex', alignItems: 'baseline', gap: 8 },
-  back: { alignSelf: 'flex-start', padding: '6px 12px', fontSize: 13, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 6, cursor: 'pointer' },
-  badge: { padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600 as const },
   pending: { background: '#FEF3C7', color: '#92400E' },
-  dl: { display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 16px', margin: 0, fontSize: 13, color: '#374151', wordBreak: 'break-all' as const },
-  note: { fontSize: 12, color: '#6B7280', margin: 0, fontWeight: 400 as const },
-  warnText: { color: '#B45309' },
   mono: { fontFamily: 'monospace', fontSize: 12 },
-  table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
-  th: { textAlign: 'left' as const, fontSize: 12, color: '#6B7280', padding: '6px 8px', borderBottom: '1px solid #E5E7EB' },
-  td: { padding: '8px', borderBottom: '1px solid #F3F4F6' },
-  button: { padding: '8px 14px', fontSize: 13, fontWeight: 600 as const, background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
-  danger: { padding: '8px 14px', fontSize: 13, fontWeight: 600 as const, background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
 };

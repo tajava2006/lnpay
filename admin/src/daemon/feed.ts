@@ -19,7 +19,7 @@ import {
   ADMIN_ACTIONS, ADMIN_STATE_KIND, APP_PUBKEY, CLIENT_TAG, CLIENT_TAG_ADMIN, CLIENT_TAG_ONCHAIN,
   SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, adminOrderDTagPrefix, adminStateDTag, createSubscriptionGuard,
   createSubscriptionPool, getReadRelays, storage,
-  type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type AdminOcOrderDetail, type AdminState,
+  type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type AdminOcOrderDetail, type AdminState, nowSec,
 } from '@sajwo-tracker/shared';
 import { parseOnchainOrder } from '@sajwo-tracker/shared/onchain';
 import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
@@ -93,8 +93,6 @@ export function startDaemonFeed(operatorPubkey: string): Promise<void> {
 export function stopDaemonFeed(): void {
   guard.stop();
 }
-
-const nowSec = () => Math.floor(Date.now() / 1000);
 
 /** NIP-40 `expiration` — 없으면 undefined */
 function retainUntilOf(event: Event): number | undefined {

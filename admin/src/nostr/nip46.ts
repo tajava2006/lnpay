@@ -23,7 +23,7 @@ import { BunkerSigner, createNostrConnectURI } from 'nostr-tools/nip46';
 import type { BunkerPointer } from 'nostr-tools/nip46';
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import type { EventTemplate } from 'nostr-tools/core';
-import { APP_PUBKEY } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, nowSec } from '@sajwo-tracker/shared';
 
 const SESSION_KEY = 'admin:nip46';
 
@@ -140,7 +140,7 @@ export async function verifyIdentity(signer: BunkerSigner): Promise<string> {
   const challenge: EventTemplate = {
     kind: 22242,
     content: crypto.randomUUID(),
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags: [],
   };
 

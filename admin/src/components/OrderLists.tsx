@@ -5,9 +5,10 @@
  * 데몬이 받기 시작한 뒤(epoch)의 오더만 있다 — 옛 프론트 어드민 시절 것은 피드가 거른다.
  */
 import { useSyncExternalStore } from 'react';
-import { isTerminalState, lnOrderDisplay } from '@sajwo-tracker/shared';
+import { dateTimeText, isTerminalState, lnOrderDisplay } from '@sajwo-tracker/shared';
 import { isOnchainTerminal, onchainStateDisplay } from '@sajwo-tracker/shared/onchain';
 import { daemonEpoch, daemonState, lnOrders, onchainOrders } from '../daemon/stores';
+import { ui } from '../ui';
 
 interface Row {
   orderId: string;
@@ -51,7 +52,7 @@ function useEmptyText(): string {
   const epoch = daemonEpoch();
   return epoch === null
     ? '데몬 상태를 받으면 불러옵니다 (데몬이 받기 시작한 뒤의 오더만).'
-    : `오더가 없습니다 (${new Date(epoch * 1000).toLocaleString('ko-KR')} 이후).`;
+    : `오더가 없습니다 (${dateTimeText(epoch)} 이후).`;
 }
 
 function Table({ title, rows, onSelect, note, empty }: {
@@ -60,9 +61,9 @@ function Table({ title, rows, onSelect, note, empty }: {
   const sorted = [...rows].sort((a, b) => Number(a.done) - Number(b.done) || b.updatedAt - a.updatedAt);
   return (
     <section style={styles.card}>
-      <h2 style={styles.h2}>{title} <span style={styles.note}>{rows.length}건{note ? ` · ${note}` : ''}</span></h2>
+      <h2 style={styles.h2}>{title} <span style={ui.note}>{rows.length}건{note ? ` · ${note}` : ''}</span></h2>
       {rows.length === 0 ? (
-        <p style={styles.note}>{empty}</p>
+        <p style={ui.note}>{empty}</p>
       ) : (
         <div style={styles.scroll}>
           <table style={styles.table}>
@@ -79,7 +80,7 @@ function Table({ title, rows, onSelect, note, empty }: {
                   <td style={{ ...styles.td, ...styles.mono }}>{r.orderId}</td>
                   <td style={styles.td}><span style={{ ...styles.badge, color: r.color, background: r.bg }}>{r.label}</span></td>
                   <td style={styles.td}>{r.amount}</td>
-                  <td style={styles.td}>{new Date(r.updatedAt * 1000).toLocaleString('ko-KR')}</td>
+                  <td style={styles.td}>{dateTimeText(r.updatedAt)}</td>
                 </tr>
               ))}
             </tbody>
@@ -93,7 +94,6 @@ function Table({ title, rows, onSelect, note, empty }: {
 const styles = {
   card: { background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' },
   h2: { fontSize: 17, margin: '0 0 12px', color: '#333', display: 'flex', alignItems: 'baseline', gap: 8 },
-  note: { fontSize: 12, color: '#6B7280', fontWeight: 400 as const, margin: 0 },
   scroll: { overflowX: 'auto' as const },
   table: { width: '100%', borderCollapse: 'collapse' as const, minWidth: 560 },
   th: { textAlign: 'left' as const, fontSize: 12, color: '#6B7280', padding: '8px 10px', borderBottom: '1px solid #E5E7EB' },

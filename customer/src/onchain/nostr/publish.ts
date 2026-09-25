@@ -13,7 +13,7 @@ import {
   APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
   SAJWO_REQUEST_KIND, computeAccountCommitment, generateCommitmentSalt, getReadRelays,
   getSecretKey, nip44Encrypt, storage,
-  type AccountInfo, type DisputeMessagePayload, type PreparedChatMessage,
+  type AccountInfo, type DisputeMessagePayload, type PreparedChatMessage, nowSec,
 } from '@sajwo-tracker/shared';
 import { onchainMessageExpiration, type SignPurpose } from '@sajwo-tracker/shared/onchain';
 
@@ -49,7 +49,7 @@ function baseTags(orderId: string, action: string, extra: string[][] = []): stri
     ['action', action],
     ['t', CLIENT_TAG_ONCHAIN],
     ['p', APP_PUBKEY],
-    ['expiration', String(onchainMessageExpiration(Math.floor(Date.now() / 1000)))],
+    ['expiration', String(onchainMessageExpiration(nowSec()))],
     ...extra,
   ];
 }
@@ -87,7 +87,7 @@ export async function publishOnchainOrderRequest(params: {
 
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags,
     content: await encryptToAdmin({ refundAddress: params.refundAddress.trim() }),
   });
@@ -108,7 +108,7 @@ export async function publishOnchainClaim(params: {
 }): Promise<PublishResult> {
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags: baseTags(params.orderId, REQUEST_ACTIONS.ONCHAIN_CLAIM, [
       ['sponsor-xonly', params.sponsorXonly],
     ]),
@@ -123,7 +123,7 @@ export async function publishOnchainClaim(params: {
 export async function publishOnchainPresig(orderId: string, psbt: string): Promise<PublishResult> {
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags: baseTags(orderId, REQUEST_ACTIONS.ONCHAIN_PRESIG),
     content: await encryptToAdmin({ psbt }),
   });
@@ -137,7 +137,7 @@ export async function publishOnchainCosign(
 ): Promise<PublishResult> {
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags: baseTags(orderId, REQUEST_ACTIONS.ONCHAIN_COSIGN, [['purpose', purpose]]),
     content: await encryptToAdmin({ psbt }),
   });
@@ -155,7 +155,7 @@ export async function publishOnchainDispute(
 ): Promise<PublishResult> {
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags: baseTags(orderId, REQUEST_ACTIONS.ONCHAIN_DISPUTE, stage ? [['stage', stage]] : []),
     content: '',
   });
@@ -172,7 +172,7 @@ export async function publishOnchainDispute(
 export async function publishOnchainCancelRequest(orderId: string): Promise<PublishResult> {
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags: baseTags(orderId, REQUEST_ACTIONS.CANCEL_REQUEST),
     content: '',
   });
@@ -196,7 +196,7 @@ export async function publishOnchainAccountInfo(
   const commitment = await computeAccountCommitment(account, salt);
   return publish({
     kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: nowSec(),
     tags: [
       ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', REQUEST_ACTIONS.ACCOUNT_INFO],
@@ -204,7 +204,7 @@ export async function publishOnchainAccountInfo(
       ['p', sponsorPubkey],
       ['p', APP_PUBKEY],
       ['commitment', commitment],
-      ['expiration', String(onchainMessageExpiration(Math.floor(Date.now() / 1000)))],
+      ['expiration', String(onchainMessageExpiration(nowSec()))],
     ],
     content: nip44Encrypt(JSON.stringify({ accountInfo: account, salt }), sk, sponsorPubkey),
   });
@@ -222,7 +222,7 @@ export async function prepareOnchainDisputeMessage(
 ): Promise<PreparedChatMessage> {
   const sk = await getSecretKey(storage);
   const myPubkey = getPublicKey(sk);
-  const createdAt = Math.floor(Date.now() / 1000);
+  const createdAt = nowSec();
   const signed = finalizeEvent({
     kind: SAJWO_REQUEST_EVENT_KIND,
     created_at: createdAt,

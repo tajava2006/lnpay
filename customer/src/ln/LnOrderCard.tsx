@@ -6,7 +6,7 @@
  * 탭에서만 됐던 게 그 사고다. 온체인 `OnchainOrderCard`와 같은 원칙.
  */
 import { useState } from 'react';
-import { canSendAccountInfo, type AccountInfo, type Order, type PriceTracker } from '@sajwo-tracker/shared';
+import { BUTTON, canSendAccountInfo, remainingText, type AccountInfo, type Order, type PriceTracker } from '@sajwo-tracker/shared';
 import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
 import { publishAccountInfo, publishNotification, publishOrderRequest } from '../buyer/nostr/publish';
 import { deleteOrder, markPublished, setAccountInfo } from '../buyer/order-store';
@@ -17,6 +17,7 @@ import { SponsorInvoiceForm } from '../sponsor/components/SponsorInvoiceForm';
 import type { LnAction } from './card-view';
 import { LnPayPanel } from './LnPayPanel';
 import { useLnCard } from './use-ln-card';
+import { ui } from '../ui';
 
 interface Props {
   orderId: string;
@@ -27,15 +28,6 @@ interface Props {
   onOpen?: (orderId: string) => void;
   /** 로컬 기록 지우기 — 의뢰하기 탭(내 의뢰 목록 관리)에서만 */
   allowDelete?: boolean;
-}
-
-function timeLeft(deadline: number, now: number): string {
-  const diff = deadline - now;
-  if (diff <= 0) return '기한 지남';
-  const h = Math.floor(diff / 3600);
-  const m = Math.floor((diff % 3600) / 60);
-  if (h > 0) return `${h}시간 ${m}분 남음`;
-  return `${m}분 ${diff % 60}초 남음`;
 }
 
 export function LnOrderCard({ orderId, archived, tracker, onOpen, allowDelete }: Props) {
@@ -124,13 +116,13 @@ export function LnOrderCard({ orderId, archived, tracker, onOpen, allowDelete }:
       case 'send-account':
         return (
           <button className="btn btn-publish" disabled={busy !== null} onClick={() => setAccountOpen(true)}>
-            계좌 정보 전달
+            {BUTTON.sendAccount}
           </button>
         );
       case 'confirm-paid':
         return (
           <button className="btn btn-publish" disabled={busy !== null} onClick={confirmPaid}>
-            {busy === 'confirm' ? '보내는 중...' : '입금 컨펌'}
+            {busy === 'confirm' ? '보내는 중...' : BUTTON.confirmPaid}
           </button>
         );
       case 'register-invoice':
@@ -156,15 +148,15 @@ export function LnOrderCard({ orderId, archived, tracker, onOpen, allowDelete }:
   return (
     <div style={view.terminal ? { ...styles.card, ...styles.cardDone } : styles.card}>
       <div style={styles.top}>
-        <span style={styles.price}>{view.price.toLocaleString()}원</span>
+        <span style={ui.price}>{view.price.toLocaleString()}원</span>
         {view.deadline > 0 && !view.terminal && (
-          <span style={{ ...styles.timeLeft, color: view.deadline - now < 3600 ? '#DC2626' : '#6B7280' }}>
-            {timeLeft(view.deadline, now)}
+          <span style={{ ...ui.timeLeft, color: view.deadline - now < 3600 ? '#DC2626' : '#6B7280' }}>
+            {remainingText(view.deadline - now, '기한 지남')}
           </span>
         )}
       </div>
 
-      <div style={styles.statusRow}>
+      <div style={ui.statusRow}>
         <span style={{ ...styles.badge, background: view.badge.bg, color: view.badge.color }}>{view.badge.label}</span>
         <span style={styles.stepTitle}>{view.title}</span>
         {view.isMyTurn
@@ -251,10 +243,10 @@ function RemitBlock({ price, account, busy, onRemit }: {
       <p style={styles.accountDetail}>예금주: {account.holderName}</p>
       {/* 안 눌러도 고객이 컨펌하면 끝나지만(invoiced → paid), 누르면 고객이 그때부터 확인한다 */}
       <p style={styles.remitReminder}>
-        보내셨으면 아래 <b>'원화 송금했어요'</b>를 꼭 눌러주세요. 고객이 그때부터 입금을 확인합니다.
+        보내셨으면 아래 <b>'{BUTTON.remitted}'</b>를 꼭 눌러주세요. 고객이 그때부터 입금을 확인합니다.
       </p>
       <button style={styles.remitBtn} disabled={busy} onClick={onRemit}>
-        {busy ? '보내는 중...' : '원화 송금했어요'}
+        {busy ? '보내는 중...' : BUTTON.remitted}
       </button>
     </div>
   );
@@ -267,9 +259,6 @@ const styles = {
   },
   cardDone: { background: '#FAFAFA', boxShadow: 'none', border: '1px solid #E5E7EB' },
   top: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
-  price: { fontSize: 20, fontWeight: 600 as const, color: '#4F46E5' },
-  timeLeft: { fontSize: 13, fontWeight: 500 as const },
-  statusRow: { display: 'flex', flexWrap: 'wrap' as const, alignItems: 'center', gap: 6 },
   badge: { display: 'inline-block', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 600 as const },
   stepTitle: { fontSize: 14, fontWeight: 600 as const, color: '#111827' },
   turnMine: {

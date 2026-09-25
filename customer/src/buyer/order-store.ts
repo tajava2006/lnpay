@@ -11,6 +11,7 @@
  */
 import type { AdminOrderUpdate, CustomerOrder } from './types';
 import type { AccountInfo } from '@sajwo-tracker/shared';
+import { nowSec } from '@sajwo-tracker/shared';
 
 type OrderMap = Record<string, CustomerOrder>;
 type Listener = () => void;
@@ -184,7 +185,7 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null;
  * 미발행 주문(expiration === 0)은 아직 만료 개념이 없으므로 남긴다.
  */
 function purgeExpired(): void {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   const before = Object.keys(orders).length;
 
   orders = Object.fromEntries(

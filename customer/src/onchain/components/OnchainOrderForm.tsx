@@ -14,7 +14,7 @@
  * 화면이 없었다.
  */
 import { useState, useSyncExternalStore } from 'react';
-import { freshPrice, type PriceTracker } from '@sajwo-tracker/shared';
+import { freshPrice, type PriceTracker, nowSec } from '@sajwo-tracker/shared';
 import {
   FUNDING_WINDOW_SEC, MAX_ORDER_EXPIRY_SEC, RESERVE_MIN_GAP_PERCENT, addressProblem, durationText, reserveProblem,
 } from '@sajwo-tracker/shared/onchain';
@@ -75,7 +75,7 @@ export function OnchainOrderForm({ onDone, tracker }: {
     try {
       const orderId = newOrderId();
       const customerXonly = await myOrderXonly(orderId);
-      const expiration = Math.floor(Date.now() / 1000) + days * DAY;
+      const expiration = nowSec() + days * DAY;
       const result = await publishOnchainOrderRequest({
         orderId, amountSat: sats, reserveKrw: reserve, customerXonly, expiration,
         refundAddress: refundAddress.trim(),
@@ -90,7 +90,7 @@ export function OnchainOrderForm({ onDone, tracker }: {
       // 어드민이 거절하거나 실패하면 유저 쪽에 흔적이 하나도 안 남는다.
       rememberPendingRequest({
         orderId, amountSat: sats, reserveKrw: reserve, expiration,
-        submittedAt: Math.floor(Date.now() / 1000),
+        submittedAt: nowSec(),
       });
       setAmountSat('');
       setReserveKrw('');

@@ -5,6 +5,7 @@
  * useSyncExternalStore로 OrderCard UI에 자동 전파한다.
  * 영구 저장 불필요 (세션 알림 목적).
  */
+import { nowSec } from '@sajwo-tracker/shared';
 
 /**
  * 어드민이 보낸 인보이스 거절 사유.
@@ -57,7 +58,7 @@ export function getClaimErrorSnapshot(): ErrorMap {
 export function setClaimError(orderId: string, expectedSats: number, reason?: InvoiceRejectReason): void {
   errors = {
     ...errors,
-    [orderId]: { orderId, expectedSats, reason, receivedAt: Math.floor(Date.now() / 1000) },
+    [orderId]: { orderId, expectedSats, reason, receivedAt: nowSec() },
   };
   notify();
 }

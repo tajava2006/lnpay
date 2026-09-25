@@ -17,6 +17,7 @@
  * 그래서 오더의 `sponsorDepositPending`이 있으면 사다리를 한 칸 앞에 세운다.
  */
 import type { OrderState } from './constants';
+import { BUTTON, STEP_TEXT } from './copy';
 
 export type ProgressRole = 'customer' | 'sponsor';
 export type StepStatus = 'done' | 'current' | 'upcoming';
@@ -116,12 +117,12 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     title: '계좌 전달 · 원화 송금',
     actor: 'customer',
     customer: [
-      { text: "'계좌 정보 전달'로 입금받을 은행·계좌번호·예금주를 보냅니다." },
+      { text: STEP_TEXT.sendAccount },
       { text: '후원자가 원화를 보낼 때까지 기다립니다.' },
     ],
     sponsor: [
       { text: '고객이 보낸 계좌로 의뢰 금액을 원화 송금합니다.' },
-      { text: "송금을 마쳤으면 '원화 송금했어요'를 누릅니다." },
+      { text: STEP_TEXT.pressRemitted },
     ],
   },
   {
@@ -129,8 +130,8 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     title: '입금 확인',
     actor: 'customer',
     customer: [
-      { text: '내 계좌에 원화가 들어왔는지 확인합니다.' },
-      { text: "확인했으면 '입금 컨펌'을 누릅니다. 이때 후원자에게 BTC가 지급됩니다." },
+      { text: STEP_TEXT.checkDeposit },
+      { text: `확인했으면 '${BUTTON.confirmPaid}'을 누릅니다. 이때 후원자에게 BTC가 지급됩니다.` },
     ],
     sponsor: [
       { text: '고객의 입금 확인을 기다립니다.' },

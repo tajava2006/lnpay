@@ -13,6 +13,7 @@
  *
  * 전부 NIP-44 암호문이고 `t`는 어드민 태그(`CLIENT_TAG_ADMIN`)다.
  */
+import type { OnchainWindows } from './onchain/timing';
 import type { OrderState } from './constants';
 import type { OnchainOrder } from './onchain/order';
 import type { DisputeMessagePayload } from './types';
@@ -170,6 +171,11 @@ export interface AdminState {
    * 어드민은 이 전의 오더 이벤트(옛 프론트 어드민 시절)를 구독하지도, 보여주지도 않는다.
    */
   epoch: number;
+  /**
+   * 데몬 번들에 박힌 온체인 창 길이(초). 어드민이 자기 값과 견줘 다르면 "데몬을 다시 빌드했는가"를 띄운다 —
+   * 옛 데몬은 없다.
+   */
+  onchainWindows?: OnchainWindows;
   /** 이 상태를 만든 시각 — 어드민 화면은 이게 오래되면 "데몬 응답 없음"을 띄운다 */
   heartbeatAt: number;
   relays: string[];

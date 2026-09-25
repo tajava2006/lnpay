@@ -369,6 +369,22 @@ export function resolveOnchainProgress(
   return { steps, currentIndex, terminal, disputed, refunding, total: ONCHAIN_PROGRESS_STEPS.length };
 }
 
+/**
+ * 종결 tx를 기다리는 동안 — **어떤 종결인지** 보는 사람 입장에서. 컨펌 전엔 상태가 `settling` 하나라 정상 지급인지
+ * 판정인지 환불인지 화면에서 안 보였다(2026-09-25 드릴). 컨펌되면 종결 상태 이름이 대신 말한다.
+ */
+export function settlementSummary(role: OnchainRole, kind: SettlementKind): string {
+  const seller = role === 'customer';
+  const toBuyer = seller ? '비트코인이 상대방에게 갑니다' : '비트코인이 나에게 옵니다';
+  const toSeller = seller ? '에스크로가 나에게 돌아옵니다' : '에스크로가 상대방에게 돌아갑니다';
+  switch (kind) {
+    case 'release': return `정상 완료 — ${toBuyer}`;
+    case 'sponsor_win': return `분쟁 판정(송금 인정) — ${toBuyer}`;
+    case 'customer_win': return `분쟁 판정(송금 불인정) — ${toSeller}`;
+    default: return `환불 — ${toSeller}`;
+  }
+}
+
 /** 종결 tx의 출력을 받는 쪽. 모르면 null */
 export function receiverOf(kind: SettlementKind | undefined): OnchainRole | null {
   if (!kind) return null;

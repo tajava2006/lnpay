@@ -9,6 +9,7 @@ import {
   ADMIN_STATE_STALE_SEC, CLIENT_TAG_ADMIN, MAX_DEPOSIT_PCT,
   type AdminAlert, type AdminCommandResult, type DaemonSettings,
 } from '@sajwo-tracker/shared';
+import { ONCHAIN_WINDOWS, durationText, type OnchainWindows } from '@sajwo-tracker/shared/onchain';
 import { sendCommand } from '../daemon/client';
 import { daemonState } from '../daemon/stores';
 
@@ -60,6 +61,8 @@ export function DaemonPanel() {
                 ? `${new Date(state.epoch * 1000).toLocaleString('ko-KR')} (${state.epoch}) — 이 전의 오더는 보지 않는다. 유저 앱 VITE_NOSTR_SINCE도 이 값`
                 : '모름 — 데몬이 옛 버전이다(다시 빌드). 그 전까지 오더 목록은 비어 있다'}
             </dd>
+            <dt>온체인 창</dt>
+            <dd><OnchainWindowsLine daemon={state.onchainWindows} /></dd>
             <dt>릴레이</dt><dd>{state.relays.join(', ')}</dd>
             <dt>효과 대기</dt>
             <dd>
@@ -217,6 +220,33 @@ function Settings({ settings }: { settings: DaemonSettings }) {
         {status && <span style={styles.note}>{status}</span>}
       </div>
     </section>
+  );
+}
+
+const WINDOW_LABEL: Record<keyof OnchainWindows, string> = {
+  funding: '입금', presign: '사전서명', account: '계좌', krw: '송금', cosign: '입금 확인',
+};
+
+function windowsText(w: OnchainWindows): string {
+  return (Object.keys(WINDOW_LABEL) as Array<keyof OnchainWindows>)
+    .map(k => `${WINDOW_LABEL[k]} ${durationText(w[k])}`).join(' · ');
+}
+
+/**
+ * 데몬이 실제로 쓰는 창과 이 앱의 창 — 다르면 데몬 이미지가 옛 코드다(2026-09-25: 앱은 "입금 2시간"인데
+ * 카운트다운은 6시간이었다. 마감은 데몬이 오더에 찍는다). 유저 앱도 같은 체크아웃에서 뜨므로 이 앱이 기준이다.
+ */
+function OnchainWindowsLine({ daemon }: { daemon: OnchainWindows | undefined }) {
+  if (!daemon) return <>모름 — 데몬이 옛 버전이다(다시 빌드)</>;
+  const same = (Object.keys(ONCHAIN_WINDOWS) as Array<keyof OnchainWindows>).every(k => daemon[k] === ONCHAIN_WINDOWS[k]);
+  if (same) return <>{windowsText(daemon)}</>;
+  return (
+    <span style={{ color: '#B45309' }}>
+      ⚠️ 데몬과 이 앱의 값이 다르다 — 데몬 이미지를 다시 빌드했는지 확인
+      (<code>docker compose build lnpay-daemon</code> 뒤 컨테이너 재시작).
+      <br />데몬: {windowsText(daemon)}
+      <br />이 앱: {windowsText(ONCHAIN_WINDOWS)}
+    </span>
   );
 }
 

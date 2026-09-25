@@ -16,9 +16,10 @@ import {
   addressProblem, durationText, releaseFeerateProblem, type FeeEstimates, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrdersSnapshot, listedOrders, subscribeOnchainOrders } from '../store';
-import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
+import { getDepositInvoicesSnapshot, subscribeDepositInvoices, type DepositInvoice } from '../deposit-store';
 import { myOrderXonly } from '../keys';
-import { rememberMyClaim } from '../claim-store';
+import { forgetMyClaim, getMyClaim, pendingClaim, rememberMyClaim, type MyClaim } from '../claim-store';
+import { clearNotice, getNoticesSnapshot, subscribeNotices } from '../notice-store';
 import { publishOnchainClaim } from '../nostr/publish';
 import { depositAmountText } from '../deposit-amount';
 
@@ -71,7 +72,7 @@ export function OnchainOrderBook({ myPubkey, tracker }: Props) {
                 <InvoicePayBlock bolt11={invoice.bolt11} />
               </div>
             ) : (
-              <ClaimForm order={order} />
+              <ClaimForm order={order} invoice={invoice} />
             )}
           </div>
         );
@@ -102,8 +103,14 @@ function ReserveLine({ order, price }: { order: OnchainOrder; price: number | nu
   );
 }
 
-function ClaimForm({ order }: { order: OnchainOrder }) {
+/** 이만큼 답이 없으면 늦는다고 말하고 같은 값으로 다시 보낼 수 있게 한다 */
+const SLOW_MS = 45_000;
+
+function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositInvoice | undefined }) {
   const orderId = order.orderId;
+  const notice = useSyncExternalStore(subscribeNotices, getNoticesSnapshot)[orderId];
+  const pending = pendingClaim(orderId, invoice?.receivedAt, notice?.receivedAt);
+  const [, rerender] = useState(0);
   const [open, setOpen] = useState(false);
   const [address, setAddress] = useState('');
   const [feerate, setFeerate] = useState('');
@@ -126,7 +133,43 @@ function ClaimForm({ order }: { order: OnchainOrder }) {
     return () => { alive = false; };
   }, [open, order.network]);
 
-  if (!open) {
+  // 답을 기다리는 동안 1초마다 다시 그린다 — 늦는다는 안내가 제때 뜨게
+  useEffect(() => {
+    if (!pending) return;
+    const id = setInterval(() => rerender(n => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [pending]);
+
+  async function send(claim: MyClaim): Promise<boolean> {
+    const sponsorXonly = await myOrderXonly(orderId);
+    // ⚠️ 먼저 기억해 둔다. 발행만 하고 못 적어두면 나중에 **사전서명을 만들 수 없다.**
+    rememberMyClaim({ ...claim, requestedAt: Date.now() });
+    const result = await publishOnchainClaim({
+      orderId, sponsorXonly, payoutAddress: claim.payoutAddress, feerateSatPerVb: claim.feerateSatPerVb,
+    });
+    if (!result.success) forgetMyClaim(orderId);
+    rerender(n => n + 1);
+    return result.success;
+  }
+
+  if (pending) {
+    const slow = Date.now() - (pending.requestedAt ?? 0) > SLOW_MS;
+    return (
+      <div style={styles.waiting}>
+        <p style={styles.waitingLine}><span className="spinner" /> 보증금 인보이스를 받는 중…</p>
+        {slow && (
+          <>
+            <p style={styles.hint}>응답이 늦습니다. 이 화면을 열어 두면 도착하는 대로 뜹니다.</p>
+            <button style={styles.ghost} onClick={() => void send(pending)}>같은 값으로 다시 보내기</button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  const rejected = notice && getMyClaim(orderId)?.requestedAt !== undefined;
+
+  if (!open && !rejected) {
     return (
       <button style={styles.claim} onClick={() => setOpen(true)}>사줄게</button>
     );
@@ -152,13 +195,9 @@ function ClaimForm({ order }: { order: OnchainOrder }) {
 
     setBusy(true);
     try {
-      const sponsorXonly = await myOrderXonly(orderId);
-      // ⚠️ 먼저 기억해 둔다. 발행만 하고 못 적어두면 나중에 **사전서명을 만들 수 없다.**
-      rememberMyClaim({ orderId, payoutAddress: address.trim(), feerateSatPerVb: rate });
-      const result = await publishOnchainClaim({
-        orderId, sponsorXonly, payoutAddress: address.trim(), feerateSatPerVb: rate,
-      });
-      if (!result.success) setError('발행에 실패했습니다. 다시 시도하세요.');
+      clearNotice(orderId); // 지난 거절은 이 요청과 상관없다
+      const ok = await send({ orderId, payoutAddress: address.trim(), feerateSatPerVb: rate });
+      if (!ok) setError('발행에 실패했습니다. 다시 시도하세요.');
     } finally {
       setBusy(false);
     }
@@ -166,6 +205,9 @@ function ClaimForm({ order }: { order: OnchainOrder }) {
 
   return (
     <form onSubmit={submit} style={styles.form}>
+      {rejected && notice && (
+        <p style={styles.error}>보증금 인보이스를 받지 못했습니다 — {notice.reason}</p>
+      )}
       <label style={styles.label}>
         비트코인 받을 주소
         <input
@@ -205,6 +247,12 @@ function ClaimForm({ order }: { order: OnchainOrder }) {
 }
 
 const styles = {
+  waiting: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
+  waitingLine: { margin: 0, fontSize: 13, color: '#4338CA', display: 'flex', alignItems: 'center', gap: 8 },
+  ghost: {
+    alignSelf: 'flex-start' as const, padding: '6px 10px', fontSize: 12, background: '#fff', color: '#4B5563',
+    border: '1px solid #D1D5DB', borderRadius: 8, cursor: 'pointer',
+  },
   list: { display: 'flex', flexDirection: 'column' as const, gap: 12 },
   empty: { fontSize: 14, color: '#6B7280', textAlign: 'center' as const, padding: '32px 0' },
   card: { border: '1px solid #E5E7EB', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 10 },

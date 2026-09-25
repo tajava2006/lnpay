@@ -14,7 +14,7 @@ import { ADMIN_ACTIONS, REQUEST_ACTIONS, SAJWO_REQUEST_KIND } from '@sajwo-track
 import {
   ACCOUNT_WINDOW_SEC, COSIGN_WINDOW_SEC, FUNDING_WINDOW_SEC, PRESIGN_WINDOW_SEC,
   buildSettlementTx, finalizeSettlement, fromPsbtBase64, fromRawHex, outputAddressOf, parseOnchainOrder,
-  signSettlement,
+  settlementFeeSat, settlementPathForKind, signSettlement,
 } from '@sajwo-tracker/shared/onchain';
 import { openAlerts } from '../admin/alerts';
 import { TEST_TAGS, adminCommand, eventsTo, openResult, type TestKey } from './fakes';
@@ -64,26 +64,37 @@ describe('① 정상 완료', () => {
     expect(funded.state).toBe('funded');
     expect(funded.priceKrw).toBe(Math.round((AMOUNT / 1e8) * 150_000_000));
     expect(funded.payoutSat).toBe(AMOUNT - funded.releaseFeeSat!);
+    // 마감은 데몬이 찍어 공개한다 — 앱은 이 값을 보여준다(2026-09-25)
+    expect(funded.presignDeadline).toBe(funded.fundedAt! + PRESIGN_WINDOW_SEC);
+    expect(lastPublic(h, orderId)?.presignDeadline).toBe(funded.presignDeadline);
 
     await presignOc(h, orderId);
     expect(state(h, orderId)).toBe('presigned');
     expect(lastSignRequest(h, h.customer)?.purpose).toBe('release');
+    const presigned = h.row(orderId)!.order;
+    expect(presigned.accountDeadline).toBe(presigned.presignedAt! + ACCOUNT_WINDOW_SEC);
+    expect(lastPublic(h, orderId)?.accountDeadline).toBe(presigned.accountDeadline);
 
     await sendAccountOc(h, orderId);
     expect(h.row(orderId)!.order.accountSentAt).toBeDefined();
     await remitOc(h, orderId);
     expect(state(h, orderId)).toBe('remitted');
+    const remitted = h.row(orderId)!.order;
+    expect(remitted.cosignDeadline).toBe(remitted.remittedAt! + COSIGN_WINDOW_SEC);
 
     await cosignOc(h, orderId, h.customer, SK_C, 'release');
     expect(state(h, orderId)).toBe('settling');
     expect(h.chain.broadcasted).toHaveLength(1);
     const spender = fromRawHex(h.chain.broadcasted[0]!);
     expect(outputAddressOf(spender, descriptorOf(h, orderId))).toBe(PAYOUT);
+    // 고객 서명이 온 순간 릴리스는 되돌릴 수 없다 — 컨펌을 기다리지 않고 양쪽 보증금을 돌려준다(2026-09-25)
+    const settling = h.row(orderId)!.order;
+    expect(holdState(h, settling.customerDepositHash)).toBe('cancelled');
+    expect(holdState(h, settling.sponsorDepositHash)).toBe('cancelled');
 
     await confirmSettlementOc(h, orderId);
     const released = h.row(orderId)!.order;
     expect(released.state).toBe('released');
-    // 정상 완료는 양쪽 보증금 환불
     expect(holdState(h, released.customerDepositHash)).toBe('cancelled');
     expect(holdState(h, released.sponsorDepositHash)).toBe('cancelled');
     expect(lastPublic(h, orderId)?.state).toBe('released');
@@ -148,6 +159,33 @@ describe('③ 분쟁 (후원자 승)', () => {
     await confirmSettlementOc(h, orderId);
     expect(state(h, orderId)).toBe('sponsor_wins');
     expect(outputAddressOf(fromRawHex(h.chain.broadcasted[0]!), descriptorOf(h, orderId))).toBe(PAYOUT);
+  });
+
+  /** 판정 경로도 후원자가 정한 수수료율 아래로 내리지 않는다 (2026-09-25 signet: 5 sat/vB로 냈는데 1로 나갔다) */
+  it('후원자승 종결 수수료는 max(후원자가 정한 수수료율, 지금 시세)', async () => {
+    async function ruledFee(sponsorRate: number, market: number): Promise<{ got: number; want: number }> {
+      const h = await createOcHarness();
+      const orderId = await openOc(h);
+      await claimOc(h, orderId, { feerate: sponsorRate });
+      await fundOc(h, orderId);
+      await presignOc(h, orderId);
+      await sendAccountOc(h, orderId);
+      await remitOc(h, orderId);
+      h.chain.fees = { ...h.chain.fees, halfHour: market };
+      h.advance(COSIGN_WINDOW_SEC + 1); // 수수료 캐시도 새 시세를 받는다
+      await h.run();
+      expect(state(h, orderId)).toBe('disputed');
+      expect((await command(h, 'oc.rule', { target: target(h, orderId), winner: 'sponsor' })).ok).toBe(true);
+      const want = settlementFeeSat(
+        settlementPathForKind('sponsor_win'), descriptorOf(h, orderId), PAYOUT, Math.max(sponsorRate, market),
+      );
+      return { got: h.row(orderId)!.order.settlementFeeSat!, want };
+    }
+    const low = await ruledFee(5, 1); // 시세가 더 낮으면 후원자가 정한 5
+    expect(low.got).toBe(low.want);
+    const high = await ruledFee(2, 3); // 시세가 더 높으면 시세
+    expect(high.got).toBe(high.want);
+    expect(low.got).toBeGreaterThan(high.got);
   });
 
   it('낡은 버전의 판정은 거절된다 — 다른 기기에서 이미 판정했다', async () => {

@@ -59,6 +59,14 @@ export interface OnchainOrder {
   fundingConfs?: number;
   /** T0 = `funded` 진입 시각 */
   fundedAt?: number;
+  /**
+   * 사전서명 마감 · 계좌 전달 마감 · 입금 확인 마감 — **데몬이 전이할 때 찍는다**(2026-09-25). 예전엔 앱과 데몬이
+   * 각자 자기 상수로 계산해서, 데몬만 옛 버전일 때 앱은 "1시간"을 보여주는데 데몬은 15분에 끊을 수 있었다.
+   * 화면은 이 값을 먼저 본다(없으면 옛 오더라 계산한다 — `timing.ts`의 `…DeadlineOf`).
+   */
+  presignDeadline?: number;
+  accountDeadline?: number;
+  cosignDeadline?: number;
   priceKrw?: number;
   payoutSat?: number;
   releaseFeeSat?: number;
@@ -153,14 +161,17 @@ export function onchainOrderTags(order: OnchainOrder, clientTag: string): TagLis
   str(tags, 'funding-outpoint', order.fundingOutpoint);
   num(tags, 'funding-confs', order.fundingConfs);
   num(tags, 'funded-at', order.fundedAt);
+  num(tags, 'presign-deadline', order.presignDeadline);
   num(tags, 'price-krw', order.priceKrw);
   num(tags, 'payout-sat', order.payoutSat);
   num(tags, 'release-fee-sat', order.releaseFeeSat);
 
   num(tags, 'presigned-at', order.presignedAt);
+  num(tags, 'account-deadline', order.accountDeadline);
   num(tags, 'account-sent-at', order.accountSentAt);
   num(tags, 'krw-deadline', order.krwDeadline);
   num(tags, 'remitted-at', order.remittedAt);
+  num(tags, 'cosign-deadline', order.cosignDeadline);
   num(tags, 'account-disputed-at', order.accountDisputedAt);
   num(tags, 'disputed-at', order.disputedAt);
 
@@ -258,14 +269,17 @@ export function parseOnchainOrder(
     fundingOutpoint: tagValue(tags, 'funding-outpoint'),
     fundingConfs: readNum(tags, 'funding-confs'),
     fundedAt: readNum(tags, 'funded-at'),
+    presignDeadline: readNum(tags, 'presign-deadline'),
     priceKrw: readNum(tags, 'price-krw'),
     payoutSat: readNum(tags, 'payout-sat'),
     releaseFeeSat: readNum(tags, 'release-fee-sat'),
 
     presignedAt: readNum(tags, 'presigned-at'),
+    accountDeadline: readNum(tags, 'account-deadline'),
     accountSentAt: readNum(tags, 'account-sent-at'),
     krwDeadline: readNum(tags, 'krw-deadline'),
     remittedAt: readNum(tags, 'remitted-at'),
+    cosignDeadline: readNum(tags, 'cosign-deadline'),
     accountDisputedAt: readNum(tags, 'account-disputed-at'),
     disputedAt: readNum(tags, 'disputed-at'),
 

@@ -23,10 +23,10 @@ import {
 } from '@sajwo-tracker/shared/core';
 import {
   TYPICAL_SETTLEMENT_VSIZE,
-  accountDeadlineOf, addTapScriptSig, addressProblem, awaitingSignerFor, buildSettlementTx, bytesToHex,
+  accountDeadlineFrom, accountDeadlineOf, addTapScriptSig, addressProblem, awaitingSignerFor, buildSettlementTx, bytesToHex,
   canActOnSignRequest, deriveEscrowAddress, dustThresholdFor, finalizeSettlement, formatOutpoint, fromPsbtBase64,
   isOnchainClaimPayload, isOnchainOrderRequestPayload, isOnchainPsbtPayload, isOnchainTerminal, isOrderExpiryAllowed,
-  isPast, isRefundKind, isXonlyHex, krwDeadlineFrom, krwDeadlineOf, parseOutpoint, presignDeadlineOf,
+  cosignDeadlineFrom, isPast, isRefundKind, isXonlyHex, krwDeadlineFrom, krwDeadlineOf, parseOutpoint, presignDeadlineOf,
   releaseFeerateProblem, reserveProblem, settlementFeeSat, signPurposeFor, signSettlement, toPsbtBase64,
   verifyPresignature,
   type EscrowDescriptor, type OnchainOrder, type Outpoint, type SettlementKind, type SignPurpose,
@@ -254,7 +254,10 @@ function ocPresig(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult 
     return r(`사전서명이 맞지 않습니다: ${verdict.reason} — 클레임 때 낸 받을 주소·수수료율과 같은지 확인하세요`);
   }
 
-  const presigned = updateOc(ctx, order.orderId, { state: 'presigned', presignedAt: nowSec(ctx) }, { presigPsbt: payload.psbt });
+  const at = nowSec(ctx);
+  const presigned = updateOc(ctx, order.orderId, {
+    state: 'presigned', presignedAt: at, accountDeadline: accountDeadlineFrom(at),
+  }, { presigPsbt: payload.psbt });
   notifyOcTransition(ctx, presigned, getOc(ctx, order.orderId)!.version);
   // 고객이 나중에 릴리스에 서명할 수 있게 **지금** 보낸다. 안에 든 건 후원자 서명뿐 — 고객 서명 없이는
   // 아무것도 완성되지 않는다
@@ -338,9 +341,13 @@ function ocCosign(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult 
  * 장부에 없다"가 없다 — 프론트 시절 그게 리오그로 오인돼 엉뚱한 쪽이 몰수됐다(리뷰 #8).
  */
 function enterSettling(ctx: OcContext, orderId: string, kind: SettlementKind, txid: string, rawHex: string): void {
-  updateOc(ctx, orderId, {
+  const settling = updateOc(ctx, orderId, {
     state: 'settling', settlementKind: kind, settlementTxid: txid, settlingAt: nowSec(ctx),
   }, { outbox: { txid, rawHex, kind } });
+  // 릴리스는 **고객 서명이 온 이 순간** 결정된 것이다(2026-09-25). 보관한 후원자 사전서명과 합쳐 tx가 완성됐고,
+  // 에스크로를 다른 길로 뺄 수 있는 건 어드민 서명이 필요한 경로(우리가 안 한다)와 8주 타임락뿐이다 — 되돌릴
+  // 수 없다. 보증금이 막을 이탈이 더는 없으니 컨펌을 기다리지 않고 지금 돌려준다(다른 사유는 원래 결정 때 처리)
+  if (kind === 'release') applyOutcome(ctx, settling, kind);
   requestBroadcast(ctx, { orderId, txid });
 }
 
@@ -364,7 +371,10 @@ function ocRemit(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult {
   if (!order.accountSentAt) return r('고객 계좌가 아직 전달되지 않았습니다');
   if (isPast(krwDeadlineOf(order), requestAt(ctx, event))) return r('원화 송금 마감이 지났습니다');
 
-  const remitted = updateOc(ctx, order.orderId, { state: 'remitted', remittedAt: nowSec(ctx) });
+  const remittedAt = nowSec(ctx);
+  const remitted = updateOc(ctx, order.orderId, {
+    state: 'remitted', remittedAt, cosignDeadline: cosignDeadlineFrom(remittedAt),
+  });
   notifyOcTransition(ctx, remitted, getOc(ctx, order.orderId)!.version);
   return ok;
 }
@@ -488,8 +498,11 @@ export function decideSettlement(
   }
   let feeSat: number;
   try {
-    // ⚠️ **수수료를 새로 추정한다.** `releaseFeeSat`은 T0에 고정된 값이라 분쟁이 몇 주 뒤에 끝나면 낡는다(§6.1)
-    feeSat = settlementFeeSat(shape.path, shape.descriptor, shape.destination, fees.halfHour);
+    // ⚠️ **수수료를 새로 추정한다.** `releaseFeeSat`은 T0에 고정된 값이라 분쟁이 몇 주 뒤에 끝나면 낡는다(§6.1).
+    // 다만 후원자승은 후원자가 받는 출력에서 수수료가 나가고 **후원자가 정한 수수료율**이 있다 — 그보다 낮추지
+    // 않는다(시세가 더 높으면 시세). 5 sat/vB로 냈는데 판정 경로만 1 sat/vB로 나갔다(2026-09-25 signet 드릴)
+    const feerate = kind === 'sponsor_win' ? Math.max(meta.feerateSatPerVb ?? 0, fees.halfHour) : fees.halfHour;
+    feeSat = settlementFeeSat(shape.path, shape.descriptor, shape.destination, feerate);
     buildSettlementTx({ ...shape, feeSat }); // dust 등 — 만들 수 있는 tx인지 지금 확인한다
   } catch (e) {
     anomaly(ctx, orderId, `종결 tx를 만들 수 없다 (${kind}): ${e instanceof Error ? e.message : String(e)}`);

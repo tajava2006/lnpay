@@ -220,7 +220,18 @@ describe('presigned — 두 사람의 마감이 순서대로 (O-013)', () => {
   const alive = (over: Partial<OnchainWatchContext> = {}) =>
     ctx({ funds: funds({ confirmed: [utxo()] }), ...over });
 
-  it('계좌 공개 전에는 고객 차례 — 15분', () => {
+  /**
+   * 데몬이 찍은 마감을 따른다(2026-09-25) — 앱도 같은 값을 보여준다. 상수로 다시 계산하면 데몬·앱 버전이
+   * 어긋났을 때 서로 다른 마감을 본다(앱은 1시간이라는데 데몬은 15분에 끊는다).
+   */
+  it('찍힌 계좌 마감이 있으면 그걸 따른다 — 상수로 다시 계산하지 않는다', () => {
+    const stampedEarly = presigned({ presignedAt: NOW - 100, accountDeadline: NOW - 1 });
+    expect(decideOnchainAction(stampedEarly, alive())).toEqual({ kind: 'settle', settlementKind: 'refund:customer-late' });
+    const stampedLate = presigned({ presignedAt: NOW - ACCOUNT_WINDOW_SEC - 100, accountDeadline: NOW + 60 });
+    expect(decideOnchainAction(stampedLate, alive()).kind).toBe('idle');
+  });
+
+  it('계좌 공개 전에는 고객 차례 — ACCOUNT_WINDOW_SEC', () => {
     expect(decideOnchainAction(presigned(), alive()).kind).toBe('idle');
     const late = presigned({ presignedAt: NOW - ACCOUNT_WINDOW_SEC });
     expect(decideOnchainAction(late, alive())).toEqual({

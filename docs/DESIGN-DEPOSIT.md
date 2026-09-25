@@ -101,10 +101,12 @@ Admin이 Customer에게 보증금 인보이스를 전달하는 알림 이벤트.
 | requested → cancelled | 없음 | **cancel (환불)** | Sponsor 관여 전 |
 | claimed → cancelled | 있음 | **settle (몰수)** | Sponsor 시간 낭비 |
 | verified → cancelled | 있음 | **settle (몰수)** | Sponsor 시간 낭비 |
-| verified → escrowed | 있음 | **cancel (환불)** | 실결제가 담보 역할 인수 |
+| verified → escrowed | 있음 | ~~cancel (환불)~~ **붙잡는다** | 2026-09-25 변경 — 아래 |
 
-> **원칙**: 실결제(escrowed) 이후 모든 트롤링 시나리오는 실결제 hold invoice가 담당한다.
-> 보증금은 escrowed 이전 단계에서만 의미가 있다.
+> ⚠️ **옛 원칙("실결제 이후 트롤링은 실결제 hold invoice가 담당, 보증금은 escrowed 이전에서만 의미")은
+> 틀렸다**(2026-09-25). 에스크로 뒤에도 고객이 계좌를 안 보내 후원자 시간만 버리는 이탈이 있고, 그건 본자금을
+> 뺏을 잘못이 아니다 — 보증금 몰수가 맞는 크기다. 그래서 고객 보증금은 거래가 닫힐 때 사유대로 처리한다
+> (`expired:no-account` = 몰수). 진실은 `shared/src/ln/outcomes.ts`·PROTOCOL.md 닫기 사유 표.
 
 ### 만료 시 자동 처리
 

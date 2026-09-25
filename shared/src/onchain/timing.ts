@@ -99,6 +99,20 @@ export const ONCHAIN_EVENT_HORIZON_SEC = 70 * DAY;
 export const TERMINAL_GRACE_SEC = 7 * DAY;
 
 /**
+ * 창 길이 묶음 — 데몬이 운영자 상태에 실어 보내고 어드민이 자기 값과 견준다(2026-09-25). 데몬만 옛 이미지로
+ * 돌면 오더에 찍히는 마감과 앱 문구가 어긋난다(입금 "2시간 안에"인데 카운트다운은 6시간) — 그걸 화면에 드러낸다.
+ */
+export const ONCHAIN_WINDOWS = {
+  funding: FUNDING_WINDOW_SEC,
+  presign: PRESIGN_WINDOW_SEC,
+  account: ACCOUNT_WINDOW_SEC,
+  krw: KRW_WINDOW_SEC,
+  cosign: COSIGN_WINDOW_SEC,
+} as const;
+
+export type OnchainWindows = Record<keyof typeof ONCHAIN_WINDOWS, number>;
+
+/**
  * 총 옵션 창의 상한(지금 15+60+30 = 105분). 앞 두 마감이 T0에 묶여 있어 **합이 이걸 못 넘는다.**
  * 보증금은 이 구간의 변동폭을 덮어야 한다(§2.4) — 계좌 창을 늘리며 60분에서 늘었다(`ACCOUNT_WINDOW_SEC`).
  */
@@ -160,12 +174,17 @@ export function cosignDeadlineFrom(remittedAt: number): number {
  * 늦은 계좌·늦은 송금 주장이 그대로 받아들여진다(리뷰 #8). 마감은 **양쪽이 같은
  * 함수로** 본다.
  */
-export function presignDeadlineOf(order: { fundedAt?: number }): number | undefined {
-  return order.fundedAt ? presignDeadlineFrom(order.fundedAt) : undefined;
+export function presignDeadlineOf(order: { fundedAt?: number; presignDeadline?: number }): number | undefined {
+  // 데몬이 찍은 값이 먼저다 — 화면과 데몬이 같은 숫자를 본다. 없으면(옛 오더) 계산한다
+  return order.presignDeadline ?? (order.fundedAt ? presignDeadlineFrom(order.fundedAt) : undefined);
 }
 
-export function accountDeadlineOf(order: { presignedAt?: number }): number | undefined {
-  return order.presignedAt ? accountDeadlineFrom(order.presignedAt) : undefined;
+export function accountDeadlineOf(order: { presignedAt?: number; accountDeadline?: number }): number | undefined {
+  return order.accountDeadline ?? (order.presignedAt ? accountDeadlineFrom(order.presignedAt) : undefined);
+}
+
+export function cosignDeadlineOf(order: { remittedAt?: number; cosignDeadline?: number }): number | undefined {
+  return order.cosignDeadline ?? (order.remittedAt ? cosignDeadlineFrom(order.remittedAt) : undefined);
 }
 
 export function krwDeadlineOf(
@@ -293,10 +312,13 @@ export function currentOnchainDeadline(
     expiration: number;
     fundingDeadline?: number;
     fundedAt?: number;
+    presignDeadline?: number;
     presignedAt?: number;
+    accountDeadline?: number;
     accountSentAt?: number;
     krwDeadline?: number;
     remittedAt?: number;
+    cosignDeadline?: number;
     settlingAt?: number;
     updatedAt: number;
   },
@@ -311,18 +333,24 @@ export function currentOnchainDeadline(
     case 'bonded':
       return order.fundingDeadline ? deadline('funding', order.fundingDeadline, viewer) : null;
 
-    case 'funded':
-      return order.fundedAt ? deadline('presign', presignDeadlineFrom(order.fundedAt), viewer) : null;
+    case 'funded': {
+      const at = presignDeadlineOf(order);
+      return at ? deadline('presign', at, viewer) : null;
+    }
 
-    case 'presigned':
+    case 'presigned': {
       // 한 상태 안에서 주인이 바뀐다 — 계좌가 나가기 전엔 고객, 그 뒤엔 후원자.
       if (!order.accountSentAt) {
-        return order.presignedAt ? deadline('account', accountDeadlineFrom(order.presignedAt), viewer) : null;
+        const at = accountDeadlineOf(order);
+        return at ? deadline('account', at, viewer) : null;
       }
       return deadline('krw', order.krwDeadline ?? krwDeadlineFrom(order.accountSentAt), viewer);
+    }
 
-    case 'remitted':
-      return order.remittedAt ? deadline('cosign', cosignDeadlineFrom(order.remittedAt), viewer) : null;
+    case 'remitted': {
+      const at = cosignDeadlineOf(order);
+      return at ? deadline('cosign', at, viewer) : null;
+    }
 
     case 'settling':
       // 하드 마감이 아니다 — 넘겨도 잃는 게 없고 CPFP 안내만 뜬다.

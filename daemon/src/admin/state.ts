@@ -11,6 +11,7 @@ import { finalizeEvent } from 'nostr-tools/pure';
 import {
   ADMIN_STATE_KIND, adminStateDTag, nip44Encrypt, type AdminState,
 } from '@sajwo-tracker/shared/core';
+import { ONCHAIN_WINDOWS } from '@sajwo-tracker/shared/onchain';
 import type { EffectExecutor } from '../effects';
 import type { RelayTransport } from '../nostr/transport';
 import { openAlerts } from './alerts';
@@ -45,6 +46,7 @@ export function buildAdminState(ctx: AdminContext): AdminState {
     mode: ctx.mode,
     startedAt: ctx.startedAt,
     epoch: ctx.epoch,
+    onchainWindows: { ...ONCHAIN_WINDOWS },
     heartbeatAt: nowSec(ctx),
     relays: [...ctx.relays],
     settings: loadSettings(ctx.db),

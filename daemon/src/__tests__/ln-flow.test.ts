@@ -121,7 +121,7 @@ describe('정상 흐름 — 보증금 없이', () => {
 });
 
 describe('보증금 (D5)', () => {
-  it('고객 보증금 → 오더 생성 → 에스크로가 잡히면 환불', async () => {
+  it('고객 보증금 → 오더 생성 → 에스크로 뒤에도 붙잡고 → 정상 완료 때 환불', async () => {
     const h = await createLnHarness();
     setDeposits(h, 2, 0);
     const orderId = await openOrder(h, { price: 100_000 });
@@ -145,9 +145,64 @@ describe('보증금 (D5)', () => {
     await claim(h, orderId);
     await payEscrow(h, orderId);
     expect(h.order(orderId)!.state).toBe('escrowed');
-    // 실결제가 담보를 대신한다
+    // 에스크로 뒤에도 고객이 할 일(계좌 전달)이 남는다 — 아직 돌려주지 않는다(2026-09-25)
+    expect(h.node.stateOf(dep.payment_hash)).toBe('accepted');
+    expect(messagesTo(h, h.customer.pubkey, REQUEST_ACTIONS.DEPOSIT_CANCELLED)).toHaveLength(0);
+
+    await submitInvoice(h, orderId);
+    await sendAccount(h, orderId);
+    await confirmPaid(h, orderId);
+    expect(h.order(orderId)!.state).toBe('paid');
     expect(h.node.stateOf(dep.payment_hash)).toBe('cancelled');
     expect(messagesTo(h, h.customer.pubkey, REQUEST_ACTIONS.DEPOSIT_CANCELLED)).toHaveLength(1);
+  });
+
+  /** 에스크로까지 걸고 계좌를 안 보내면 후원자 시간만 버린다 — 본자금은 돌려주고 보증금은 몰수 (2026-09-25) */
+  it('계좌를 기한까지 안 보내면 expired:no-account — 고객 보증금 몰수, 에스크로·후원자 보증금은 환불', async () => {
+    const h = await createLnHarness();
+    setDeposits(h, 2, 3);
+    const orderId = await openOrder(h, { deadlineIn: 2 * DAY });
+    h.node.pay(tagOf(messagesTo(h, h.customer.pubkey, REQUEST_ACTIONS.DEPOSIT_REQUIRED)[0], 'bolt11')!);
+    await h.run();
+    await claim(h, orderId);
+    h.node.pay(tagOf(messagesTo(h, h.sponsor.pubkey, REQUEST_ACTIONS.DEPOSIT_REQUIRED)[0], 'bolt11')!);
+    await h.run();
+    await payEscrow(h, orderId);
+    await submitInvoice(h, orderId);
+    const o = h.order(orderId)!;
+    expect(o.state).toBe('invoiced');
+    // 고객 보증금 HTLC가 닫힐 때까지 살아야 몰수할 수 있다 — 가짜 노드는 결제된 HTLC를 만료시키지 않으므로
+    // CLTV를 직접 본다: 후원자 보증금만큼(기한 + 유예 + 에스크로 여유 + 하루) 산다
+    const customerDep = h.ln.holds.get(o.customer_deposit_hash!)!;
+    const sponsorDep = h.ln.holds.get(o.sponsor_deposit_hash!)!;
+    expect(customerDep.cltv_blocks * 600).toBeGreaterThanOrEqual(2 * DAY + 49 * HOUR);
+    expect(customerDep.cltv_blocks).toBeGreaterThanOrEqual(sponsorDep.cltv_blocks - 6); // 만든 시각 차이만큼만
+
+    h.advance(2 * DAY + 2 * HOUR); // 기한 + 유예가 지났다, 계좌는 끝내 안 왔다
+    await h.run(6);
+    const closed = h.order(orderId)!;
+    expect(closed).toMatchObject({ state: 'expired', close_reason: 'expired:no-account' });
+    expect(h.node.stateOf(o.customer_deposit_hash!)).toBe('settled');
+    expect(h.node.stateOf(o.sponsor_deposit_hash!)).toBe('cancelled');
+    expect(h.node.stateOf(o.escrow_hash!)).toBe('cancelled');
+  });
+
+  it('계좌가 나갔으면 누구 탓인지 모른다 — expired:no-remit, 보증금 전부 환불 (D4)', async () => {
+    const h = await createLnHarness();
+    setDeposits(h, 2, 0);
+    const orderId = await openOrder(h, { deadlineIn: 2 * DAY });
+    h.node.pay(tagOf(messagesTo(h, h.customer.pubkey, REQUEST_ACTIONS.DEPOSIT_REQUIRED)[0], 'bolt11')!);
+    await h.run();
+    await claim(h, orderId);
+    await payEscrow(h, orderId);
+    await submitInvoice(h, orderId);
+    await sendAccount(h, orderId);
+    const o = h.order(orderId)!;
+
+    h.advance(2 * DAY + 2 * HOUR);
+    await h.run(6);
+    expect(h.order(orderId)).toMatchObject({ state: 'expired', close_reason: 'expired:no-remit' });
+    expect(h.node.stateOf(o.customer_deposit_hash!)).toBe('cancelled');
   });
 
   it('고객 보증금을 한 시간 안에 안 내면 의뢰가 사라진다', async () => {

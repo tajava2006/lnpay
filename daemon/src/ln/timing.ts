@@ -46,11 +46,14 @@ export const SPONSOR_DEPOSIT_PAY_SEC = 15 * MIN;
 /** 고객 보증금 결제 창 — 의뢰를 올린 사람은 지금 앱을 보고 있다 */
 export const CUSTOMER_DEPOSIT_PAY_SEC = 1 * HOUR;
 
-/** 고객 보증금이 기한 뒤로 더 살아야 하는 시간 (몰수는 에스크로 전까지만 일어난다) */
-export const CUSTOMER_DEPOSIT_MARGIN_SEC = 1 * DAY;
-
 /** 후원자 보증금은 분쟁 판정까지 살아야 한다 — 기한 + 유예 + 에스크로 HTLC 여유 + 하루 */
 export const SPONSOR_DEPOSIT_MARGIN_SEC = DEADLINE_GRACE_SEC + ESCROW_HOLD_MARGIN_SEC + 1 * DAY;
+
+/**
+ * 고객 보증금도 거래가 닫힐 때까지 산다 — 에스크로 뒤에도 몰수가 있다(`expired:no-account`, 2026-09-25).
+ * 예전엔 에스크로 때 돌려줘서 기한 + 하루면 됐다. 7일 기한이면 ≈ 1446블록 — `CLTV_MAX_BLOCKS` 안이다.
+ */
+export const CUSTOMER_DEPOSIT_MARGIN_SEC = SPONSOR_DEPOSIT_MARGIN_SEC;
 
 /** 받는 쿠팡 기한의 상한 — 근거는 shared `LN_MAX_DEADLINE_LEAD_SEC` (유저 앱 입력 폼과 같은 값) */
 export const MAX_DEADLINE_LEAD_SEC = LN_MAX_DEADLINE_LEAD_SEC;

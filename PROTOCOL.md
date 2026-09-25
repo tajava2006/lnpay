@@ -233,9 +233,13 @@ admin_closed: escrowed, invoiced에서만. 운영자 명령
 | `expired:no-sponsor` · `expired:not-approved` | expired | — | 환불 | 환불 |
 | `expired:unpaid-escrow` | expired | 무효 | **몰수** | 환불 |
 | `expired:no-invoice` (escrowed) | expired | 환불 | 환불 | **몰수** (§14 D4) |
-| `expired:no-remit` (invoiced) | expired | 환불 | 환불 | 환불 (계좌가 나간 뒤라 원화가 오갔을 수 있다) |
+| `expired:no-account` (invoiced, 계좌 안 보냄) | expired | 환불 | **몰수** | 환불 |
+| `expired:no-remit` (invoiced, 계좌 보냄) | expired | 환불 | 환불 | 환불 (계좌가 나간 뒤라 원화가 오갔을 수 있다) |
 
-고객 보증금은 에스크로가 잡히는 순간(`escrowed`) 돌려준다 — 실결제가 담보를 대신한다.
+고객 보증금은 **거래가 닫힐 때** 위 표대로 처리한다(2026-09-25). 예전엔 에스크로가 잡히는 순간 "실결제가 담보를
+대신한다"며 돌려줬는데, 에스크로 뒤에도 고객이 할 일(계좌 전달)이 남는다 — 안 하면 후원자 시간만 버린다.
+본자금을 뺏을 잘못은 아니지만 보증금 몰수는 맞다(`expired:no-account`). 그래서 고객 보증금 HTLC도 후원자 보증금과
+같은 시간(기한 + 73시간)을 산다.
 
 > `state` 태그는 다중 문자이므로 릴레이 인덱싱이 보장되지 않는다.
 > 필터링은 클라이언트 사이드에서 수행한다.
@@ -1041,7 +1045,7 @@ swept:     어드민이 만들지 않는다 — **체인에서 관측**한다 (�
 
 | 사유 | 후원자 보증금 | 고객 보증금 |
 |---|---|---|
-| `release` | 환불 | 환불 |
+| `release` | 환불 — **고객 릴리스 서명을 받는 순간**(컨펌 전) | 환불 — 같은 때 |
 | `refund:reserve` (시세 < 최저가) | 환불 | 환불 |
 | `refund:sponsor-timeout` | **몰수** | 환불 |
 | `refund:customer-late` (계좌 미공개) | 환불 | **몰수** |
@@ -1065,17 +1069,22 @@ swept:     어드민이 만들지 않는다 — **체인에서 관측**한다 (�
 | 상태 | 마감 | 초과 시 |
 |---|---|---|
 | `listed` | 의뢰 만료 (**최대 7일**) | `cancelled` |
-| `bonded` | **6시간 (컨펌까지)** | `cancelled`, 고객 보증금 몰수 |
+| `bonded` | **2시간 (컨펌까지)** | `cancelled`, 고객 보증금 몰수 |
 | `funded` | T0+15분 | `refunding` (`refund:sponsor-timeout`) |
-| `presigned` (고객) | 계좌 공개 = +15분 | `refunding` (`refund:customer-late`) |
+| `presigned` (고객) | 계좌 공개 = +1시간 | `refunding` (`refund:customer-late`) |
 | `presigned` (후원자) | 송금 = **계좌 공개 +30분** | `refunding` (`refund:sponsor-timeout` · 이의가 있었으면 `refund:account-disputed`) |
 | `remitted` | 24시간 | **`disputed` 강제 전이** (동의 불필요) |
 | `disputed` | **하드 마감 없음** (에스컬레이션만) | 자동 해소는 어느 방향이든 탈취다. 판정 예산 24h 뒤엔 몰수를 못 할 수 있다 |
 | `refunding` | **없음** (6시간마다 서명 재요청) | 고객 자기 돈이고 고객만 서명할 수 있다. 최후는 타임락 |
 | `settling` | 24시간 | CPFP 안내. 멤풀에서 사라지면 같은 바이트 재브로드캐스트 |
 
-총 옵션 창은 **T0+60분을 넘지 않는다** — 앞 두 마감이 T0에 묶여 있고, 후원자
+총 옵션 창은 **T0+105분을 넘지 않는다** — 앞 두 마감이 T0에 묶여 있고, 후원자
 마감만 계좌 공개를 기준으로 센다(고객 지연이 후원자를 치지 않게).
+
+**마감은 데몬이 오더에 찍는다** — `funding-deadline`·`presign-deadline`·`account-deadline`·`krw-deadline`·
+`cosign-deadline` 태그(2026-09-25). 앱은 이 값을 보여주고 데몬도 이 값으로 판정한다. 예전엔 사전서명·계좌·입금
+확인 마감을 양쪽이 각자 상수로 계산해서, 데몬만 옛 버전이면 앱은 1시간이라는데 데몬은 15분에 끊을 수 있었다.
+태그가 없는 옛 오더는 계산한다.
 
 타임락은 **8064블록(≈8주)** 상대 타임락(CSV)이다. 펀딩 컨펌부터 세므로 원화가
 흐르는 시점에는 언제나 만기 전량이 남아 있다.

@@ -173,6 +173,14 @@ export function LnOrderCard({ orderId, archived, tracker, onOpen, allowDelete }:
         {roleLabel && <span style={styles.role}>{roleLabel}</span>}
       </div>
 
+      {/* 얼마에 거래했는지 — 금액만으로는 단가가 안 보인다(2026-09-25). 승인 때 시세로 정한 지급액이 기준이다 */}
+      {order?.payoutSat && view.price > 0 && (
+        <p style={styles.note}>
+          1 BTC = {Math.round((view.price * 1e8) / order.payoutSat).toLocaleString()}원
+          {view.role === 'sponsor' ? ` · 받을 ${order.payoutSat.toLocaleString()} sats` : ''}
+        </p>
+      )}
+
       {local && (local.memo || local.coupangOrderId || local.fixedAccountInfo) && (
         <div style={styles.localInfo}>
           {local.memo && <span>{local.memo}</span>}

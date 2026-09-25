@@ -47,11 +47,11 @@ export {
   DISPUTE_ESCALATION_SEC, MAX_OPTION_WINDOW_SEC, MAX_TRADE_DURATION_SEC,
   DISPUTE_RULING_BUDGET_SEC, ONCHAIN_EVENT_HORIZON_SEC, TERMINAL_GRACE_SEC,
   fundingDeadlineFrom, presignDeadlineFrom, accountDeadlineFrom, krwDeadlineFrom,
-  cosignDeadlineFrom, isOrderExpiryAllowed, currentOnchainDeadline, durationText,
-  presignDeadlineOf, accountDeadlineOf, krwDeadlineOf, isPast,
+  cosignDeadlineFrom, isOrderExpiryAllowed, currentOnchainDeadline, durationText, ONCHAIN_WINDOWS,
+  presignDeadlineOf, accountDeadlineOf, cosignDeadlineOf, krwDeadlineOf, isPast,
   onchainOrderEventExpiration, onchainMessageExpiration,
 } from './timing';
-export type { DeadlineViewer, OnchainDeadline } from './timing';
+export type { DeadlineViewer, OnchainDeadline, OnchainWindows } from './timing';
 
 export { isOnchainClaimPayload, isOnchainPsbtPayload, isOnchainOrderRequestPayload } from './requests';
 export type {
@@ -120,6 +120,7 @@ export {
   ONCHAIN_PROGRESS_STEPS,
   onchainStepActor,
   resolveOnchainProgress,
+  settlementSummary,
 } from './progress';
 export type {
   OnchainRole, StepStatus, OnchainStepActor, StepAction, OnchainProgressStep,

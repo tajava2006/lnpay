@@ -16,7 +16,7 @@
  * 수수료는 몇 분마다 받아 둔다(핸들러가 네트워크 없이 쓴다, `fees.ts`).
  */
 import {
-  FUNDING_WINDOW_SEC, OUTCOME_RULES, deriveEscrowAddress, isOnchainTerminal, leafOfWitness, parseOutpoint,
+  FUNDING_WINDOW_SEC, OUTCOME_RULES, deriveEscrowAddress, presignDeadlineFrom, isOnchainTerminal, leafOfWitness, parseOutpoint,
   settlementLeafFor, settlementPathForKind,
   type AddressFunds, type ChainQuery, type OnchainOrder, type OnchainOutcome, type SettlementKind, type TxStatus,
 } from '@sajwo-tracker/shared/onchain';
@@ -225,6 +225,7 @@ export class OcWatcher {
           fundingOutpoint: `${action.outpoint.txid}:${action.outpoint.vout}`,
           fundingConfs: action.confirmations,
           fundedAt: now,
+          presignDeadline: presignDeadlineFrom(now),
           priceKrw: action.priceKrw,
           payoutSat,
           releaseFeeSat,
@@ -260,10 +261,12 @@ export class OcWatcher {
           fundingOutpoint: undefined,
           fundingConfs: undefined,
           fundedAt: undefined,
+          presignDeadline: undefined,
           priceKrw: undefined,
           payoutSat: undefined,
           releaseFeeSat: undefined,
           presignedAt: undefined,
+          accountDeadline: undefined,
           accountSentAt: undefined,
           krwDeadline: undefined,
           accountDisputedAt: undefined,
@@ -284,7 +287,7 @@ export class OcWatcher {
           return;
         }
         const done = transition({ state: OUTCOME_RULES[kind].terminal });
-        // 보증금은 대개 결정 때 이미 처리됐다(받은 것만 건드려서 두 번째는 아무것도 안 한다). 릴리스는 여기서 처음이다
+        // 보증금은 결정 때 이미 처리됐다(릴리스는 고객 서명 때). 받은 것만 건드려서 두 번째는 아무것도 안 한다 — 안전망
         applyOutcome(ctx, done, kind);
         return;
       }

@@ -16,7 +16,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { InvoicePayBlock } from '@sajwo-tracker/shared';
 import {
   ACCOUNT_WINDOW_SEC, MempoolChainAdapter, accountDeadlineOf, canActOnSignRequest, durationText, isPast, krwDeadlineOf,
-  onchainStateDisplay, presignDeadlineOf,
+  onchainStateDisplay, presignDeadlineOf, settlementSummary,
   type AddressFunds, type ChainQuery, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrdersSnapshot, myOnchainOrders, roleIn, subscribeOnchainOrders } from '../store';
@@ -205,10 +205,16 @@ export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signReq
       {order.priceKrw !== undefined && (
         <p style={styles.price}>
           확정 금액 <strong>{order.priceKrw.toLocaleString()}원</strong>
+          {/* 얼마에 거래했는지 — 금액·수량만으로는 단가가 안 보인다(2026-09-25). 입금 컨펌 시점 시세다 */}
+          <span style={styles.sub}> · 1 BTC = {Math.round((order.priceKrw * 1e8) / order.amountSat).toLocaleString()}원</span>
           {role === 'sponsor' && order.payoutSat !== undefined && (
             <span style={styles.sub}> · 받을 {order.payoutSat.toLocaleString()} sats</span>
           )}
         </p>
+      )}
+
+      {order.state === 'settling' && order.settlementKind && (
+        <p style={styles.okText}>{settlementSummary(role, order.settlementKind)}</p>
       )}
 
       {notice && (

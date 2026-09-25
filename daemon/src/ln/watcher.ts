@@ -92,7 +92,7 @@ export class LnWatcher {
     // ── 쿠팡 기한 (L-2) · 에스크로 만기
     for (const order of ordersInStates(ctx, ['requested', 'claimed', 'verified', 'escrowed', 'invoiced'])) {
       if (order.pending_close) continue;
-      const reason = expiryReasonFor(order.state, order.sponsor !== null);
+      const reason = expiryReasonFor(order.state, order.sponsor !== null, order.account_sent_at !== null);
       if (!reason) continue;
       if (warmedUp && now > this.closeAt(order)) {
         beginClose(ctx, order, reason);

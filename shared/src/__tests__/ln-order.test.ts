@@ -104,6 +104,14 @@ describe('닫기 사유 (CLOSE_RULES)', () => {
     expect(settles.sort()).toEqual(['paid', 'sponsor_wins']);
   });
 
+  /** 2026-09-25 — 고객 보증금이 에스크로 뒤에도 살아 있어 이 몰수가 가능해졌다 */
+  it('invoiced 만료는 계좌가 나갔는지로 갈린다 — 안 나갔으면 고객 몰수, 나갔으면 전부 환불(D4)', () => {
+    expect(expiryReasonFor('invoiced', true, false)).toBe('expired:no-account');
+    expect(CLOSE_RULES['expired:no-account']).toMatchObject({ customerDeposit: 'forfeit', sponsorDeposit: 'refund', escrow: 'cancel' });
+    expect(expiryReasonFor('invoiced', true, true)).toBe('expired:no-remit');
+    expect(CLOSE_RULES['expired:no-remit']).toMatchObject({ customerDeposit: 'refund', sponsorDeposit: 'refund' });
+  });
+
   it('기한 만료: remitted 이후는 닫지 않는다 — 원화가 갔다는 주장은 판정으로', () => {
     const all = Object.values(ORDER_STATES) as OrderState[];
     for (const s of all) {

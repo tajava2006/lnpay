@@ -32,6 +32,8 @@ export type LnCloseReason =
   | 'expired:unpaid-escrow'
   /** 에스크로는 들어왔는데 후원자가 받을 인보이스를 끝내 안 냈다 */
   | 'expired:no-invoice'
+  /** 후원자 인보이스까지 받았는데 고객이 계좌를 끝내 안 보냈다 — 후원자는 송금할 수 없었다 */
+  | 'expired:no-account'
   /** 계좌까지 나갔는데 송금 완료도 입금 확인도 없이 기한이 지났다 */
   | 'expired:no-remit';
 
@@ -62,6 +64,9 @@ export const CLOSE_RULES: Record<LnCloseReason, CloseRule> = {
   'expired:unpaid-escrow': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'forfeit', sponsorDeposit: 'refund' },
   // PLAN-DAEMON §14 D4 — 인보이스도 안 내고 떠난 건 공짜 옵션이다. 닫는다
   'expired:no-invoice': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'refund', sponsorDeposit: 'forfeit' },
+  // 계좌를 안 보내 후원자 시간만 버렸다 — 본자금을 뺏을 잘못은 아니지만 보증금 몰수는 맞다(2026-09-25).
+  // 고객 보증금이 에스크로 뒤에도 살아 있는 이유다(예전엔 에스크로 때 돌려줘서 이 몰수가 불가능했다)
+  'expired:no-account': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'forfeit', sponsorDeposit: 'refund' },
   // 계좌까지 받은 뒤는 원화가 오갔을 수 있다 — 몰수가 피해자를 칠 수 있어 돌려준다(D4)
   'expired:no-remit': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'refund', sponsorDeposit: 'refund' },
 };
@@ -79,6 +84,7 @@ export const LN_CLOSE_REASON_LABEL: Record<LnCloseReason, string> = {
   'expired:not-approved': '기한까지 승인되지 않음',
   'expired:unpaid-escrow': '기한까지 결제되지 않음 (고객 보증금 몰수)',
   'expired:no-invoice': '후원자가 받을 인보이스를 끝내 내지 않음 (후원자 보증금 몰수)',
+  'expired:no-account': '고객이 기한까지 계좌를 보내지 않음 (고객 보증금 몰수)',
   'expired:no-remit': '기한까지 송금 완료가 없음 (보증금 전부 환불)',
 };
 
@@ -91,13 +97,14 @@ export function isLnCloseReason(value: string | undefined): value is LnCloseReas
  *
  * `remitted` 이후는 닫지 않는다 — 원화가 갔다는 주장이 있으면 분쟁 판정(사람)으로 끝낸다.
  */
-export function expiryReasonFor(state: OrderState, hasSponsor: boolean): LnCloseReason | null {
+export function expiryReasonFor(state: OrderState, hasSponsor: boolean, accountSent = false): LnCloseReason | null {
   switch (state) {
     case 'requested': return 'expired:no-sponsor';
     case 'claimed': return hasSponsor ? 'expired:not-approved' : 'expired:no-sponsor';
     case 'verified': return 'expired:unpaid-escrow';
     case 'escrowed': return 'expired:no-invoice';
-    case 'invoiced': return 'expired:no-remit';
+    // 계좌가 나갔는지로 가른다 — 안 나갔으면 고객 탓(후원자는 보낼 곳이 없었다), 나갔으면 누구 탓인지 모른다
+    case 'invoiced': return accountSent ? 'expired:no-remit' : 'expired:no-account';
     default: return null;
   }
 }

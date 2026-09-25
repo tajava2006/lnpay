@@ -145,7 +145,7 @@ export function createLnHoldHooks(ctx: LnContext): HoldHooks {
           dedup: `ln:${order.order_id}:escrow-timed-out`, level: 'anomaly', track: 'ln', orderId: order.order_id,
           message: `에스크로 HTLC가 만기로 고객에게 돌아갔다(${order.state}) — 후원자 송금 여부를 확인해야 한다`,
         });
-        const reason = expiryReasonFor(order.state, order.sponsor !== null);
+        const reason = expiryReasonFor(order.state, order.sponsor !== null, order.account_sent_at !== null);
         if (reason) beginClose(ctx, order, reason);
       }
     },
@@ -312,7 +312,13 @@ export function approve(ctx: LnContext, order: LnOrderRow): ApproveError | null 
   return null;
 }
 
-/** 에스크로가 잡혔다 (`verified → escrowed`). 고객 보증금은 여기서 돌려준다 — 실결제가 담보를 대신한다 */
+/**
+ * 에스크로가 잡혔다 (`verified → escrowed`).
+ *
+ * 고객 보증금은 **여기서 돌려주지 않는다**(2026-09-25). 예전엔 "실결제가 담보를 대신한다"며 여기서 돌려줬는데,
+ * 에스크로 뒤에도 고객이 할 일(계좌 전달)이 남는다 — 안 하면 후원자 시간만 버린다. 본자금을 뺏을 잘못은
+ * 아니지만 보증금 몰수 정도는 맞다(`expired:no-account`). 보증금은 닫을 때 사유대로(`CLOSE_RULES`) 처리한다.
+ */
 function onEscrowAccepted(ctx: LnContext, inv: HoldRow): void {
   const order = getOrder(ctx, inv.order_id);
   if (!order || order.escrow_hash !== inv.payment_hash) {
@@ -324,10 +330,6 @@ function onEscrowAccepted(ctx: LnContext, inv: HoldRow): void {
 
   const escrowed = updateOrder(ctx, order.order_id, { state: 'escrowed' });
   notifyLnTransition(ctx, escrowed);
-  if (order.customer_deposit_hash) {
-    const dep = ctx.holds.get(order.customer_deposit_hash);
-    if (dep && (dep.status === 'open' || dep.status === 'accepted')) ctx.holds.dispose(dep.payment_hash, 'cancel');
-  }
 }
 
 // ── 닫기 ────────────────────────────────────────────────────

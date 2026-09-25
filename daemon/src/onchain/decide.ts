@@ -22,7 +22,7 @@
  * `PinnedFacts`로 넘기고, 여기서는 그 사실대로만 말한다.
  */
 import {
-  cosignDeadlineFrom, COSIGN_GRACE_WARNING_SEC, DISPUTE_ESCALATION_SEC,
+  cosignDeadlineFrom, cosignDeadlineOf, COSIGN_GRACE_WARNING_SEC, DISPUTE_ESCALATION_SEC,
   accountDeadlineOf, krwDeadlineOf, presignDeadlineOf, isPast, SETTLING_WARN_SEC,
   type EscrowLeafName, type OnchainOrder, type Outpoint, type SettlementKind,
 } from '@sajwo-tracker/shared/onchain';
@@ -232,7 +232,7 @@ function decidePresigned(order: OnchainOrder, ctx: OnchainWatchContext): Onchain
 }
 
 function decideRemitted(order: OnchainOrder, ctx: OnchainWatchContext): OnchainAction {
-  const deadline = cosignDeadlineFrom(order.remittedAt ?? 0);
+  const deadline = cosignDeadlineOf(order) ?? cosignDeadlineFrom(0);
   if (ctx.now >= deadline) return { kind: 'dispute' };
   // 유예 경고 — 느린 고객 대부분이 여기서 스스로 끝낸다(§7.5). 한 번만 보낸다.
   if (ctx.now >= deadline - COSIGN_GRACE_WARNING_SEC) return { kind: 'dispute-soon' };

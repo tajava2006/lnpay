@@ -15,7 +15,7 @@ import {
 import { ONCHAIN_STATE_DISPLAY, onchainStateDisplay } from '../onchain/display';
 import type { SettlementKind } from '../onchain/state-machine';
 import {
-  ONCHAIN_PROGRESS_STEPS, onchainStepActor, resolveOnchainProgress,
+  ONCHAIN_PROGRESS_STEPS, onchainStepActor, resolveOnchainProgress, settlementSummary,
 } from '../onchain/progress';
 
 const ALL = Object.values(ONCHAIN_STATES);
@@ -248,5 +248,15 @@ describe('종결 대기 — CPFP 안내', () => {
   it('종결 사유를 모르면 양쪽에 조건부로', () => {
     expect(cpfp('customer')[0]?.optional).toBe(true);
     expect(cpfp('sponsor')[0]?.optional).toBe(true);
+  });
+});
+
+/** 종결 tx 대기 중에도 어떤 종결인지 보인다 — 컨펌 전엔 상태가 settling 하나라 안 보였다 (2026-09-25) */
+describe('settlementSummary', () => {
+  it('정상 지급과 판정을 가르고, 보는 사람 입장에서 말한다', () => {
+    expect(settlementSummary('customer', 'release')).toBe('정상 완료 — 비트코인이 상대방에게 갑니다');
+    expect(settlementSummary('sponsor', 'sponsor_win')).toBe('분쟁 판정(송금 인정) — 비트코인이 나에게 옵니다');
+    expect(settlementSummary('customer', 'customer_win')).toMatch(/송금 불인정.*나에게 돌아옵니다/);
+    expect(settlementSummary('sponsor', 'refund:customer-late')).toMatch(/^환불 — .*상대방에게/);
   });
 });

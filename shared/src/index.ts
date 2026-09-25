@@ -15,7 +15,6 @@ export {
   DISCOVERY_RELAYS,
   FALLBACK_RELAYS,
   VAPID_PUBLIC_KEY,
-  NOSTR_DM_NOTIFICATIONS,
   NOSTR_SINCE,
   REQUEST_ACTIONS,
   ORDER_STATES,
@@ -29,13 +28,12 @@ export { createWebStorage, storage } from './storage';
 
 // Keys
 export { ensureKeypair, getSecretKey, getUserPubkey } from './keys';
-export { ensureIdentityPublished } from './identity-publish';
 
 // 구독용 릴레이 pool
 export { createSubscriptionPool } from './relay-pool';
 
 // Relays
-export { subscribeRelayLists, getReadRelays, getWriteRelays, refreshRelayLists } from './relays';
+export { subscribeRelayLists, getReadRelays, refreshRelayLists } from './relays';
 
 // Crypto (NIP-44)
 export { nip44Encrypt, nip44Decrypt, sha256Hex } from './crypto';
@@ -61,9 +59,6 @@ export {
   idbUpsertMessage, idbGetMessagesByOrderId, idbDeleteMessage,
   idbGetOrdersPage,
   idbMigrateOrderWithRequests,
-  isAbandonedOrder,
-  idbFindAbandonedOrders,
-  idbDeleteOrders,
 } from './idb';
 
 // 분쟁 채팅 on-demand 구독 (고객·후원자 공용)
@@ -96,8 +91,6 @@ export { sponsorRelation } from './sponsor-relation';
 export type { SponsorRelation } from './sponsor-relation';
 
 // 키 단위 재진입 가드
-export { createSingleFlight } from './single-flight';
-export type { SingleFlight } from './single-flight';
 
 // 구독 생명주기 가드
 export { createSubscriptionGuard } from './subscription-guard';
@@ -113,7 +106,7 @@ export {
 export { sendChatMessage, retryChatMessage } from './chat-send';
 export type { PreparedChatMessage } from './chat-send';
 
-// 운영자 ↔ 데몬 약속 (PLAN-DAEMON §5)
+// 운영자 ↔ 데몬 약속
 export {
   ADMIN_ACTIONS, ADMIN_COMMAND_TTL_SEC, ADMIN_STATE_KIND, ADMIN_STATE_STALE_SEC, DEFAULT_SETTINGS,
   MAX_CHAT_TEXT, MAX_DEPOSIT_PCT, adminOrderDTag, adminOrderDTagPrefix, adminStateDTag, applySettingsPatch,

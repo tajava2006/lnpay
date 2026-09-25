@@ -1,11 +1,11 @@
 /**
- * 주문별 키 파생 (PLAN-ONCHAIN-TRACK §3.2 · §3.3)
+ * 주문별 키 파생
  *
  * 여기서 지키는 건 셋이다:
  *   ① **결정론** — 같은 nostr 키 + 같은 orderId면 언제나 같은 키. 깨지면 기기를
  *      바꾼 유저가 자기 에스크로를 못 연다(= 자금 유실).
  *   ② **비연결성** — 파생 키가 nostr 신원과 이어지면 안 된다. 그게 이 파생의 목적이다.
- *   ③ **세 키 상이** — 겹치면 2-of-3 보장이 사라진다(공격 H).
+ *   ③ **세 키 상이** — 겹치면 2-of-3 보장이 사라진다(T-108).
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -13,7 +13,6 @@ import {
   assertEscrowKeys,
   deriveOrderKey,
   findDuplicateEscrowKey,
-  generateOrderKey,
   isValidScalar,
   xonlyFromPrivkey,
 } from '../onchain/keys';
@@ -97,17 +96,7 @@ describe('스칼라 범위', () => {
   });
 });
 
-describe('어드민 키 생성', () => {
-  it('부를 때마다 다른 유효 키가 나온다', () => {
-    const a = generateOrderKey();
-    const b = generateOrderKey();
-    expect(isValidScalar(a.privkey)).toBe(true);
-    expect(isXonlyHex(a.xonly)).toBe(true);
-    expect(a.xonly).not.toBe(b.xonly);
-  });
-});
-
-describe('세 키 상이 (공격 H)', () => {
+describe('세 키 상이 (T-108)', () => {
   const keys = {
     customer: 'aa'.repeat(32),
     sponsor: 'bb'.repeat(32),

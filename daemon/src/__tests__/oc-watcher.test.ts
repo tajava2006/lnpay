@@ -133,7 +133,7 @@ describe('소모 관측', () => {
   });
 });
 
-describe('옛 판단으로 새 상태를 덮지 않는다 (리뷰 #8)', () => {
+describe('옛 판단으로 새 상태를 덮지 않는다', () => {
   it('조회하는 사이 오더가 바뀌었으면(버전이 다르면) 아무것도 하지 않는다', async () => {
     const h = await createOcHarness();
     const orderId = await openOc(h);

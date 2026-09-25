@@ -2,10 +2,10 @@
  * 온체인 트랙 (2-of-3 taproot 에스크로) 공용 모듈.
  *
  * 라이트닝 트랙과 **의도적으로 분리**돼 있다 — 상태·탭·`CLIENT_TAG`가 다르고,
- * 온체인 트랙은 독립적으로 붙였다 뗐다 할 수 있어야 한다(PLAN §1).
+ * 온체인 트랙은 독립적으로 붙였다 뗐다 할 수 있어야 한다.
  * 그래서 메인 `index.ts`가 아니라 `@sajwo-tracker/shared/onchain`로 나간다.
  *
- * ── crypto 인스턴스 (PLAN §3.5의 "단일 인스턴스 확인")
+ * ── crypto 인스턴스 ("단일 인스턴스 확인")
  *
  * `pnpm why @noble/curves` 기준으로 트리에 **두 벌**이 있다:
  *   - `2.0.1` ← nostr-tools (nostr 서명)
@@ -71,7 +71,6 @@ export {
   isValidScalar,
   xonlyFromPrivkey,
   deriveOrderKey,
-  generateOrderKey,
   findDuplicateEscrowKey,
   assertEscrowKeys,
 } from './keys';
@@ -85,7 +84,6 @@ export {
   buildEscrowLeaves,
   buildEscrowTree,
   describeLeafScript,
-  numsMatchesLibrary,
 } from './script';
 export type { EscrowLeaf, EscrowLeafName } from './script';
 
@@ -100,9 +98,7 @@ export {
   canOnchainTransition,
   isOnchainTerminal,
   forfeitUse,
-  canCancelOnchain,
   canSendAccountInfoOnchain,
-  canAutoRelease,
   isPriceStale,
   canActOnSignRequest,
   isRefundKind,
@@ -137,7 +133,6 @@ export {
   dustThresholdFor,
   outputScriptFor,
   signSettlement,
-  trySignSettlement,
   finalizeSettlement,
   toPsbtBase64,
   fromPsbtBase64,
@@ -151,7 +146,7 @@ export {
 } from './tx';
 export type { Outpoint, SettlementPath, BuildSettlementParams, KeyPathUtxo } from './tx';
 
-export { verifyPresignature, leafHashOf, outputGoesTo } from './verify';
+export { verifyPresignature, leafHashOf } from './verify';
 
 export { MempoolChainAdapter, DEFAULT_MEMPOOL_API } from './chain';
 export type {
@@ -163,7 +158,6 @@ export type { PresigVerdict, VerifyPresignatureParams } from './verify';
 export {
   deriveEscrowAddress,
   verifyEscrowAddress,
-  assertEscrowAddress,
   deriveSingleKeyAddress,
   addressProblem,
 } from './address';

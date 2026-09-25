@@ -1,5 +1,5 @@
 /**
- * 온체인 보증금 (PLAN-ONCHAIN-TRACK §4.1 · §6.0) — 표를 그대로 집행하는가, CLTV가 거래 전체를 덮는가
+ * 온체인 보증금 — 표를 그대로 집행하는가, CLTV가 거래 전체를 덮는가
  */
 import { describe, expect, it } from 'vitest';
 import { MAX_ORDER_EXPIRY_SEC, MAX_TRADE_DURATION_SEC, OUTCOME_RULES, type OnchainOutcome } from '@sajwo-tracker/shared/onchain';
@@ -41,7 +41,7 @@ describe('표를 그대로 집행한다', () => {
   });
 });
 
-describe('보증금 크기 (§6.0)', () => {
+describe('보증금 크기', () => {
   it('비율과 하한 중 큰 쪽 — 최소 거래액에서 실효 보증금이 3%를 안 넘는다', () => {
     const floor = depositFloorSat(169 * 20);
     expect(floor).toBe(169 * 20 * 4);
@@ -51,7 +51,7 @@ describe('보증금 크기 (§6.0)', () => {
   });
 });
 
-describe('보증금 CLTV가 거래 전체를 덮는가 (O-F1)', () => {
+describe('보증금 CLTV가 거래 전체를 덮는가', () => {
   const now = 1_800_000_000;
 
   it('만료 직전에 클레임돼도 거래 최악 소요를 덮는다', () => {

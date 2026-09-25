@@ -38,7 +38,7 @@ export function OrderBook({ tracker, onSelectOrder }: Props) {
   //
   // 의뢰(requested)는 **클레임할 틈이 있는 것만** — 기한 1시간 안쪽은 데몬이 클레임을 받지 않는다.
   // 진행 중인 내 거래는 기한이 지나도 남긴다 — 기한 직후의 송금 완료·판정이 제일 중요한 순간이다
-  // (PLAN-DAEMON §7 L-1). 남의 진행 중 거래는 기한까지만.
+  // 남의 진행 중 거래는 기한까지만.
   const activeOrders = Object.values(orders)
     .filter((o: Order) => {
       if (isTerminalState(o.state)) return false;

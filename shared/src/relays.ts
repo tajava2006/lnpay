@@ -172,21 +172,6 @@ export async function getReadRelays(storage: StorageAdapter): Promise<string[]> 
   return read;
 }
 
-/**
- * 캐시된 쓰기 릴레이 목록을 반환한다.
- * 저장소가 비어있으면(최초 실행) one-shot fetch로 채운다.
- */
-export async function getWriteRelays(storage: StorageAdapter): Promise<string[]> {
-  const cached = await storage.get<CachedRelayList>(STORAGE_KEYS.WRITE_RELAYS);
-
-  if (cached && cached.relays.length > 0) {
-    return cached.relays;
-  }
-
-  const { write } = await refreshRelayLists(storage);
-  return write;
-}
-
 // ============================================================
 // One-shot fetch (cold-start 폴백 + 초기 부트스트랩)
 // ============================================================

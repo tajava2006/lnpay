@@ -10,7 +10,7 @@
  */
 import {
   canOnchainTransition, isOnchainTerminal,
-  type OnchainOrder, type OnchainState, type SettlementKind,
+  type OnchainOrder, type SettlementKind,
 } from '@sajwo-tracker/shared/onchain';
 import { nowSec } from '../admin/context';
 import type { OcContext } from './context';
@@ -37,7 +37,7 @@ export interface OcRescue extends OcUtxo {
 }
 
 export interface OcMeta {
-  /** 후원자가 받을 주소 (§6.1b — 후원자가 정한다). **실제 지갑 주소**라 공개하지 않는다 */
+  /** 후원자가 받을 주소 (후원자가 정한다). **실제 지갑 주소**라 공개하지 않는다 */
   payoutAddress?: string;
   /** 릴리스 tx에 쓸 feerate (sat/vB). 부담자(후원자)가 정한다 */
   feerateSatPerVb?: number;
@@ -95,13 +95,6 @@ function toData(order: OnchainOrder): string {
 export function getOc(ctx: Pick<OcContext, 'db'>, orderId: string): OcRow | undefined {
   const r = ctx.db.get<RawRow>('SELECT * FROM oc_orders WHERE order_id = ?', orderId);
   return r ? fromRaw(r) : undefined;
-}
-
-export function ocInStates(ctx: Pick<OcContext, 'db'>, states: readonly OnchainState[]): OcRow[] {
-  if (states.length === 0) return [];
-  return ctx.db.all<RawRow>(
-    `SELECT * FROM oc_orders WHERE state IN (${states.map(() => '?').join(',')}) ORDER BY rowid`, ...states,
-  ).map(fromRaw);
 }
 
 export function allOc(ctx: Pick<OcContext, 'db'>): OcRow[] {

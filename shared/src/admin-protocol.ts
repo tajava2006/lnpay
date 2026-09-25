@@ -1,5 +1,5 @@
 /**
- * 운영자 ↔ 데몬 약속 (PLAN-DAEMON §5)
+ * 운영자 ↔ 데몬 약속
  *
  * 어드민 앱은 **운영자 키**로 명령을 보내고, 데몬은 APP 키로 결과·상태·채팅 사본을 돌려준다.
  * 두 쪽이 같은 모양을 보도록 여기 한 곳에 둔다 — 한쪽만 고치면 명령이 조용히 안 먹는다.
@@ -36,7 +36,7 @@ export function adminStateDTag(adminTag: string, operatorPubkey: string): string
 }
 
 /**
- * 오더별 비공개 상세 (§5.3) — 공개 오더 이벤트에 없는 것(인보이스 상태, 지급 오류, 버전 등).
+ * 오더별 비공개 상세 — 공개 오더 이벤트에 없는 것(인보이스 상태, 지급 오류, 버전 등).
  * 운영자마다 따로 둔다(상태와 같은 이유).
  */
 export function adminOrderDTag(adminTag: string, track: TrackName, orderId: string, operatorPubkey: string): string {
@@ -286,7 +286,7 @@ export const ADMIN_STATE_STALE_SEC = 5 * 60;
 
 /**
  * 분쟁 채팅은 APP 키와 유저 사이의 NIP-44라 운영자 키로는 못 읽는다. 데몬이 풀어서 운영자에게 다시
- * 암호화해 보낸다(§5.4) — 들어온 것도, 어드민이 보낸 것도.
+ * 암호화해 보낸다 — 들어온 것도, 어드민이 보낸 것도.
  */
 export interface AdminChatCopy {
   track: TrackName;

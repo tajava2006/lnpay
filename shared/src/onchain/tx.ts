@@ -1,5 +1,5 @@
 /**
- * 종결 tx 빌더 (PLAN-ONCHAIN-TRACK §6.1 · §7 I·J·L·O)
+ * 종결 tx 빌더 (T-109 · T-110 · T-112 · T-115)
  *
  * 에스크로 UTXO 하나를 먹고 출력 하나를 내는 tx만 만든다. 네 경로 전부 모양이
  * 같고 **어느 리프로 소모하느냐**와 **누구에게 보내느냐**만 다르다.
@@ -12,24 +12,24 @@
  * | `timelock` | leaf 4 | 고객 | 고객 단독 (CSV 경과 후) |
  *
  * `refund`와 `customer-win`은 **tx가 완전히 같다.** 다른 건 사유와 보증금 처리뿐이라
- * (§4.1) 여기서는 한 모양으로 만들고, 장부에서만 가른다.
+ * 여기서는 한 모양으로 만들고, 장부에서만 가른다.
  *
  * ── 어드민 출력을 달지 않는다
  *
- * 중재료는 **몰수된 보증금에서** 충당한다(§4.1, Q4). 분쟁 tx에 어드민 출력을
+ * 중재료는 **몰수된 보증금에서** 충당한다. 분쟁 tx에 어드민 출력을
  * 달면 승자가 받을 금액이 깎이고 tx도 커진다. 그래서 어느 경로든 **출력은 하나**다.
  *
- * ── RBF 신호를 끈다 (§7 O)
+ * ── RBF 신호를 끈다 (T-115)
  *
  * 모든 입력의 nSequence를 final(`0xffffffff`)로 둔다. 다만 **이게 교체를 막는
  * 장치는 아니다** — full-RBF(Bitcoin Core 28+ 기본)에서는 신호가 없어도 수수료가
- * 높은 충돌 tx가 이긴다(리뷰 #8에서 바로잡았다). 교체를 실제로 막는 건 **2-of-3**이다:
+ * 높은 충돌 tx가 이긴다. 교체를 실제로 막는 건 **2-of-3**이다:
  * 에스크로를 쓰는 다른 tx를 만들려면 **다른 서명 짝**이 필요하다. 그래서 어드민은
  * 언제나 **마지막에** 서명하고, 고객 손에 완성 가능한 환불 tx가 들려 있는 순간을
  * 만들지 않는다(`admin/src/onchain/service.ts`).
  *
  * 신호를 끄는 이유는 단순함이다 — 교체하려면 상대 서명이 또 필요해서 RBF로 얻는 게
- * 없고, 경로마다 다르게 두면 그 자체가 버그 자리다. 막히면 **받는 쪽이 CPFP** 한다(§7 L).
+ * 없고, 경로마다 다르게 두면 그 자체가 버그 자리다. 막히면 **받는 쪽이 CPFP** 한다(T-112).
  *
  * 예외는 `timelock`뿐이다 — CSV를 만족시키려면 nSequence가 **블록 수 그 자체**여야 한다.
  */
@@ -58,7 +58,7 @@ export function settlementPathForKind(kind: string): SettlementPath {
 /** BIP-68 상대 타임락은 **tx version 2 이상**에서만 동작한다. */
 const TX_VERSION = 2;
 
-/** RBF 비활성 (§7 O) */
+/** RBF 비활성 (T-115) */
 const SEQUENCE_FINAL = 0xffffffff;
 
 /**
@@ -144,7 +144,7 @@ export function settlementFeeSat(
  * 에스크로가 아직 없을 때 쓰는 **표준 종결 tx 크기**(vB).
  *
  * 2서명 리프 + P2TR 출력 기준이다. 보증금 하한을 잡으려면 주소가 생기기
- * **전에** 종결 수수료를 알아야 해서 필요하다(§6.0). 실제 tx를 만들 때는
+ * **전에** 종결 수수료를 알아야 해서 필요하다. 실제 tx를 만들 때는
  * 언제나 `estimateSettlementVsize()`로 다시 센다.
  */
 export const TYPICAL_SETTLEMENT_VSIZE = 169;
@@ -162,7 +162,7 @@ export interface BuildSettlementParams {
 
 /**
  * 서명 전 tx를 만든다. **어느 쪽이 만들어도 같은 바이트**가 나와야 한다 —
- * 그래야 사전서명을 검증할 때 "내가 만든 것과 같은가"로 대조할 수 있다(§7 I).
+ * 그래야 사전서명을 검증할 때 "내가 만든 것과 같은가"로 대조할 수 있다(T-109).
  *
  * 그래서 임의성이 들어갈 자리를 전부 없앴다: version 고정, locktime 0,
  * 입력 하나, 출력 하나, nSequence 규칙 고정.
@@ -241,17 +241,7 @@ export function signSettlement(tx: Transaction, privkey: Uint8Array): void {
   }
 }
 
-/** 서명을 시도하되 실패를 값으로 받는다 (여러 경로를 훑어볼 때) */
-export function trySignSettlement(tx: Transaction, privkey: Uint8Array): boolean {
-  try {
-    signSettlement(tx, privkey);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** 상대에게 보낼 형식. 서명이 든 채로 PSBT로 나른다 (§5.2 `onchain-presig`) */
+/** 상대에게 보낼 형식. 서명이 든 채로 PSBT로 나른다 (`onchain-presig`) */
 export function toPsbtBase64(tx: Transaction): string {
   return btoa(String.fromCharCode(...tx.toPSBT()));
 }
@@ -330,7 +320,7 @@ export function tapScriptSigOf(
  * 상대 서명 하나를 **우리가 직접 만든 tx에** 옮겨 심는다.
  *
  * 받은 PSBT에 그대로 서명하면 그 PSBT가 무엇을 담았는지(어느 리프, 어느 주소)를
- * 상대 말만 믿는 셈이 된다(리뷰 #8 — 어드민이 보낸 "환불"이 공격자 주소로 가는
+ * 상대 말만 믿는 셈이 된다(T-120 — 어드민이 보낸 "환불"이 공격자 주소로 가는
  * `{A,C}` tx여도 화면은 "내 에스크로가 맞다"고 했다). 그래서 서명할 tx는 **언제나
  * 우리 기록으로 다시 만들고**, 상대에게서는 서명 바이트만 가져온다. 그 서명이
  * 이 tx·이 리프에 대해 유효한지는 `verifyPresignature`가 먼저 확인한다.
@@ -386,7 +376,7 @@ export interface KeyPathUtxo {
 /**
  * 단일키 taproot 주소(`tr(주문별 키)`)에 있는 자금을 내 지갑으로 보낸다.
  *
- * 옛 주문의 환불은 이 주소로 갔다 — 이 앱만 쓸 수 있는 주소다(리뷰 #8). 꺼내는 화면이
+ * 옛 주문의 환불은 이 주소로 갔다 — 이 앱만 쓸 수 있는 주소다. 꺼내는 화면이
  * 없어서 환불금이 사실상 갇혀 있었고, 환불 tx가 수수료 부족으로 막혀도 CPFP를 못 했다.
  * 이 함수가 그 출구다. 멤풀에 있는 출력도 입력으로 받으므로 **CPFP로도 쓴다.**
  *

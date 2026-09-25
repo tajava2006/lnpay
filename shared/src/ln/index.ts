@@ -1,11 +1,10 @@
 /**
- * 라이트닝 트랙 공통 (PLAN-DAEMON §7) — 데몬·유저 앱·어드민 앱이 같이 본다.
+ * 라이트닝 트랙 공통 — 데몬·유저 앱·어드민 앱이 같이 본다.
  * 브라우저에 기대지 않는다(데몬이 Node에서 부른다).
  */
 export {
-  canTransition, computePayoutSat, computeEscrowSat, isPayoutAmountExact, LN_TERMINAL_STATES,
+  canTransition, computePayoutSat, computeEscrowSat, isPayoutAmountExact,
 } from './state-machine';
-export type { TransitionResult, TransitionError } from './state-machine';
 export { CLOSE_RULES, LN_CLOSE_REASON_LABEL, expiryReasonFor, isLnCloseReason } from './outcomes';
 export type { CloseRule, Disposition, LnCloseReason } from './outcomes';
 export {

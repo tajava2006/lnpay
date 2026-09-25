@@ -1,5 +1,5 @@
 /**
- * 라이트닝 트랙 조립 — 효과 실행기·요청 핸들러·명령·워처를 데몬에 붙인다 (PLAN-DAEMON §7)
+ * 라이트닝 트랙 조립 — 효과 실행기·요청 핸들러·명령·워처를 데몬에 붙인다
  */
 import type { AdminContext } from '../admin/context';
 import type { CommandRegistry } from '../admin/commands';

@@ -1,5 +1,5 @@
 /**
- * 온체인 클라이언트 로직 (PLAN-ONCHAIN-TRACK §3.4 · §6.1b · §7.1)
+ * 온체인 클라이언트 로직
  *
  * 여기가 **유저를 지키는 마지막 줄**이다. 어드민이 악의적이거나 침해당했을 때,
  * 혹은 후원자가 유리한 tx를 밀어 넣을 때 막아야 하는 자리가 전부 클라이언트다.
@@ -76,7 +76,7 @@ function order(over: Partial<OnchainOrder> = {}): OnchainOrder {
   };
 }
 
-describe('주문별 키 (§3.2)', () => {
+describe('주문별 키', () => {
   it('같은 주문이면 같은 키 — 브라우저를 지워도 다시 나온다', async () => {
     const a = await myOrderKey(ORDER_ID);
     _clearKeyCache();
@@ -89,7 +89,7 @@ describe('주문별 키 (§3.2)', () => {
   });
 });
 
-describe('주소 독립 검증 (T-107 · 공격 G)', () => {
+describe('주소 독립 검증 (T-107)', () => {
   it('내 키로 만든 주소면 통과한다', () => {
     const check = checkEscrowAddress(order(), 'customer', MY_XONLY);
     expect(check.ok).toBe(true);
@@ -127,7 +127,7 @@ describe('주소 독립 검증 (T-107 · 공격 G)', () => {
     expect(check.reason).toMatch(/내가 파생한 키와 다르다/);
   });
 
-  /** 두 키가 같으면 2-of-3 보장이 사라진다 (공격 H). */
+  /** 두 키가 같으면 2-of-3 보장이 사라진다 (T-108). */
   it('세 키 중 둘이 같으면 막는다', () => {
     const check = checkEscrowAddress(
       order({ sponsorXonly: XA }), 'customer', MY_XONLY,
@@ -171,7 +171,7 @@ function requestPsbt(p: {
   return toPsbtBase64(tx);
 }
 
-describe('서명 요청 확인 — 릴리스 (§7 I)', () => {
+describe('서명 요청 확인 — 릴리스 (T-109)', () => {
   const remitted = (over: Partial<OnchainOrder> = {}) => order({
     state: 'remitted', fundingOutpoint: formatOutpoint(TXID, 0),
     releaseFeeSat: 338, payoutSat: AMOUNT - 338, remittedAt: 1_700_000_000, ...over,
@@ -234,13 +234,13 @@ describe('서명 요청 확인 — 릴리스 (§7 I)', () => {
 });
 
 /**
- * 리뷰 #8 C3 — **환불 서명은 내가 낸 주소로 가는지** 본다.
+ * T-120 — **환불 서명은 내가 낸 주소로 가는지** 본다.
  *
  * 전에는 "내 에스크로 UTXO를 쓰는가"만 봤다. 침해된 어드민이 `{A,C}` 리프로 **자기
  * 주소에 보내는 "환불"**을 보내면 화면이 "맞다"고 했고, 고객 서명 하나로 어드민이
  * 2-of-2를 완성했다.
  */
-describe('서명 요청 확인 — 환불 (리뷰 #8 C3)', () => {
+describe('서명 요청 확인 — 환불', () => {
   const refunding = (over: Partial<OnchainOrder> = {}) => order({
     state: 'refunding', fundingOutpoint: formatOutpoint(TXID, 0),
     settlementKind: 'refund:sponsor-timeout', settlementFeeSat: 300, ...over,
@@ -342,7 +342,7 @@ describe('가격 유효창 (O-016)', () => {
   });
 });
 
-describe('후원자 사전서명 (§2.4 · §6.1b)', () => {
+describe('후원자 사전서명', () => {
   const funded = () => {
     const descriptor = deriveEscrowAddress({
       keys: { customer: MY_XONLY, sponsor: XS, admin: XA }, network: 'signet',
@@ -391,7 +391,7 @@ describe('후원자 사전서명 (§2.4 · §6.1b)', () => {
   });
 
   /**
-   * 리뷰 #8 R1 — 마감이 지난 사전서명은 **만들지도 않는다.** 어드민이 받지 않고,
+   * T-121 — 마감이 지난 사전서명은 **만들지도 않는다.** 어드민이 받지 않고,
    * 받았던 시절에는 이미 결정된 환불과 얽혀 고객 서명 하나로 둘 다 완성되는 tx가 나왔다.
    */
   it('사전서명 마감이 지났으면 만들지 않는다', async () => {
@@ -456,12 +456,12 @@ describe('최종 서명', () => {
   });
 });
 
-describe('타임락 안전망 (T-106 · §7.1)', () => {
+describe('타임락 안전망 (T-106)', () => {
   const o = () => order({ state: 'presigned', timelockBlocks: 8064 });
 
   /**
    * 라이트닝에서 같은 모양의 버그를 겪었다 — 에스크로가 2시간 남았는데 6시간짜리
-   * 인보이스를 받아줘서 후원자만 잃었다(AUDIT-EXPIRY F2). **되돌릴 수 없는 행동
+   * 인보이스를 받아줘서 후원자만 잃었다. **되돌릴 수 없는 행동
    * 직전에 내 보호 창이 살아 있는지** 확인시킨다.
    */
   it('잔여가 넉넉하면 보내도 된다', () => {
@@ -514,7 +514,7 @@ describe('스토어 스냅샷은 참조가 안정해야 한다', () => {
 
 /**
  * ⚠️ 의뢰 등록은 kind 1111을 쏘는 것으로 끝나고 **오더는 보증금을 결제해야**
- * 생긴다(§4.1b). 그 사이에 거절되거나 실패하면 유저 쪽에 흔적이 하나도 없다 —
+ * 생긴다. 그 사이에 거절되거나 실패하면 유저 쪽에 흔적이 하나도 없다 —
  * 실제로 의뢰 두 건 중 하나가 그렇게 사라졌다(2026-09-21).
  */
 describe('보낸 등록 요청은 답이 올 때까지 남는다', () => {
@@ -597,7 +597,7 @@ describe('보증금 금액 표시', () => {
   });
 });
 
-// ─── 리뷰 #8 C1·C2 — 발신자 확인 ─────────────────────────────
+// ─── O-020 — 발신자 확인 ─────────────────────────────
 
 function inbox(pubkey: string, orderId: string, action: string, extra: string[][] = [], content = ''): Event {
   return {
@@ -621,7 +621,7 @@ async function flush(): Promise<void> {
  * 먼저 온 것을 유지해서 제3자가 먼저 쏜 가짜 계좌가 진짜 고객 계좌를 밀어냈다 —
  * 후원자가 공격자 계좌로 원화를 보내는 경로다.
  */
-describe('리뷰 #8 C1 — 계좌는 오더의 고객이 보낸 것만 받는다', () => {
+describe('T-119 — 계좌는 오더의 고객이 보낸 것만 받는다', () => {
   const service = () => import('../onchain/nostr/service');
   const accounts = () => import('../onchain/account-store');
   const store = () => import('../onchain/store');
@@ -674,7 +674,7 @@ describe('리뷰 #8 C1 — 계좌는 오더의 고객이 보낸 것만 받는다
  * 전에는 수신함이 발신자를 안 봐서, 제3자가 `deposit-required`에 **자기 인보이스**를
  * 실어 보내면 그게 "보증금 결제" 화면에 떴다. 라이트닝 트랙은 이미 막고 있던 자리다.
  */
-describe('리뷰 #8 C2 — 어드민 통지는 어드민이 보낸 것만 받는다', () => {
+describe('O-020 — 어드민 통지는 어드민이 보낸 것만 받는다', () => {
   beforeEach(async () => {
     (await import('../onchain/deposit-store'))._resetForTesting();
     (await import('../onchain/sign-request-store'))._resetForTesting();
@@ -705,7 +705,7 @@ describe('리뷰 #8 C2 — 어드민 통지는 어드민이 보낸 것만 받는
 });
 
 /**
- * 서명 요청은 **주문 × 목적**으로 쌓인다(리뷰 #8). 전에는 주문당 하나라 분쟁 판정
+ * 서명 요청은 **주문 × 목적**으로 쌓인다. 전에는 주문당 하나라 분쟁 판정
  * 요청이 도착하면 아직 안 누른 릴리스 요청을 덮어썼다. 구조는 UTXO마다 따로다.
  */
 describe('서명 요청 스토어', () => {

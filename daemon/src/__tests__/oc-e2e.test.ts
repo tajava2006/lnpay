@@ -1,11 +1,11 @@
 /**
- * 온체인 트랙 e2e — 데몬 위에서 (PLAN-DAEMON P4 · PLAN-ONCHAIN-TRACK §11 P6 · 리뷰 #8)
+ * 온체인 트랙 e2e — 데몬 위에서
  *
  * 프론트 어드민 시절의 e2e 시나리오를 데몬 하네스로 옮겼다. 릴레이는 지난 `expiration`을 거절하고, 체인은
  * 소모된 UTXO를 목록에서 빼고 소모 증인을 돌려준다. 서명은 진짜다 — 고객·후원자 키로 PSBT에 서명하면 데몬이
  * 검증해 어드민 서명(시드 파생 키)을 얹어 완성한다.
  *
- * 리뷰 #8 R3("브로드캐스트 전 발행이 실패하면")는 데몬에서 **구조적으로 없어졌다** — outbox와 `settling`을
+ * "브로드캐스트 전 발행이 실패하면"(O-019)은 데몬에서 **구조적으로 없어졌다** — outbox와 `settling`을
  * 한 트랜잭션에 쓰고, 뿌리는 건 그 뒤의 효과다. 그 자리에 "브로드캐스트가 실패해도 장부는 settling이고 효과가
  * 다시 뿌린다"를 둔다.
  */
@@ -79,6 +79,7 @@ describe('① 정상 완료', () => {
     expect(h.row(orderId)!.order.accountSentAt).toBeDefined();
     await remitOc(h, orderId);
     expect(state(h, orderId)).toBe('remitted');
+    expect(h.chain.broadcasted).toHaveLength(0); // O-007: 송금 주장만으로는 아무것도 안 나간다
     const remitted = h.row(orderId)!.order;
     expect(remitted.cosignDeadline).toBe(remitted.remittedAt! + COSIGN_WINDOW_SEC);
 
@@ -113,7 +114,7 @@ describe('② 후원자 이탈 (사전서명 마감 초과)', () => {
     const refunding = h.row(orderId)!.order;
     expect(refunding.state).toBe('refunding');
     expect(refunding.settlementKind).toBe('refund:sponsor-timeout');
-    // **결정 시점에** 후원자 보증금 몰수 (리뷰 #8 — 서명을 기다리지 않는다)
+    // **결정 시점에** 후원자 보증금 몰수 (T-123 — 서명을 기다리지 않는다)
     expect(holdState(h, refunding.sponsorDepositHash)).toBe('settled');
 
     // 고객에게 간 PSBT는 **서명 없는** 것이고, 받는 곳은 고객이 낸 환불 주소다
@@ -225,7 +226,7 @@ describe('④ 고객이 마감까지 펀딩을 컨펌 못 시킴', () => {
   });
 });
 
-describe('리뷰 #8 R1 — 환불이 결정되면 거래는 앞으로 가지 않는다', () => {
+describe('O-017 — 환불이 결정되면 거래는 앞으로 가지 않는다', () => {
   it('늦은 사전서명·계좌·송금 주장이 전부 거절되고, 고객은 환불로만 나간다', async () => {
     const h = await createOcHarness();
     const orderId = await openOc(h);
@@ -271,7 +272,7 @@ describe('리뷰 #8 R1 — 환불이 결정되면 거래는 앞으로 가지 않
   });
 });
 
-describe('리뷰 #8 R2 — 의뢰 만료를 넘긴 거래도 끝까지 간다 (NIP-40)', () => {
+describe('DM-009 — 의뢰 만료를 넘긴 거래도 끝까지 간다 (NIP-40)', () => {
   /** 1시간짜리 의뢰가 50분에 클레임되고 70분에 컨펌됐다 — 진행 중 발행이 릴레이에서 거절되면 거래가 멈춘다 */
   it('막바지 클레임 → 의뢰 만료 뒤 펀딩 → 릴리스까지', async () => {
     const h = await createOcHarness();
@@ -354,7 +355,7 @@ describe('체인이 장부보다 먼저 말한다', () => {
   });
 });
 
-describe('약정 밖의 자금 — 구조 (리뷰 #8)', () => {
+describe('약정 밖의 자금 — 구조', () => {
   it('취소된 주문 주소에 늦게 들어온 자금을 보고, 운영자가 구조하면 고객 환불 주소로 간다', async () => {
     const h = await createOcHarness();
     const orderId = await openOc(h);
@@ -390,7 +391,7 @@ describe('약정 밖의 자금 — 구조 (리뷰 #8)', () => {
   });
 });
 
-describe('계좌 이의 (§5.2b) — 시계는 멈추지 않고, 사람이 과실을 가른다', () => {
+describe('계좌 이의 — 시계는 멈추지 않고, 사람이 과실을 가른다', () => {
   it('이의 → 마감 → 보증금 보류 → 판정(이의 근거 없음) → 후원자 몰수', async () => {
     const h = await createOcHarness();
     const orderId = await openOc(h);
@@ -420,7 +421,7 @@ describe('계좌 이의 (§5.2b) — 시계는 멈추지 않고, 사람이 과�
 });
 
 describe('유저 알림', () => {
-  /** 프론트 시절엔 마감 2시간 전부터 30초마다 울려 고객에게 240번 갔다(리뷰 #8) */
+  /** 프론트 시절엔 마감 2시간 전부터 30초마다 울려 고객에게 240번 갔다 */
   it('입금 확인 마감 임박 알림은 송금 주장 한 번에 한 번', async () => {
     const h = await createOcHarness();
     const { nip44Encrypt } = await import('@sajwo-tracker/shared/core');

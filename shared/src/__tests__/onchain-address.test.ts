@@ -1,5 +1,5 @@
 /**
- * 에스크로 주소 파생과 독립 검증 (PLAN-ONCHAIN-TRACK §3.4)
+ * 에스크로 주소 파생과 독립 검증
  *
  * 세 층으로 본다:
  *   ① **BIP-341 공식 테스트 벡터** — 트리 구성·머클·트윅·bech32m 전 구간이
@@ -16,7 +16,7 @@ import { NETWORK, TaprootControlBlock, p2tr } from '@scure/btc-signer';
 import type { TaprootScriptTree } from '@scure/btc-signer/payment.js';
 import vectors from './fixtures/bip341-scriptpubkey.json';
 import { bytesToHex, hexToBytes } from '../onchain/hex';
-import { deriveEscrowAddress, verifyEscrowAddress, assertEscrowAddress } from '../onchain/address';
+import { deriveEscrowAddress, verifyEscrowAddress } from '../onchain/address';
 import { buildEscrowLeaves } from '../onchain/script';
 
 const C = 'a1'.repeat(32);
@@ -142,7 +142,7 @@ describe('주소 파생', () => {
   });
 });
 
-describe('독립 검증 (공격 G — 어드민이 가짜 주소를 발행)', () => {
+describe('독립 검증 (T-107 — 어드민이 가짜 주소를 발행)', () => {
   const real = deriveEscrowAddress({ keys: KEYS, network: 'mainnet' }).address;
 
   it('일치하면 통과', () => {
@@ -180,11 +180,5 @@ describe('독립 검증 (공격 G — 어드민이 가짜 주소를 발행)', ()
     );
     expect(check.ok).toBe(false);
     if (!check.ok) expect(check.reason).toMatch(/중복/);
-  });
-
-  it('assert 판은 진행을 끊는다', () => {
-    expect(() => assertEscrowAddress({ keys: KEYS, network: 'mainnet' }, 'bc1qwrong'))
-      .toThrow(/에스크로 주소 검증 실패/);
-    expect(assertEscrowAddress({ keys: KEYS, network: 'mainnet' }, real).address).toBe(real);
   });
 });

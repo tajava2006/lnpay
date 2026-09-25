@@ -1,23 +1,23 @@
 /**
- * 펀딩 판정 — 체인 사실 → FSM 결정 (PLAN-ONCHAIN-TRACK §4.1c · §7 D·E·K)
+ * 펀딩 판정 — 체인 사실 → FSM 결정 (T-104 · T-105 · T-111)
  *
  * 순수 함수만 둔다. I/O는 `chain.ts`가 하고 여기서는 **받은 사실로 뭐라고
  * 말할지**만 정한다 — 돈이 걸린 판정이라 네트워크 없이 전수 테스트가 되어야 한다.
  *
- * ── 판정 규칙 (§4.1c)
+ * ── 판정 규칙
  *
  * ```
  * 마감 안에, 이 주소에, 약정 금액이, N컨펌 됐는가?
  * ```
  *
- * 멤풀은 보지 않는다. 0-conf는 되돌려질 수 있고(공격 D), 그래서 FSM에
+ * 멤풀은 보지 않는다. 0-conf는 되돌려질 수 있고(T-104), 그래서 FSM에
  * `funding` 상태를 두지 않았다. `pending`을 돌려주긴 하지만 그건 **화면 힌트**
  * 전용이고 어떤 결정도 그 값으로 갈리지 않는다.
  */
 import type { AddressFunds, ChainOutpoint, ChainQuery } from '@sajwo-tracker/shared/onchain';
 import { requiredConfirmations } from '@sajwo-tracker/shared/onchain';
 
-/** 금액별 요구 컨펌 수 (§12 Q1) — 후원자 앱도 같은 값을 봐야 해서 shared에 있다 */
+/** 금액별 요구 컨펌 수 — 후원자 앱도 같은 값을 봐야 해서 shared에 있다 */
 export { requiredConfirmations } from '@sajwo-tracker/shared/onchain';
 
 export type FundingVerdict =
@@ -32,7 +32,7 @@ export type FundingVerdict =
   /** 됐다. 이 outpoint를 오더에 박고(`funding-outpoint`) 가격을 고정한다 */
   | { status: 'funded'; outpoint: ChainOutpoint; confirmations: number; valueSat: number }
   /**
-   * 컨펌된 자금이 있는데 **모양이 약정과 다르다** (공격 K).
+   * 컨펌된 자금이 있는데 **모양이 약정과 다르다** (T-111).
    *
    * UTXO가 2개 이상이거나 금액이 다른 경우다. 자동으로 진행해서도, 취소해서도
    * 안 된다 — 취소하면 그 자금이 아무도 안 보는 주소에 남는다. **사람이 봐야 한다**
@@ -43,7 +43,7 @@ export type FundingVerdict =
 /**
  * `funded` 이전 판정. **오직 컨펌된 UTXO의 모양만** 본다.
  *
- * ⚠️ 금액은 **정확 일치**여야 한다(§6.1). 라이트닝에서 ±5% 근사를 없애고
+ * ⚠️ 금액은 **정확 일치**여야 한다. 라이트닝에서 ±5% 근사를 없애고
  * `isPayoutAmountExact`로 바꾼 것과 같은 이유 — 금액을 정한 게 우리다.
  * 더 보내도 `anomaly`다: 릴리스는 UTXO를 통째로 후원자에게 보내므로 초과분이
  * 공짜로 넘어가고, 그건 고객 손해다.
@@ -93,27 +93,6 @@ export function judgeFunding(
   return { status: 'funded', outpoint, confirmations: utxo.confirmations, valueSat: utxo.valueSat };
 }
 
-/**
- * **O-014의 입력.** "이 주소에 컨펌된 UTXO가 없는가"를 `canCancelOnchain()`이
- * 먹을 수 있는 모양으로 바꾼다.
- *
- * - 조회 실패 → `undefined` = **모름.** 게이트가 취소를 거부한다
- * - 멤풀에만 있음 → `true`. 판정은 컨펌만 보므로 취소할 수 있다(§4.1c에서
- *   받아들인 대가 — 늦게 컨펌되면 환불 절차로 간다)
- * - 컨펌된 자금이 조금이라도 있음(`anomaly` 포함) → `false`. **절대 취소하지 않는다.**
- *   취소하면 그 돈이 아무도 안 보는 주소에 남는다
- */
-export function escrowUnfundedFor(verdict: FundingVerdict): boolean | undefined {
-  switch (verdict.status) {
-    case 'unknown': return undefined;
-    case 'none':
-    case 'pending': return true;
-    case 'confirming':
-    case 'funded':
-    case 'anomaly': return false;
-  }
-}
-
 export type PinnedFundingState =
   | { status: 'unknown'; reason: string }
   /** 그대로 살아 있다 */
@@ -126,7 +105,7 @@ export type PinnedFundingState =
    *
    * ⚠️ 전에는 이걸 곧장 `gone`(이중지불)으로 읽었다. esplora `/utxo`는 **멤풀에서 소모된
    * 출력도 뺀다** — 우리가 방금 뿌린 환불 tx가 리오그로 오인됐고, `bonded`로 돌아가
-   * 마감이 차면 **엉뚱한 쪽이 몰수**됐다(리뷰 #8). 워처가 소모 여부를 따로 물어 가른다.
+   * 마감이 차면 **엉뚱한 쪽이 몰수**됐다. 워처가 소모 여부를 따로 물어 가른다.
    */
   | { status: 'missing' };
 
@@ -167,7 +146,7 @@ export function judgePinnedFunding(
  *
  * 박아둔 outpoint가 있으면 **그걸 뺀 나머지 전부**(확정 뒤 추가 입금), 없으면(취소됐거나
  * 종결된 주문, 금액이 틀린 펀딩) **컨펌된 전부**다. 전에는 이런 자금을 볼 곳도
- * 돌려줄 길도 없어서 8주 타임락이 유일한 출구였다(리뷰 #8).
+ * 돌려줄 길도 없어서 8주 타임락이 유일한 출구였다.
  */
 export function strayUtxos(
   funds: ChainQuery<AddressFunds>,

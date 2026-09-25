@@ -12,7 +12,7 @@
  *   → 실패 시 세션 삭제 → 로그인 화면
  *
  * 보안:
- *   어드민은 **운영자 키**로 로그인한다(PLAN-DAEMON §5.1). 명령을 받을지는 데몬이 자기 운영자
+ *   어드민은 **운영자 키**로 로그인한다. 명령을 받을지는 데몬이 자기 운영자
  *   목록으로 정한다. get_public_key 결과만으로는 불충분하다(벙커 통신키로만 서명됨) —
  *   sign_event 챌린지로 실제 신원키의 proof-of-possession을 수행한다.
  *
@@ -54,10 +54,6 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 // ─── 세션 CRUD ──────────────────────────────────────────────
-
-export function hasSession(): boolean {
-  return localStorage.getItem(SESSION_KEY) !== null;
-}
 
 export function loadSession(): Nip46Session | null {
   const raw = localStorage.getItem(SESSION_KEY);

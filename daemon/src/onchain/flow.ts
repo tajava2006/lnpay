@@ -1,5 +1,5 @@
 /**
- * 온체인 요청 처리와 종결 결정 (PLAN-ONCHAIN-TRACK §5.2 · §9)
+ * 온체인 요청 처리와 종결 결정
  *
  * 사람이 미는 쪽이다 — 의뢰 등록, 클레임, 사전서명, 최종 서명, 송금 주장, 분쟁, 구조. 체인이 미는 쪽은
  * `watcher.ts`가 맡는다. 프론트 어드민의 `service.ts`를 옮긴 것이고, 데몬에서 바뀐 건:
@@ -117,7 +117,7 @@ export function ocOrderRequest(ctx: OcContext, event: InboxEvent): HandlerResult
 
   if (!loadSettings(ctx.db).onchain.acceptNewOrders) return r('지금은 온체인 의뢰를 받지 않습니다');
 
-  // 환불 받을 주소 — 없으면 환불이 앱만 쓸 수 있는 주소로 간다(리뷰 #8). 받지 않는다
+  // 환불 받을 주소 — 없으면 환불이 앱만 쓸 수 있는 주소로 간다. 받지 않는다
   const payload = decrypt(ctx, event);
   if (!isOnchainOrderRequestPayload(payload)) return r('환불 받을 주소가 없습니다. 앱을 새로 고친 뒤 다시 등록해 주세요');
   const refundAddress = payload.refundAddress.trim();
@@ -125,10 +125,10 @@ export function ocOrderRequest(ctx: OcContext, event: InboxEvent): HandlerResult
   if (addrProblem) return r(`환불 주소를 쓸 수 없습니다: ${addrProblem}`);
 
   const now = nowSec(ctx);
-  // 만료 상한을 넘으면 보증금 CLTV가 채널 상한을 넘어 인보이스를 못 만든다(§2.2)
+  // 만료 상한을 넘으면 보증금 CLTV가 채널 상한을 넘어 인보이스를 못 만든다
   if (!isOrderExpiryAllowed(expiration, now)) return r('유효 기간이 허용 범위(최대 7일)를 벗어났습니다');
 
-  // 최저가를 시세 바로 아래에 걸면 컨펌 대기 중의 공짜 옵션이 된다(리뷰 #8)
+  // 최저가를 시세 바로 아래에 걸면 컨펌 대기 중의 공짜 옵션이 된다
   if (reserveKrw !== undefined) {
     const problem = reserveProblem({ reserveKrw, amountSat, btcPriceKrw: ctx.price() ?? undefined });
     if (problem) return r(problem);
@@ -139,7 +139,7 @@ export function ocOrderRequest(ctx: OcContext, event: InboxEvent): HandlerResult
   const floor = depositFloorSat(Math.ceil(TYPICAL_SETTLEMENT_VSIZE * fees.halfHour));
   const minTrade = minTradeSat(floor);
   if (amountSat < minTrade) {
-    // 이 아래로는 보증금이 거래액의 3%를 넘어 억제가 아니라 허들이 된다(§12 Q8)
+    // 이 아래로는 보증금이 거래액의 3%를 넘어 억제가 아니라 허들이 된다
     return r(`지금 수수료 기준 최소 거래액은 ${minTrade.toLocaleString()} sats입니다 (요청: ${amountSat.toLocaleString()} sats)`);
   }
   const cltvBlocks = depositCltvBlocks(expiration, now);
@@ -190,7 +190,7 @@ export function ocClaim(ctx: OcContext, event: InboxEvent): HandlerResult {
   const payoutAddress = payload.payoutAddress.trim();
 
   // 받을 주소가 이 네트워크의 것인지, 수수료율이 거래를 멈추지 않는지 **지금** 본다 — 나중에 알면 종결 직전에
-  // 막히거나 터무니없는 수수료로 고객 BTC가 묶인다(리뷰 #8)
+  // 막히거나 터무니없는 수수료로 고객 BTC가 묶인다
   const addrProblem = addressProblem(payoutAddress, order.network);
   if (addrProblem) return r(`받을 주소를 쓸 수 없습니다: ${addrProblem}`);
   const fees = currentFees(ctx.db, now);
@@ -212,7 +212,7 @@ export function ocClaim(ctx: OcContext, event: InboxEvent): HandlerResult {
   if (feeProblem) return r(feeProblem);
 
   const floor = depositFloorSat(Math.ceil(TYPICAL_SETTLEMENT_VSIZE * fees.halfHour));
-  // 보증금은 **남은 의뢰 수명 + 거래 최악 소요**를 덮어야 한다(O-F1 — 막바지 클레임)
+  // 보증금은 **남은 의뢰 수명 + 거래 최악 소요**를 덮어야 한다 — 막바지 클레임도
   const cltvBlocks = depositCltvBlocks(order.expiration, now);
   if (cltvBlocks > CLTV_MAX_BLOCKS) return r('의뢰 만료가 너무 멀어 보증금을 받을 수 없습니다');
 
@@ -283,7 +283,7 @@ function ocCosign(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult 
   const { order, meta } = row;
 
   // **진실은 FSM이다** — 화면만 막으면 수정한 클라이언트가 `remitted`에서 환불 서명을 보내 원화와 BTC를
-  // 다 가져간다(리뷰 #8)
+  // 다 가져간다
   if (!canActOnSignRequest(order.state, purpose, order.settlementKind)) return ignored('not-now');
   const kind: SettlementKind | undefined = purpose === 'release' ? 'release' : order.settlementKind;
   if (!kind || signPurposeFor(kind) !== purpose) return ignored('purpose-mismatch');
@@ -338,7 +338,7 @@ function ocCosign(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult 
 
 /**
  * 종결 tx를 **장부에 먼저** 적고(outbox + `settling`) 뿌리는 건 효과가 한다. 같은 트랜잭션이라 "뿌렸는데
- * 장부에 없다"가 없다 — 프론트 시절 그게 리오그로 오인돼 엉뚱한 쪽이 몰수됐다(리뷰 #8).
+ * 장부에 없다"가 없다 — 프론트 시절 그게 리오그로 오인돼 엉뚱한 쪽이 몰수됐다.
  */
 function enterSettling(ctx: OcContext, orderId: string, kind: SettlementKind, txid: string, rawHex: string): void {
   const settling = updateOc(ctx, orderId, {
@@ -385,7 +385,7 @@ function ocRemit(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult {
  */
 function ocAccountInfo(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult {
   const { order } = row;
-  // 제3자가 가짜 계좌를 후원자에게 보내며 이걸로 시계까지 시작시키면 후원자가 공격자 계좌로 송금한다(리뷰 #8)
+  // 제3자가 가짜 계좌를 후원자에게 보내며 이걸로 시계까지 시작시키면 후원자가 공격자 계좌로 송금한다
   if (event.pubkey !== order.customerPubkey) return ignored('not-customer');
   if (order.state !== 'presigned' || order.accountSentAt || order.settlementKind) return ignored('bad-state');
   if (isPast(accountDeadlineOf(order), requestAt(ctx, event))) {
@@ -401,7 +401,7 @@ function ocAccountInfo(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerRe
 
 /**
  * 고객이 의뢰를 내린다 → `listed → cancelled`, 보증금 환불. **`listed`에서만** — 후원자 보증금이 잡힌 뒤에는
- * 상대가 이미 돈을 걸었고 마감과 체인이 판정한다(§4.2 · O-001).
+ * 상대가 이미 돈을 걸었고 마감과 체인이 판정한다(O-001).
  */
 function ocCancel(ctx: OcContext, event: InboxEvent): HandlerResult {
   const orderId = extractOrderId(event.tags);
@@ -438,8 +438,8 @@ function ocDispute(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult
     return ok;
   }
 
-  // ⚠️ **계좌 이의는 상태가 아니다** (§5.2b). 상태로 받으면 원화 마감 시계가 멈추고 무한 옵션이 열린다
-  // (§7.6 R4-H1). 시각만 박아 두고, 마감이 차면 `refund:account-disputed`로 보증금을 붙잡는다
+  // ⚠️ **계좌 이의는 상태가 아니다**. 상태로 받으면 원화 마감 시계가 멈추고 무한 옵션이 열린다
+  // 시각만 박아 두고, 마감이 차면 `refund:account-disputed`로 보증금을 붙잡는다
   if (order.state === 'presigned' && tagValue(event, 'stage') === 'account-unusable') {
     const allowed = event.pubkey === order.sponsorPubkey
       && order.accountSentAt !== undefined
@@ -463,7 +463,7 @@ export type DecideError = 'bad-state' | 'no-fees' | 'no-material' | 'cannot-buil
  * - 환불(`refund:*`) → `refunding`. `fold`면 `bonded`에서 바로 간다(가격을 고정하지 않고 접는다)
  * - 분쟁 판정(`sponsor_win`·`customer_win`) → 상태는 `disputed` 그대로, 판정이 박힌다
  *
- * **보증금은 여기서 처리한다**(리뷰 #8). 결정은 **되돌리지 않는다.**
+ * **보증금은 여기서 처리한다**. 결정은 **되돌리지 않는다.**
  */
 export function decideSettlement(
   ctx: OcContext,
@@ -498,7 +498,7 @@ export function decideSettlement(
   }
   let feeSat: number;
   try {
-    // ⚠️ **수수료를 새로 추정한다.** `releaseFeeSat`은 T0에 고정된 값이라 분쟁이 몇 주 뒤에 끝나면 낡는다(§6.1).
+    // ⚠️ **수수료를 새로 추정한다.** `releaseFeeSat`은 T0에 고정된 값이라 분쟁이 몇 주 뒤에 끝나면 낡는다.
     // 다만 후원자승은 후원자가 받는 출력에서 수수료가 나가고 **후원자가 정한 수수료율**이 있다 — 그보다 낮추지
     // 않는다(시세가 더 높으면 시세). 5 sat/vB로 냈는데 판정 경로만 1 sat/vB로 나갔다(2026-09-25 signet 드릴)
     const feerate = kind === 'sponsor_win' ? Math.max(meta.feerateSatPerVb ?? 0, fees.halfHour) : fees.halfHour;
@@ -546,8 +546,8 @@ export function requestSettlementSignature(ctx: OcContext, orderId: string): boo
 }
 
 /**
- * 계좌 이의를 판정한다 — 잠정 사유(`refund:account-disputed`)를 확정한다(§5.2b). 환불 tx는 사유와 무관하게
- * 같은 모양이라 고객 서명은 그대로 유효하다. §7.7 입증책임 — 몰수를 면하려는 쪽(후원자)이 증명한다.
+ * 계좌 이의를 판정한다 — 잠정 사유(`refund:account-disputed`)를 확정한다. 환불 tx는 사유와 무관하게
+ * 같은 모양이라 고객 서명은 그대로 유효하다. 입증책임 — 몰수를 면하려는 쪽(후원자)이 증명한다.
  */
 export function resolveAccountDispute(
   ctx: OcContext, orderId: string, verdict: 'account-bad' | 'sponsor-fault',
@@ -575,7 +575,7 @@ function isPinnedOfLiveTrade(order: OnchainOrder, utxo: { txid: string; vout: nu
 }
 
 /**
- * 약정 밖의 자금 하나를 고객에게 돌려주는 요청을 보낸다(리뷰 #8) — 금액이 틀린 펀딩, 이중 송금, 취소 뒤
+ * 약정 밖의 자금 하나를 고객에게 돌려주는 요청을 보낸다 — 금액이 틀린 펀딩, 이중 송금, 취소 뒤
  * 늦게 컨펌된 펀딩, 확정 뒤 추가 입금. `{A,C}` 리프로 **고객이 낸 환불 주소**에 보낸다.
  * @returns 거절 사유. 보냈으면 `null`
  */

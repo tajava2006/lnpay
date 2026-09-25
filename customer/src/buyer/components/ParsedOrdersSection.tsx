@@ -101,7 +101,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
         return;
       }
       const order: CustomerOrder = {
-        // 수동 주문과 같은 랜덤 id. 쿠팡 번호를 쓰면 공개 태그로 새어나간다(감사 A-3).
+        // 수동 주문과 같은 랜덤 id. 쿠팡 번호를 쓰면 공개 태그로 새어나간다.
         orderId: newOrderId(),
         coupangOrderId: payload.coupangOrderId,
         price: payload.price,

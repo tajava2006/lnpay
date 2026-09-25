@@ -1,5 +1,5 @@
 /**
- * 라이트닝 효과 실행기 — 노드를 부르는 곳은 여기와 `../hold`뿐이다 (PLAN-DAEMON §4.5)
+ * 라이트닝 효과 실행기 — 노드를 부르는 곳은 여기와 `../hold`뿐이다
  *
  * 전부 **멱등**하다. 실행 도중이나 기록 직전에 죽으면 재시작 뒤 처음부터 다시 돈다:
  *
@@ -98,7 +98,7 @@ export function createCloseExecutor(ctx: LnContext): EffectExecutor<OrderPayload
 // ── 지급 ────────────────────────────────────────────────────
 
 /**
- * 후원자에게 지급 (§7 L-5). 실패하면 백오프로 계속 다시 한다 — 오래 실패하면 워처가 경보를 올린다.
+ * 후원자에게 지급. 실패하면 백오프로 계속 다시 한다 — 오래 실패하면 워처가 경보를 올린다.
  * 인보이스가 만료됐으면 후원자에게 재제출을 요청하고 멈춘다(재제출이 이 효과를 다시 쌓는다).
  */
 export function createPayoutExecutor(ctx: LnContext): EffectExecutor<OrderPayload> {

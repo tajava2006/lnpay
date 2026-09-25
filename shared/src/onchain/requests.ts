@@ -1,8 +1,8 @@
 /**
- * 온체인 트랙 요청 이벤트 (kind 1111) — PLAN-ONCHAIN-TRACK §5.2
+ * 온체인 트랙 요청 이벤트 (kind 1111)
  *
  * 라이트닝과 같은 kind·같은 전송 배관을 쓰고 **action 값만 다르다.**
- * 새 전송 계층을 만들 이유가 없다 — 계좌정보가 이미 그 길로 다닌다(§5.3).
+ * 새 전송 계층을 만들 이유가 없다 — 계좌정보가 이미 그 길로 다닌다.
  *
  * ── 무엇을 태그에 싣고 무엇을 암호문에 싣나
  *
@@ -14,7 +14,7 @@
  * | 암호문 (NIP-44) | **PSBT**, 후원자의 받을 주소·feerate | PSBT 안에 **후원자의 실제 지갑 주소**가 들어 있다 |
  *
  * 받을 주소가 공개되면 제3자가 그 지갑을 따라갈 수 있다 — 파생 키와 달리
- * 그건 일회성이 아니다(§3.2 말미).
+ * 그건 일회성이 아니다.
  *
  * ⚠️ **파서는 암호문을 풀지 않는다.** `raw`로 넘기고 복호화는 핸들러 몫이다
  * (라이트닝의 `account-info`와 같은 규약).
@@ -25,7 +25,7 @@ import type { RequestBase } from '../types';
  * 고객 → 어드민: 온체인 의뢰 등록.
  *
  * 암호문에 `{ refundAddress }`가 들어 있다 — 환불·고객승·구조 tx가 가는 **고객 자기
- * 지갑 주소**다(리뷰 #8). 전에는 주문별 키로 만든 단일키 주소로 보냈는데, 그 주소는
+ * 지갑 주소**다. 전에는 주문별 키로 만든 단일키 주소로 보냈는데, 그 주소는
  * **이 앱만 쓸 수 있고** 꺼낼 화면도 없었다. 브라우저 저장소가 지워지면 그대로 소실이다.
  */
 export interface OnchainOrderRequestMsg extends RequestBase {
@@ -40,11 +40,11 @@ export interface OnchainOrderRequestMsg extends RequestBase {
 /**
  * 후원자 → 어드민: 클레임.
  *
- * **이것만으로는 아무도 예약되지 않는다**(§4.1b) — 어드민이 보증금 인보이스를
+ * **이것만으로는 아무도 예약되지 않는다** — 어드민이 보증금 인보이스를
  * 발행하고, **먼저 결제한 쪽**이 `bonded`로 간다. 여러 명이 동시에 보내도 된다.
  *
  * 암호문에 `{ payoutAddress, feerateSatPerVb }`가 들어 있다 — 받을 주소와
- * 희망 수수료율을 **이때 미리** 낸다(§6.1b). 사전서명은 펀딩 txid에 커밋하므로
+ * 희망 수수료율을 **이때 미리** 낸다. 사전서명은 펀딩 txid에 커밋하므로
  * 펀딩 이후에만 가능하지만, 주소·feerate는 미리 받아둘 수 있다.
  */
 export interface OnchainClaimMsg extends RequestBase {
@@ -60,13 +60,11 @@ export interface OnchainPresigMsg extends RequestBase {
 /**
  * 유저 → 어드민: 최종 서명 (암호문).
  *
- * **릴리스 전용이 아니다**(리뷰 R1-M4). `{A,C}`를 쓰는 종결은 전부 고객 서명이
+ * **릴리스 전용이 아니다**. `{A,C}`를 쓰는 종결은 전부 고객 서명이
  * 필요하다 — 환불과 고객승 분쟁까지. 즉 **어드민 혼자서는 환불도 못 한다.**
  *
- * ⚠️ **고객 전용도 아니다.** `sponsor_win`은 `{A,S}`라 **후원자**가 서명한다
- * (§5.2는 "고객 → 어드민"으로만 적었는데, 그러면 후원자승 분쟁을 집행할 수
- * 없다 — P4에서 `dispute-sponsor`를 더했다). 누가 보냈는지는 핸들러가
- * 오더의 pubkey와 대조해 확인한다.
+ * ⚠️ **고객 전용도 아니다.** `sponsor_win`은 `{A,S}`라 **후원자**가 서명한다(`dispute-sponsor`).
+ * 누가 보냈는지는 핸들러가 오더의 pubkey와 대조해 확인한다.
  */
 export interface OnchainCosignMsg extends RequestBase {
   action: 'onchain-cosign';
@@ -78,10 +76,10 @@ export interface OnchainCosignMsg extends RequestBase {
 }
 
 /**
- * 양쪽 → 어드민: 분쟁 제기 (§5.2b).
+ * 양쪽 → 어드민: 분쟁 제기.
  *
  * `stage: 'account-unusable'`는 **상태 전이가 아니라 증거**다. 그걸로 `disputed`에
- * 보내면 원화 마감 시계가 멈추고 **무한 옵션이 열린다**(§7.6 R4-H1).
+ * 보내면 원화 마감 시계가 멈추고 **무한 옵션이 열린다**.
  * 마감은 그대로 흐르고, 그 주장은 **보증금을 몰수할지 환불할지만** 가른다.
  */
 export interface OnchainDisputeMsg extends RequestBase {
@@ -112,7 +110,7 @@ export type OnchainRequest =
 export interface OnchainClaimPayload {
   /** 후원자가 비트코인을 받을 주소 */
   payoutAddress: string;
-  /** 릴리스 tx에 쓸 희망 feerate (sat/vB). **후원자가 정한다** (§6.1b) */
+  /** 릴리스 tx에 쓸 희망 feerate (sat/vB). **후원자가 정한다** */
   feerateSatPerVb: number;
 }
 

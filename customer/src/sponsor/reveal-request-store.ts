@@ -55,7 +55,3 @@ export function setRevealRequested(orderId: string, at: number): void {
   save();
   notify();
 }
-
-export function isRevealRequested(orderId: string): boolean {
-  return requests[orderId] !== undefined;
-}

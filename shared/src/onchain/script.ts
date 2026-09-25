@@ -1,5 +1,5 @@
 /**
- * 에스크로 스크립트 트리 (PLAN-ONCHAIN-TRACK §3.1)
+ * 에스크로 스크립트 트리
  *
  * ```
  * 내부키(key path)   BIP-341 NUMS 점 — 증명 가능하게 소모 불가
@@ -23,18 +23,18 @@
  * 절대 타임락(CLTV)은 펀딩이 늦어지면 보호 창이 그만큼 짧아진다. CSV는
  * **펀딩 컨펌부터** 세므로 어느 주문이든 창 길이가 같다. 그리고 그 성질 덕에
  * "원화는 언제나 T0+60분 안에 흐르고, 그때 타임락은 만기 전량 남아 있다"가
- * 성립한다(§7.3).
+ * 성립한다.
  *
  * ── 트리 모양을 균형으로 잡은 이유
  *
  * 4리프를 `[[1,2],[3,4]]`로 묶으면 **모든 리프의 깊이가 2**라 control block이
  * 전부 97바이트로 같다. 자주 쓰는 리프를 위로 올리면 happy path에서 32바이트
  * (≈8 vB)를 아끼지만, 그 대신 **경로마다 종결 tx 크기가 달라진다.**
- * 이 트랙은 `releaseFeeSat`을 미리 고정하고(§6.1) 환불·분쟁 수수료를 따로
+ * 이 트랙은 `releaseFeeSat`을 미리 고정하고 환불·분쟁 수수료를 따로
  * 추정하므로, **모든 종결이 같은 크기**인 쪽이 수수료 계산을 한 줄로 만든다.
  * 8 vB와 그 단순함을 바꾼 것이다.
  */
-import { Script, taprootNumsKey } from '@scure/btc-signer';
+import { Script } from '@scure/btc-signer';
 import { bytesToHex, hexToBytes } from './hex';
 import type { EscrowRole, EscrowXonlyKeys } from './keys';
 import { assertEscrowKeys } from './keys';
@@ -50,7 +50,7 @@ import { assertEscrowKeys } from './keys';
 export const NUMS_INTERNAL_KEY =
   '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0';
 
-/** 타임락 리프의 기본 블록 수 — 8064블록 ≈ 8주 (§7.3 ④) */
+/** 타임락 리프의 기본 블록 수 — 8064블록 ≈ 8주 */
 export const DEFAULT_TIMELOCK_BLOCKS = 8064;
 
 /**
@@ -147,7 +147,3 @@ export function describeLeafScript(script: Uint8Array): string {
     .join(' ');
 }
 
-/** 우리가 박아둔 NUMS 상수가 라이브러리 값과 같은지 (테스트와 부팅 점검용) */
-export function numsMatchesLibrary(): boolean {
-  return bytesToHex(taprootNumsKey()) === NUMS_INTERNAL_KEY;
-}

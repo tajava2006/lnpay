@@ -1,5 +1,5 @@
 /**
- * 사전서명 검증 (PLAN-ONCHAIN-TRACK §7 I·J · O-003)
+ * 사전서명 검증 (T-110 · O-003)
  *
  * ── 왜 진짜로 검증해야 하나
  *
@@ -128,18 +128,6 @@ export function verifyPresignature(params: VerifyPresignatureParams): PresigVerd
  */
 export function leafHashOf(script: Uint8Array): string {
   return bytesToHex(tapLeafHash(script, TAP_LEAF_VERSION));
-}
-
-/**
- * 종결 tx의 출력이 **신고된 주소로** 가는지 (§7 J).
- *
- * 후원자가 남의 주소를 신고해 두고 "못 받았다"고 우기는 걸 막는다 —
- * 판정할 때 체인에 찍힌 출력과 신고 주소를 대조한다.
- */
-export function outputGoesTo(tx: Transaction, expectedScript: Uint8Array): boolean {
-  const out = tx.getOutput(0);
-  if (!out?.script) return false;
-  return bytesToHex(out.script) === bytesToHex(expectedScript);
 }
 
 function describeMismatch(mine: Transaction, theirs: Transaction): string {

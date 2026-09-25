@@ -1,8 +1,8 @@
 /**
- * 온체인 오더 이벤트 규약 (PLAN-ONCHAIN-TRACK §5.1)
+ * 온체인 오더 이벤트 규약
  *
  * kind 30402를 `CLIENT_TAG_ONCHAIN`으로 발행한다. **라이트닝과 태그가 겹치면
- * 배포 사고가 난다**(§1.3) — 구버전 앱이 온체인 오더를 라이트닝 오더로 렌더링한다.
+ * 배포 사고가 난다** — 구버전 앱이 온체인 오더를 라이트닝 오더로 렌더링한다.
  *
  * ── 직렬화와 파싱을 한 파일에 둔 이유
  *
@@ -14,7 +14,7 @@
  *
  * **후원자의 받을 주소와 희망 feerate는 여기 없다.** 파생 키와 달리 그건
  * 후원자의 **실제 지갑 주소**라, 공개하면 제3자가 그 지갑을 따라갈 수 있다.
- * 사전서명 PSBT 안에 실려 어드민·고객에게만 간다 (§3.2 말미).
+ * 요청 암호문과 사전서명 PSBT 안에만 실려 데몬·고객에게만 간다.
  */
 import type { OnchainState, SettlementKind } from './state-machine';
 import { ONCHAIN_STATES, SETTLEMENT_KINDS, isOnchainTerminal } from './state-machine';
@@ -47,7 +47,7 @@ export interface OnchainOrder {
   escrowAddress?: string;
   timelockBlocks?: number;
   /**
-   * 고객 펀딩 마감 (unix초). **컨펌까지** 끝나야 하는 시각이다(§4.1c).
+   * 고객 펀딩 마감 (unix초). **컨펌까지** 끝나야 하는 시각이다.
    * 리오그로 `bonded`에 돌아오면 **다시 찍는다** — 안 그러면 체인 사고로
    * 정직한 고객이 몰수된다.
    */
@@ -83,7 +83,7 @@ export interface OnchainOrder {
   remittedAt?: number;
 
   /**
-   * 후원자가 송금 마감 **전에** "계좌를 쓸 수 없다"고 이의를 낸 시각 (§5.2b).
+   * 후원자가 송금 마감 **전에** "계좌를 쓸 수 없다"고 이의를 낸 시각.
    * 상태가 아니라 증거다 — 시계를 멈추지 않는다. 마감이 차면 환불 사유가
    * `refund:account-disputed`(잠정)가 되고 어드민이 과실을 판정한다.
    */
@@ -98,7 +98,7 @@ export interface OnchainOrder {
    * 종결 사유. `refunding`과 판정이 난 `disputed`에서는 **결정**이고, `settling`
    * 이후에는 브로드캐스트된 tx의 사유다.
    *
-   * 결정을 오더 이벤트에 싣는 이유(리뷰 #8): 사이드 스토어에만 두면 기기를 옮기거나
+   * 결정을 오더 이벤트에 싣는 이유: 사이드 스토어에만 두면 기기를 옮기거나
    * 저장소가 날아갈 때 결정이 사라지고, 새 기기가 **다른 사유**로 다시 결정한다
    * (reserve 미달로 접은 주문이 후원자 이탈로 재판정돼 후원자가 부당하게 몰수됐다).
    */
@@ -111,7 +111,7 @@ export interface OnchainOrder {
   /** 결정 시각 — 보증금은 이때 처리된다 */
   decidedAt?: number;
   settlementTxid?: string;
-  /** 종결 tx를 뿌린 시각. 24시간 넘게 안 잡히면 CPFP 안내를 띄운다 (§6.2) */
+  /** 종결 tx를 뿌린 시각. 24시간 넘게 안 잡히면 CPFP 안내를 띄운다 */
   settlingAt?: number;
 
   // ── 보증금 (LN 홀드 인보이스) ──

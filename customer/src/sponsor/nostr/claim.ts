@@ -34,7 +34,7 @@ import type { EventTemplate } from 'nostr-tools/core';
  * **인보이스를 싣지 않는다.** 클레임은 "내가 맡겠다"일 뿐이고, 지급받을
  * 인보이스는 에스크로가 잡힌 뒤 `publishSponsorInvoice`로 따로 낸다.
  * 그래야 후원자 노드 사정이 고객의 결제를 막지 않고, 인보이스가 묵어
- * 만료되는 구간도 줄어든다. 근거 = docs/DESIGN-LATE-INVOICE.md
+ * 만료되는 구간도 줄어든다. 규칙은 docs/LN-TRACK.md(I-009·I-010)
  *
  * Tags:
  *   ['a', '30402:<APP_PUBKEY>:<orderId>']  - Admin 오더 참조
@@ -233,7 +233,7 @@ export async function publishAccountReveal(order: Order): Promise<boolean> {
   }
 
   // 솔트도 같이 공개해야 Admin이 커밋먼트를 대조할 수 있다.
-  // 솔트 도입(감사 A-1) 이전 기록은 undefined — Admin이 레거시 무솔트로 검증한다.
+  // 솔트 도입 이전 기록은 undefined — Admin이 레거시 무솔트로 검증한다.
   const payload: DisputeMessagePayload = {
     type: 'account-reveal',
     accountInfo: accountInfoReq.accountInfo,
@@ -250,7 +250,7 @@ export async function publishAccountReveal(order: Order): Promise<boolean> {
  * 클레임 때가 아니라 여기서 내는 이유: 후원자 노드 사정이 고객의 에스크로를
  * 막지 않게 하고, 인보이스가 묵어 만료되는 구간을 줄이기 위해서다.
  * 그리고 **이걸 내야 고객이 계좌 정보를 보낸다** — 받을 준비가 안 된 채로
- * 원화를 보내는 사고를 막는 장치다. 근거 = docs/DESIGN-LATE-INVOICE.md
+ * 원화를 보내는 사고를 막는 장치다. 규칙은 docs/LN-TRACK.md(I-009·I-010)
  *
  * 금액은 오더의 `payout` 태그와 **정확히** 일치해야 어드민이 받아준다.
  */

@@ -6,7 +6,6 @@ import { LnOrderCard } from '../../ln/LnOrderCard';
 import { OrderForm } from './OrderForm';
 import { ParsedOrdersSection } from './ParsedOrdersSection';
 import { UserscriptGuide, canInstallUserscript } from './UserscriptGuide';
-import { ToastContainer } from '../../components/Toast';
 
 interface Props {
   tracker: PriceTracker;
@@ -69,8 +68,6 @@ export function Dashboard({ tracker, onSelectOrder }: Props) {
         앞서게 되어 훅 규칙을 어긴다. 무엇을 보여줄지는 부모가 정하는 게 맞다.
       */}
       {canInstallUserscript() && <UserscriptGuide />}
-
-      <ToastContainer />
     </>
   );
 }

@@ -141,7 +141,7 @@ function AppContent() {
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);
     startSubscriptions();
-    // 온체인은 `t` 태그가 달라 **소켓을 따로 연다**(§1.3). 섞으면 구버전
+    // 온체인은 `t` 태그가 달라 **소켓을 따로 연다**. 섞으면 구버전
     // 클라이언트가 온체인 오더를 라이트닝으로 렌더링하는 사고가 재현된다.
     void startOnchainSubscriptions();
     startBuyerCleanup();

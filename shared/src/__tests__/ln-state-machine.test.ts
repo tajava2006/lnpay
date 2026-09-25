@@ -2,7 +2,7 @@
  * FSM 전이 + 금액 규칙
  *
  * 돈 경로의 순서를 고정한다. 여기 있는 항목 하나하나가
- * docs/DESIGN-LATE-INVOICE.md의 공격 분석에 대응한다 — 전이 맵이 느슨해지면
+ * docs/RISKS.md의 라이트닝 공격 표에 대응한다 — 전이 맵이 느슨해지면
  * 그 공격이 다시 열린다는 뜻이다.
  */
 import { describe, it, expect } from 'vitest';
@@ -35,7 +35,7 @@ describe('정상 경로', () => {
 
 describe('순서 건너뛰기 차단', () => {
   /**
-   * 공격 D. 후원자가 에스크로 전에 인보이스를 내밀어 계좌 관문을 미리 여는 것.
+   * T-104. 후원자가 에스크로 전에 인보이스를 내밀어 계좌 관문을 미리 여는 것.
    * 핸들러의 if가 아니라 전이 맵이 막아야 한다 — 그래야 새 경로가 생겨도 안전하다.
    */
   it('verified → invoiced 불가 (에스크로 없이 인보이스 접수 금지)', () => {
@@ -47,7 +47,7 @@ describe('순서 건너뛰기 차단', () => {
   });
 
   /**
-   * 공격 F / 불변조건 I-010. 지급 대상 없이 settle하면 BTC가 어드민에 묶인다.
+   * T-106 / 불변조건 I-010. 지급 대상 없이 settle하면 BTC가 어드민에 묶인다.
    * 예전에 있던 지름길이라 되살아나기 쉽다.
    */
   it('escrowed → paid 불가 (지급 대상 없이 settle 금지)', () => {
@@ -64,7 +64,7 @@ describe('순서 건너뛰기 차단', () => {
 
 describe('에스크로 이후 일방 취소 차단 (T-001 ~ T-003)', () => {
   /**
-   * 공격 G. escrowed에서는 계좌가 안 나갔으니 안전해 보이지만, 고객이 계좌를
+   * T-107. escrowed에서는 계좌가 안 나갔으니 안전해 보이지만, 고객이 계좌를
    * 미리 뿌리고 후원자가 고친 코드로 송금하면 선취적 취소가 부활한다.
    */
   it.each(['escrowed', 'invoiced', 'remitted'] as const)('%s → cancelled 불가', from => {
@@ -140,7 +140,7 @@ describe('인보이스 금액 정확 일치 (불변조건 I-011)', () => {
   });
 
   /**
-   * 공격 B. 예전 ±5% 범위 검사였다면 1229까지 통과했다.
+   * T-102. 예전 ±5% 범위 검사였다면 1229까지 통과했다.
    * 금액을 정한 게 우리인 이상 근사를 허용할 이유가 없다.
    */
   it.each([1170, 1172, 1229, 1112])('%d은 거절 — 1 sat만 달라도 안 된다', amount => {
@@ -188,26 +188,12 @@ describe('어드민 강제 종결 (admin_closed)', () => {
   });
 });
 
-describe('TERMINAL_STATES가 FSM과 일치한다', () => {
-  /**
-   * 이 목록이 **다섯 군데에 복붙돼 있었다** — 오더북 둘, 스토어 둘, 발행 하나.
-   * `admin_closed`를 추가하면서 두 곳만 고쳤고, 그래서 종결된 의뢰가 오더북에
-   * 계속 떠 있었다(2026-09-19 관측). 이제 shared 한 곳이 진실이다.
-   *
-   * 그런데 단일화만으로는 부족하다. 목록과 전이 맵이 **다른 파일**이라 여전히
-   * 갈라질 수 있다. "나가는 전이가 없는 상태 = 종결"이라는 정의로 둘을 묶는다.
-   */
-  it('나가는 전이가 없는 상태는 전부 종결로 표시된다', () => {
-    const dead = ALL.filter(s => ALL.every(to => !canTransition(s, to)));
-
-    expect(new Set(dead)).toEqual(new Set([...TERMINAL_STATES]));
-  });
-
-  it('종결로 표시된 상태는 전부 나가는 전이가 없다', () => {
-    for (const state of TERMINAL_STATES) {
-      for (const to of ALL) {
-        expect(canTransition(state, to), `${state} → ${to}`).toBe(false);
-      }
-    }
+describe('종결 상태', () => {
+  /** 전이 맵에서 유도한다 — 종결에서 나가는 화살표를 실수로 달거나 막다른 비종결 상태를 만들면 여기서 걸린다 */
+  it('나가는 전이가 없는 상태가 정확히 이 여섯이다', () => {
+    expect([...TERMINAL_STATES].sort()).toEqual(
+      ['admin_closed', 'cancelled', 'customer_wins', 'expired', 'paid', 'sponsor_wins'],
+    );
+    expect(ALL.filter(s => ALL.every(to => !canTransition(s, to))).sort()).toEqual([...TERMINAL_STATES].sort());
   });
 });

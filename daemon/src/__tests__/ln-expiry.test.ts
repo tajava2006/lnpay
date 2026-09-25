@@ -1,5 +1,5 @@
 /**
- * P3 라이트닝 — 기한·만기·닫기 사유 (PLAN-DAEMON §7 L-2·L-3·L-6, §14 D4)
+ * P3 라이트닝 — 기한·만기·닫기 사유
  *
  * 기한 = 쿠팡 가상계좌 기한. 그 뒤로는 원화가 갈 수 없으므로 `remitted` 전이면 닫는다. 닫는 사유가
  * 곧 에스크로·보증금 처리다(`CLOSE_RULES`).
@@ -35,7 +35,7 @@ function escrowExpiryHeight(h: LnHarness, orderId: string): number {
   )!.h;
 }
 
-describe('쿠팡 기한 (L-2) — 사유가 곧 처리', () => {
+describe('쿠팡 기한 — 사유가 곧 처리', () => {
   it('후원자가 안 붙은 채 기한 → expired, 고객 보증금 환불', async () => {
     const h = await warmHarness();
     setDeposits(h, 2, 0);
@@ -78,7 +78,7 @@ describe('쿠팡 기한 (L-2) — 사유가 곧 처리', () => {
     expect(messagesTo(h, h.customer.pubkey, REQUEST_ACTIONS.DEPOSIT_SETTLED)).toHaveLength(1);
   });
 
-  it('에스크로 뒤 인보이스를 끝내 안 내면(escrowed) → 유예 뒤 expired, 에스크로 환불 · 후원자 보증금 몰수 (D4)', async () => {
+  it('에스크로 뒤 인보이스를 끝내 안 내면(escrowed) → 유예 뒤 expired, 에스크로 환불 · 후원자 보증금 몰수', async () => {
     const h = await warmHarness();
     setDeposits(h, 0, 3);
     const orderId = await openOrder(h, { deadlineIn: 6 * HOUR });
@@ -103,7 +103,7 @@ describe('쿠팡 기한 (L-2) — 사유가 곧 처리', () => {
     expect(h.node.stateOf(o.sponsor_deposit_hash!)).toBe('settled'); // 몰수
   });
 
-  it('계좌까지 나간 뒤(invoiced) 기한 → expired:no-remit, 양쪽 다 돌려준다 (D4)', async () => {
+  it('계좌까지 나간 뒤(invoiced) 기한 → expired:no-remit, 양쪽 다 돌려준다', async () => {
     const h = await warmHarness();
     setDeposits(h, 0, 3);
     const orderId = await openOrder(h, { deadlineIn: 6 * HOUR });
@@ -217,7 +217,7 @@ describe('고객 취소', () => {
   });
 });
 
-describe('에스크로 만기 (L-3) — 선제 settle과 판정', () => {
+describe('에스크로 만기 — 선제 settle과 판정', () => {
   it('remitted인데 HTLC 만기가 가까우면 먼저 받아 두고 사람을 부른다 → 후원자 승이면 지급', async () => {
     const h = await warmHarness();
     const orderId = await toRemitted(h);
@@ -255,7 +255,7 @@ describe('에스크로 만기 (L-3) — 선제 settle과 판정', () => {
     expect(openAlerts(h.ln).some(a => /하지 않은 settle/.test(a.message))).toBe(false);
   });
 
-  it('선제 settle 뒤 고객 승이면 자동 환불이 안 된다 — 경보로 알린다 (L-7)', async () => {
+  it('선제 settle 뒤 고객 승이면 자동 환불이 안 된다 — 경보로 알린다', async () => {
     const h = await warmHarness();
     const orderId = await toRemitted(h);
     h.node.height = escrowExpiryHeight(h, orderId) - SAFETY_SETTLE_BLOCKS;

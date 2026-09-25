@@ -1,5 +1,5 @@
 /**
- * 워처의 판단 (PLAN-ONCHAIN-TRACK §9 · §6.2)
+ * 워처의 판단
  *
  * 마감·리오그·이상징후 판정이 전부 여기 모여 있다. 한 줄이 틀리면
  * **돈이 있는 주소를 취소**하거나 **사라진 펀딩 위에 가격을 고정**한다.
@@ -13,7 +13,7 @@ import {
 } from '@sajwo-tracker/shared/onchain';
 import type { AddressFunds, ChainQuery, ChainUtxo } from '@sajwo-tracker/shared/onchain';
 import {
-  decideOnchainAction, needsSettlementDecision, type OnchainWatchContext, type PinnedFacts,
+  decideOnchainAction, type OnchainWatchContext, type PinnedFacts,
 } from '../onchain/decide';
 
 const NOW = 1_700_000_000;
@@ -74,7 +74,7 @@ describe('listed', () => {
   });
 });
 
-describe('bonded — 펀딩 판정 (§4.1c)', () => {
+describe('bonded — 펀딩 판정', () => {
   const bonded = (over: Partial<OnchainOrder> = {}) =>
     order({ state: 'bonded', fundingDeadline: NOW + FUNDING_WINDOW_SEC, ...over });
 
@@ -93,7 +93,7 @@ describe('bonded — 펀딩 판정 (§4.1c)', () => {
     expect(action.kind).toBe('idle');
   });
 
-  /** 멤풀은 화면 힌트일 뿐이다. 0-conf는 RBF로 되돌릴 수 있다(공격 D). */
+  /** 멤풀은 화면 힌트일 뿐이다. 0-conf는 RBF로 되돌릴 수 있다(T-104). */
   it('멤풀에만 있으면 funded가 아니다', () => {
     const action = decideOnchainAction(bonded(), ctx({
       funds: funds({ mempool: [utxo({ confirmations: 0 })] }),
@@ -118,7 +118,13 @@ describe('bonded — 펀딩 판정 (§4.1c)', () => {
     expect(action.kind).toBe('idle');
   });
 
-  it('모양이 다르면 사람을 부른다 (공격 K)', () => {
+  /** O-014 — 조회 실패는 '비었다'가 아니다. 모르면 마감이 지나도 취소하지 않는다 */
+  it('체인을 모르면 마감이 지나도 취소하지 않는다', () => {
+    const o = bonded({ fundingDeadline: NOW - 1 });
+    expect(decideOnchainAction(o, ctx({ funds: { known: false, reason: 'timeout' } })).kind).toBe('hold');
+  });
+
+  it('모양이 다르면 사람을 부른다 (T-111)', () => {
     const action = decideOnchainAction(bonded(), ctx({
       funds: funds({ confirmed: [utxo(), utxo({ vout: 1 })] }),
     }));
@@ -196,7 +202,7 @@ describe('funded — 사전서명 마감 (T0+15분)', () => {
   });
 
   /**
-   * 리뷰 #8 — **누가 썼으면 리오그가 아니다.** 전에는 UTXO가 목록에서 빠지면 전부
+   * **누가 썼으면 리오그가 아니다.** 전에는 UTXO가 목록에서 빠지면 전부
    * 리오그로 읽어서, 우리가 뿌린 환불을 `bonded` 복귀로 바꾸고 마감이 차면 엉뚱한
    * 쪽을 몰수했다.
    */
@@ -271,7 +277,7 @@ describe('presigned — 두 사람의 마감이 순서대로 (O-013)', () => {
   });
 
   /**
-   * §5.2b — 후원자가 마감 **전에** 계좌 이의를 냈다면 마감이 차도 곧장 후원자 몰수가
+   * T-124 — 후원자가 마감 **전에** 계좌 이의를 냈다면 마감이 차도 곧장 후원자 몰수가
    * 아니다. 잠정 사유로 보증금을 붙잡고 사람이 가른다(전에는 이의가 콘솔에만 남았다).
    */
   it('계좌 이의가 있으면 잠정 사유(account-disputed)로 환불한다', () => {
@@ -285,7 +291,7 @@ describe('presigned — 두 사람의 마감이 순서대로 (O-013)', () => {
   });
 });
 
-describe('refunding — 결정은 되돌아가지 않는다 (리뷰 #8)', () => {
+describe('refunding — 결정은 되돌아가지 않는다', () => {
   const refunding = (over: Partial<OnchainOrder> = {}) => order({
     state: 'refunding', fundingOutpoint: formatOutpoint(TXID, 0), fundedAt: NOW - 10_000,
     settlementKind: 'refund:sponsor-timeout', settlementFeeSat: 400, decidedAt: NOW - 100, ...over,
@@ -324,7 +330,7 @@ describe('remitted — 24시간 뒤 강제 분쟁 (O-010)', () => {
 
   /**
    * 느린 고객 대부분이 여기서 스스로 끝낸다 → 어드민이 안 불려 나온다. 전용 행동이라
-   * 워처가 **한 번만** 알린다(전에는 경고로 내서 30초마다 푸시가 나갔다 — 리뷰 #8).
+   * 워처가 **한 번만** 알린다(전에는 경고로 내서 30초마다 푸시가 나갔다).
    */
   it('2시간 전에 유예 경고', () => {
     const o = remitted({ remittedAt: NOW - COSIGN_WINDOW_SEC + 2 * 3600 });
@@ -338,7 +344,7 @@ describe('remitted — 24시간 뒤 강제 분쟁 (O-010)', () => {
   });
 });
 
-describe('disputed — 하드 마감이 없다 (§7.5)', () => {
+describe('disputed — 하드 마감이 없다', () => {
   /** 자동 해소는 어느 방향이든 탈취다. 대신 사람을 더 세게 부른다. */
   it('시간이 지나도 스스로 해소하지 않는다', () => {
     const o = order({ state: 'disputed', updatedAt: NOW - 30 * 86_400, fundingOutpoint: formatOutpoint(TXID, 0) });
@@ -356,7 +362,7 @@ describe('disputed — 하드 마감이 없다 (§7.5)', () => {
   });
 
   /**
-   * 리뷰 #8 — 시계는 **분쟁 진입 시각**이다. `updatedAt`은 재발행(판정 기록·필드 수정)
+   * 시계는 **분쟁 진입 시각**이다. `updatedAt`은 재발행(판정 기록·필드 수정)
    * 마다 바뀌어 에스컬레이션이 리셋됐다.
    */
   it('재발행으로 updatedAt이 바뀌어도 분쟁 시계는 진입 시각이다', () => {
@@ -425,7 +431,7 @@ describe('settling — 컨펌되면 터미널 (O-005)', () => {
   });
 
   /**
-   * O-005 "멤풀 이탈은 같은 tx 재브로드캐스트로" — 리뷰 #8 전에는 404를 '모름'으로
+   * O-005 "멤풀 이탈은 같은 tx 재브로드캐스트로" — 전에는 404를 '모름'으로
    * 받아 영원히 hold했고, raw tx도 안 남겨 다시 뿌릴 수가 없었다.
    */
   it('노드가 모르면(쫓겨났으면) 같은 tx를 다시 뿌린다', () => {
@@ -459,16 +465,4 @@ describe('터미널은 관측만 한다', () => {
       expect(decideOnchainAction(order({ state }), ctx()).kind).toBe('idle');
     },
   );
-});
-
-describe('행동 분류', () => {
-  it('settle·fold는 환불 결정이다', () => {
-    expect(needsSettlementDecision({ kind: 'settle', settlementKind: 'refund:reserve' })).toBe(true);
-    expect(needsSettlementDecision({
-      kind: 'fold', outpoint: { txid: TXID, vout: 0 }, confirmations: 1,
-      settlementKind: 'refund:bond-expired',
-    })).toBe(true);
-    expect(needsSettlementDecision({ kind: 'idle' })).toBe(false);
-    expect(needsSettlementDecision({ kind: 'cancel' })).toBe(false);
-  });
 });

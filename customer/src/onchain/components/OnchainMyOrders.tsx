@@ -1,5 +1,5 @@
 /**
- * 내 온체인 거래 — 역할별 액션 (PLAN-ONCHAIN-TRACK §9 · O-007 · T-106)
+ * 내 온체인 거래 — 역할별 액션 (O-007 · T-106)
  *
  * 역할은 **pubkey 비교로 유도**한다. 칼럼을 따로 두지 않는다(라이트닝과 같은 규칙).
  *
@@ -7,15 +7,16 @@
  *   ① **릴리스는 자동이 아니다**(O-007). 고객이 은행 입금을 눈으로 확인하고 누른다
  *   ② **원화 송금 전에 확인시킨다**(T-106) — 타임락, 그리고 **펀딩이 정말 체인에 있는지**.
  *      모르면 막는다
- *   ③ **서명은 내 기록으로 다시 만든 tx에만** 한다(리뷰 #8). 받은 PSBT의 "받는 주소"가
+ *   ③ **서명은 내 기록으로 다시 만든 tx에만** 한다. 받은 PSBT의 "받는 주소"가
  *      내가 기대한 곳이 아니면 버튼이 안 열린다
- *   ④ **마감이 지난 행동은 버튼부터 없다**(리뷰 #8). 늦은 계좌·늦은 송금은 어드민도
+ *   ④ **마감이 지난 행동은 버튼부터 없다**. 늦은 계좌·늦은 송금은 어드민도
  *      받지 않는다 — 화면이 열어두면 원화만 헛되이 나간다
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { InvoicePayBlock } from '@sajwo-tracker/shared';
 import {
-  ACCOUNT_WINDOW_SEC, MempoolChainAdapter, accountDeadlineOf, canActOnSignRequest, durationText, isPast, krwDeadlineOf,
+  ACCOUNT_WINDOW_SEC, MempoolChainAdapter, accountDeadlineOf, canActOnSignRequest, canSendAccountInfoOnchain, durationText,
+  isPast, krwDeadlineOf,
   onchainStateDisplay, presignDeadlineOf, settlementSummary,
   type AddressFunds, type ChainQuery, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
@@ -87,7 +88,7 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
   /**
    * ⚠️ **오더가 아직 없는 보증금 인보이스**가 따로 있다.
    *
-   * 의뢰 등록은 §4.1b대로 **보증금 결제가 곧 등록**이라, 결제 전에는 오더 자체가
+   * 의뢰 등록은 **보증금 결제가 곧 등록**이라, 결제 전에는 오더 자체가
    * 존재하지 않는다. 그래서 이걸 오더 카드 안에서만 그리면 **결제할 화면이
    * 영영 안 나오고 흐름이 멈춘다**(2026-09-21 실제로 그랬다).
    */
@@ -277,7 +278,7 @@ export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signReq
  * 고객: 의뢰를 내린다.
  *
  * **후원자가 붙기 전에만** 보인다. 붙은 뒤에는 상대가 이미 보증금을 걸었으므로
- * 일방 취소가 없다 — 그때부터는 마감과 체인이 판정한다(§4.2).
+ * 일방 취소가 없다 — 그때부터는 마감과 체인이 판정한다.
  */
 function CancelOrderPanel({ order }: { order: OnchainOrder }) {
   const [busy, setBusy] = useState(false);
@@ -371,6 +372,8 @@ function AccountInfoForm({ order }: { order: OnchainOrder }) {
 
   async function send() {
     if (!order.sponsorPubkey || !bank || !number || !holder) return;
+    // 발행 직전에 관문을 한 번 더 본다(O-002·O-003) — 라이트닝 계좌 발행과 같은 자리
+    if (!canSendAccountInfoOnchain(order.state)) return;
     setBusy(true);
     try {
       // ⚠️ 필드명은 `AccountInfo`와 **정확히** 같아야 한다 — 다르면 후원자 쪽에서
@@ -403,7 +406,7 @@ function AccountInfoForm({ order }: { order: OnchainOrder }) {
 /**
  * 후원자: 원화 송금.
  *
- * 버튼은 **넷이 다 맞을 때만** 열린다 (리뷰 #8):
+ * 버튼은 **넷이 다 맞을 때만** 열린다:
  *   - 운영자가 **고객이 계좌를 보냈다고 확인**했다(`accountSentAt`) — 계좌 스토어에
  *     뭔가 있다는 것만으로는 부족하다
  *   - 송금 마감 전이다 — 지나면 어드민이 받지 않고 환불로 간다
@@ -609,8 +612,8 @@ function SignPanel({ order, role, request }: {
  * - `remitted` — 양쪽 다 분쟁을 열 수 있다
  * - `presigned` — **후원자만**, 계좌를 받은 뒤 송금 마감 전에 "계좌를 쓸 수 없다".
  *   상태가 아니라 증거다 — 시계는 멈추지 않고, 마감이 차면 누구 과실인지 운영자가
- *   가른다(§5.2b). 고객에게는 이 단계에 분쟁 버튼이 없다(전에는 떠 있었는데
- *   누르면 어드민이 조용히 버렸다 — 리뷰 #8)
+ *   가른다. 고객에게는 이 단계에 분쟁 버튼이 없다(전에는 떠 있었는데
+ *   누르면 어드민이 조용히 버렸다)
  */
 function DisputeButton({ order, role, now }: {
   order: OnchainOrder;

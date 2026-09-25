@@ -1,7 +1,7 @@
 /**
  * 라이트닝 트랙 상태 머신 (FSM)
  *
- * 에스크로 거래의 상태 전이 표. **데몬이 유일한 집행자**라(PLAN-DAEMON DM-001) 이 표를 지나야만
+ * 에스크로 거래의 상태 전이 표. **데몬이 유일한 집행자**라(DM-001) 이 표를 지나야만
  * 오더 상태가 바뀐다. 유저 앱·어드민 앱은 같은 표로 화면을 그린다 — 그래서 shared에 있다.
  */
 
@@ -20,7 +20,7 @@ import type { OrderState } from '../constants';
  *
  * 터미널: paid, cancelled, sponsor_wins, customer_wins, admin_closed, expired
  *
- * ── `expired` (2026-09-24, PLAN-DAEMON §7 L-2)
+ * ── `expired` (2026-09-24)
  *
  * **쿠팡 가상계좌 기한(`deadline`)이 지나 원화가 더는 갈 수 없는** 거래를 데몬이 닫는 자리다.
  * 예전에는 이런 거래가 아무 전이 없이 화면에서만 사라졌다 — 정리 작업이 의뢰 만료로 오더와
@@ -70,7 +70,7 @@ const TRANSITIONS: Record<OrderState, readonly OrderState[]> = {
   expired: [],
 };
 
-/** 전이 맵에서 유도한 종결 상태 — 손으로 나열하면 갈라진다 */
+/** 전이 맵에서 유도한 종결 상태 — 밖에서는 `TERMINAL_STATES`(constants)로 쓴다 */
 export const LN_TERMINAL_STATES: ReadonlySet<OrderState> = new Set(
   (Object.keys(TRANSITIONS) as OrderState[]).filter(s => TRANSITIONS[s].length === 0),
 );
@@ -117,12 +117,3 @@ export function computeEscrowSat(payoutSat: number): number {
 export function isPayoutAmountExact(payoutSat: number | undefined, amountSat: number): boolean {
   return typeof payoutSat === 'number' && payoutSat > 0 && amountSat === payoutSat;
 }
-
-export interface TransitionResult {
-  success: boolean;
-  error?: TransitionError;
-}
-
-export type TransitionError =
-  | { type: 'ORDER_NOT_FOUND'; orderId: string }
-  | { type: 'INVALID_TRANSITION'; from: OrderState; to: OrderState };

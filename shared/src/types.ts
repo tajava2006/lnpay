@@ -48,7 +48,7 @@ export interface Order {
   sponsorDepositPending?: boolean;
   /**
    * 이 이벤트가 릴레이에서 사라지는 시각 (NIP-40). `expiration`(거래 마감)과 다르다 —
-   * 진행 중 거래는 마감 뒤에도 이어지므로 목록에서 지울 때는 이걸 본다 (PLAN-DAEMON §7 L-1).
+   * 진행 중 거래는 마감 뒤에도 이어지므로 목록에서 지울 때는 이걸 본다.
    */
   retainUntil?: number;
   /** 종결 사유 (`LnCloseReason`). 종결된 오더에만 */
@@ -110,7 +110,7 @@ export interface AccountInfoRequest extends RequestBase {
   accountInfo?: AccountInfo;
   /**
    * 커밋먼트 솔트. 분쟁 시 계좌정보와 함께 공개해야 Admin이 대조할 수 있다.
-   * 솔트 도입(감사 A-1) 이전 기록에는 없다 — 그 경우 레거시 무솔트로 검증한다.
+   * 솔트 도입 이전 기록에는 없다 — 그 경우 레거시 무솔트로 검증한다.
    */
   commitmentSalt?: string;
 }
@@ -129,7 +129,7 @@ export interface SimpleRequest extends RequestBase {
  *
  * 클레임이 아니라 **에스크로 이후**에 온다. 이 이벤트가 검증을 통과해야
  * 오더가 `invoiced`가 되고, 그래야 고객이 계좌 정보를 발행한다.
- * 근거 = docs/DESIGN-LATE-INVOICE.md
+ * 규칙은 docs/LN-TRACK.md(I-009·I-010)
  */
 export interface SponsorInvoiceRequest extends RequestBase {
   action: 'sponsor-invoice';
@@ -160,7 +160,7 @@ export interface DisputeMessagePayload {
   accountInfo?: AccountInfo;
   /**
    * 커밋먼트 솔트. 계좌정보와 함께 공개해야 Admin이 대조할 수 있다.
-   * 솔트 도입(감사 A-1) 이전 기록에는 없다 — 그 경우 레거시 무솔트로 검증한다.
+   * 솔트 도입 이전 기록에는 없다 — 그 경우 레거시 무솔트로 검증한다.
    */
   commitmentSalt?: string;
 }

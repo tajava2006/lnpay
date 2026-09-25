@@ -1,5 +1,5 @@
 /**
- * 온체인 배지 + 진행도 (PLAN-ONCHAIN-TRACK §5.4 · §10)
+ * 온체인 배지 + 진행도
  *
  * **FSM을 고치면 다섯이 세트다**: 전이 맵 → 알림 문구 → 문서 → 진행도 → 배지.
  * 타입체커가 안 잡아주는 자리라 라이트닝에서 매번 빠뜨렸다 — `invoiced`를
@@ -59,7 +59,7 @@ describe('진행도 사다리', () => {
   });
 
   /**
-   * 멤풀 관측은 상태가 아니라 화면 힌트다(§4.2). `bonded` 한 단계가 "보내기 +
+   * 멤풀 관측은 상태가 아니라 화면 힌트다. `bonded` 한 단계가 "보내기 +
    * 컨펌"을 둘 다 덮는다 — 판정이 "마감 안에 N컨펌 됐는가" 하나뿐이라 쪼갤 게 없다.
    */
   it('멤풀 대기용 단계가 따로 없다', () => {
@@ -86,7 +86,7 @@ describe('진행도 사다리', () => {
     }
   });
 
-  /** 마감을 어기면 보증금을 잃는 단계는 **반드시 그 사실을 적는다**(§6.0 고지 범위). */
+  /** 마감을 어기면 보증금을 잃는 단계는 **반드시 그 사실을 적는다.** */
   it.each(['bonded', 'funded', 'presigned'] as const)('%s 단계가 몰수를 고지한다', state => {
     const step = ONCHAIN_PROGRESS_STEPS.find(s => s.state === state)!;
     const text = [...step.customer, ...step.sponsor].map(a => a.text).join(' ');
@@ -182,7 +182,7 @@ describe('진행도 해석', () => {
     }
   });
 
-  it('환불 안내에 수수료 2회 부담이 들어 있다 (§6.0 고지)', () => {
+  it('환불 안내에 수수료 2회 부담이 들어 있다', () => {
     const p = resolveOnchainProgress('customer', 'refunded');
     expect(p.terminal!.description).toMatch(/두 번/);
     expect(p.terminal!.description).toMatch(/보장되지는 않습니다/);

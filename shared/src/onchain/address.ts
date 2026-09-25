@@ -1,11 +1,11 @@
 /**
- * 에스크로 주소 파생과 **독립 검증** (PLAN-ONCHAIN-TRACK §3.4)
+ * 에스크로 주소 파생과 **독립 검증**
  *
  * ── 이 파일의 존재 이유는 검증이다
  *
  * 고객이 돈을 보내는 주소가 **정말 자기 키가 들어간 2-of-3인지**를 앱이 스스로
  * 확인해야 한다. 어드민이 알려준 주소를 그냥 믿으면, 어드민이 악의적이거나
- * 침해당했을 때 전액을 잃는다(공격 G).
+ * 침해당했을 때 전액을 잃는다(T-107).
  *
  * → 세 pubkey를 전부 오더 이벤트에 싣고, **각 클라이언트가 주소를 직접 파생해
  *   대조**한다. 불일치면 진행을 막는다. **타협 대상이 아니다.**
@@ -85,7 +85,7 @@ export interface EscrowDescriptor {
  * 세 키 + 타임락 → 에스크로 taproot 주소.
  *
  * 키 형식 검사와 **세 키 상이 검사**는 `buildEscrowLeaves`가 먼저 한다 —
- * 겹친 키로는 주소가 아예 안 나온다(§3.3, 공격 H).
+ * 겹친 키로는 주소가 아예 안 나온다(T-108).
  */
 export function deriveEscrowAddress(params: EscrowAddressParams): EscrowDescriptor {
   const timelockBlocks = params.timelockBlocks ?? DEFAULT_TIMELOCK_BLOCKS;
@@ -131,7 +131,7 @@ export function deriveEscrowAddress(params: EscrowAddressParams): EscrowDescript
  *   주문마다 다르므로 주소 재사용도 없다.
  *
  * 후원자는 반대다 — 클레임할 때 **직접 깨어 있으므로** 받을 주소를 자기가 낸다
- * (§6.1b). 활동 중인 쪽은 지정하고, 부재할 수 있는 쪽은 결정론으로 받는다.
+ * 활동 중인 쪽은 지정하고, 부재할 수 있는 쪽은 결정론으로 받는다.
  */
 export function deriveSingleKeyAddress(xonly: string, network: BtcNetworkName): string {
   if (!isXonlyHex(xonly)) throw new Error('단일키 주소: x-only 형식이 아니다');
@@ -188,17 +188,3 @@ export function verifyEscrowAddress(
   return { ok: true, descriptor };
 }
 
-/** 검증을 통과해야만 진행하는 자리용 (펀딩 직전 등) */
-export function assertEscrowAddress(
-  params: EscrowAddressParams,
-  expectedAddress: string,
-): EscrowDescriptor {
-  const check = verifyEscrowAddress(params, expectedAddress);
-  if (!check.ok) {
-    throw new Error(
-      `에스크로 주소 검증 실패: ${check.reason}` +
-        (check.derived ? ` (내가 파생한 주소: ${check.derived})` : ''),
-    );
-  }
-  return check.descriptor;
-}

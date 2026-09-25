@@ -42,8 +42,8 @@ export interface PublishResult {
 /**
  * kind 1111 order-request 이벤트 빌드
  *
- * 쿠팡 기한은 `deadline` 태그로, `expiration`은 **요청 이벤트의 보존**으로 따로 싣는다(PLAN-DAEMON §7
- * L-1). 예전엔 둘이 같았다 — 그래서 기한 직후의 송금 완료·입금 확인이 릴레이에서 거절됐다.
+ * 쿠팡 기한은 `deadline` 태그로, `expiration`은 **요청 이벤트의 보존**으로 따로 싣는다(DM-009).
+ * 예전엔 둘이 같았다 — 그래서 기한 직후의 송금 완료·입금 확인이 릴레이에서 거절됐다.
  */
 function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
   const now = Math.floor(Date.now() / 1000);
@@ -140,7 +140,7 @@ export async function publishNotification(
  * Sponsor pubkey로 암호화하며, commitment 태그에 솔티드 해시를 포함한다.
  *
  * 솔트는 암호문 안에만 들어간다 — 후원자만 알고, 분쟁 시 계좌정보와 함께 공개된다.
- * 커밋먼트 자체는 공개 태그라 솔트가 없으면 계좌번호가 브루트포스된다(감사 A-1).
+ * 커밋먼트 자체는 공개 태그라 솔트가 없으면 계좌번호가 브루트포스된다.
  */
 export async function publishAccountInfo(
   order: Pick<CustomerOrder, 'orderId' | 'sponsorPubkey'>,

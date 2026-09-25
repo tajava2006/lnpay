@@ -1,7 +1,7 @@
 /**
  * 온체인 오더북 (후원자)
  *
- * ⚠️ **"사줄게"를 눌러도 아무도 예약되지 않는다**(§4.1b). 보증금 인보이스가
+ * ⚠️ **"사줄게"를 눌러도 아무도 예약되지 않는다**. 보증금 인보이스가
  * 발행될 뿐이고, **결제가 먼저 확인된 쪽**이 가져간다. 화면이 그렇게 말해야
  * 한다 — "잡았다"고 읽히면 결제를 미루다 놓친다.
  *
@@ -82,7 +82,7 @@ export function OnchainOrderBook({ myPubkey, tracker }: Props) {
 }
 
 /**
- * 최저가가 지금 시세에서 얼마나 떨어져 있는지 (리뷰 #8).
+ * 최저가가 지금 시세에서 얼마나 떨어져 있는지.
  *
  * 최저가가 시세에 붙어 있으면 **컨펌을 기다리는 사이 시세가 조금만 내려도 무과실
  * 환불**된다 — 후원자는 보증금과 시간을 묶인 채 아무것도 못 얻는다. 어드민이 등록 때
@@ -183,7 +183,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
     if (addrProblem) return setError(addrProblem);
     if (!Number.isFinite(rate) || rate <= 0) return setError('수수료율을 숫자로 입력하세요.');
     // 어드민과 **같은 경계**로 미리 본다 — 틀린 값은 어드민이 거절하고, 통과한 값이
-    // 릴리스를 멈추는 일은 없어야 한다(리뷰 #8).
+    // 릴리스를 멈추는 일은 없어야 한다.
     const feeProblem = releaseFeerateProblem({
       feerateSatPerVb: rate,
       fastestSatPerVb: fees?.fastest,

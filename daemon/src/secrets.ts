@@ -1,5 +1,5 @@
 /**
- * 비밀 파일 읽기 (PLAN-DAEMON §4.7)
+ * 비밀 파일 읽기
  *
  * 비밀은 환경변수가 아니라 **파일**로 받는다 — 환경변수는 `docker inspect`·프로세스 목록·크래시
  * 덤프로 새기 쉽다. 컨테이너에는 읽기 전용으로 마운트한다.
@@ -13,7 +13,7 @@ export interface AppKey {
   pubkey: string;
 }
 
-/** 시드 — hex 64자(32바이트). 자금 비밀 전부의 뿌리다(§4.7). */
+/** 시드 — hex 64자(32바이트). 자금 비밀 전부의 뿌리다. */
 export function parseSeed(text: string): Uint8Array {
   const hex = text.trim().toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(hex)) throw new Error('시드는 hex 64자여야 한다');
@@ -55,7 +55,7 @@ export function readAppKeyFile(path: string, expectedPubkey: string): AppKey {
   return parseAppKey(readFileSync(path, 'utf8'), expectedPubkey);
 }
 
-/** LND 매크룬 (바이너리 파일) → REST 헤더에 싣는 hex. **admin.macaroon 대신 권한을 줄인 것**(§4.7) */
+/** LND 매크룬 (바이너리 파일) → REST 헤더에 싣는 hex. **admin.macaroon 대신 권한을 줄인 것** */
 export function readMacaroonHex(path: string): string {
   const bytes = readFileSync(path);
   if (bytes.length === 0) throw new Error('매크룬 파일이 비었다');

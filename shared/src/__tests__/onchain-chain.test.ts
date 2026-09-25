@@ -1,5 +1,5 @@
 /**
- * 체인 어댑터 (PLAN-ONCHAIN-TRACK §11 P2)
+ * 체인 어댑터
  *
  * 여기서 지키는 건 하나다 — **조회가 실패하면 '모름'이지 '없음'이 아니다.**
  * `FundStatus`에서 겪은 사고가 그것이고(조회 실패를 '없음'으로 뭉갬), 온체인에서
@@ -159,7 +159,7 @@ describe('tx 상태 조회 (우리가 뿌린 종결 tx용)', () => {
   /**
    * esplora가 **"Transaction not found"라고 말한** 404는 사실이다 — 노드가 이 tx를
    * 모른다(멤풀에서 쫓겨났다). 이걸 '모름'으로 두면 쫓겨난 종결 tx가 영원히 `hold`로
-   * 조용히 멈춘다(리뷰 #8 — O-005의 재브로드캐스트가 한 번도 안 돌았다).
+   * 조용히 멈춘다(O-005의 재브로드캐스트가 한 번도 안 돌았다).
    */
   it('esplora의 "Transaction not found"는 seen=false (사실)', async () => {
     const { chain } = adapter({
@@ -181,7 +181,7 @@ describe('tx 상태 조회 (우리가 뿌린 종결 tx용)', () => {
   });
 });
 
-describe('outpoint 소모 조회 (리뷰 #8 — "UTXO가 없다"를 리오그로 오인하지 않기)', () => {
+describe('outpoint 소모 조회 ("UTXO가 없다"를 리오그로 오인하지 않기)', () => {
   const SPENDER = 'c'.repeat(64);
 
   it('안 쓰였으면 spent=false', async () => {

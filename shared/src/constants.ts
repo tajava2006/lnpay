@@ -1,16 +1,18 @@
-/** 페어바이 앱 pubkey - NIP-65 릴레이 디스커버리에 사용 */
+import { LN_TERMINAL_STATES } from './ln/state-machine';
+
+/** 페어바이 앱 pubkey (데몬) — 오더 서명자이자 NIP-65 릴레이 디스커버리의 기준 */
 export const APP_PUBKEY = 'f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848';
 
-/** 사줘 요청 이벤트 kind (NIP-99 Classified Listing, addressable) */
+/** 오더 이벤트 kind (NIP-99 Classified Listing, 주소형) — 데몬만 발행한다 */
 export const SAJWO_REQUEST_KIND = 30402;
 
-/** 요청 이벤트 kind (NIP-22 Comment, Customer/Sponsor → Admin 요청) */
+/** 요청·통지 이벤트 kind (NIP-22 Comment) — 유저 → 데몬 요청, 데몬 → 유저 통지 */
 export const SAJWO_REQUEST_EVENT_KIND = 1111;
 
 /**
  * Vite가 빌드 때 채우는 환경. **데몬(Node)에는 없다** — 그때는 빈 객체라 prod 값이 된다.
  *
- * 데몬은 태그·에포크를 자기 설정에서 정하고 아래 상수에 기대지 않는다(PLAN-DAEMON §10).
+ * 데몬은 태그·에포크를 자기 설정에서 정하고 아래 상수에 기대지 않는다.
  * 여기서 할 일은 Node에서 이 모듈을 불러도 **터지지 않는 것**뿐이다 — `import.meta.env.DEV`를
  * 그대로 읽으면 Node에서는 `undefined.DEV`로 모듈 로드가 실패한다.
  */
@@ -21,7 +23,7 @@ const viteEnv: { DEV?: unknown; VITE_NOSTR_SINCE?: unknown } =
 export const CLIENT_TAG = viteEnv.DEV === true ? 'sajwo-tracker-dev' : 'sajwo-tracker';
 
 /**
- * 온체인 트랙 전용 태그 — **라이트닝과 반드시 분리한다** (PLAN-ONCHAIN-TRACK §1.3).
+ * 온체인 트랙 전용 태그 — **라이트닝과 반드시 분리한다**.
  *
  * 이미 배포된 클라이언트가 `{ kinds:[30402], authors:[APP_PUBKEY], '#t':[CLIENT_TAG] }`
  * 로 돌고 있다. 온체인 오더를 같은 태그로 발행하면 **구버전 앱이 그걸 라이트닝
@@ -38,7 +40,7 @@ export const CLIENT_TAG_ONCHAIN = viteEnv.DEV === true
   : 'sajwo-tracker-onchain';
 
 /**
- * 운영자 명령·결과·상태 태그 (PLAN-DAEMON §5). 유저 트래픽과 섞이지 않게 따로 둔다.
+ * 운영자 명령·결과·상태 태그. 유저 트래픽과 섞이지 않게 따로 둔다.
  * 데몬은 같은 이름을 자기 설정(`LNPAY_MODE`)에서 만든다 — 둘이 어긋나면 명령이 안 닿는다.
  */
 export const CLIENT_TAG_ADMIN = viteEnv.DEV === true
@@ -96,7 +98,7 @@ export const REQUEST_ACTIONS = {
   /** 후원자 → Admin: 지급받을 인보이스 제출 (escrowed 이후) */
   SPONSOR_INVOICE: 'sponsor-invoice',
 
-  // ── 온체인 트랙 (PLAN-ONCHAIN-TRACK §5.2) ──
+  // ── 온체인 트랙 ──
   // 라이트닝과 같은 kind·같은 배관을 쓰고 action 값만 다르다.
   // ⚠️ 액션을 추가하면 `parse-request.test.ts`의 전수 census가 먼저 깨진다. 그게 정상이다.
   /** 고객 → Admin: 온체인 의뢰 등록 */
@@ -143,29 +145,19 @@ export const ORDER_STATES = {
   ADMIN_CLOSED: 'admin_closed',
   /**
    * 쿠팡 가상계좌 기한(`deadline`)이 지나 원화가 더는 갈 수 없어 데몬이 닫았다.
-   * `remitted` 전까지만 온다 — 그 뒤는 분쟁 판정으로 끝난다(PLAN-DAEMON §7 L-2).
+   * `remitted` 전까지만 온다 — 그 뒤는 분쟁 판정으로 끝난다.
    */
   EXPIRED: 'expired',
 } as const;
 export type OrderState = typeof ORDER_STATES[keyof typeof ORDER_STATES];
 
 /**
- * 더 이상 진행하지 않는 상태.
+ * 라이트닝 오더의 종결 상태 — 전이 맵에서 유도한다(나가는 전이가 없는 상태).
  *
- * **다섯 군데에 복붙돼 있었다** — 오더북 둘, 스토어 둘, 발행 하나. `admin_closed`를
- * 추가하면서 두 곳만 고쳤고, 그래서 종결된 의뢰가 오더북에 계속 떠 있었다
- * (2026-09-19). 같은 목록을 여러 벌 두면 반드시 갈라진다.
- *
- * FSM의 "나가는 전이가 없는 상태"와 항상 일치해야 한다. 테스트로 묶어뒀다.
+ * 손으로 나열한 목록은 반드시 갈라진다 — 이 목록이 다섯 군데에 복붙돼 있을 때 `admin_closed`를 넣으며 둘만
+ * 고쳐 종결된 의뢰가 오더북에 계속 떠 있었다(2026-09-19).
  */
-export const TERMINAL_STATES: ReadonlySet<OrderState> = new Set<OrderState>([
-  ORDER_STATES.PAID,
-  ORDER_STATES.CANCELLED,
-  ORDER_STATES.SPONSOR_WINS,
-  ORDER_STATES.CUSTOMER_WINS,
-  ORDER_STATES.ADMIN_CLOSED,
-  ORDER_STATES.EXPIRED,
-]);
+export const TERMINAL_STATES: ReadonlySet<OrderState> = LN_TERMINAL_STATES;
 
 export function isTerminalState(state: OrderState | undefined): boolean {
   return state !== undefined && TERMINAL_STATES.has(state);
@@ -193,23 +185,7 @@ export const FALLBACK_RELAYS = [
  *
  * ⚠️ 이 값을 바꾸면 **기존 구독이 전부 무효**가 된다. 구독은 발급 시점의
  * applicationServerKey에 묶여서, 키가 달라지면 푸시 서비스가 403으로 거절한다.
- * 유저가 알림을 다시 켜야 살아난다. 개인키는 어드민 설정에만 있고 여기 없다.
+ * 유저가 알림을 다시 켜야 살아난다. 개인키는 데몬 비밀 파일(`vapid.key`)에만 있다.
  */
 export const VAPID_PUBLIC_KEY =
   'BPQARlaUd2GNRFgRCSOR0orzzEABonRXfsfK627qvJzSD6pUdveRLeWbGLlgjky17upvBO8jnuce2JN-5HTKUNk';
-
-/**
- * NIP-17 DM 알림을 쓸지.
- *
- * 2026-09-17 off. Web Push가 크롬·브레이브·파이어폭스·안드로이드까지 다 커버하게
- * 되면서 이 경로를 안내할 이유가 없어졌고, 안내를 감춘 채로 계속 발송하면 아무도
- * 안 여는 gift wrap이 릴레이에 쌓이기만 한다(계정 단위라 만료 태그도 없다).
- *
- * 이 스위치 하나가 세 곳을 함께 끈다:
- *   - 유저 신원 발행 (kind 0 + 10002) — NIP-17 인박스 탐색 전용이라 같이 무의미
- *   - 어드민 DM 발송 (kind 1059)
- *   - 🔔 모달의 nostr 안내 섹션
- *
- * 코드는 남긴다. 브라우저 정책이 바뀌거나 푸시 서비스가 막히면 유일한 대안이 된다.
- */
-export const NOSTR_DM_NOTIFICATIONS = false;

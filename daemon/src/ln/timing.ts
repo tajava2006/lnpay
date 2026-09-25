@@ -1,5 +1,5 @@
 /**
- * 라이트닝 트랙의 시간 값 (PLAN-DAEMON §7)
+ * 라이트닝 트랙의 시간 값
  *
  * 기준은 **쿠팡 가상계좌 기한(`deadline`)** 하나다 — 그 뒤로는 원화가 갈 수 없다. 나머지 창은 전부
  * 그 기한 안에서 거래가 끝날 수 있게 잡는다.
@@ -40,7 +40,7 @@ export const ESCROW_HOLD_MARGIN_SEC = 48 * HOUR;
  */
 export const DEADLINE_GRACE_SEC = 1 * HOUR;
 
-/** 후원자 보증금 결제 창 — 못 내면 클레임이 풀린다(공짜 점유 차단, AUDIT-EXPIRY F6) */
+/** 후원자 보증금 결제 창 — 못 내면 클레임이 풀린다(공짜 점유 차단) */
 export const SPONSOR_DEPOSIT_PAY_SEC = 15 * MIN;
 
 /** 고객 보증금 결제 창 — 의뢰를 올린 사람은 지금 앱을 보고 있다 */

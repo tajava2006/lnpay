@@ -29,7 +29,7 @@ export const MIGRATIONS: readonly Migration[] = [
       );
       CREATE INDEX inbox_pending ON inbox (processed_at, created_at);
 
-      -- 외부 효과의 의도 (§4.5). 실행 전에 죽으면 재시작 뒤 다시 집는다
+      -- 외부 효과의 의도. 실행 전에 죽으면 재시작 뒤 다시 집는다
       CREATE TABLE effects (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         kind        TEXT NOT NULL,

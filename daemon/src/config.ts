@@ -1,7 +1,7 @@
 /**
  * 데몬 설정 — 환경변수에서 읽는다.
  *
- * 태그·에포크를 shared 상수가 아니라 **여기서** 정한다(PLAN-DAEMON §10). shared 상수는 Vite 빌드
+ * 태그·에포크를 shared 상수가 아니라 **여기서** 정한다. shared 상수는 Vite 빌드
  * 모드를 따라 dev/prod가 갈리는데, 데몬에는 그 빌드 모드가 없다.
  *
  * 잘못된 값은 **부팅을 막는다.** 돈이 도는 프로세스가 반쯤 틀린 설정으로 떠서 조용히 도는 것보다
@@ -16,7 +16,7 @@ export interface DaemonTags {
   ln: string;
   /** 온체인 트랙 (`CLIENT_TAG_ONCHAIN`) */
   onchain: string;
-  /** 운영자 명령·결과 (§5) */
+  /** 운영자 명령·결과 */
   admin: string;
 }
 
@@ -45,7 +45,7 @@ export interface DaemonConfig {
   tickMs: number;
   /** 받은 이벤트를 이만큼 묵혔다가 created_at 순으로 처리한다 (릴레이마다 도착 순서가 다르다) */
   holdMs: number;
-  /** LND REST (§14 D3). 호스트 LND를 boltz와 같은 방식으로 쓴다 */
+  /** LND REST. 호스트 LND를 boltz와 같은 방식으로 쓴다 */
   lnd: { url: string; certFile: string; macaroonFile: string };
   /** 없으면 웹 푸시를 보내지 않는다(거래는 그대로 돈다) */
   vapidKeyFile: string | undefined;
@@ -53,7 +53,7 @@ export interface DaemonConfig {
   vapidSubject: string;
   /**
    * 온체인 트랙. 없으면 온체인 요청을 받지 않는다. **배포 설정이다** — 진행 중 거래가 있는데 네트워크를
-   * 바꾸면 이미 낸 주소가 다른 체인의 것이 된다(그래서 `config.set`에 없다, §5.5).
+   * 바꾸면 이미 낸 주소가 다른 체인의 것이 된다(그래서 `config.set`에 없다).
    */
   onchain: { network: 'mainnet' | 'signet' | 'testnet'; apiUrl: string | undefined } | undefined;
 }

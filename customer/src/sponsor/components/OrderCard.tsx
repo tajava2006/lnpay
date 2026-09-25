@@ -65,7 +65,7 @@ export function OrderCard({ order, now, myPubkey }: Props) {
       <div style={styles.middle}>
         {relation === 'open' ? (
           <>
-            {/* 클레임은 버튼 하나다. 인보이스는 에스크로가 잡힌 뒤에 낸다 (docs/DESIGN-LATE-INVOICE.md) */}
+            {/* 클레임은 버튼 하나다. 인보이스는 에스크로가 잡힌 뒤에 낸다 */}
             <button
               style={{ ...styles.claimBtn, opacity: claiming ? 0.5 : 1, cursor: claiming ? 'not-allowed' : 'pointer' }}
               onClick={() => void handleClaim()}

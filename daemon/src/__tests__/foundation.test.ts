@@ -1,5 +1,5 @@
 /**
- * 기반: 설정·비밀·DB·효과 대기열 (PLAN-DAEMON §4)
+ * 기반: 설정·비밀·DB·효과 대기열
  */
 import { describe, expect, it } from 'vitest';
 import { nsecEncode } from 'nostr-tools/nip19';
@@ -113,7 +113,7 @@ describe('DB', () => {
   });
 });
 
-describe('효과 대기열 (§4.5)', () => {
+describe('효과 대기열', () => {
   function setup() {
     let now = 1_000_000;
     const db = new Db(':memory:');
@@ -207,7 +207,7 @@ describe('효과 대기열 (§4.5)', () => {
   });
 });
 
-describe('DB 스냅숏 (§11)', () => {
+describe('DB 스냅숏', () => {
   it('하루에 한 벌, 최근 N벌만 남긴다 — 스냅숏은 열리는 DB다', async () => {
     const { mkdtempSync, readdirSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');

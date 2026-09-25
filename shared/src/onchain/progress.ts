@@ -1,5 +1,5 @@
 /**
- * 온체인 거래 진행도 (고객·후원자 공용) — PLAN-ONCHAIN-TRACK §6.2 · §9
+ * 온체인 거래 진행도 (고객·후원자 공용)
  *
  * 단계는 FSM의 정상 경로를 그대로 따른다:
  *
@@ -9,13 +9,13 @@
  * 나란히 놓고 볼 수 있어야 한다. 다른 건 내용뿐이다.
  *
  * ⚠️ `bonded` 한 단계가 **"보내기 + 컨펌"을 둘 다** 덮는다. 멤풀 관측은 상태가
- * 아니라 화면 힌트라서(§4.2) 단계를 쪼갤 이유가 없다 — 판정은 "마감 안에 약정
+ * 아니라 화면 힌트라서 단계를 쪼갤 이유가 없다 — 판정은 "마감 안에 약정
  * 금액이 N컨펌 됐는가" 하나다. 화면은 그 단계 안에서 "멤풀에서 보임 · 컨펌 대기"를
  * 덧붙이면 된다.
  *
  * ── 문구에 무엇을 넣나
  *
- * **몰수의 조건은 반드시 고지한다**(§6.0). 어떤 마감을 어기면 보증금을 잃는지,
+ * **몰수의 조건은 반드시 고지한다**. 어떤 마감을 어기면 보증금을 잃는지,
  * 그 마감이 언제인지. 설계의 공정성 자체라서, 모르고 잃으면 안 된다.
  *
  * **환불 시 수수료 2회가 고객 부담이라는 것도 고지한다.** 후원자 과실이어도
@@ -239,7 +239,7 @@ export function onchainStepActor(
   state: OnchainState,
   ctx: OnchainProgressContext = {},
 ): OnchainStepActor {
-  // 환불이 결정됐다 — `{A,C}`라 어드민 혼자 못 한다(§5.2 R1-M4). 고객이 안 오면 안 끝난다.
+  // 환불이 결정됐다 — `{A,C}`라 어드민 혼자 못 한다. 고객이 안 오면 안 끝난다.
   if (state === 'refunding') return 'customer';
   if (state === 'presigned') return ctx.accountInfoSent ? 'sponsor' : 'customer';
   const idx = STEP_INDEX.get(state);
@@ -276,7 +276,7 @@ export interface OnchainRefundingInfo {
 }
 
 /**
- * 환불 사유별 안내. **몰수의 조건은 반드시 고지한다**(§6.0) — 그런데 몰수금의
+ * 환불 사유별 안내. **몰수의 조건은 반드시 고지한다** — 그런데 몰수금의
  * 행방과 보상은 약속하지 않는다.
  */
 function refundingInfo(role: OnchainRole, kind: SettlementKind | undefined): OnchainRefundingInfo {

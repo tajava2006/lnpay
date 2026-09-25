@@ -1,5 +1,5 @@
 /**
- * 온체인 보증금 (PLAN-ONCHAIN-TRACK §4.1 · §6.0) — LN 홀드 인보이스
+ * 온체인 보증금 — LN 홀드 인보이스
  *
  * ── 사유가 곧 처리다 (`applyOutcome`)
  *
@@ -13,7 +13,7 @@
  * | `none` | 그 보증금이 없다 | 후원자가 안 붙은 단계 |
  * | `hold` | 아직 손대지 않는다 | 계좌 이의 — 사람이 과실을 가른 뒤 사유가 바뀌며 집행된다 |
  *
- * **결정 시점**에 부른다(리뷰 #8) — 종결 tx 컨펌 때가 아니다. 컨펌 때 몰수하면 몰수당할 쪽이 서명을 미뤄
+ * **결정 시점**에 부른다 — 종결 tx 컨펌 때가 아니다. 컨펌 때 몰수하면 몰수당할 쪽이 서명을 미뤄
  * HTLC 만료를 기다릴 수 있다. 몇 번 불려도 된다 — 받은(`accepted`) 보증금만 건드리고, 정리 효과는 인보이스당
  * 하나만 쌓인다.
  *
@@ -21,7 +21,7 @@
  *
  * 고객 보증금이 잡히면 **의뢰가 생기고**(`listed`), 후원자 보증금이 잡히면 **클레임이 성립한다**(`bonded`,
  * 세 키 확정 → 에스크로 주소). 후원자는 여럿이 동시에 인보이스를 받을 수 있고 **먼저 결제한 쪽**이 가져간다
- * (§4.1b). 진 쪽은 취소(HTLC 실패라 수수료 0).
+ * 진 쪽은 취소(HTLC 실패라 수수료 0).
  */
 import {
   OUTCOME_RULES, forfeitUse, fundingDeadlineFrom,
@@ -48,7 +48,7 @@ export function applyOutcome(ctx: OcContext, order: OnchainOrder, outcome: Oncha
   applyBond(ctx, order.customerDepositHash, rule.customerBond);
   applyBond(ctx, order.sponsorDepositHash, rule.sponsorBond);
 
-  // 몰수금의 쓰임은 운영자가 손으로 한다(§6.0) — 자동화하면 "인보이스 발행 대기"라는 상태가 하나 더 생긴다
+  // 몰수금의 쓰임은 운영자가 손으로 한다 — 자동화하면 "인보이스 발행 대기"라는 상태가 하나 더 생긴다
   const use = forfeitUse(outcome);
   if (use) {
     raiseAlert(ctx, {
@@ -166,7 +166,7 @@ function onCustomerBond(ctx: OcContext, inv: HoldRow, cand: Extract<OcCandidate,
   ctx.log.info('온체인 의뢰 등록', { orderId: inv.order_id });
 }
 
-/** 후원자 보증금이 잡혔다 → **클레임 성립** (§4.1b). 세 키가 확정되고 에스크로 주소가 나간다 */
+/** 후원자 보증금이 잡혔다 → **클레임 성립**. 세 키가 확정되고 에스크로 주소가 나간다 */
 function onSponsorBond(ctx: OcContext, inv: HoldRow, cand: Extract<OcCandidate, { type: 'sponsor' }>): void {
   const row = getOc(ctx, inv.order_id);
   if (!row || row.order.state !== 'listed') {

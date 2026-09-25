@@ -1,5 +1,5 @@
 /**
- * 종결 tx 빌더 + 사전서명 검증 (PLAN-ONCHAIN-TRACK §11 P3)
+ * 종결 tx 빌더 + 사전서명 검증
  *
  * 여기가 **실제로 돈을 옮기는 코드**다. 지키는 것 셋:
  *   ① 같은 입력이면 **누가 만들어도 같은 바이트** — 아니면 사전서명 대조가 무의미하다
@@ -15,9 +15,9 @@ import { xonlyFromPrivkey } from '../onchain/keys';
 import {
   buildSettlementTx, estimateSettlementVsize, dustThresholdFor, finalizeSettlement,
   fromPsbtBase64, settlementFeeSat, settlementLeafFor, signSettlement, tapScriptSigOf,
-  toPsbtBase64, trySignSettlement, type BuildSettlementParams, type SettlementPath,
+  toPsbtBase64, type BuildSettlementParams, type SettlementPath,
 } from '../onchain/tx';
-import { leafHashOf, outputGoesTo, verifyPresignature } from '../onchain/verify';
+import { leafHashOf, verifyPresignature } from '../onchain/verify';
 
 const sk = (n: number) => Uint8Array.from({ length: 32 }, (_, i) => i + n);
 const SK_C = sk(1), SK_S = sk(40), SK_A = sk(80), SK_D = sk(120), SK_X = sk(160);
@@ -50,7 +50,7 @@ describe('경로 → 리프', () => {
     expect(settlementLeafFor(path)).toBe(leaf);
   });
 
-  /** 환불과 고객승은 tx가 완전히 같다. 다른 건 사유와 보증금 처리뿐이다(§4.1). */
+  /** 환불과 고객승은 tx가 완전히 같다. 다른 건 사유와 보증금 처리뿐이다. */
   it('refund와 customer-win은 같은 tx를 만든다', () => {
     const a = buildSettlementTx(params({ path: 'refund', destination: DEST_TR }));
     const b = buildSettlementTx(params({ path: 'customer-win', destination: DEST_TR }));
@@ -74,7 +74,7 @@ describe('결정론 — 누가 만들어도 같은 바이트', () => {
   });
 });
 
-describe('nSequence (§7 O)', () => {
+describe('nSequence (T-115)', () => {
   /**
    * 릴리스가 멤풀에 있는 동안 고객이 같은 UTXO를 쓰는 다른 tx로 교체하면
    * **릴리스를 탈취**한다. RBF를 끈다.
@@ -175,14 +175,13 @@ describe('서명 · PSBT 왕복', () => {
   it('리프에 없는 키로 서명하면 던진다', () => {
     const tx = buildSettlementTx(params());
     expect(() => signSettlement(tx, SK_A)).toThrow(/서명할 수 없다/);
-    expect(trySignSettlement(buildSettlementTx(params()), SK_A)).toBe(false);
     expect(tapScriptSigOf(tx, KEYS.admin)).toBeNull();
   });
 
   it('분쟁 경로에서는 어드민이 서명한다', () => {
     const win = buildSettlementTx(params({ path: 'sponsor-win' }));
-    expect(trySignSettlement(win, SK_A)).toBe(true);
-    expect(trySignSettlement(win, SK_S)).toBe(true);
+    signSettlement(win, SK_A);
+    signSettlement(win, SK_S);
     expect(tapScriptSigOf(win, KEYS.admin)).toHaveLength(64);
   });
 
@@ -216,7 +215,7 @@ describe('서명 · PSBT 왕복', () => {
   });
 });
 
-describe('사전서명 검증 (§7 I · T-109)', () => {
+describe('사전서명 검증 (T-109)', () => {
   function presigned(over: Partial<BuildSettlementParams> = {}): string {
     const tx = buildSettlementTx(params(over));
     signSettlement(tx, SK_S);
@@ -313,17 +312,6 @@ describe('사전서명 검증 (§7 I · T-109)', () => {
   });
 });
 
-describe('출력 주소 대조 (§7 J)', () => {
-  /** 후원자가 남의 주소를 신고해 두고 "못 받았다"고 우기는 걸 막는다. */
-  it('신고한 주소로 가는지 본다', () => {
-    const tx = buildSettlementTx(params());
-    const mine = tx.getOutput(0)!.script!;
-    const other = buildSettlementTx(params({ destination: DEST_EVIL })).getOutput(0)!.script!;
-    expect(outputGoesTo(tx, mine)).toBe(true);
-    expect(outputGoesTo(tx, other)).toBe(false);
-  });
-});
-
 describe('리프 해시', () => {
   it('리프마다 다르고 결정론적이다', () => {
     const hashes = D.leaves.map(l => leafHashOf(l.script));
@@ -333,7 +321,7 @@ describe('리프 해시', () => {
   });
 });
 
-describe('crypto 인스턴스 (§3.5)', () => {
+describe('crypto 인스턴스', () => {
   /**
    * 검증에 쓰는 `@noble/curves`가 `@scure/btc-signer`가 서명에 쓰는 것과
    * **같은 구현**인지 확인한다. 서명은 btc-signer가, 검증은 우리가 부르므로

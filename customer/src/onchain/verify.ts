@@ -1,14 +1,14 @@
 /**
- * 내가 직접 확인하는 것들 (PLAN-ONCHAIN-TRACK §3.4 · §7 G·I)
+ * 내가 직접 확인하는 것들 (T-107 · T-109)
  *
  * **어드민이 알려준 값을 그냥 믿지 않는다.** 어드민이 악의적이거나 침해당했을 때
  * 전액을 잃는 자리라, 클라이언트가 자기 키로 **다시 만들어 대조**한다.
  * 이건 타협 대상이 아니다.
  */
 import {
-  MAX_SANE_SETTLEMENT_FEERATE, assertEscrowKeys, buildSettlementTx, deriveEscrowAddress,
+  MAX_SANE_SETTLEMENT_FEERATE, assertEscrowKeys, buildSettlementTx,
   deriveSingleKeyAddress, estimateSettlementVsize, fromPsbtBase64, outputAddressOf,
-  parseOutpoint, requiredConfirmations, verifyEscrowAddress, verifyPresignature,
+  isPriceStale, parseOutpoint, requiredConfirmations, verifyEscrowAddress, verifyPresignature,
   type AddressFunds, type BuildSettlementParams, type ChainQuery, type EscrowDescriptor,
   type OnchainOrder, type SettlementPath, type SignPurpose,
 } from '@sajwo-tracker/shared/onchain';
@@ -93,12 +93,12 @@ export interface SignCheckInput {
 }
 
 /**
- * 요청을 **내 기록으로 다시 만들어** 대조한다 (리뷰 #8).
+ * 요청을 **내 기록으로 다시 만들어** 대조한다.
  *
  * 전에는 "내 에스크로 UTXO를 쓰는가" 하나만 봤다. 악의적이거나 침해된 어드민이
  * `{A,C}` 리프로 **자기 주소에 보내는 "환불"**을 보내면 화면이 "내 에스크로가 맞다"고
- * 말했고, 고객 서명 하나로 어드민이 2-of-2를 완성했다. §3.4("어드민이 침해당해도 전액을
- * 잃지 않는다")가 서명 단계에서 새고 있었다.
+ * 말했고, 고객 서명 하나로 어드민이 2-of-2를 완성했다. "어드민이 침해당해도 전액을 잃지 않는다"(T-107)가
+ * 서명 단계에서 새고 있었다(T-120).
  *
  * 목적별로 **누구에게 얼마가 가야 하는지**를 내가 정하고, 받은 PSBT가 그 tx와
  * 바이트까지 같은지(txid) 본다. 수수료도 본다 — 주소가 맞아도 채굴자에게 태울 수 있다.
@@ -246,7 +246,7 @@ function refundDestination(
  *
  * 전에는 펀딩 tx의 컨펌 수만 봤다. 그 출력이 정말 **이 에스크로 주소로 약정 금액을**
  * 보내는지는 안 봐서, 어드민이 엉뚱한 outpoint를 `funded`로 발행해도(버그든 악의든)
- * 후원자는 빈 에스크로에 원화를 보냈다(리뷰 #8).
+ * 후원자는 빈 에스크로에 원화를 보냈다.
  */
 export function checkFundingOnChain(
   order: OnchainOrder,
@@ -275,30 +275,7 @@ export function checkFundingOnChain(
  * 앱 규칙은 직접 브로드캐스트를 못 막으므로, 손해를 보는 당사자 자신이 막는다.
  */
 export function releaseNeedsPriceOverride(order: OnchainOrder, nowMs: number): boolean {
-  if (!order.remittedAt) return false;
-  return nowMs - order.remittedAt * 1000 > 24 * 60 * 60 * 1000;
-}
-
-/** 에스크로 검증 결과를 화면 문구로 */
-export function escrowCheckMessage(check: EscrowCheck): string {
-  if (check.ok) return '주소를 확인했습니다. 이 주소는 내 키로 만들어진 것이 맞습니다.';
-  return check.derived
-    ? `⚠️ 주소가 일치하지 않습니다. 절대 보내지 마세요. (내가 만든 주소: ${check.derived})`
-    : `⚠️ ${check.reason}`;
-}
-
-/** 에스크로 파생 (펀딩 확인 등에 쓴다) */
-export function escrowOf(order: OnchainOrder): EscrowDescriptor | null {
-  if (!order.customerXonly || !order.sponsorXonly || !order.adminXonly) return null;
-  try {
-    return deriveEscrowAddress({
-      keys: { customer: order.customerXonly, sponsor: order.sponsorXonly, admin: order.adminXonly },
-      network: order.network,
-      timelockBlocks: order.timelockBlocks,
-    });
-  } catch {
-    return null;
-  }
+  return order.remittedAt !== undefined && isPriceStale(order.remittedAt * 1000, nowMs);
 }
 
 function hex(bytes: Uint8Array): string {

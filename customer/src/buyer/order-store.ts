@@ -180,7 +180,7 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null;
  * 표시용 사본만 정리하면 된다.
  *
  * 기준은 데몬이 준 **보존 기한**(`retainUntil`)이다 — 쿠팡 기한(`expiration`)으로 지우면 진행 중
- * 거래가 기한에 화면에서 사라진다(PLAN-DAEMON §7 L-1). 데몬 오더를 아직 못 받은 주문만 기한으로 지운다.
+ * 거래가 기한에 화면에서 사라진다. 데몬 오더를 아직 못 받은 주문만 기한으로 지운다.
  * 미발행 주문(expiration === 0)은 아직 만료 개념이 없으므로 남긴다.
  */
 function purgeExpired(): void {

@@ -182,7 +182,7 @@ Nostr 릴레이 → Nostr 서비스(백그라운드) → 영구 저장소 → UI
   다시 한다. 404·410이면 그 구독을 끈다.
 - VAPID 공개키는 `shared/src/constants.ts`의 `VAPID_PUBLIC_KEY`. 바꾸면 기존 구독이 전부 죽는다.
 - 알림은 "내 차례"일 때 간다. 푸시 URL에 `order=`가 붙어 누르면 그 거래가 열린다.
-- 유저용 NIP-17 DM 알림은 꺼져 있다(`NOSTR_DM_NOTIFICATIONS = false`) — 웹 푸시가 주요 브라우저를 다 덮는다.
+- 유저 알림은 웹 푸시 하나다(NIP-17 DM 경로는 없앴다 — 웹 푸시가 주요 브라우저를 다 덮는다).
 - **운영자 경보**는 NIP-17 DM으로 간다(`daemon/src/admin/notify.ts`, 데몬 릴레이로만). 같은 사유로는 한 번만 울린다.
   데몬이 죽으면 이것도 못 간다 — RISKS R-3.
 

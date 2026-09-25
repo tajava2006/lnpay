@@ -25,10 +25,6 @@ export function decodeNsec(nsec: string): Uint8Array {
   return decoded.data;
 }
 
-export function getPubkeyFromSecret(sk: Uint8Array): string {
-  return getPublicKey(sk);
-}
-
 /**
  * 이 빌드가 바라보는 Admin 신원을 hex + npub으로 돌려준다.
  *
@@ -232,7 +228,7 @@ export function buildParsedOrderEvent(
  * 예전에는 여기서 곧바로 payment-confirm / cancel-request를 Admin에게 발행했다.
  * 그러려면 a-태그에 sajwo orderId가, p-태그에 APP_PUBKEY가 필요했는데 둘 다 문제였다:
  *
- * - orderId 자리에 쿠팡 주문번호를 썼고, 그게 공개 태그로 나갔다(감사 A-3).
+ * - orderId 자리에 쿠팡 주문번호를 썼고, 그게 공개 태그로 나갔다.
  * - APP_PUBKEY가 빌드에 박히는데, 2026-09-03 키 교체 후 설치본이 옛 키를 계속 쓰는 바람에
  *   어드민 #p 필터에 안 걸려 자동 입금감지가 6주간 조용히 죽어 있었다.
  *

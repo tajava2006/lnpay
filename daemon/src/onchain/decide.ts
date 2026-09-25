@@ -1,5 +1,5 @@
 /**
- * 워처의 판단 — 체인과 시계가 말하는 것 (PLAN-ONCHAIN-TRACK §9)
+ * 워처의 판단 — 체인과 시계가 말하는 것
  *
  * **순수 함수다.** 네트워크도 시계도 여기서 만지지 않고 전부 인자로 받는다 —
  * "마감이 찼는가", "리오그가 났는가" 같은 판단은 돈이 걸린 자리라 네트워크 없이
@@ -14,7 +14,7 @@
  * 체인 조회가 실패하면 `hold`다. '없음'이 아니라 '모름'이라서, 다음 틱에 다시
  * 묻는 게 맞다. 이걸 '없음'으로 뭉개면 **돈이 있는 주소를 비었다고 보고 취소**한다.
  *
- * ── "UTXO가 없다"는 한 가지 뜻이 아니다 (리뷰 #8)
+ * ── "UTXO가 없다"는 한 가지 뜻이 아니다
  *
  * 박아둔 펀딩이 UTXO 목록에서 빠지면 ① 누가 그걸 썼거나(우리 종결 tx 포함)
  * ② 펀딩 tx 자체가 사라졌다. 전에는 전부 ②(리오그)로 읽어서 **우리가 뿌린 환불을
@@ -34,7 +34,7 @@ import { judgeFunding, requiredConfirmations } from './funding';
  *
  * - `alive` — 그대로 있다
  * - `shallow` — 컨펌이 N 아래(멤풀로 내려간 것 포함) — 리오그
- * - `gone` — 펀딩 tx 자체를 노드가 모른다 — 리오그로 사라졌거나 이중지불(공격 E)
+ * - `gone` — 펀딩 tx 자체를 노드가 모른다 — 리오그로 사라졌거나 이중지불(T-105)
  * - `spent` — **누가 썼다.** `leaf`는 소모 증인으로 가른 리프(모르면 `null`)
  */
 export type PinnedFacts =
@@ -53,16 +53,16 @@ export type OnchainAction =
   | { kind: 'anomaly'; why: string }
   /** 상태는 그대로 두고 알림·안내만 (정체·에스컬레이션) */
   | { kind: 'warn'; why: string }
-  /** `remitted` 마감 2시간 전 — 고객에게 **한 번** 알린다 (§7.5) */
+  /** `remitted` 마감 2시간 전 — 고객에게 **한 번** 알린다 */
   | { kind: 'dispute-soon' }
   /** `bonded → funded`. 가격을 고정한다 */
   | { kind: 'fund'; outpoint: Outpoint; confirmations: number; priceKrw: number }
   /**
-   * `bonded → refunding`. 가격을 고정하지 않고 접는다 — reserve 미달(§2.4)이거나
+   * `bonded → refunding`. 가격을 고정하지 않고 접는다 — reserve 미달이거나
    * 후원자 보증금이 이미 죽은 경우(O-015)다.
    */
   | { kind: 'fold'; outpoint: Outpoint; confirmations: number; settlementKind: SettlementKind }
-  /** 마감까지 컨펌 안 됨 → `cancelled` + 고객 보증금 몰수 (§4.1c) */
+  /** 마감까지 컨펌 안 됨 → `cancelled` + 고객 보증금 몰수 */
   | { kind: 'cancel' }
   /** 리오그 — 가격 고정을 폐기하고 `bonded`로. **마감을 다시 찍는다** (O-008) */
   | { kind: 'reorg'; why: 'shallow' | 'gone' }
@@ -80,7 +80,7 @@ export type OnchainAction =
 export interface OnchainWatchContext {
   /** unix 초 */
   now: number;
-  /** 에스크로 **주소** 조회 결과 (§4.1c — txid로 쫓지 않는다) */
+  /** 에스크로 **주소** 조회 결과 (txid로 쫓지 않는다) */
   funds: ChainQuery<AddressFunds>;
   /** 박아둔 펀딩에 대한 사실 (펀딩 확정 이후 상태에서만) */
   pinned?: PinnedFacts;
@@ -148,7 +148,7 @@ export function decideOnchainAction(
     case 'remitted':
       return decideRemitted(order, ctx);
     case 'disputed':
-      // **하드 마감이 없다.** 자동 해소는 어느 방향이든 탈취다(§7.5). 사람을 더 세게 부른다.
+      // **하드 마감이 없다.** 자동 해소는 어느 방향이든 탈취다. 사람을 더 세게 부른다.
       return escalation(order, ctx);
     default:
       // refunding — 고객 서명을 기다린다. 재촉은 워처가 따로 한다.
@@ -224,7 +224,7 @@ function decidePresigned(order: OnchainOrder, ctx: OnchainWatchContext): Onchain
   // 계좌가 나간 뒤에는 후원자 차례다. 마감은 **계좌 공개 시점**부터 센다(O-013).
   if (!isPast(krwDeadlineOf(order), ctx.now)) return { kind: 'idle' };
 
-  // 후원자가 마감 **전에** 계좌 이의를 냈다면 누구 과실인지 사람이 가른다(§5.2b).
+  // 후원자가 마감 **전에** 계좌 이의를 냈다면 누구 과실인지 사람이 가른다.
   return {
     kind: 'settle',
     settlementKind: order.accountDisputedAt ? 'refund:account-disputed' : 'refund:sponsor-timeout',
@@ -234,7 +234,7 @@ function decidePresigned(order: OnchainOrder, ctx: OnchainWatchContext): Onchain
 function decideRemitted(order: OnchainOrder, ctx: OnchainWatchContext): OnchainAction {
   const deadline = cosignDeadlineOf(order) ?? cosignDeadlineFrom(0);
   if (ctx.now >= deadline) return { kind: 'dispute' };
-  // 유예 경고 — 느린 고객 대부분이 여기서 스스로 끝낸다(§7.5). 한 번만 보낸다.
+  // 유예 경고 — 느린 고객 대부분이 여기서 스스로 끝낸다. 한 번만 보낸다.
   if (ctx.now >= deadline - COSIGN_GRACE_WARNING_SEC) return { kind: 'dispute-soon' };
   return { kind: 'idle' };
 }
@@ -287,11 +287,4 @@ function decideSettling(order: OnchainOrder, ctx: OnchainWatchContext): OnchainA
     return { kind: 'warn', why: '종결 tx가 24시간 넘게 안 잡힌다 — 받는 쪽 CPFP 안내' };
   }
   return { kind: 'idle' };
-}
-
-/** 이 행동이 환불 결정인가 (호출부가 수수료를 추정해 `refunding`을 발행해야 한다) */
-export function needsSettlementDecision(action: OnchainAction): action is
-  | { kind: 'settle'; settlementKind: SettlementKind }
-  | { kind: 'fold'; outpoint: Outpoint; confirmations: number; settlementKind: SettlementKind } {
-  return action.kind === 'settle' || action.kind === 'fold';
 }

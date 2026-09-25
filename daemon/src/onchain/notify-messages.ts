@@ -1,5 +1,5 @@
 /**
- * 온체인 트랙 알림 문구 (PLAN-ONCHAIN-TRACK §6.2 · §7.5)
+ * 온체인 트랙 알림 문구
  *
  * 라이트닝판(`../ln/notify-messages.ts`)과 **문구 형식·통로를 공유**한다.
  * `Notice`·`asPush`·`asDirectMessage`를 그대로 쓰고, 여기서는 **무엇을 언제
@@ -12,7 +12,7 @@
  * 15분처럼 **앱이 깨어 있어야만** 지나갈 수 있는 구간이 있다 — 그 구간의 알림은
  * 안내가 아니라 **기능의 일부**다.
  *
- * 그래서 "당신 차례입니다"뿐 아니라 **마감 임박 경고**도 보낸다(§7.5의 유예 경고).
+ * 그래서 "당신 차례입니다"뿐 아니라 **마감 임박 경고**도 보낸다(확인 마감 2시간 전 유예 경고).
  *
  * 문구는 **상대방**으로 적는다 — 고객·후원자는 쿠팡 대리구매 시절 이름이라 온체인에서 안 읽힌다
  * (2026-09-25). 창 길이는 `timing.ts` 상수에서 만든다 — 숫자를 박아 두면 창을 바꿀 때 따로 논다.
@@ -51,7 +51,7 @@ export const ONCHAIN_NOTIFY = {
   }),
 
   /**
-   * `remitted` 마감 2시간 전 (§7.5). 느린 고객 대부분이 여기서 스스로 끝낸다 —
+   * `remitted` 마감 2시간 전. 느린 고객 대부분이 여기서 스스로 끝낸다 —
    * 그러면 어드민이 안 불려 나온다.
    */
   customerDisputeSoon: (): Notice => ({
@@ -60,7 +60,7 @@ export const ONCHAIN_NOTIFY = {
   }),
 
   /**
-   * 환불 서명 요청. `{A,C}`라 **어드민 혼자서는 환불도 못 한다**(§5.2 R1-M4).
+   * 환불 서명 요청. `{A,C}`라 **어드민 혼자서는 환불도 못 한다**.
    * 고객이 안 오면 자기 돈이 잠긴 채로 남는다.
    */
   customerShouldSignRefund: (): Notice => ({
@@ -108,7 +108,7 @@ export const ONCHAIN_NOTIFY = {
 
   // ── 양쪽 ──
 
-  /** 분쟁이 열렸다. 증거를 올려야 판정이 된다 (§7.7 입증책임). */
+  /** 분쟁이 열렸다. 증거를 올려야 판정이 된다 (입증책임). */
   disputeOpened: (): Notice => ({
     body: '분쟁이 열렸습니다. 이체 내역·계좌 내역 등 증거를 채팅에 올려주세요.',
     tab: 'history', track: 'onchain',
@@ -130,7 +130,7 @@ export const ONCHAIN_NOTIFY = {
   }),
 
   /**
-   * 환불 컨펌. **보상을 약속하지 않는다**(§6.0) — 충당은 운영 재량이고,
+   * 환불 컨펌. **보상을 약속하지 않는다** — 충당은 운영 재량이고,
    * "보상받습니다"를 띄우는 순간 권리가 되어 새 분쟁이 된다.
    */
   refunded: (): Notice => ({
@@ -204,12 +204,12 @@ export const ONCHAIN_TRANSITION_NOTICES: Record<OnchainState, StateNotices | nul
  *
  * - `accountInfoArrived` — `presigned` 안에서 "고객이 계좌를 보냈는가"만 바뀐다.
  *   상태는 그대로인데 **후원자가 원화를 보낼 수 있게 되는 순간**이 정확히 여기다.
- * - `disputeSoon` — `remitted` 마감 2시간 전 유예 경고(§7.5). **주문당 한 번**
+ * - `disputeSoon` — `remitted` 마감 2시간 전 유예 경고. **주문당 한 번**
  * - `rulingSignatureNeeded` / `rulingDecided` — 분쟁 판정. 상태(`disputed`)는 그대로인데
  *   이긴 쪽이 서명해야 집행된다
  *
  * (환불 서명 요청은 이제 `refunding` **전이** 알림이다 — 전에는 이 표에만 있고
- * 부르는 곳이 없어서 한 번도 안 나갔다. 리뷰 #8.)
+ * 부르는 곳이 없어서 한 번도 안 나갔다.)
  */
 export const ONCHAIN_TIMER_NOTICES = {
   accountInfoArrived: (): Notice => ONCHAIN_NOTIFY.sponsorShouldRemit(),

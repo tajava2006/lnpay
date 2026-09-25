@@ -1,5 +1,5 @@
 /**
- * 라이트닝 거래를 닫는 사유 → 에스크로·보증금 처리 (PLAN-DAEMON §7)
+ * 라이트닝 거래를 닫는 사유 → 에스크로·보증금 처리
  *
  * **사유가 곧 처리다.** 전이만 보고 판단하면 정반대로 처리한다 — `cancelled` 하나에 고객 보증금을
  * 돌려주는 경우(후원자가 붙기 전)와 가져가는 경우(후원자를 붙여놓고 에스크로를 안 냄)가 섞여 있다.
@@ -62,12 +62,12 @@ export const CLOSE_RULES: Record<LnCloseReason, CloseRule> = {
   'expired:no-sponsor': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'refund', sponsorDeposit: 'refund' },
   'expired:not-approved': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'refund', sponsorDeposit: 'refund' },
   'expired:unpaid-escrow': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'forfeit', sponsorDeposit: 'refund' },
-  // PLAN-DAEMON §14 D4 — 인보이스도 안 내고 떠난 건 공짜 옵션이다. 닫는다
+  // 인보이스도 안 내고 떠난 건 공짜 옵션이다. 닫는다
   'expired:no-invoice': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'refund', sponsorDeposit: 'forfeit' },
   // 계좌를 안 보내 후원자 시간만 버렸다 — 본자금을 뺏을 잘못은 아니지만 보증금 몰수는 맞다(2026-09-25).
   // 고객 보증금이 에스크로 뒤에도 살아 있는 이유다(예전엔 에스크로 때 돌려줘서 이 몰수가 불가능했다)
   'expired:no-account': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'forfeit', sponsorDeposit: 'refund' },
-  // 계좌까지 받은 뒤는 원화가 오갔을 수 있다 — 몰수가 피해자를 칠 수 있어 돌려준다(D4)
+  // 계좌까지 받은 뒤는 원화가 오갔을 수 있다 — 몰수가 피해자를 칠 수 있어 돌려준다
   'expired:no-remit': { terminal: 'expired', escrow: 'cancel', customerDeposit: 'refund', sponsorDeposit: 'refund' },
 };
 

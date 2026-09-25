@@ -1,5 +1,5 @@
 /**
- * 라이트닝 운영자 명령 (PLAN-DAEMON §5.5)
+ * 라이트닝 운영자 명령
  *
  * 오더를 바꾸는 명령은 전부 `target = { track: 'ln', orderId, version }`을 싣고, 버전이 지금과 다르면
  * 거절한다(DM-006) — 다른 기기에서 이미 끝낸 판정을 낡은 화면에서 또 누르는 걸 막는다.
@@ -56,7 +56,7 @@ export function registerLnCommands(registry: CommandRegistry, ctx: LnContext): v
 
   /**
    * 방치된 거래를 끊는다(에스크로 환불, 보증금은 양쪽 다 돌려준다 — 몰수는 판정의 몫).
-   * 기한 만료가 자동으로 닫으므로(L-6) 기한 전에 끊어야 할 때만 쓴다.
+   * 기한 만료가 자동으로 닫으므로 기한 전에 끊어야 할 때만 쓴다.
    */
   register('ln.force-close', order => {
     if (order.state !== 'escrowed' && order.state !== 'invoiced') return { error: 'bad-state' };

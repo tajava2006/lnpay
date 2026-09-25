@@ -38,7 +38,7 @@ export function escrowDescriptorFor(order: OnchainOrder): EscrowDescriptor | nul
   }
 }
 
-/** 릴리스 수수료 — **후원자가 낸 주소·feerate로** 계산한다 (§6.1b). 부담자가 정한다 */
+/** 릴리스 수수료 — **후원자가 낸 주소·feerate로** 계산한다. 부담자가 정한다 */
 export function releaseFeeFor(order: OnchainOrder, meta: OcMeta): number | undefined {
   const descriptor = escrowDescriptorFor(order);
   if (!meta.payoutAddress || !meta.feerateSatPerVb || !descriptor) return undefined;
@@ -50,7 +50,7 @@ export function releaseFeeFor(order: OnchainOrder, meta: OcMeta): number | undef
 }
 
 /**
- * 환불·고객승·구조가 가는 주소 — 고객이 의뢰 때 낸 **자기 지갑 주소**(리뷰 #8). 없으면 주문별 고객 키의
+ * 환불·고객승·구조가 가는 주소 — 고객이 의뢰 때 낸 **자기 지갑 주소**. 없으면 주문별 고객 키의
  * 단일키 주소(그 전에 만든 주문 — 고객 앱의 "환불금 보내기"로 꺼낸다).
  */
 export function refundDestinationFor(order: OnchainOrder, meta: OcMeta): string | undefined {

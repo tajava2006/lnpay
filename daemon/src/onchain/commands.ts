@@ -1,5 +1,5 @@
 /**
- * 온체인 운영자 명령 (PLAN-DAEMON §5.5)
+ * 온체인 운영자 명령
  *
  * 사람이 판단하는 건 셋뿐이다 — **분쟁 판정, 계좌 이의 판정, 구조.** 나머지는 워처가 자동으로 한다.
  * 오더를 바꾸는 명령은 `target = { track: 'onchain', orderId, version }`을 싣고, 버전이 다르면 거절한다(DM-006).
@@ -35,7 +35,7 @@ export function registerOcCommands(registry: CommandRegistry, ctx: OcContext): v
     return r.ok ? {} : { error: r.error };
   });
 
-  /** 계좌 이의 판정 (§5.2b) — 계좌가 정말 나빴다(고객 몰수) / 이의에 근거가 없다(후원자 몰수) */
+  /** 계좌 이의 판정 — 계좌가 정말 나빴다(고객 몰수) / 이의에 근거가 없다(후원자 몰수) */
   register('oc.account-dispute', (row, args) => {
     if (args.verdict !== 'account-bad' && args.verdict !== 'sponsor-fault') return { error: 'bad-args' };
     const error = resolveAccountDispute(ctx, row.order.orderId, args.verdict);

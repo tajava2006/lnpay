@@ -1,5 +1,5 @@
 /**
- * 내가 하는 서명들 (PLAN-ONCHAIN-TRACK §2.4 · §6.1b · §7.1)
+ * 내가 하는 서명들
  *
  * 두 가지가 여기 모여 있다:
  *   ① **후원자의 사전서명** — 사람의 판단이 필요 없다. 앱이 자동으로 한다
@@ -12,7 +12,7 @@
 import {
   addTapScriptSig, buildKeyPathSweep, buildSettlementTx, finalizeSettlement, settlementFeeSat, signSettlement,
   toPsbtBase64, deriveEscrowAddress, parseOutpoint, presignDeadlineOf, isPast, TIMELOCK_REMIT_THRESHOLD_BLOCKS,
-  type KeyPathUtxo, type OnchainOrder, type SettlementPath,
+  type KeyPathUtxo, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { myOrderKey } from './keys';
 import { getMyClaim } from './claim-store';
@@ -36,7 +36,7 @@ export type BuildResult =
   | { ok: false; reason: string };
 
 /**
- * 후원자 사전서명 — **자동으로** 만든다 (§2.4).
+ * 후원자 사전서명 — **자동으로** 만든다.
  *
  * 고민할 것이 없다: 받을 주소와 feerate는 클레임 때 이미 냈고, 펀딩 txid는
  * 어드민이 확정했으며, 금액은 `amountSat − releaseFeeSat`으로 정해져 있다.
@@ -48,7 +48,7 @@ export type BuildResult =
 export async function buildPresignature(order: OnchainOrder): Promise<BuildResult> {
   const claim = getMyClaim(order.orderId);
   if (!claim) return { ok: false, reason: '내가 낸 받을 주소를 찾을 수 없다' };
-  // 마감이 지난 사전서명은 어드민이 받지 않는다(리뷰 #8) — 보내 봐야 헛걸음이다.
+  // 마감이 지난 사전서명은 어드민이 받지 않는다 — 보내 봐야 헛걸음이다.
   if (order.state !== 'funded' || order.settlementKind) {
     return { ok: false, reason: '사전서명을 받는 단계가 아니다' };
   }
@@ -62,7 +62,7 @@ export async function buildPresignature(order: OnchainOrder): Promise<BuildResul
   if (order.releaseFeeSat === undefined) return { ok: false, reason: '릴리스 수수료가 없다' };
 
   // 어드민이 고정한 수수료가 **내가 낸 feerate에서 나온 값**인지 본다.
-  // 다르면 내가 덜 받는다 — 부담자가 나이므로(§6.0) 여기서 걸러야 한다.
+  // 다르면 내가 덜 받는다 — 부담자가 나이므로 여기서 걸러야 한다.
   const expected = settlementFeeSat('release', descriptor, claim.payoutAddress, claim.feerateSatPerVb);
   if (expected !== order.releaseFeeSat) {
     return {
@@ -90,7 +90,7 @@ export async function buildPresignature(order: OnchainOrder): Promise<BuildResul
 /**
  * 최종 서명 — **검증을 통과한 재료로 tx를 다시 만들어** 내 서명을 얹는다.
  *
- * 받은 PSBT에 그대로 서명하지 않는다(리뷰 #8). 그 PSBT에 무슨 리프·무슨 주소가
+ * 받은 PSBT에 그대로 서명하지 않는다. 그 PSBT에 무슨 리프·무슨 주소가
  * 들었는지를 보낸 쪽 말만 믿는 셈이라서다. `checkSignRequest`가 "누구에게 얼마가
  * 어느 리프로" 가야 하는지를 내 기록으로 정했고, 그걸로 만든 tx가 받은 PSBT와
  * 바이트까지 같다는 것도 이미 확인했다. 릴리스면 검증된 후원자 서명을 옮겨 심는다.
@@ -117,7 +117,7 @@ export async function buildCosignature(orderId: string, check: SignCheck): Promi
  * 들어온 펀딩, 금액이 틀린 펀딩도 이 길로 나간다). CSV는 **그 UTXO의 컨펌부터** 센다.
  * `nSequence`는 빌더가 CSV 값으로 맞춘다.
  *
- * 전에는 함수만 있고 화면이 없었다(리뷰 #8) — 스크립트에 길이 있는데 앱에 버튼이
+ * 전에는 함수만 있고 화면이 없었다 — 스크립트에 길이 있는데 앱에 버튼이
  * 없으면 유저는 못 쓴다. 이제 "비상 회수" 화면이 이걸 부른다.
  */
 export async function buildTimelockSweep(
@@ -151,7 +151,7 @@ export async function buildTimelockSweep(
  * 주문별 키 단일키 주소(`tr(주문별 키)`)에 있는 자금을 내 지갑으로 — **완성된 raw tx**.
  *
  * 그 전에 만든 주문의 환불은 이 주소로 왔다. 이 앱만 쓸 수 있는 주소라 꺼내는 화면이
- * 없으면 환불금은 사실상 갇혀 있다(리뷰 #8). 멤풀에 있는 출력도 받으므로 막힌 환불
+ * 없으면 환불금은 사실상 갇혀 있다. 멤풀에 있는 출력도 받으므로 막힌 환불
  * tx를 **CPFP로 끌어올리는** 데도 쓴다.
  */
 export async function buildRefundSweep(
@@ -171,20 +171,7 @@ export async function buildRefundSweep(
   }
 }
 
-/** 어느 리프로 서명하는지 — 화면이 사유를 보여줄 때 쓴다 */
-export function pathForPurpose(
-  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor' | 'rescue',
-): SettlementPath {
-  switch (purpose) {
-    case 'release': return 'release';
-    case 'refund':
-    case 'rescue': return 'refund';
-    case 'dispute-customer': return 'customer-win';
-    case 'dispute-sponsor': return 'sponsor-win';
-  }
-}
-
-// ─── 타임락 안전망 (T-106 · §7.1) ────────────────────────────
+// ─── 타임락 안전망 (T-106) ────────────────────────────
 
 export interface TimelockStatus {
   /** 타임락까지 남은 블록. 모르면 `undefined` */
@@ -199,7 +186,7 @@ export interface TimelockStatus {
  *
  * 라이트닝 트랙에서 정확히 같은 모양의 버그를 겪었다 — 에스크로가 2시간 남았는데
  * 6시간짜리 인보이스를 받아줘서, 후원자가 원화를 보낸 뒤 HTLC가 타임아웃으로
- * 환불됐다(AUDIT-EXPIRY F2). 온체인에서는 "에스크로 만료"가 "타임락 만료"로
+ * 환불됐다. 온체인에서는 "에스크로 만료"가 "타임락 만료"로
  * 바뀔 뿐 구조가 같다.
  *
  * ⚠️ **컨펌 수를 모르면 막는다.** 모르는 걸 "아직 여유 있다"로 치면 그 순간

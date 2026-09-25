@@ -2,7 +2,7 @@
  * 릴레이 입출력 — 데몬과 nostr 사이의 유일한 문
  *
  * 인터페이스로 둔 이유는 테스트다: e2e에서 **실패하는 릴레이**(지난 만료 거절, 발행 실패, 중복·순서
- * 뒤섞임)를 흉내 내야 한다. 프론트 시절 "항상 성공" 흉내가 사각지대였다(PLAN-ONCHAIN-TRACK 리뷰 #8).
+ * 뒤섞임)를 흉내 내야 한다. 프론트 시절 "항상 성공" 흉내가 사각지대였다.
  */
 import type { Event } from 'nostr-tools/core';
 import type { Filter } from 'nostr-tools/filter';

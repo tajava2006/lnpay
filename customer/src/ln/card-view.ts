@@ -148,7 +148,7 @@ export function lnCardView(input: LnCardInput): LnCardView {
     }
     if (dep?.status) notes.push(`보증금: ${DEPOSIT_STATUS_TEXT[dep.status]}`);
 
-    // 인보이스: escrowed가 제자리. 그 뒤에도 거절 통보가 왔으면 다시 낸다 — 지급 직전 만료(L-5)
+    // 인보이스: escrowed가 제자리. 그 뒤에도 거절 통보가 왔으면 다시 낸다 — 지급 직전 만료
     const rejected = input.invoiceRejection ?? null;
     const resubmit = rejected !== null && (
       state === 'invoiced' || state === 'remitted'

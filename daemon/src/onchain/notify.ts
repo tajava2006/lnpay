@@ -1,11 +1,11 @@
 /**
- * 온체인 알림 발송 (PLAN-ONCHAIN-TRACK §6.2 · §7.5)
+ * 온체인 알림 발송
  *
  * 문구는 `notify-messages.ts`의 표가 진실이고, 여기서는 **누구에게 보낼지**만 한다.
  * 라이트닝(`../ln/notify.ts`)과 같은 모양 — 같은 버전에서 두 번 부르는 실수만 `notices`가 막는다.
  *
  * 운영자는 경보(`raiseAlert` — 상태에 실리고 NIP-17 DM으로 간다)로 부른다. 프론트 시절엔 어드민에게 가는
- * 알림이 하나도 없어서 "분쟁 진입 즉시 어드민 호출"(§7.3 ③)이 실제로는 없었다(리뷰 #8).
+ * 알림이 하나도 없어서 "분쟁 진입 즉시 어드민 호출"이 실제로는 없었다.
  */
 import { awaitingSignerFor, type OnchainOrder } from '@sajwo-tracker/shared/onchain';
 import { raiseAlert } from '../admin/alerts';
@@ -28,7 +28,7 @@ export function notifyOcTransition(ctx: OcContext, order: OnchainOrder, version:
   const key = (role: string) => `oc:${order.orderId}:v${version}:${order.state}:${role}`;
   if (notices?.customer) deliver(ctx, order.customerPubkey, notices.customer, order.orderId, key('customer'));
   if (notices?.sponsor) deliver(ctx, order.sponsorPubkey, notices.sponsor, order.orderId, key('sponsor'));
-  // 침묵 공격은 어드민이 와야만 깨진다(§7.3 ③) — 분쟁은 **즉시** 운영자를 부른다
+  // 침묵 공격은 어드민이 와야만 깨진다 — 분쟁은 **즉시** 운영자를 부른다
   if (order.state === 'disputed') {
     raiseAlert(ctx, {
       dedup: `oc:${order.orderId}:disputed:${order.disputedAt ?? version}`, level: 'warn', track: 'onchain',
@@ -55,8 +55,8 @@ export function notifyOcAccountArrived(ctx: OcContext, order: OnchainOrder): voi
 }
 
 /**
- * cosign 마감 2시간 전 유예 경고 (§7.5) — **송금 주장 한 번에 한 번.** 프론트 시절엔 워처가 30초마다 내서
- * 고객에게 240번 울렸다(리뷰 #8).
+ * cosign 마감 2시간 전 유예 경고 — **송금 주장 한 번에 한 번.** 프론트 시절엔 워처가 30초마다 내서
+ * 고객에게 240번 울렸다.
  */
 export function notifyOcDisputeSoon(ctx: OcContext, order: OnchainOrder): void {
   deliver(ctx, order.customerPubkey, ONCHAIN_TIMER_NOTICES.disputeSoon(), order.orderId,

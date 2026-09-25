@@ -92,8 +92,8 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
   유도한다(`shared/order-display.ts`가 본보기).
 - **문구에 숫자를 박지 않는다.** 창 길이는 상수에서 가져온다(`durationText`).
 - **"모름"을 "없음"으로 뭉개지 않는다.** 조회 실패는 보류, 모르는 마감은 지난 것으로 본다.
-- 이벤트에는 반드시 `expiration` 태그(보존)를 단다. 예외 4종: `dispute-message`(증거 보존), 유저 신원 kind 0·10002
-  (replaceable), 알림 gift wrap kind 1059, `push-subscription`(계정 단위). **보존과 거래 마감을 섞지 않는다**(DM-009).
+- 이벤트에는 반드시 `expiration` 태그(보존)를 단다. 예외 3종: `dispute-message`(증거 보존), 운영자 경보 gift wrap
+  kind 1059, `push-subscription`(계정 단위). **보존과 거래 마감을 섞지 않는다**(DM-009).
 - Nostr 코드는 각 앱의 `nostr/` 디렉토리에 둔다.
 - 테스트는 **프로덕션이 실제로 부르는 경로**를 탄다. 프로덕션이 안 부르는 헬퍼를 검증하면 버그가 초록으로 남는다.
 - Dev/Prod 데이터 격리: 태그가 dev(`…-dev`)·prod로 갈린다. dev 전용 코드는 `dev-only/`에 파일 단위로 두고

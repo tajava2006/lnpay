@@ -1,5 +1,5 @@
 /**
- * 라이트닝 오더 코덱 · 닫기 사유 (PLAN-DAEMON §7 L-1, §14 D4)
+ * 라이트닝 오더 코덱 · 닫기 사유
  *
  * 데몬이 만들고 유저 앱·어드민이 읽는 같은 파일이다 — 발행만 하고 안 읽는 태그가 생기면(예전 payout)
  * 에코에 값이 증발한다. 왕복으로 묶는다.
@@ -105,7 +105,7 @@ describe('닫기 사유 (CLOSE_RULES)', () => {
   });
 
   /** 2026-09-25 — 고객 보증금이 에스크로 뒤에도 살아 있어 이 몰수가 가능해졌다 */
-  it('invoiced 만료는 계좌가 나갔는지로 갈린다 — 안 나갔으면 고객 몰수, 나갔으면 전부 환불(D4)', () => {
+  it('invoiced 만료는 계좌가 나갔는지로 갈린다 — 안 나갔으면 고객 몰수, 나갔으면 전부 환불', () => {
     expect(expiryReasonFor('invoiced', true, false)).toBe('expired:no-account');
     expect(CLOSE_RULES['expired:no-account']).toMatchObject({ customerDeposit: 'forfeit', sponsorDeposit: 'refund', escrow: 'cancel' });
     expect(expiryReasonFor('invoiced', true, true)).toBe('expired:no-remit');

@@ -75,7 +75,7 @@ export interface CommandView {
 
 export const commands = createStore<Record<string, CommandView>>({});
 
-/** 오더별 채팅 사본 — 키는 `${track}:${orderId}` (P3·P4 분쟁 화면이 쓴다) */
+/** 오더별 채팅 사본 — 키는 `${track}:${orderId}` (P4 분쟁 화면이 쓴다) */
 export const chats = createStore<Record<string, AdminChatCopy[]>>({}, 'admin2:chats');
 
 export const lnOrders = createStore<Record<string, Order>>({}, 'admin2:ln-orders');

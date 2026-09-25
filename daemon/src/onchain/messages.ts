@@ -5,7 +5,7 @@
  * 서명은 **쌓을 때 한 번** 한다 — 재시도가 같은 이벤트를 다시 낸다.
  *
  * 만료는 `onchainMessageExpiration`(지금 + 70일) — 거래가 끝날 때까지 산다. 의뢰 만료를 쓰면 막바지에
- * 클레임된 주문의 통지가 릴레이에서 거절된다(리뷰 #8).
+ * 클레임된 주문의 통지가 릴레이에서 거절된다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import { REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND, nip44Encrypt, orderRef } from '@sajwo-tracker/shared/core';

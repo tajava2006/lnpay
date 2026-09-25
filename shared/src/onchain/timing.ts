@@ -1,8 +1,8 @@
 /**
- * 온체인 트랙의 마감 시계 (PLAN-ONCHAIN-TRACK §6.2)
+ * 온체인 트랙의 마감 시계
  *
  * **마감 없는 상태는 없다**(O-009). 예외는 `disputed` 하나뿐이고, 그건 자동
- * 해소가 어느 방향이든 탈취라서다(§7.5).
+ * 해소가 어느 방향이든 탈취라서다.
  *
  * ```
  * listed ──의뢰 만료(최대 7일)──→ cancelled
@@ -29,11 +29,11 @@ const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-/** 의뢰 만료 상한 — 보증금 CLTV 천장(13일)에 여유를 두고 7일 (§2.2) */
+/** 의뢰 만료 상한 — 보증금 CLTV 천장(13일)에 여유를 두고 7일 */
 export const MAX_ORDER_EXPIRY_SEC = 7 * DAY;
 
 /**
- * `bonded` → 펀딩 **컨펌까지** (§4.1c). 3컨펌(~30분)도 넉넉히 들어간다.
+ * `bonded` → 펀딩 **컨펌까지**. 3컨펌(~30분)도 넉넉히 들어간다.
  *
  * 6시간이었다가 **2시간으로 줄였다**(2026-09-25, signet 드릴). 후원자는 보증금을 걸고 기다리는데 6시간은
  * 길었다. 블록 간격 때문에 3컨펌이 2시간을 넘길 확률은 ~0.05%다 — 실제로 걸리는 건 수수료를 낮게 잡은
@@ -53,7 +53,7 @@ export const PRESIGN_WINDOW_SEC = 15 * MINUTE;
  * ⚠️ **대가가 있다 — 가격은 T0에 고정됐다.** 이 창 동안 시세가 오르면 고객은 계좌를 안 내고 빠지는 게
  * 이득일 수 있다(대가: 고객 보증금 1% + 온체인 수수료 2회). 피해자(후원자)는 원화를 아직 안 보냈으니 잃는
  * 건 시간뿐이다. 그리고 고객이 늦게 낼수록 후원자의 송금 마감(계좌 공개 +30분)이 뒤로 밀려 **후원자의 옵션
- * 창이 최대 105분으로 늘어난다** — 후원자 보증금 3%는 60분 꼬리로 잡은 값이다(§2.4). 다만 그 연장은 고객이
+ * 창이 최대 105분으로 늘어난다** — 후원자 보증금 3%는 60분 꼬리로 잡은 값이다. 다만 그 연장은 고객이
  * 늦을 때만 생기고, 후원자가 그 창으로 빠지면 수수료를 잃는 것도 늦은 그 고객이다.
  */
 export const ACCOUNT_WINDOW_SEC = 1 * HOUR;
@@ -64,21 +64,21 @@ export const KRW_WINDOW_SEC = 30 * MINUTE;
 /** `remitted` → 고객 cosign. 자는 고객이 헛분쟁을 안 만들 정도 */
 export const COSIGN_WINDOW_SEC = PRICE_VALIDITY_MS / 1000;
 
-/** 그 마감 2시간 전 유예 경고 — 느린 고객 대부분이 여기서 스스로 끝낸다 (§7.5) */
+/** 그 마감 2시간 전 유예 경고 — 느린 고객 대부분이 여기서 스스로 끝낸다 */
 export const COSIGN_GRACE_WARNING_SEC = 2 * HOUR;
 
 /** `settling` 컨펌 대기. 넘으면 경고 + CPFP 안내 (하드 마감 아님) */
 export const SETTLING_WARN_SEC = 24 * HOUR;
 
-/** `disputed` 에스컬레이션 (§7.5). 하드 마감이 아니라 사람을 더 세게 부르는 시점 */
+/** `disputed` 에스컬레이션. 하드 마감이 아니라 사람을 더 세게 부르는 시점 */
 export const DISPUTE_ESCALATION_SEC = [7 * DAY, 14 * DAY] as const;
 
 /**
  * 분쟁 진입 후 **판정에 쓸 수 있다고 보장하는 시간** (보증금 CLTV 예산의 마지막 칸).
  *
- * 몰수는 판정 **시점**에 집행된다(리뷰 #8). 그러니 보증금 HTLC는 판정이 나올 때까지만
+ * 몰수는 판정 **시점**에 집행된다. 그러니 보증금 HTLC는 판정이 나올 때까지만
  * 살아 있으면 된다 — 종결 tx 컨펌(`settling`)까지 덮을 필요는 없다. 대신 분쟁은
- * 하드 마감이 없으므로(§7.5) **이 시간을 넘긴 판정은 몰수를 못 할 수 있다.**
+ * 하드 마감이 없으므로 **이 시간을 넘긴 판정은 몰수를 못 할 수 있다.**
  * 어드민 화면이 보증금 만료 추정치를 보여주는 이유다.
  */
 export const DISPUTE_RULING_BUDGET_SEC = 24 * HOUR;
@@ -86,7 +86,7 @@ export const DISPUTE_RULING_BUDGET_SEC = 24 * HOUR;
 /**
  * 온체인 이벤트가 릴레이에 남아 있어야 하는 기간.
  *
- * ⚠️ **의뢰 만료(`expiration`)를 이벤트 만료로 쓰면 안 된다**(리뷰 #8). 의뢰 만료는
+ * ⚠️ **의뢰 만료(`expiration`)를 이벤트 만료로 쓰면 안 된다**. 의뢰 만료는
  * "후원자를 찾는 창"이고, 거래는 그 뒤로 며칠(분쟁이면 몇 주) 더 간다. 릴레이는
  * NIP-40에 따라 **지난 만료를 가진 이벤트를 거절하고, 저장된 것도 내주지 않는다** —
  * 막바지에 클레임된 주문은 그 순간부터 상태 발행이 전부 실패했다.
@@ -122,12 +122,12 @@ export type OnchainWindows = Record<keyof typeof ONCHAIN_WINDOWS, number>;
 
 /**
  * 총 옵션 창의 상한(지금 15+60+30 = 105분). 앞 두 마감이 T0에 묶여 있어 **합이 이걸 못 넘는다.**
- * 보증금은 이 구간의 변동폭을 덮어야 한다(§2.4) — 계좌 창을 늘리며 60분에서 늘었다(`ACCOUNT_WINDOW_SEC`).
+ * 보증금은 이 구간의 변동폭을 덮어야 한다 — 계좌 창을 늘리며 60분에서 늘었다(`ACCOUNT_WINDOW_SEC`).
  */
 export const MAX_OPTION_WINDOW_SEC = PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + KRW_WINDOW_SEC;
 
 /**
- * **클레임이 성립한 뒤 마지막 몰수 결정까지의 최악 소요** (§6.0 최악 소요 시간).
+ * **클레임이 성립한 뒤 마지막 몰수 결정까지의 최악 소요.**
  *
  * ```
  * bonded 2h + 옵션 창 105m + cosign 24h + 판정 예산 24h ≈ 52시간
@@ -139,7 +139,7 @@ export const MAX_OPTION_WINDOW_SEC = PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + K
  * 그 상태가 된다** — 만료 1시간 전에 클레임하면 보증금은 하루 남짓 사는데
  * 거래는 52시간이 걸릴 수 있다.
  *
- * 몰수는 **결정 시점**에 집행되므로(리뷰 #8) 종결 tx 컨펌 대기(`settling`)는
+ * 몰수는 **결정 시점**에 집행되므로 종결 tx 컨펌 대기(`settling`)는
  * 여기 안 들어간다. 그 자리를 분쟁 판정 예산이 대신한다.
  */
 export const MAX_TRADE_DURATION_SEC =
@@ -149,7 +149,7 @@ export const MAX_TRADE_DURATION_SEC =
  * 펀딩 마감을 찍는다.
  *
  * ⚠️ **리오그로 `bonded`에 돌아올 때도 이걸 다시 부른다.** 그대로 두면 마감이
- * 이미 지난 상태로 복귀해 **체인 사고로 정직한 고객이 몰수된다**(§4.1c).
+ * 이미 지난 상태로 복귀해 **체인 사고로 정직한 고객이 몰수된다**.
  */
 export function fundingDeadlineFrom(bondedAt: number): number {
   return bondedAt + FUNDING_WINDOW_SEC;
@@ -179,7 +179,7 @@ export function cosignDeadlineFrom(remittedAt: number): number {
  * 핸들러가 **지금 이 행동을 받아도 되는지** 보는 마감들.
  *
  * 워처만 마감을 보고 핸들러가 안 보면, 워처 틱(30초) 사이에 들어온 늦은 사전서명·
- * 늦은 계좌·늦은 송금 주장이 그대로 받아들여진다(리뷰 #8). 마감은 **양쪽이 같은
+ * 늦은 계좌·늦은 송금 주장이 그대로 받아들여진다. 마감은 **양쪽이 같은
  * 함수로** 본다.
  */
 export function presignDeadlineOf(order: { fundedAt?: number; presignDeadline?: number }): number | undefined {
@@ -372,7 +372,7 @@ export function currentOnchainDeadline(
   }
 }
 
-/** 의뢰 만료가 상한 안인지 — 넘으면 보증금 인보이스를 만들 수 없다(§2.2) */
+/** 의뢰 만료가 상한 안인지 — 넘으면 보증금 인보이스를 만들 수 없다 */
 export function isOrderExpiryAllowed(expiration: number, now: number): boolean {
   return expiration > now && expiration - now <= MAX_ORDER_EXPIRY_SEC;
 }

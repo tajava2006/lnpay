@@ -51,7 +51,7 @@ export function parseAccountInfoEvent(event: Event): AccountInfoEvent | null {
  *
  * 규칙은 shared `parseLnOrderEvent` 한 곳에 있다 — 데몬이 만드는 쪽과 같은 파일이다. 여기 따로 두었을 때
  * 발행만 하고 안 읽은 태그(payout)가 에코에 증발한 적이 있다(2026-09-19). `expiration`은 **쿠팡 기한**,
- * 릴레이 보존은 `retainUntil`이다(PLAN-DAEMON §7 L-1).
+ * 릴레이 보존은 `retainUntil`이다.
  */
 export function parseEvent(event: Event): Order | null {
   return parseLnOrderEvent(event, APP_PUBKEY);

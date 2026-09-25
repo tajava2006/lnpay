@@ -1,5 +1,5 @@
 /**
- * 주문별 온체인 키 (PLAN-ONCHAIN-TRACK §3.2 · §3.3)
+ * 주문별 온체인 키
  *
  * ── 왜 nostr 키를 그대로 안 쓰나
  *
@@ -13,13 +13,10 @@
  *   백업 부담이 0**이다 — 이게 BIP-32 대신 HMAC을 쓰는 이유다(체인코드를
  *   따로 보관할 게 없다).
  *
- * ── 어드민은 다르다
+ * ── 어드민 키는 데몬이 만든다
  *
- * 어드민은 NIP-46이라 로컬에 개인키가 없다. 파생할 재료가 없으므로
- * `generateOrderKey()`로 만들고 **NIP-78 암호화 백업 + localStorage 이중
- * 백업**을 한다(§3.2). 이 키를 잃으면 그 주문의 분쟁 중재가 영구 불가다 —
- * `{A,S}`·`{A,C}` 둘 다 서명할 수 없고, 고객이 타임락(8주)으로 회수할
- * 때까지 아무도 아무것도 못 한다.
+ * 데몬 시드에서 주문마다 파생한다(`daemon/src/derive.ts`, DM-005). 시드를 잃으면 그 주문의 분쟁 중재가
+ * 영구 불가다 — `{A,S}`·`{A,C}` 둘 다 서명할 수 없고, 고객이 타임락(8주)으로 회수할 때까지 아무도 못 한다.
  */
 import { utils } from '@scure/btc-signer';
 import { bytesToHex, isXonlyHex } from './hex';
@@ -111,23 +108,7 @@ export async function deriveOrderKey(
 }
 
 /**
- * 어드민용 주문별 키 (파생할 재료가 없어 난수로 만든다).
- *
- * ⚠️ 호출한 쪽이 **NIP-78 백업 성공을 확인하기 전에는 주소를 발행하면 안 된다**
- * (§3.2, 공격 M). localStorage만으로는 부족하다 — 그 기기를 잃으면 끝이다.
- */
-export function generateOrderKey(): OrderKey {
-  for (let attempt = 0; attempt < MAX_DERIVE_ATTEMPTS; attempt++) {
-    const privkey = crypto.getRandomValues(new Uint8Array(32));
-    if (isValidScalar(privkey)) {
-      return { privkey, xonly: xonlyFromPrivkey(privkey) };
-    }
-  }
-  throw new Error('generateOrderKey: 유효한 스칼라를 얻지 못했다');
-}
-
-/**
- * 세 키가 서로 다른지 — 같으면 **2-of-3 보장 자체가 사라진다** (§3.3, 공격 H).
+ * 세 키가 서로 다른지 — 같으면 **2-of-3 보장 자체가 사라진다** (T-108).
  *
  * `{A,S}` 리프는 두 키가 **다른 주체**에 있다는 전제 위에 있다. 한 사람이 둘을
  * 쥐면 그 리프는 단독 서명이 되고, 그 순간 에스크로가 아니라 그냥 그 사람 돈이다.

@@ -36,7 +36,7 @@ const APP_URL = 'https://customer.hoppe-relay.it.com';
 
 /**
  * 앱 탭. **두 트랙이 같은 탭 구조를 공유한다** — 온체인과 라이트닝은 동등한
- * 거래 방법이라 한쪽을 다른 쪽 밑에 넣지 않는다(PLAN-ONCHAIN-TRACK §1.2).
+ * 거래 방법이라 한쪽을 다른 쪽 밑에 넣지 않는다.
  */
 export type Tab = 'request' | 'fulfill' | 'history';
 

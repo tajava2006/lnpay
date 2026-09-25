@@ -1,5 +1,5 @@
 /**
- * P2 명령 채널 (PLAN-DAEMON §5) — 설정 · 경보 · 운영자 상태 · 분쟁 채팅 중계 · 버전 확인
+ * P2 명령 채널 — 설정 · 경보 · 운영자 상태 · 분쟁 채팅 중계 · 버전 확인
  */
 import { describe, expect, it } from 'vitest';
 import type { Event } from 'nostr-tools/core';
@@ -78,7 +78,7 @@ describe('설정 (config.get / config.set)', () => {
   });
 });
 
-describe('운영자 상태 (§5.3)', () => {
+describe('운영자 상태', () => {
   it('운영자마다 따로, 그 운영자만 열 수 있다', async () => {
     const h = createHarness({ operators: 2 });
     const daemon = h.start();
@@ -183,7 +183,7 @@ function chatCopies(h: Harness, operator: TestKey): AdminChatCopy[] {
     .map(e => JSON.parse(nip44Decrypt(e.content, operator.secretKey, h.app.pubkey)) as AdminChatCopy);
 }
 
-describe('분쟁 채팅 중계 (§5.4)', () => {
+describe('분쟁 채팅 중계', () => {
   function withOrder() {
     const h = createHarness({ operators: 2 });
     const customer = newKey();

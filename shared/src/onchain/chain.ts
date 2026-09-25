@@ -1,11 +1,11 @@
 /**
- * 체인 어댑터 — mempool.space REST (PLAN-ONCHAIN-TRACK §11 P2)
+ * 체인 어댑터 — mempool.space REST
  *
  * ⚠️ **어드민 전용이 아니다.** 후원자 앱도 체인을 봐야 한다 — 원화를 보내기 전
- * 타임락 잔여를 확인하고(§7.1 · T-106), 종결 tx가 막히면 CPFP를 해야 한다(§7 L).
- * 그래서 shared에 둔다(§8은 admin에 뒀는데, 그러면 같은 코드가 두 벌이 된다).
+ * 타임락 잔여를 확인하고(T-106), 종결 tx가 막히면 CPFP를 해야 한다(T-112).
+ * 그래서 shared에 둔다.
  *
- * ── 이 파일의 계약 (§4.1c)
+ * ── 이 파일의 계약
  *
  * **펀딩 판정은 주소 기준이다.** "마감 안에, 이 주소로, 약정 금액이, N컨펌 됐는가"
  * 하나만 답하면 된다. 중간에 고객이 멤풀에 넣었다 뺐다 하든 RBF로 수수료를
@@ -57,8 +57,8 @@ export interface ChainUtxo extends ChainOutpoint {
  * 한 주소의 자금 현황.
  *
  * ⚠️ `mempool`은 **화면 힌트 전용**이다("멤풀에서 보임 · 컨펌 대기").
- * 어떤 판정에도 쓰지 않는다 — 0-conf는 되돌려질 수 있고(공격 D), 그래서
- * FSM에 `funding` 상태를 두지 않았다(§4.1c).
+ * 어떤 판정에도 쓰지 않는다 — 0-conf는 되돌려질 수 있고(T-104), 그래서
+ * FSM에 `funding` 상태를 두지 않았다.
  */
 export interface AddressFunds {
   confirmed: ChainUtxo[];
@@ -70,7 +70,7 @@ export interface TxStatus {
    * 노드가 이 tx를 **안다**(멤풀이든 블록이든). `false`면 404 — 멤풀에서 쫓겨났거나
    * 애초에 안 들어갔다. **'모름'(조회 실패)과 다르다** — 그건 `known: false`로 온다.
    *
-   * 이 구분이 없어서 쫓겨난 종결 tx가 영원히 `hold`로 조용히 멈췄다(리뷰 #8).
+   * 이 구분이 없어서 쫓겨난 종결 tx가 영원히 `hold`로 조용히 멈췄다.
    * `seen: false`면 워처가 같은 tx를 다시 뿌린다(O-005).
    */
   seen: boolean;
@@ -84,7 +84,7 @@ export interface TxStatus {
  *
  * 펀딩 UTXO가 `/utxo` 목록에서 빠지는 이유는 둘이다 — ① 누가 그걸 소모했다(우리 종결
  * tx 포함) ② 펀딩 tx 자체가 사라졌다(리오그·이중지불). 전에는 둘을 구분하지 않고 전부
- * ②로 읽어서, **우리가 방금 뿌린 환불 tx를 리오그로 오인**했다(리뷰 #8). 그 뒤
+ * ②로 읽어서, **우리가 방금 뿌린 환불 tx를 리오그로 오인**했다. 그 뒤
  * `bonded`로 되돌아가 마감이 차면 **엉뚱한 쪽이 몰수**됐다.
  *
  * `witness`는 소모한 입력의 증인이다 — 어느 리프로 썼는지가 여기서 드러난다.
@@ -195,7 +195,7 @@ export class MempoolChainAdapter implements ChainAdapter {
   /**
    * 한 번 시도하고 실패는 전부 '모름'으로 바꾼다.
    *
-   * 재시도는 여기서 하지 않는다 — 워처가 주기적으로 다시 부르므로(P4) 여기서
+   * 재시도는 여기서 하지 않는다 — 워처가 주기적으로 다시 부르므로 여기서
    * 또 돌면 실패가 느리게 드러나기만 한다. 빨리 '모름'을 말하는 쪽이 낫다.
    */
   private async request<T>(path: string, init?: RequestInit): Promise<RawQuery<T>> {

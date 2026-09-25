@@ -1,5 +1,5 @@
 /**
- * 라이트닝 워처 — 틱마다 시계와 블록 높이를 본다 (PLAN-DAEMON §4.6)
+ * 라이트닝 워처 — 틱마다 시계와 블록 높이를 본다
  *
  * 인보이스 관찰(결제됨·노드가 취소함)은 `../hold`가 먼저 돌고 후속 처리를 `createLnHoldHooks`로 부른다.
  * 여기는 **시계**만 본다 — 한 트랜잭션에서 시각·블록 높이로 판단한다: 결제 기한, 쿠팡 기한(+유예),
@@ -89,7 +89,7 @@ export class LnWatcher {
       if (escrow?.status === 'open' && now > escrow.pay_by + PAY_BY_SKEW_SEC) beginClose(ctx, order, 'cancel:unpaid-escrow');
     }
 
-    // ── 쿠팡 기한 (L-2) · 에스크로 만기
+    // ── 쿠팡 기한 · 에스크로 만기
     for (const order of ordersInStates(ctx, ['requested', 'claimed', 'verified', 'escrowed', 'invoiced'])) {
       if (order.pending_close) continue;
       const reason = expiryReasonFor(order.state, order.sponsor !== null, order.account_sent_at !== null);

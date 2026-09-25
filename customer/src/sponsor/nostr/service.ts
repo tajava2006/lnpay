@@ -51,7 +51,7 @@ export function handleAdminOrder(event: Event, myPubkey: string): void {
 /**
  * 오더보다 먼저 온 계좌 정보 (메모리만 — 릴레이가 다시 준다).
  *
- * 계좌는 **오더의 고객이 보낸 것만** 받는다(온체인 리뷰 #8에서 같이 발견). 그런데 두
+ * 계좌는 **오더의 고객이 보낸 것만** 받는다(T-008 — 온체인 T-119와 같은 모양). 그런데 두
  * 구독이 따로 돌아 계좌가 오더보다 먼저 올 수 있다 — 그때 버리면 진짜 계좌를 잃는다.
  */
 const accountAwaitingOrder = new Map<string, AccountInfoEvent[]>();
@@ -144,7 +144,7 @@ async function syncOrderToIdb(order: Parameters<typeof idbUpsertOrder>[0], myPub
  * 전에는 보낸 사람 키로 복호화만 되면 받았다. 후원자 pubkey는 오더 태그에 공개돼
  * 있으므로 누구든 가짜 계좌를 NIP-44로 보낼 수 있었고, 스토어가 **먼저 온 것을
  * 유지**해서 제3자가 먼저 쏜 계좌가 진짜 고객 계좌를 밀어냈다 — 후원자가 공격자
- * 계좌로 원화를 보내는 경로다(온체인 트랙 리뷰 #8에서 같은 모양으로 발견).
+ * 계좌로 원화를 보내는 경로다(T-008).
  */
 async function handleAccountInfo(event: AccountInfoEvent): Promise<void> {
   const order = getSponsorOrders()[event.orderId];

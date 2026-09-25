@@ -15,7 +15,6 @@ import {
   getUserPubkey,
   getSecretKey,
   createSubscriptionGuard,
-  ensureIdentityPublished,
   storage,
 } from '@sajwo-tracker/shared';
 import { subscribeOrders, subscribeInbox } from './subscribe';
@@ -35,11 +34,6 @@ export function startSubscriptions(): Promise<void> {
       getUserPubkey(storage),
       getSecretKey(storage),
     ]);
-
-    // 알림 수신용 신원(kind 0 + 10002)을 최초 1회 발행한다.
-    // 릴레이가 확정된 뒤여야 인박스를 제대로 선언할 수 있어 여기서 부른다.
-    // 구독과는 무관하므로 기다리지 않는다.
-    void ensureIdentityPublished(storage, sk);
 
     // VAPID 키를 교체하면 옛 구독으로 가는 푸시가 403으로 죽는다. 유저 쪽에는
     // 아무 신호가 없어서, 알림을 켜둔 채로 영영 못 받게 된다. 부팅 때 조용히

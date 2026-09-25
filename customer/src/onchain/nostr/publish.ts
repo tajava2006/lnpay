@@ -1,10 +1,10 @@
 /**
- * 온체인 요청 발행 (PLAN-ONCHAIN-TRACK §5.2)
+ * 온체인 요청 발행
  *
  * 라이트닝과 **같은 kind·같은 배관**을 쓰고 `t` 태그와 action만 다르다.
  *
  * ⚠️ **PSBT와 받을 주소는 암호문으로 나간다.** kind 1111은 공개 이벤트이고,
- * PSBT 안에는 후원자의 실제 지갑 주소가 들어 있다(§5.2 표).
+ * PSBT 안에는 후원자의 실제 지갑 주소가 들어 있다.
  */
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
@@ -62,7 +62,7 @@ async function encryptToAdmin(payload: object): Promise<string> {
 /**
  * 고객: 의뢰 등록.
  *
- * **환불 받을 주소는 암호문이다**(리뷰 #8) — 공개하면 제3자가 내 지갑을 따라간다.
+ * **환불 받을 주소는 암호문이다** — 공개하면 제3자가 내 지갑을 따라간다.
  * 환불·고객승·구조 tx가 이 주소로 온다.
  *
  * `expiration` 태그는 **의뢰 만료**다(어드민이 의뢰 수명으로 읽는다). 이 이벤트 자체도
@@ -97,7 +97,7 @@ export async function publishOnchainOrderRequest(params: {
  * 후원자: 클레임.
  *
  * 받을 주소와 feerate는 **암호문**이다 — 공개하면 제3자가 내 지갑을 따라간다.
- * 이걸 보내는 것만으로는 **아무도 예약되지 않는다**(§4.1b). 어드민이 보증금
+ * 이걸 보내는 것만으로는 **아무도 예약되지 않는다**. 어드민이 보증금
  * 인보이스를 내주고, **먼저 결제한 쪽**이 가져간다.
  */
 export async function publishOnchainClaim(params: {
@@ -146,7 +146,7 @@ export async function publishOnchainCosign(
 /**
  * 양쪽: 분쟁 제기 / 계좌 이의.
  *
- * ⚠️ `stage: 'account-unusable'`은 **시계를 멈추지 않는다**(§5.2b). 증거로만
+ * ⚠️ `stage: 'account-unusable'`은 **시계를 멈추지 않는다**. 증거로만
  * 붙고, 보증금을 몰수할지 환불할지만 가른다. 화면도 그렇게 말해야 한다.
  */
 export async function publishOnchainDispute(
@@ -164,7 +164,7 @@ export async function publishOnchainDispute(
 /**
  * 고객: 의뢰를 접는다.
  *
- * **후원자가 붙기 전에만** 받아들여진다(§4.2). 붙은 뒤에는 상대가 이미 돈을
+ * **후원자가 붙기 전에만** 받아들여진다. 붙은 뒤에는 상대가 이미 돈을
  * 걸었으므로 일방 취소가 없고, 마감과 체인이 판정한다.
  *
  * 액션은 라이트닝의 `cancel-request`를 그대로 쓴다 — 뜻이 같고 트랙은 `t` 태그로 갈린다.
@@ -181,9 +181,9 @@ export async function publishOnchainCancelRequest(orderId: string): Promise<Publ
 /**
  * 고객: 계좌 정보 (NIP-44로 **후원자에게** — 어드민도 못 본다).
  *
- * 라이트닝과 같은 **솔티드 커밋먼트**를 공개 태그에 단다(리뷰 #8). 전에는 없어서,
+ * 라이트닝과 같은 **솔티드 커밋먼트**를 공개 태그에 단다. 전에는 없어서,
  * 분쟁 때 "고객이 준 계좌가 뭐였나"를 어드민이 확인할 길이 없었다 — 계좌 이의
- * 판정(§5.2b)이 원리적으로 불가능했다. 후원자가 계좌와 솔트를 채팅에 공개하면
+ * 판정이 원리적으로 불가능했다. 후원자가 계좌와 솔트를 채팅에 공개하면
  * 어드민이 이 태그와 대조한다.
  */
 export async function publishOnchainAccountInfo(
@@ -214,7 +214,7 @@ export async function publishOnchainAccountInfo(
  * 온체인 분쟁 채팅 메시지 (고객·후원자 → 어드민). 서명까지만, 발행은 shared/chat-send가.
  *
  * 전에는 온체인 주문에 채팅이 아예 없었다 — 알림은 "증거를 채팅에 올려주세요"라고
- * 보냈는데(리뷰 #8). 분쟁 증거는 보존해야 하므로 `expiration`을 달지 않는다.
+ * 보냈는데. 분쟁 증거는 보존해야 하므로 `expiration`을 달지 않는다.
  */
 export async function prepareOnchainDisputeMessage(
   orderId: string,

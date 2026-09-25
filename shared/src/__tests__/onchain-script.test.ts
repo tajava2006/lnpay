@@ -1,5 +1,5 @@
 /**
- * 에스크로 스크립트 트리 (PLAN-ONCHAIN-TRACK §3.1)
+ * 에스크로 스크립트 트리
  *
  * 리프 바이트열을 **손으로 적은 기댓값**과 대조한다. 라이브러리 인코더를 그대로
  * 믿고 "인코더가 낸 값 == 인코더가 낸 값"을 확인하면 아무것도 검증하지 않는 것이다.
@@ -15,8 +15,8 @@ import {
   buildEscrowTree,
   describeLeafScript,
   numsInternalKey,
-  numsMatchesLibrary,
 } from '../onchain/script';
+import { taprootNumsKey } from '@scure/btc-signer';
 import { bytesToHex } from '../onchain/hex';
 
 const C = 'a1'.repeat(32);
@@ -33,7 +33,7 @@ describe('NUMS 내부키', () => {
     expect(NUMS_INTERNAL_KEY).toBe(
       '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0',
     );
-    expect(numsMatchesLibrary()).toBe(true);
+    expect(bytesToHex(taprootNumsKey())).toBe(NUMS_INTERNAL_KEY);
     expect(numsInternalKey()).toHaveLength(32);
   });
 
@@ -91,7 +91,7 @@ describe('리프 4개', () => {
 });
 
 describe('입력 검증', () => {
-  it('세 키가 겹치면 리프를 만들지 않는다 (공격 H)', () => {
+  it('세 키가 겹치면 리프를 만들지 않는다 (T-108)', () => {
     expect(() => buildEscrowLeaves({ ...KEYS, admin: C })).toThrow(/중복/);
   });
 

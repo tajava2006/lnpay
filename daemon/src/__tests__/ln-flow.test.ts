@@ -1,5 +1,5 @@
 /**
- * P3 라이트닝 — 정상 흐름과 돈이 움직이는 순서 (PLAN-DAEMON §7)
+ * P3 라이트닝 — 정상 흐름과 돈이 움직이는 순서
  *
  * 가짜 노드는 LND처럼 굴고(기한 지난 인보이스 취소, HTLC 만기 전 자동 취소), 인보이스는 진짜로
  * 서명된 bolt11이다. 시계와 블록 높이는 테스트가 돌린다.
@@ -120,7 +120,7 @@ describe('정상 흐름 — 보증금 없이', () => {
   });
 });
 
-describe('보증금 (D5)', () => {
+describe('보증금', () => {
   it('고객 보증금 → 오더 생성 → 에스크로 뒤에도 붙잡고 → 정상 완료 때 환불', async () => {
     const h = await createLnHarness();
     setDeposits(h, 2, 0);
@@ -187,7 +187,7 @@ describe('보증금 (D5)', () => {
     expect(h.node.stateOf(o.escrow_hash!)).toBe('cancelled');
   });
 
-  it('계좌가 나갔으면 누구 탓인지 모른다 — expired:no-remit, 보증금 전부 환불 (D4)', async () => {
+  it('계좌가 나갔으면 누구 탓인지 모른다 — expired:no-remit, 보증금 전부 환불', async () => {
     const h = await createLnHarness();
     setDeposits(h, 2, 0);
     const orderId = await openOrder(h, { deadlineIn: 2 * DAY });
@@ -274,7 +274,7 @@ describe('보증금 (D5)', () => {
     expect(tagOf(ev, 'sponsor-deposit')).toBeUndefined();
   });
 
-  /** AUDIT-EXPIRY F6 — 보증금 없이 클레임만 걸어 두는 공짜 점유 */
+  /** T-005 — 보증금 없이 클레임만 걸어 두는 공짜 점유 */
   it('후원자 보증금을 15분 안에 안 내면 클레임이 풀리고 다른 후원자가 잡을 수 있다', async () => {
     const h = await createLnHarness();
     setDeposits(h, 0, 3);

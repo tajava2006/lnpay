@@ -1,15 +1,13 @@
 /**
- * 펀딩 판정 (PLAN-ONCHAIN-TRACK §4.1c · §7 D·E·K)
+ * 펀딩 판정 (T-104 · T-105 · T-111)
  *
  * 순수 함수라 전수로 돈다. 여기 한 줄이 틀리면 **돈이 있는 주소를 비었다고 보고
  * 취소**하거나, **되돌릴 수 있는 0-conf 위에 가격을 고정**한다.
  */
 import { describe, it, expect } from 'vitest';
-import { canCancelOnchain } from '@sajwo-tracker/shared/onchain';
 import type { AddressFunds, ChainQuery, ChainUtxo } from '@sajwo-tracker/shared/onchain';
 import {
-  escrowUnfundedFor, judgeFunding, judgePinnedFunding, requiredConfirmations, strayUtxos,
-  type FundingVerdict,
+  judgeFunding, judgePinnedFunding, requiredConfirmations, strayUtxos,
 } from '../onchain/funding';
 
 const TXID = 'a'.repeat(64);
@@ -25,7 +23,7 @@ function known(funds: Partial<AddressFunds>): ChainQuery<AddressFunds> {
 
 const UNKNOWN: ChainQuery<AddressFunds> = { known: false, reason: '502' };
 
-describe('요구 컨펌 수 (§12 Q1)', () => {
+describe('요구 컨펌 수', () => {
   it.each([
     [1, 1], [99_999, 1],
     [100_000, 2], [999_999, 2],
@@ -52,7 +50,7 @@ describe('펀딩 판정', () => {
 
   /**
    * 멤풀은 **화면 힌트 전용**이다. `pending`을 돌려주긴 하지만 판정상으로는
-   * `none`과 같이 취급한다 — 0-conf는 RBF로 되돌릴 수 있다(공격 D).
+   * `none`과 같이 취급한다 — 0-conf는 RBF로 되돌릴 수 있다(T-104).
    */
   it('멤풀에만 있으면 pending (금액이 맞아도 funded가 아니다)', () => {
     const v = judgeFunding(known({ mempool: [utxo({ confirmations: 0 })] }), AMOUNT);
@@ -89,7 +87,7 @@ describe('펀딩 판정', () => {
   });
 });
 
-describe('모양이 다르면 사람이 본다 (공격 K)', () => {
+describe('모양이 다르면 사람이 본다 (T-111)', () => {
   /**
    * 자동으로 진행해서도, 취소해서도 안 된다 — 취소하면 그 자금이 아무도 안 보는
    * 주소에 남는다. 대개 `{A,C}` 협조 환불로 돌려주는 자리다.
@@ -117,45 +115,6 @@ describe('모양이 다르면 사람이 본다 (공격 K)', () => {
   });
 });
 
-describe('O-014 게이트로 넘기는 값', () => {
-  const cases: Array<[FundingVerdict['status'], boolean | undefined]> = [
-    ['unknown', undefined],
-    ['none', true],
-    ['pending', true],
-    ['confirming', false],
-    ['funded', false],
-    ['anomaly', false],
-  ];
-
-  it.each(cases)('%s → escrowUnfunded=%s', (status, expected) => {
-    const verdict = { status, reason: 'x', mempoolValueSat: 0, confirmations: 1, required: 1,
-      outpoint: { txid: TXID, vout: 0 }, valueSat: AMOUNT, confirmedValueSat: AMOUNT,
-      utxoCount: 1 } as unknown as FundingVerdict;
-    expect(escrowUnfundedFor(verdict)).toBe(expected);
-  });
-
-  /** 게이트와 실제로 맞물리는지 — 여기가 어긋나면 위 표가 무의미하다. */
-  it('"모름"이면 취소가 막힌다', () => {
-    const v = judgeFunding(UNKNOWN, AMOUNT);
-    expect(canCancelOnchain('bonded', escrowUnfundedFor(v))).toBe(false);
-  });
-
-  it('컨펌된 자금이 있으면 취소가 막힌다 (anomaly 포함)', () => {
-    for (const funds of [
-      known({ confirmed: [utxo()] }),
-      known({ confirmed: [utxo(), utxo({ vout: 1 })] }),
-    ]) {
-      const v = judgeFunding(funds, AMOUNT);
-      expect(canCancelOnchain('bonded', escrowUnfundedFor(v))).toBe(false);
-    }
-  });
-
-  it('진짜로 빈 주소만 취소된다', () => {
-    const v = judgeFunding(known({}), AMOUNT);
-    expect(canCancelOnchain('bonded', escrowUnfundedFor(v))).toBe(true);
-  });
-});
-
 describe('funded 이후 감시 (O-008)', () => {
   const pinned = { txid: TXID, vout: 0 };
 
@@ -178,7 +137,7 @@ describe('funded 이후 감시 (O-008)', () => {
   });
 
   /**
-   * 리뷰 #8 — 목록에 없다는 건 **"왜 없는지 모른다"**다. esplora `/utxo`는 멤풀에서
+   * 목록에 없다는 건 **"왜 없는지 모른다"**다. esplora `/utxo`는 멤풀에서
    * 소모된 출력도 빼므로, 우리가 방금 뿌린 환불도 이렇게 보인다. 전에는 곧장 `gone`
    * (이중지불)으로 읽어 `bonded`로 되돌렸다. 이제 워처가 소모 여부를 따로 묻는다.
    */
@@ -205,7 +164,7 @@ describe('funded 이후 감시 (O-008)', () => {
   });
 });
 
-describe('약정 밖의 자금 (리뷰 #8 — 구조 대상)', () => {
+describe('약정 밖의 자금 (구조 대상)', () => {
   const pinned = { txid: TXID, vout: 0 };
 
   it('박아둔 outpoint를 뺀 컨펌된 UTXO 전부', () => {

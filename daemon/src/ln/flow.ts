@@ -160,7 +160,7 @@ export function createLnHoldHooks(ctx: LnContext): HoldHooks {
       }
       const order = getOrder(ctx, before.order_id);
       if (final === 'settled' && order && !order.escrow_settled) updateOrder(ctx, order.order_id, { escrow_settled: 1 });
-      // 에스크로를 따로 settle하는 건 선제 settle(§7 L-3)뿐이다 — 판정은 아직이라 사람이 봐야 한다
+      // 에스크로를 따로 settle하는 건 선제 settle뿐이다 — 판정은 아직이라 사람이 봐야 한다
       if (via !== 'settle') return;
       const orderId = before.order_id;
       raiseAlert(ctx, final === 'settled'
@@ -301,7 +301,7 @@ export function approve(ctx: LnContext, order: LnOrderRow): ApproveError | null 
 
   const now = nowSec(ctx);
   const payBy = escrowPayBy(order.deadline, now);
-  // HTLC는 기한 + 유예까지 거래가 이어질 수 있게, 그 뒤로 분쟁 여유를 더 산다(L-3)
+  // HTLC는 기한 + 유예까지 거래가 이어질 수 있게, 그 뒤로 분쟁 여유를 더 산다
   const holdUntil = Math.max(payBy, order.deadline + DEADLINE_GRACE_SEC) + ESCROW_HOLD_MARGIN_SEC;
   const inv = planLnHold(ctx, {
     purpose: 'ln-escrow', orderId: order.order_id, party: order.customer,
@@ -362,7 +362,7 @@ export function finishClose(ctx: LnContext, orderId: string, finals: Record<stri
 
   const escrowFinal = order.escrow_hash ? finals[order.escrow_hash] : undefined;
   if (rule.escrow === 'cancel' && escrowFinal === 'settled') {
-    // 선제 settle 뒤 고객 승 등 — BTC는 우리에게 있다. 고객 환불은 손으로 (§7 L-7)
+    // 선제 settle 뒤 고객 승 등 — BTC는 우리에게 있다. 고객 환불은 손으로
     raiseAlert(ctx, {
       dedup: `ln:${orderId}:refund-manually`, level: 'anomaly', track: 'ln', orderId,
       message: '에스크로가 이미 정산돼 있어 자동 환불이 안 된다 — 고객에게 손으로 환불해야 한다',

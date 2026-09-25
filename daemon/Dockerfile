@@ -1,4 +1,4 @@
-# 페어바이 어드민 데몬 (docs/PLAN-DAEMON.md §11)
+# 페어바이 어드민 데몬 — 운영은 docs/DAEMON-DEPLOY.md
 #
 # 빌드 컨텍스트는 **레포 루트**다 — shared를 번들에 넣어야 한다.
 #   docker build -f daemon/Dockerfile .

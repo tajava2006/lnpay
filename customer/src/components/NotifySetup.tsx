@@ -5,40 +5,16 @@
  * 둘 다 전화번호를 요구하고, 그걸 받는 순간 개인정보처리자가 되며 P2P 거래
  * 중재자가 양쪽 번호를 쥐는 구조가 된다.
  *
- * 그래서 두 경로를 준다:
- *
- * **브라우저 알림 (Web Push)** — 1순위. 설치도 계정도 없이 "허용" 한 번.
- * 안드로이드는 브라우저를 닫아도 온다(구글 플레이 서비스가 깨운다).
- *
- * **nostr 클라이언트 (NIP-17)** — 받침. 이미 nostr을 쓰는 사람이거나,
- * 브라우저 구독이 날아갔을 때. 접어두고 원하는 사람만 펼치게 한다.
+ * 그래서 **브라우저 알림(Web Push)** 하나다. 설치도 계정도 없이 "허용" 한 번. 안드로이드는 브라우저를
+ * 닫아도 온다(구글 플레이 서비스가 깨운다).
  *
  * 화면 헤더에서 열리는 모달 — 특정 주문에 묶이지 않는 계정 단위 설정이라
  * 주문 상세가 아니라 헤더에 둔다.
  */
 import { useEffect, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { nsecEncode } from 'nostr-tools/nip19';
-import { getSecretKey, storage, NOSTR_DM_NOTIFICATIONS } from '@sajwo-tracker/shared';
 import { InstallApp } from './InstallApp';
 import { checkPushSupport, subscribeToPush, getExistingSubscription, unsubscribeFromPush } from '../push/subscribe';
 import { publishPushSubscription } from '../push/publish';
-
-/**
- * nostr 클라이언트 안내를 화면에 낼지.
- *
- * Web Push가 크롬·브레이브·파이어폭스·안드로이드까지 다 커버하게 되면서
- * 이 경로는 실사용 가치가 없어졌다. 유저에게 "앱 하나 더 까세요"는 그 자체로
- * 이탈 사유이고, 안 쓸 선택지를 접어서라도 보여주면 화면만 복잡해진다.
- *
- * 그래도 코드는 지우지 않는다. 브라우저 정책이 바뀌거나 푸시 서비스가 막히는
- * 날이 오면 이게 유일한 대안이 된다.
- *
- * 화면과 발송을 따로 끄면 반드시 어긋난다(안내는 없는데 계속 쏘거나, 그 반대).
- * 그래서 발송 스위치를 그대로 따라간다 — 되살릴 땐 `NOSTR_DM_NOTIFICATIONS`
- * 하나만 켜면 안내·발송·신원 발행이 같이 살아난다.
- */
-const SHOW_NOSTR_FALLBACK: boolean = NOSTR_DM_NOTIFICATIONS;
 
 type PushState =
   | { kind: 'checking' }
@@ -50,7 +26,6 @@ type PushState =
 
 export function NotifySetup({ onClose }: { onClose: () => void }) {
   const [push, setPush] = useState<PushState>({ kind: 'checking' });
-  const [showNostr, setShowNostr] = useState(false);
 
   useEffect(() => {
     const support = checkPushSupport();
@@ -106,14 +81,6 @@ export function NotifySetup({ onClose }: { onClose: () => void }) {
 
         <PushSection state={push} onEnable={handleEnable} onDisable={handleDisable} />
 
-        {SHOW_NOSTR_FALLBACK && (
-          <>
-            <button onClick={() => setShowNostr(v => !v)} style={styles.disclosure}>
-              {showNostr ? '▾' : '▸'} nostr 클라이언트로 받기 (선택)
-            </button>
-            {showNostr && <NostrSection />}
-          </>
-        )}
       </div>
     </div>
   );
@@ -172,72 +139,6 @@ function PushSection({ state, onEnable, onDisable }: {
           <button onClick={onDisable} style={styles.ghostBtn}>알림 끄기</button>
         </>
       )}
-    </div>
-  );
-}
-
-function NostrSection() {
-  const [nsec, setNsec] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  async function handleReveal() {
-    setNsec(nsecEncode(await getSecretKey(storage)));
-  }
-
-  async function handleCopy() {
-    if (!nsec) return;
-    await navigator.clipboard.writeText(nsec);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <div style={styles.card}>
-      <p style={styles.cardText}>
-        이미 nostr을 쓰신다면 이 키를 클라이언트에 넣어 알림을 받을 수도 있습니다.
-        브라우저 알림을 켜셨다면 굳이 필요하지 않습니다.
-      </p>
-
-      <ol style={styles.steps}>
-        <li style={styles.step}>
-          <b>Amethyst</b> 설치 (안드로이드)
-        </li>
-        <li style={styles.step}>
-          아래 키로 로그인 (QR 스캔 또는 붙여넣기)
-        </li>
-        <li style={styles.step}>
-          왼쪽 사이드바 맨 아래 <b>설정</b> → <b>알림</b> → <b>백그라운드 노티 서비스</b> 켜기
-        </li>
-      </ol>
-
-      <div style={styles.keyBox}>
-        {!nsec ? (
-          <button onClick={handleReveal} style={styles.ghostBtn}>로그인 키 보기</button>
-        ) : (
-          <>
-            <div style={styles.qrWrap}>
-              <QRCodeSVG value={nsec} size={180} level="M" />
-            </div>
-            <div style={styles.keyRow}>
-              <code style={styles.keyText}>{nsec}</code>
-              <button onClick={handleCopy} style={styles.copyBtn}>
-                {copied ? '복사됨' : '복사'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div style={styles.warnBox}>
-        <b>이 키는 알림 수신용으로만 쓰세요.</b> 브라우저가 만들어 브라우저에 보관하는
-        키라 일반적인 nostr 신원으로는 적합하지 않습니다. 이 키로 글을 쓰거나 다른
-        서비스에 로그인하지 마시고, 남에게 보여주지 마세요.
-      </div>
-
-      <p style={styles.note}>
-        아이폰은 NIP-17 알림을 지원하는 클라이언트를 찾지 못했습니다. 대신 이 페이지를
-        홈 화면에 추가하면 위의 브라우저 알림을 쓸 수 있습니다.
-      </p>
     </div>
   );
 }
@@ -337,17 +238,6 @@ const styles = {
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
-  disclosure: {
-    width: '100%',
-    textAlign: 'left' as const,
-    padding: '8px 0',
-    border: 'none',
-    background: 'none',
-    color: '#6B7280',
-    fontSize: 13,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
   tipBox: {
     padding: 12,
     background: '#FFFBEB',
@@ -363,56 +253,5 @@ const styles = {
     fontSize: 13,
     lineHeight: 1.6,
     color: '#DC2626',
-  },
-  steps: {
-    margin: '0 0 12px 0',
-    paddingLeft: 20,
-    fontSize: 13,
-    color: '#4B5563',
-  },
-  step: { marginBottom: 6, lineHeight: 1.6 },
-  keyBox: { marginBottom: 12, textAlign: 'center' as const },
-  qrWrap: {
-    display: 'inline-block',
-    padding: 12,
-    background: 'white',
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  keyRow: { display: 'flex', gap: 8, alignItems: 'center' },
-  keyText: {
-    flex: 1,
-    fontSize: 11,
-    fontFamily: 'monospace',
-    wordBreak: 'break-all' as const,
-    color: '#374151',
-    textAlign: 'left' as const,
-  },
-  copyBtn: {
-    padding: '6px 14px',
-    background: '#4F46E5',
-    color: 'white',
-    border: 'none',
-    borderRadius: 4,
-    fontSize: 13,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap' as const,
-    fontFamily: 'inherit',
-  },
-  warnBox: {
-    padding: 12,
-    background: '#FEF2F2',
-    border: '1px solid #FECACA',
-    borderRadius: 8,
-    fontSize: 12,
-    lineHeight: 1.6,
-    color: '#991B1B',
-    marginBottom: 12,
-  },
-  note: {
-    margin: 0,
-    fontSize: 12,
-    lineHeight: 1.6,
-    color: '#9CA3AF',
   },
 };

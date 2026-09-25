@@ -4,7 +4,7 @@
  * 헌법 그대로: **UI는 릴레이를 직접 안 본다.** 구독 서비스가 여기에 반영하고
  * UI는 `useSyncExternalStore`로 여기만 본다.
  *
- * 라이트닝 스토어와 **따로 둔다**(§1.1) — 상태 집합이 다르고, 저장 키가 갈려야
+ * 라이트닝 스토어와 **따로 둔다** — 상태 집합이 다르고, 저장 키가 갈려야
  * 온체인 트랙을 붙였다 뗐다 할 수 있다.
  */
 import type { OnchainOrder } from '@sajwo-tracker/shared/onchain';

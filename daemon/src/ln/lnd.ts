@@ -1,5 +1,5 @@
 /**
- * LND 접속 (PLAN-DAEMON §4.5, §14 D3)
+ * LND 접속
  *
  * 데몬은 운영 PC 안에서 LND REST를 직접 부른다 — 예전처럼 브라우저가 매크룬을 풀어 인터넷에 노출된
  * REST를 부르지 않는다. 자체 서명 TLS라 `fetch` 대신 `node:https`에 인증서를 넘긴다.
@@ -17,7 +17,7 @@ export type HoldState = 'open' | 'accepted' | 'settled' | 'cancelled';
 export interface HoldLookup {
   state: HoldState;
   bolt11: string;
-  /** accepted HTLC의 만기 블록 높이 — 에스크로가 **실제로** 죽는 때 (L-3) */
+  /** accepted HTLC의 만기 블록 높이 — 에스크로가 **실제로** 죽는 때 */
   htlcExpiryHeight?: number;
 }
 

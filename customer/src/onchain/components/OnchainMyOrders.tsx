@@ -42,6 +42,7 @@ import {
 } from '../nostr/publish';
 import { publishRemitRequestOnchain } from '../nostr/remit';
 import { presignNow } from '../nostr/service';
+import { ChainLinks } from './ChainLinks';
 import { DeadlineCountdown } from './DeadlineCountdown';
 import { EscrowAddressPanel } from './EscrowAddressPanel';
 import { OnchainProgressBar } from './OnchainProgressBar';
@@ -218,6 +219,8 @@ export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signReq
       )}
 
       <DeadlineCountdown order={order} role={role} />
+
+      <ChainLinks order={order} />
 
       <OnchainProgressBar order={order} role={role} accountInfoSent={Boolean(order.accountSentAt)} />
 

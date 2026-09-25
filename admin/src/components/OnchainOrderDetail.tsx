@@ -11,7 +11,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { nip19 } from 'nostr-tools';
 import type { AdminCommandResult, AdminOcOrderDetail } from '@sajwo-tracker/shared';
 import {
-  OUTCOME_RULES, currentOnchainDeadline, onchainStateDisplay, type OnchainOrder,
+  OUTCOME_RULES, currentOnchainDeadline, explorerAddressUrl, explorerTxUrl, onchainStateDisplay,
+  type BtcNetworkName, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { sendCommand } from '../daemon/client';
 import { chats, ocDetails, onchainOrders } from '../daemon/stores';
@@ -85,15 +86,15 @@ export function OnchainOrderDetail({ orderId, onBack }: { orderId: string; onBac
           <dt>고객</dt><dd style={styles.mono}>{short(order.customerPubkey)}</dd>
           <dt>후원자</dt><dd style={styles.mono}>{short(order.sponsorPubkey)}</dd>
           {deadline && <><dt>{deadline.label}</dt><dd>{time(deadline.at)}{deadline.penalty ? <span style={styles.note}> · {deadline.penalty}</span> : null}</dd></>}
-          {order.escrowAddress && <><dt>에스크로</dt><dd style={styles.mono}>{order.escrowAddress}</dd></>}
-          {order.fundingOutpoint && <><dt>펀딩</dt><dd style={styles.mono}>{order.fundingOutpoint} ({order.fundingConfs}컨펌)</dd></>}
+          {order.escrowAddress && <><dt>에스크로</dt><dd style={styles.mono}><Explore href={explorerAddressUrl(order.network, order.escrowAddress)} text={order.escrowAddress} /></dd></>}
+          {order.fundingOutpoint && <><dt>펀딩</dt><dd style={styles.mono}><Explore href={explorerTxUrl(order.network, order.fundingOutpoint)} text={order.fundingOutpoint} /> ({order.fundingConfs}컨펌)</dd></>}
           {order.settlementKind && <><dt>종결 사유</dt><dd>{OUTCOME_RULES[order.settlementKind].label}</dd></>}
-          {order.settlementTxid && <><dt>종결 tx</dt><dd style={styles.mono}>{order.settlementTxid}</dd></>}
+          {order.settlementTxid && <><dt>종결 tx</dt><dd style={styles.mono}><Explore href={explorerTxUrl(order.network, order.settlementTxid)} text={order.settlementTxid} /></dd></>}
           {order.accountDisputedAt && <><dt>계좌 이의</dt><dd style={styles.warnText}>{time(order.accountDisputedAt)} — 후원자가 계좌를 쓸 수 없다고 했다</dd></>}
           {detail && <>
             <dt>버전</dt><dd>{detail.version}</dd>
-            <dt>후원자 받을 주소</dt><dd style={styles.mono}>{detail.payoutAddress ?? '—'} {detail.feerateSatPerVb ? `(${detail.feerateSatPerVb} sat/vB)` : ''}</dd>
-            <dt>고객 환불 주소</dt><dd style={styles.mono}>{detail.refundAddress ?? '—'}</dd>
+            <dt>후원자 받을 주소</dt><dd style={styles.mono}><AddressLink network={order.network} address={detail.payoutAddress} /> {detail.feerateSatPerVb ? `(${detail.feerateSatPerVb} sat/vB)` : ''}</dd>
+            <dt>고객 환불 주소</dt><dd style={styles.mono}><AddressLink network={order.network} address={detail.refundAddress} /></dd>
             <dt>사전서명</dt><dd>{detail.hasPresig ? '보관 중' : '—'}</dd>
             {detail.lastSignRequestAt && <><dt>서명 요청</dt><dd>{time(detail.lastSignRequestAt)}</dd></>}
           </>}
@@ -111,6 +112,15 @@ export function OnchainOrderDetail({ orderId, onBack }: { orderId: string; onBac
       />
     </div>
   );
+}
+
+/** mempool.space로 — 네트워크가 안 맞거나 regtest면 글자만 (`explorer.ts`) */
+function Explore({ href, text }: { href: string | null; text: string }) {
+  return href ? <a href={href} target="_blank" rel="noopener noreferrer" style={styles.link}>{text}</a> : <>{text}</>;
+}
+
+function AddressLink({ network, address }: { network: BtcNetworkName; address: string | undefined }) {
+  return address ? <Explore href={explorerAddressUrl(network, address)} text={address} /> : <>—</>;
 }
 
 function Bonds({ detail }: { detail: AdminOcOrderDetail }) {
@@ -220,10 +230,10 @@ function Rescue({ detail }: { detail: AdminOcOrderDetail }) {
         const rescue = done.get(`${u.txid}:${u.vout}`);
         return (
           <div key={`${u.txid}:${u.vout}`} style={styles.row}>
-            <span style={styles.mono}>{u.txid.slice(0, 12)}…:{u.vout}</span>
+            <span style={styles.mono}><Explore href={explorerTxUrl(detail.order.network, u.txid)} text={`${u.txid.slice(0, 12)}…:${u.vout}`} /></span>
             <span>{sats(u.valueSat)}</span>
             {rescue?.broadcastTxid
-              ? <span style={styles.note}>돌려줌 ({rescue.broadcastTxid.slice(0, 12)}…)</span>
+              ? <span style={styles.note}>돌려줌 (<Explore href={explorerTxUrl(detail.order.network, rescue.broadcastTxid)} text={`${rescue.broadcastTxid.slice(0, 12)}…`} />)</span>
               : (
                 <button style={styles.button} disabled={busy} onClick={() => run('oc.rescue', { txid: u.txid, vout: u.vout },
                   '이 자금을 고객 환불 주소로 돌려주는 서명을 고객에게 요청합니다.')}>
@@ -249,7 +259,8 @@ const styles = {
   dl: { display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 16px', margin: 0, fontSize: 13, color: '#374151', wordBreak: 'break-all' as const },
   note: { fontSize: 12, color: '#6B7280', margin: 0, fontWeight: 400 as const },
   warnText: { color: '#B45309' },
-  mono: { fontFamily: 'monospace', fontSize: 12 },
+  mono: { fontFamily: 'monospace', fontSize: 12, overflowWrap: 'anywhere' as const },
+  link: { color: '#2563EB' },
   button: { padding: '8px 14px', fontSize: 13, fontWeight: 600 as const, background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
   danger: { padding: '8px 14px', fontSize: 13, fontWeight: 600 as const, background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
 };

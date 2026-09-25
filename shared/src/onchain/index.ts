@@ -167,6 +167,7 @@ export {
   addressProblem,
 } from './address';
 export { networkParamsFor } from './address';
+export { explorerAddressUrl, explorerTxUrl } from './explorer';
 export type {
   BtcNetworkName, EscrowAddressParams, EscrowDescriptor, EscrowAddressCheck, TapLeafScripts,
 } from './address';

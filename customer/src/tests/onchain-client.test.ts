@@ -33,11 +33,11 @@ vi.mock('@sajwo-tracker/shared', async importOriginal => ({
 }));
 
 const { APP_PUBKEY, CLIENT_TAG_ONCHAIN, SAJWO_REQUEST_EVENT_KIND } = await import('@sajwo-tracker/shared');
-const { onchainOrderTags } = await import('@sajwo-tracker/shared/onchain');
+const { onchainOrderTags, TIMELOCK_REMIT_THRESHOLD_BLOCKS } = await import('@sajwo-tracker/shared/onchain');
 const { myOrderKey, _clearKeyCache } = await import('../onchain/keys');
 const { checkEscrowAddress, checkSignRequest, releaseNeedsPriceOverride } =
   await import('../onchain/verify');
-const { buildPresignature, buildCosignature, timelockStatus, TIMELOCK_BLOCK_THRESHOLD } =
+const { buildPresignature, buildCosignature, timelockStatus } =
   await import('../onchain/actions');
 const claims = await import('../onchain/claim-store');
 
@@ -471,7 +471,7 @@ describe('타임락 안전망 (T-106 · §7.1)', () => {
   });
 
   it('임계 아래면 막는다', () => {
-    const status = timelockStatus(o(), 8064 - TIMELOCK_BLOCK_THRESHOLD + 1);
+    const status = timelockStatus(o(), 8064 - TIMELOCK_REMIT_THRESHOLD_BLOCKS + 1);
     expect(status.safeToRemit).toBe(false);
     expect(status.reason).toMatch(/혼자 회수/);
   });

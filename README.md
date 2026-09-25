@@ -1,268 +1,115 @@
-# PairBuy — Bitcoin Escrow Marketplace
+# PairBuy — Bitcoin ↔ KRW Escrow over Nostr
 
-A peer-to-peer escrow platform that connects people who want to **pay for goods with Bitcoin** and people who want to **acquire Bitcoin without using an exchange** — using the Lightning Network as the settlement layer and Nostr as the communication layer.
+A peer-to-peer escrow that pairs people who want to **pay or sell with bitcoin** with people who want to
+**acquire bitcoin without an exchange** by sending Korean won bank transfers. Nostr is the message bus; a single
+long-running daemon is the escrow agent.
 
-> Built as a side project exploring real-world payment engineering: escrow design, Lightning Network hold invoices, fidelity bonds, finite state machines, and dispute resolution.
+> A side project exploring real payment engineering: escrow state machines, Lightning hold invoices, taproot
+> script-path escrows, fidelity bonds, crash-safe side effects, and dispute resolution.
 
----
+Two tracks share one app and one key per user:
 
-## What It Does
-
-Two parties have complementary needs:
-
-| Role | Problem | Solution |
+| | Lightning track | On-chain track |
 |---|---|---|
-| **Customer** | Wants to buy goods (e.g., on Coupang) but only has Bitcoin | Pays in BTC, receives goods |
-| **Sponsor** | Wants to acquire Bitcoin without a centralized exchange | Makes the KRW bank transfer on behalf of the Customer, receives BTC in return |
-
-Both roles live in **one app under one key** — they are tabs, not separate installs. A user can
-request on one order and fulfil someone else's on the next. Self-dealing (claiming your own order)
-is rejected by the state machine.
-
-An **Admin** acts as an escrow agent, holding the Customer's BTC in a Lightning hold invoice while the Sponsor makes the bank transfer. Once payment is confirmed, Admin settles the invoice to release BTC to the Sponsor.
-
-```
-Customer                    Admin (Escrow)                Sponsor
-   │                             │                          │
-   │  ① Request (BTC order)      │                          │
-   │ ───────────────────────────→│                          │
-   │                             │  ② Claim (one click)     │
-   │                             │ ←─────────────────────── │
-   │  ③ Amount fixed at spot     │                          │
-   │ ←─────────────────────────  │                          │
-   │  ④ Pay hold invoice         │                          │
-   │ ───────────────────────────→│  (BTC locked in HTLC)    │
-   │                             │  ⑤ Register payout       │
-   │                             │     invoice + probe      │
-   │                             │ ←─────────────────────── │
-   │  ⑥ Send account info        │                          │
-   │ ───────────────────────────→│ ─────────────────────→   │
-   │                             │  ⑦ KRW bank transfer     │
-   │                             │          ──────────→ [Shop]
-   │                             │  ⑧ Settle → release BTC  │
-   │                             │ ─────────────────────→   │
-```
+| Use case | Pay a Coupang order with BTC — a sponsor pays the KRW virtual account and receives BTC | Non-KYC BTC ↔ KRW trade |
+| Escrow | LN **hold invoice** on the daemon's node | **2-of-3 taproot** output (customer / sponsor / admin), key path provably unspendable |
+| Happy path | Customer confirms KRW → daemon settles the hold invoice → pays the sponsor's invoice | Sponsor pre-signs the release, customer co-signs after seeing the KRW — **no admin key involved** |
+| If the operator disappears | The HTLC times out and refunds the customer | A CSV timelock leaf (~8 weeks) lets the customer sweep alone |
+| Bonds | Optional LN hold-invoice deposits (operator setting) | Always-on LN hold-invoice deposits |
 
 ---
 
-## Key Technical Design Decisions
-
-### 1. Hold Invoices as Escrow
-
-The core of the escrow mechanism uses **Lightning Network hold invoices** (also called HODL invoices).
-
-A hold invoice is a Lightning invoice where the receiving node holds the HTLC instead of immediately settling it. The payment is "locked" cryptographically until the payee chooses to reveal the preimage (settle) or the CLTV timeout expires (automatic refund).
-
-This maps perfectly to an escrow use case:
-- Admin generates the invoice and holds the preimage
-- Customer pays — BTC is locked in an HTLC, not yet received by Admin
-- If Sponsor confirms KRW transfer: Admin reveals the preimage → **BTC settles to Admin → Admin sends to Sponsor**
-- If something goes wrong: Admin doesn't settle → **CLTV timeout → BTC automatically refunded to Customer**
+## How it works
 
 ```
-State          Admin Action        Result
-──────────────────────────────────────────────────
-KRW confirmed  settle(preimage)    Admin receives BTC → forwards to Sponsor
-Dispute lost   cancel / no-op      CLTV timeout → BTC auto-refunds to Customer
+ user app (static SPA)                       nostr relays                     admin app (static SPA)
+ customer + sponsor, one key ──kind 1111 requests──▶ ◀──kind 1111 commands── operator key (NIP-46 signer)
+                             ◀──kind 30402 orders──   ──kind 30078 status──▶
+                                                    ▲
+                                                    │ (outbound only — no open ports)
+                                             ┌──────┴──────┐
+                                             │   daemon    │── LND REST (hold invoices, payouts)
+                                             │  Node 24 +  │── mempool.space REST (chain)
+                                             │   SQLite    │── Web Push (FCM / Apple)
+                                             └─────────────┘
 ```
 
-This eliminates the need for a trusted backend server to "hold" funds — the Lightning Network protocol itself enforces the escrow conditions.
+- **One writer.** Every state transition happens in the daemon (`daemon/`). Users only send requests; the admin
+  app is a remote control that sends signed commands and never holds the app key or node credentials.
+- **Decisions are transactions.** A handler runs inside one SQLite transaction with no network I/O and records
+  the *intent* of each side effect (settle, cancel, pay, broadcast, publish, push) alongside the state change.
+  A worker executes effects afterwards; every executor is idempotent (look up before acting), so a crash at any
+  point converges on restart. A state that presumes an irreversible effect (`paid`, `settling`) is only
+  published after the effect is confirmed.
+- **Secrets are derived.** Hold-invoice preimages and per-order on-chain admin keys come from one seed via
+  HMAC with versioned labels. Losing the database never loses funds.
+- **The close reason decides the money.** Each track has a `Record<Reason, Rule>` table mapping why a trade ended
+  to what happens to the escrow and to each party's bond. Adding a reason breaks the build until it is handled.
+- **Time is explicit.** Every deadline, CLTV and retention window lives in a timing module, and the inequalities
+  between them (e.g. *bond CLTV must outlive the worst-case trade*) are unit tests.
 
-### 2. Fidelity Bonds — Spam Prevention via Economics
-
-> **Status: implemented but disabled by default.** Both bond percentages default to `0`, which
-> turns the mechanism off, and the current deployment runs with it off — the operator chose lower
-> friction over spam resistance while the user base is small. The description below is what happens
-> when an operator sets a non-zero percentage. Don't read it as a property of the running system.
-
-A fully anonymous system (Nostr pubkeys are free to generate) needs a sybil-resistance mechanism that doesn't rely on identity.
-
-**For Customers** — when enabled, a request is only published to the order book after the Customer pays a small hold invoice as a **fidelity bond**. Anyone without actual BTC is blocked. The bond is held until a Sponsor is matched, then automatically cancelled (BTC refunded) when the real escrow payment begins.
-
-**For Sponsors** — when enabled, a Sponsor's claim is only approved after they pay a deposit hold invoice. If the Sponsor fails to make the KRW transfer and loses the dispute, the deposit is **settled (forfeited)**. This makes trolling economically costly.
-
-This mirrors the fidelity bond design used by [RoboSats](https://learn.robosats.com/docs/bonds/), adapted to this two-sided marketplace structure.
-
-```
-Fidelity bond lifecycle (when percentage > 0):
-  Customer: requested → [bond held] → escrowed → [bond cancelled, real invoice starts]
-  Sponsor:  claimed → [deposit held] → paid/sponsor_wins → [refunded] / customer_wins → [forfeited]
-```
-
-### 3. Lightning Liquidity Probing
-
-When the Sponsor registers their payout invoice — **after** the Customer's BTC is
-already escrowed and **before** the bank transfer — Admin probes whether the
-Sponsor's Lightning node actually has enough **inbound liquidity** to receive the
-payment.
-
-The placement matters. Probing used to gate claim approval, which meant a Sponsor's
-node problems blocked the Customer from escrowing at all — even though the only
-party harmed by missing liquidity is the Sponsor. Now it sits immediately before
-the irreversible step (the bank transfer), which is what it was always for.
-
-A failed probe **warns but does not block**: probing is an estimate and produces
-false negatives on small amounts. The Sponsor decides.
-
-**How probing works:**
-Admin sends a payment attempt using a **random payment hash** (one that nobody knows the preimage for) to the Sponsor's node. This probes the real route capacity without actually completing a payment — no fees incurred.
-
-- If the probe reaches the destination and fails with `INCORRECT_PAYMENT_DETAILS` → path exists, liquidity sufficient → **all good**
-- If the probe fails mid-route with `TEMPORARY_CHANNEL_FAILURE` or `NO_ROUTE` → liquidity likely insufficient → **Sponsor is warned**
-
-Why not use a hold invoice for probing? Because hold invoices give the *receiver* settle/cancel control — Admin (the sender) can't cancel unilaterally and would have to wait for CLTV expiry. Random-hash probing solves exactly this.
+### Lightning track
 
 ```
-Tool          Direction         Who controls cancellation    Use case here
-──────────────────────────────────────────────────────────────────────────
-Hold invoice  Customer → Admin  Receiver (Admin) ✓           Escrow
-Probing       Admin → Sponsor   Sender (Admin)   ✓           Liquidity check
+requested ⇄ claimed → verified → escrowed → invoiced → remitted → paid
+                                                        ├→ sponsor_wins / customer_wins   (operator ruling)
+cancelled · expired (Coupang deadline) · admin_closed
 ```
 
-### 4. Finite State Machine — Single Source of Truth
+The payout amount is fixed once, at approval, from the spot price; the escrow amount is derived from it, so the
+sponsor's invoice must match **exactly**. The sponsor registers their payout invoice only after the customer's
+BTC is locked, and account details are only released after that (so nobody sends KRW to an unfunded trade).
+Liquidity is probed with a random payment hash right before the bank transfer — it warns, it does not block.
+If a disputed escrow approaches its HTLC expiry, the daemon settles it first so it can still rule either way.
 
-All order state is owned exclusively by **Admin**. Customers and Sponsors send requests (Nostr kind 1111), Admin transitions the state and re-publishes the order (Nostr kind 30402). No distributed FSM, no state conflicts.
+### On-chain track
 
 ```
-requested → claimed → verified → escrowed → remitted → paid
-                                    │                 ├── sponsor_wins
-                                    └── paid          └── customer_wins
-
-cancelled: only from requested / claimed / verified
-  (no cancellation after escrowed — Sponsor may have already sent KRW)
+leaf 1  <C> CHECKSIGVERIFY <S> CHECKSIG      release (normal)
+leaf 2  <A> CHECKSIGVERIFY <C> CHECKSIG      refund / customer wins
+leaf 3  <A> CHECKSIGVERIFY <S> CHECKSIG      sponsor wins
+leaf 4  <8064> CSV DROP <C> CHECKSIG         operator gone → customer sweeps alone
+internal key: BIP-341 NUMS point; tree shape pinned as [[1,2],[3,4]]
 ```
 
-Critical invariants enforced by the FSM:
-- `escrowed → cancelled` is **blocked** — prevents Customer from cancelling after Sponsor has acted
-- `remitted` can only resolve through Admin dispute judgment — never abandoned mid-air
-- Settle only happens on: Customer payment confirmation, `sponsor_wins` judgment, or safety-net auto-settle (10 min before CLTV expiry)
-
-### 5. Dispute Resolution
-
-When a Sponsor claims to have sent KRW but the Customer doesn't confirm, the order enters `remitted` state and Admin mediates:
-
-- Admin opens **separate encrypted chats** (NIP-44) with each party to collect evidence
-- Sponsor can submit an **account-reveal** message with their transfer details
-- Admin verifies authenticity using a **SHA-256 commitment** — the original `account-info` event contains `sha256(plaintext)`, so any tampering is detectable
-- Admin renders a `sponsor_wins` or `customer_wins` verdict, which triggers the corresponding hold invoice settle or cancel
-
-**CLTV safety net:** If Admin hasn't ruled before expiry, the invoice watcher auto-settles 10 minutes before CLTV timeout. This preserves Admin's ability to rule — a settled invoice can still be judged in the Sponsor's favor (forward BTC) or Customer's favor (send BTC back via a new payment). Waiting for CLTV expiry makes recovery impossible; early settle keeps options open.
+The price locks when the funding confirms. Every non-terminal state has a deadline anchored to a point the
+responsible party cannot move, so the total option window is bounded (105 minutes). Clients derive the escrow
+address themselves before showing it, and before signing anything they rebuild the transaction from their own
+records and require a byte-identical match. The admin always signs last; the release path never needs the admin.
 
 ---
 
-## Architecture
+## Repository
 
 ```
-┌─────────────────────────────────────┐
-│           Nostr Relay Network        │
-│   (decentralized message transport)  │
-└──────────────┬──────────────────────┘
-               │
-   ┌───────────┼───────────┐
-   ↓           ↓           ↓
-Customer     Sponsor      Admin
-  App          App          App
-(React SPA  (React SPA   (React SPA
-+ userscript)  order book)  + LN node control)
+shared/     FSMs, close-reason tables, timing, event codecs, taproot scripts & tx builders (runtime-agnostic core)
+daemon/     the escrow agent — ingress, dispatcher, effect queue, hold-invoice machine, LN + chain watchers
+customer/   unified user app (React 19) — both roles, both tracks; customer/userscript/ parses Coupang orders
+admin/      operator remote control (React 19)
+sponsor/    redirect shell for a retired domain
 ```
 
-**pnpm workspace monorepo:**
+## Docs
 
+| | |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Daemon internals and invariants, admin command channel, user app, notifications |
+| [docs/LN-TRACK.md](docs/LN-TRACK.md) | Lightning FSM, close reasons → money, timing values and inequalities |
+| [docs/ONCHAIN-TRACK.md](docs/ONCHAIN-TRACK.md) | Script tree, FSM, signing order, fees, timing, invariants |
+| [docs/PROTOCOL.md](docs/PROTOCOL.md) | Nostr event kinds, tags, requests and notices |
+| [docs/RISKS.md](docs/RISKS.md) | Open risks, trust model, attack scenarios and their defenses |
+| [docs/DAEMON-DEPLOY.md](docs/DAEMON-DEPLOY.md) | Operations runbook |
+| [docs/ONCHAIN-SIGNET-DRILL.md](docs/ONCHAIN-SIGNET-DRILL.md) | Signet drill runbook |
+
+The docs are written in Korean.
+
+## Stack
+
+TypeScript (strict) everywhere · React 19 + Vite for the web apps · Node 24 + `node:sqlite` + esbuild for the
+daemon · nostr-tools · `@scure/btc-signer` · LND REST · vitest (shared, daemon, customer, admin), CI on master and pull requests.
+
+```bash
+pnpm install
+pnpm verify          # typecheck + tests, all packages
+pnpm build:customer && pnpm build:admin && pnpm build:daemon
 ```
-pairbuy/
-  shared/          ← Nostr keys, relays, types, constants, shared components
-  customer/        ← Unified user app (React 19 SPA) — both roles, one key
-    src/buyer/     ←   request side ("의뢰하기" tab)
-    src/sponsor/   ←   fulfil side ("사주기" tab, the landing tab)
-    src/history/   ←   past trades; role is derived from pubkeys, not a stored column
-    src/nostr/     ←   owns the sockets, fans events out to role handlers
-  customer/userscript/  ← Tampermonkey script (auto-parses Coupang orders via __NEXT_DATA__)
-  sponsor/         ← Static redirect shell for the retired sponsor domain
-  admin/           ← Escrow service (React 19 SPA, no backend)
-```
-
-> The package name `customer/` is historical. The two user-facing apps were merged into it,
-> and the internal `sajwo-tracker` client tag is kept because changing it would orphan
-> every event already on the relays.
-
-### Store-Subscription Pattern
-
-All state flows through a strict unidirectional architecture:
-
-```
-Nostr Relay → Nostr service (background) → Persistent store → UI
-```
-
-UI components never touch the relay directly — they subscribe to `localStorage`/`IndexedDB` via `useSyncExternalStore`. The Nostr service layer runs independently of component lifecycle.
-
-### Admin Dual Storage Strategy
-
-Admin runs two parallel storage systems:
-- **localStorage** — live queue, aggressively purged on expiry (60s cleanup cycle)
-- **IndexedDB** — long-term archive, activated on `escrowed` entry, never deleted
-
-This ensures the active work queue stays lean while all financially relevant records are preserved for audit and dispute resolution.
-
-### Pure Frontend Deployment
-
-Both apps are static SPAs with no backend. Admin-specific challenges solved:
-
-- **Key management:** Admin uses NIP-46 (Nostr Connect) — private key never enters the browser, signing is delegated to a remote signer (nsecBunker)
-- **LN config storage:** Lightning node credentials encrypted with NIP-44, stored on a Nostr relay, decrypted into memory only at login
-- **LN TLS:** Lightning nodes use self-signed certs that browsers block; solved with nginx reverse proxy (Let's Encrypt frontend, self-signed backend, CORS headers added)
-
----
-
-## Communication Layer: Nostr
-
-All three parties communicate via [Nostr](https://nostr.com), a decentralized, censorship-resistant messaging protocol using public-key cryptography.
-
-| NIP | Used for |
-|-----|----------|
-| NIP-01 | Base protocol (event structure, signing, relay comms) |
-| NIP-22 | Comment (kind 1111 — all request events) |
-| NIP-33 | Addressable events (kind 30402 orders, keyed by orderId) |
-| NIP-40 | Expiration timestamps (auto-cleanup of old events) |
-| NIP-44 | Versioned encryption (account info, dispute chat E2E) |
-| NIP-46 | Nostr Connect (Admin remote signing) |
-| NIP-65 | Relay list / Outbox model (relay discovery) |
-| NIP-78 | Arbitrary app data (Admin LN config storage) |
-| NIP-99 | Classified listings (kind 30402 order format) |
-
----
-
-## Tech Stack
-
-| | Customer | Sponsor | Admin | Shared |
-|---|---|---|---|---|
-| Framework | React 19 | React 19 | React 19 | — |
-| Build | Vite | Vite | Vite | (compiled by each app) |
-| Language | TypeScript strict | TypeScript strict | TypeScript strict | TypeScript strict |
-| Storage | localStorage + IndexedDB | localStorage + IndexedDB | localStorage + IndexedDB | StorageAdapter interface |
-| Key mgmt | Random keypair | Random keypair | NIP-46 remote signer | `ensureKeypair()` |
-| LN support | — | — | LND + CLN adapters | — |
-
-**Lightning Node support:** Adapter pattern (`LightningAdapter` interface) covers both LND and Core Lightning (CLN), with per-implementation REST API mapping and auth headers.
-
-**Testing:** 41 vitest unit tests covering FSM state transitions, invoice amount validation, and SHA-256 commitment verification — all financially critical logic.
-
----
-
-## Security Model Highlights
-
-- **FSM invariants tested** — every valid and invalid state transition has a corresponding test case
-- **Preimage protection** — NIP-44 encrypted in localStorage, backed up to relay via NIP-78; never in plaintext storage
-- **XSS hardened** — userscript notification uses DOM API, not innerHTML
-- **Price oracle guards** — claim rejected if all exchange price feeds are down (prevents zero-price invoice bypass)
-- **Commitment verification** — SHA-256 hash of account info included in the original event; dispute submissions are automatically verified against it, making data tampering detectable
-
-Full threat model in [THREAT-MODEL.md](THREAT-MODEL.md). Security roadmap in [SECURITY-ROADMAP.md](SECURITY-ROADMAP.md).
-
----
-
-## Further Reading
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) — Module structure, data flow, storage design
-- [PROTOCOL.md](PROTOCOL.md) — Nostr event specs, FSM transition rules, subscription filters
-- [THREAT-MODEL.md](THREAT-MODEL.md) — Abuse scenarios and safety invariants
-- [SECURITY-ROADMAP.md](SECURITY-ROADMAP.md) — Security improvement backlog

@@ -27,7 +27,7 @@ import { applyOutcome, dropSponsorCandidates } from './bonds';
 import type { OcContext } from './context';
 import { decideOnchainAction, type OnchainAction, type PinnedFacts } from './decide';
 import { releaseFeeFor } from './escrow';
-import { saveFees } from './fees';
+import { FEES_REFRESH_SEC, saveFees } from './fees';
 import { decideSettlement, requestBroadcast, requestSettlementSignature } from './flow';
 import { judgePinnedFunding, requiredConfirmations, strayUtxos } from './funding';
 import { notifyOcDisputeSoon, notifyOcTransition } from './notify';
@@ -35,9 +35,6 @@ import { allOc, getOc, updateOc, updateOcMeta, type OcPatch, type OcRow, type Oc
 
 /** 체인은 블록 단위로 움직인다 — 라이트닝 틱(15초)보다 느긋하게. 공개 mempool.space를 두드리는 빈도이기도 하다 */
 export const OC_POLL_MS = 30_000;
-
-/** 수수료 추정을 새로 받는 간격 */
-const FEE_REFRESH_MS = 2 * 60_000;
 
 /** 서명 요청을 다시 보내는 간격 — 고객이 폰을 바꿨거나 첫 전달이 실패했을 때 */
 export const SIGNATURE_RESEND_SEC = 6 * 60 * 60;
@@ -73,7 +70,7 @@ export class OcWatcher {
   async refreshFees(): Promise<void> {
     const { ctx } = this;
     const nowMs = ctx.nowMs();
-    if (nowMs - this.lastFeesMs < FEE_REFRESH_MS) return;
+    if (nowMs - this.lastFeesMs < FEES_REFRESH_SEC * 1000) return;
     try {
       const fees = await ctx.chain.getFeeEstimates();
       if (fees.known) {

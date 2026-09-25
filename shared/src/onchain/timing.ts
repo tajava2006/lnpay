@@ -95,7 +95,15 @@ export const DISPUTE_RULING_BUDGET_SEC = 24 * HOUR;
  */
 export const ONCHAIN_EVENT_HORIZON_SEC = 70 * DAY;
 
-/** 종결 이벤트가 만료된 오더 위에 실릴 때 줄 유예 (라이트닝 `publishExpiration`과 같은 규칙) */
+/**
+ * 후원자 앱이 원화를 보내기 전에 요구하는 **타임락 잔여** (블록, ≈1주).
+ *
+ * 타임락이 다 차면 고객이 혼자 에스크로를 뺄 수 있다. 원화는 T0 + 105분 안에 흐르므로 정상이면 8064블록이
+ * 거의 전량 남아 있다 — 이 문턱은 리오그·긴 정체 같은 사고에서 되돌릴 수 없는 송금을 막는 안전망이다.
+ */
+export const TIMELOCK_REMIT_THRESHOLD_BLOCKS = 1008;
+
+/** 종결 이벤트가 만료된 오더 위에 실릴 때 줄 유예 (라이트닝 `lnRetention`과 같은 규칙) */
 export const TERMINAL_GRACE_SEC = 7 * DAY;
 
 /**

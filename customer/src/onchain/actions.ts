@@ -11,7 +11,7 @@
  */
 import {
   addTapScriptSig, buildKeyPathSweep, buildSettlementTx, finalizeSettlement, settlementFeeSat, signSettlement,
-  toPsbtBase64, deriveEscrowAddress, parseOutpoint, presignDeadlineOf, isPast,
+  toPsbtBase64, deriveEscrowAddress, parseOutpoint, presignDeadlineOf, isPast, TIMELOCK_REMIT_THRESHOLD_BLOCKS,
   type KeyPathUtxo, type OnchainOrder, type SettlementPath,
 } from '@sajwo-tracker/shared/onchain';
 import { myOrderKey } from './keys';
@@ -186,9 +186,6 @@ export function pathForPurpose(
 
 // ─── 타임락 안전망 (T-106 · §7.1) ────────────────────────────
 
-/** 송금 차단 임계 — 잔여가 이보다 적으면 원화를 보내면 안 된다 (§6.2) */
-export const TIMELOCK_BLOCK_THRESHOLD = 1008;
-
 export interface TimelockStatus {
   /** 타임락까지 남은 블록. 모르면 `undefined` */
   remainingBlocks?: number;
@@ -221,7 +218,7 @@ export function timelockStatus(
   }
 
   const remainingBlocks = Math.max(0, total - fundingConfirmations);
-  if (remainingBlocks < TIMELOCK_BLOCK_THRESHOLD) {
+  if (remainingBlocks < TIMELOCK_REMIT_THRESHOLD_BLOCKS) {
     return {
       remainingBlocks,
       safeToRemit: false,

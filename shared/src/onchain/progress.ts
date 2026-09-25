@@ -40,6 +40,11 @@ export interface StepAction {
   text: string;
   /** 조건부 항목 (설정·상황에 따라 안 나타날 수 있음) */
   optional?: boolean;
+  /**
+   * 종결 tx의 출력을 **받는 쪽에게만** 보인다 — 받을 출력으로 CPFP하는 안내가 그렇다. 지급·송금 인정이면
+   * 사는 쪽, 환불·송금 불인정이면 파는 쪽이 받는다(`receiverOf`). 종결 사유를 모르면 조건부로 둔다.
+   */
+  receiverOnly?: boolean;
 }
 
 export interface OnchainProgressStep {
@@ -150,10 +155,11 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     customer: [
       { text: '종결 트랜잭션이 블록에 들어가기를 기다립니다.' },
       { text: '이 단계에서는 되돌릴 수 없습니다. 멤풀에서 사라지면 같은 트랜잭션을 다시 뿌립니다.' },
+      { text: '수수료가 낮아 안 잡히면 내 지갑에서 **받은 출력으로 CPFP**해서 올릴 수 있습니다.', receiverOnly: true },
     ],
     sponsor: [
       { text: '종결 트랜잭션이 블록에 들어가기를 기다립니다.' },
-      { text: '수수료가 낮아 안 잡히면 **받을 출력으로 CPFP**해서 올릴 수 있습니다.', optional: true },
+      { text: '수수료가 낮아 안 잡히면 내 지갑에서 **받은 출력으로 CPFP**해서 올릴 수 있습니다.', receiverOnly: true },
     ],
   },
   {
@@ -345,6 +351,7 @@ export function resolveOnchainProgress(
       : 'upcoming';
 
     const actor = onchainStepActor(step.state, ctx);
+    const receiver = receiverOf(ctx.settlementKind);
 
     return {
       index,
@@ -353,11 +360,19 @@ export function resolveOnchainProgress(
       status,
       actor,
       isMyTurn: status === 'current' && actor === role,
-      actions: role === 'customer' ? step.customer : step.sponsor,
+      actions: (role === 'customer' ? step.customer : step.sponsor)
+        .filter(a => !a.receiverOnly || receiver === null || receiver === role)
+        .map(a => (a.receiverOnly && receiver === null ? { ...a, optional: true } : a)),
     };
   });
 
   return { steps, currentIndex, terminal, disputed, refunding, total: ONCHAIN_PROGRESS_STEPS.length };
+}
+
+/** 종결 tx의 출력을 받는 쪽. 모르면 null */
+export function receiverOf(kind: SettlementKind | undefined): OnchainRole | null {
+  if (!kind) return null;
+  return kind === 'release' || kind === 'sponsor_win' ? 'sponsor' : 'customer';
 }
 
 function terminalDoneThrough(state: OnchainTerminalInfo['state']): number {

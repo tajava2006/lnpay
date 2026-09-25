@@ -13,6 +13,7 @@ import {
   type OnchainState,
 } from '../onchain/state-machine';
 import { ONCHAIN_STATE_DISPLAY, onchainStateDisplay } from '../onchain/display';
+import type { SettlementKind } from '../onchain/state-machine';
 import {
   ONCHAIN_PROGRESS_STEPS, onchainStepActor, resolveOnchainProgress,
 } from '../onchain/progress';
@@ -223,5 +224,29 @@ describe('유저 문구', () => {
   it('창 길이는 상수에서 온다', () => {
     expect(all('customer')).toContain('**2시간 안에 컨펌까지**');
     expect(all('customer')).toContain('**1시간 안에** 보내야');
+  });
+});
+
+/** 받을 출력으로 CPFP하는 안내는 받는 쪽에게만 — 환불이면 파는 쪽도 받는다 (2026-09-25) */
+describe('종결 대기 — CPFP 안내', () => {
+  const cpfp = (role: 'customer' | 'sponsor', settlementKind?: SettlementKind) =>
+    resolveOnchainProgress(role, 'settling', { settlementKind }).steps
+      .find(s => s.state === 'settling')!.actions.filter(a => /CPFP/.test(a.text));
+
+  it('지급이면 사는 쪽에게만', () => {
+    expect(cpfp('sponsor', 'release')).toHaveLength(1);
+    expect(cpfp('customer', 'release')).toHaveLength(0);
+  });
+
+  it('환불이면 파는 쪽에게만 — 사는 쪽은 받는 게 없다', () => {
+    expect(cpfp('customer', 'refund:customer-late')).toHaveLength(1);
+    expect(cpfp('sponsor', 'refund:sponsor-timeout')).toHaveLength(0);
+    expect(cpfp('customer', 'customer_win')).toHaveLength(1);
+    expect(cpfp('sponsor', 'sponsor_win')).toHaveLength(1);
+  });
+
+  it('종결 사유를 모르면 양쪽에 조건부로', () => {
+    expect(cpfp('customer')[0]?.optional).toBe(true);
+    expect(cpfp('sponsor')[0]?.optional).toBe(true);
   });
 });

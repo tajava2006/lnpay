@@ -17,10 +17,10 @@
 |---|---|---|---|
 | 의뢰 만료 | 고객 | 1~**7일** | `OnchainOrderForm`, `MAX_ORDER_EXPIRY_SEC` |
 | 보증금 인보이스 수명 | 어드민 | 의뢰 만료 전체 | `handleOnchainOrderRequest` |
-| **보증금 CLTV** | 어드민 | `(남은 만료 + 55h + 6h) / 600` 블록 | `depositCltvBlocks` |
-| 펀딩 마감 (컨펌까지) | 어드민 | 6시간 | `FUNDING_WINDOW_SEC` |
+| **보증금 CLTV** | 어드민 | `(남은 만료 + 52h + 6h) / 600` 블록 | `depositCltvBlocks` |
+| 펀딩 마감 (컨펌까지) | 어드민 | **2시간** (6시간에서, 2026-09-25) | `FUNDING_WINDOW_SEC` |
 | 사전서명 마감 | 어드민 | T0+15분 | `PRESIGN_WINDOW_SEC` |
-| 계좌 공개 마감 | 어드민 | `presigned`+15분 | `ACCOUNT_WINDOW_SEC` |
+| 계좌 공개 마감 | 어드민 | `presigned`+**1시간** (15분에서, 2026-09-25) | `ACCOUNT_WINDOW_SEC` |
 | 원화 송금 마감 | 어드민 | **계좌 공개**+30분 | `KRW_WINDOW_SEC` (O-013) |
 | cosign 마감 = 가격 유효창 | 어드민 | 24시간 | `COSIGN_WINDOW_SEC` = `PRICE_VALIDITY_MS` |
 | 종결 정체 경고 | 어드민 | 24시간 | `SETTLING_WARN_SEC` |

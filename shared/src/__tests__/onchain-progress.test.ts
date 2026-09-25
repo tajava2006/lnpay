@@ -89,7 +89,7 @@ describe('진행도 사다리', () => {
   it.each(['bonded', 'funded', 'presigned'] as const)('%s 단계가 몰수를 고지한다', state => {
     const step = ONCHAIN_PROGRESS_STEPS.find(s => s.state === state)!;
     const text = [...step.customer, ...step.sponsor].map(a => a.text).join(' ');
-    expect(text).toMatch(/보증금을 잃습니다/);
+    expect(text).toMatch(/내 보증금이 몰수됩니다/);
   });
 });
 
@@ -200,5 +200,28 @@ describe('진행도 해석', () => {
     const p = resolveOnchainProgress('sponsor', 'released');
     expect(p.currentIndex).toBe(ONCHAIN_PROGRESS_STEPS.length - 1);
     expect(p.steps[p.steps.length - 1]!.status).toBe('current');
+  });
+});
+
+/**
+ * 유저 문구는 나·상대방으로 — 고객·후원자는 쿠팡 대리구매 시절 이름이라 온체인에서 안 읽힌다 (2026-09-25).
+ * 드릴에서 빼 달라고 한 문구가 다시 들어오지 않게도 묶는다.
+ */
+describe('유저 문구', () => {
+  const all = (role: 'customer' | 'sponsor') =>
+    ONCHAIN_PROGRESS_STEPS.flatMap(s => [s.title, ...s[role].map(a => a.text)]).join('\n');
+
+  it.each(['customer', 'sponsor'] as const)('%s 화면에 역할 이름(고객·후원자)이 없다', role => {
+    expect(all(role)).not.toMatch(/고객|후원자/);
+  });
+
+  it('드릴에서 뺀 문구가 없다', () => {
+    const text = all('customer') + all('sponsor');
+    expect(text).not.toMatch(/지연 이체|즉시 이체|마감 시계는 멈추지/);
+  });
+
+  it('창 길이는 상수에서 온다', () => {
+    expect(all('customer')).toContain('**2시간 안에 컨펌까지**');
+    expect(all('customer')).toContain('**1시간 안에** 보내야');
   });
 });

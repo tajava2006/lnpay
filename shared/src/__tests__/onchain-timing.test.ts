@@ -21,9 +21,9 @@ const DAY = 24 * HOUR;
 describe('값', () => {
   it.each([
     ['의뢰 만료 상한', MAX_ORDER_EXPIRY_SEC, 7 * DAY],
-    ['펀딩(컨펌까지)', FUNDING_WINDOW_SEC, 6 * HOUR],
+    ['펀딩(컨펌까지)', FUNDING_WINDOW_SEC, 2 * HOUR],
     ['사전서명', PRESIGN_WINDOW_SEC, 15 * 60],
-    ['계좌 공개', ACCOUNT_WINDOW_SEC, 15 * 60],
+    ['계좌 공개', ACCOUNT_WINDOW_SEC, 1 * HOUR],
     ['원화 송금', KRW_WINDOW_SEC, 30 * 60],
     ['cosign', COSIGN_WINDOW_SEC, 24 * HOUR],
     ['종결 정체 경고', SETTLING_WARN_SEC, 24 * HOUR],
@@ -37,8 +37,8 @@ describe('지켜야 할 부등식 (§6.3)', () => {
    * 보증금은 이 창의 변동폭을 덮어야 한다. 창이 무한하면 어떤 고정 프리미엄도
    * 언젠가 추월당한다 — 그래서 **유한해야** 보증금이 의미를 갖는다(§2.4).
    */
-  it('총 옵션 창 = T0+60분, 그리고 앞 두 마감이 T0에 묶여 있다', () => {
-    expect(MAX_OPTION_WINDOW_SEC).toBe(60 * 60);
+  it('총 옵션 창 = T0+105분, 그리고 앞 두 마감이 T0에 묶여 있다', () => {
+    expect(MAX_OPTION_WINDOW_SEC).toBe(105 * 60);
     expect(PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + KRW_WINDOW_SEC).toBe(MAX_OPTION_WINDOW_SEC);
   });
 
@@ -49,11 +49,11 @@ describe('지켜야 할 부등식 (§6.3)', () => {
     expect(timelockSec).toBeGreaterThan(worstCase * 10);
   });
 
-  /** 최악 소요가 55시간 언저리 — 모든 구간에 하드 마감이 있다(§4.1c 이후) */
-  it('최악 소요 ≈ 55시간', () => {
+  /** 최악 소요가 52시간 언저리 — 모든 구간에 하드 마감이 있다(§4.1c 이후) */
+  it('최악 소요 ≈ 52시간', () => {
     const worst = FUNDING_WINDOW_SEC + MAX_OPTION_WINDOW_SEC + COSIGN_WINDOW_SEC + SETTLING_WARN_SEC;
-    expect(worst / HOUR).toBeGreaterThan(54);
-    expect(worst / HOUR).toBeLessThan(56);
+    expect(worst / HOUR).toBeGreaterThan(51);
+    expect(worst / HOUR).toBeLessThan(53);
   });
 
   it('유예 경고는 cosign 마감보다 앞선다', () => {
@@ -136,7 +136,7 @@ describe('currentOnchainDeadline', () => {
     const { currentOnchainDeadline } = await import('../onchain/timing');
 
     const beforeSend = currentOnchainDeadline({ ...base, state: 'presigned', presignedAt: T });
-    expect(beforeSend?.label).toBe('계좌 공개 마감');
+    expect(beforeSend?.label).toBe('계좌 전달 마감');
     expect(beforeSend?.at).toBe(T + ACCOUNT_WINDOW_SEC);
 
     const afterSend = currentOnchainDeadline({
@@ -172,5 +172,45 @@ describe('currentOnchainDeadline', () => {
     const { currentOnchainDeadline } = await import('../onchain/timing');
     expect(currentOnchainDeadline({ ...base, state: 'funded' })).toBeNull();
     expect(currentOnchainDeadline({ ...base, state: 'remitted' })).toBeNull();
+  });
+});
+
+/** 마감 문구는 보는 사람 입장에서 — 내 마감이면 "내 보증금", 상대 마감이면 "상대방 보증금" (2026-09-25) */
+describe('currentOnchainDeadline — 보는 사람', () => {
+  const base = { expiration: 0, updatedAt: 0 };
+  const T = 1_800_000_000;
+
+  it('계좌 전달 마감: 파는 쪽에는 내 보증금, 사는 쪽에는 상대방 보증금 · 내 보증금은 돌려받는다', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    const order = { ...base, state: 'presigned', presignedAt: T };
+    expect(currentOnchainDeadline(order, 'customer')?.penalty).toMatch(/계좌를 보내지 않으면.*내 보증금이 몰수/);
+    const sponsor = currentOnchainDeadline(order, 'sponsor')?.penalty ?? '';
+    expect(sponsor).toMatch(/상대방이.*상대방 보증금이 몰수/);
+    expect(sponsor).toMatch(/내 보증금은 돌려받습니다/);
+  });
+
+  it('송금 마감은 반대 — 사는 쪽의 마감', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    const order = { ...base, state: 'presigned', presignedAt: T, accountSentAt: T + 60, krwDeadline: T + 1860 };
+    expect(currentOnchainDeadline(order, 'sponsor')?.penalty).toMatch(/내 보증금이 몰수/);
+    expect(currentOnchainDeadline(order, 'customer')?.penalty).toMatch(/상대방 보증금이 몰수/);
+  });
+
+  it('보는 사람이 있으면 역할 이름이 없고, 없으면(운영자) 역할 이름으로', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    for (const state of ['bonded', 'funded', 'presigned', 'remitted']) {
+      const order = { ...base, state, fundingDeadline: T, fundedAt: T, presignedAt: T, remittedAt: T };
+      for (const viewer of ['customer', 'sponsor'] as const) {
+        expect(currentOnchainDeadline(order, viewer)?.penalty).not.toMatch(/고객|후원자/);
+      }
+    }
+    expect(currentOnchainDeadline({ ...base, state: 'bonded', fundingDeadline: T })?.penalty).toMatch(/고객 보증금/);
+  });
+
+  it('창 길이 문구', async () => {
+    const { durationText } = await import('../onchain/timing');
+    expect(durationText(2 * 3600)).toBe('2시간');
+    expect(durationText(15 * 60)).toBe('15분');
+    expect(durationText(90 * 60)).toBe('1시간 30분');
   });
 });

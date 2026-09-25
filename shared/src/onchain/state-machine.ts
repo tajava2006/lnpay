@@ -174,7 +174,7 @@ export const SETTLEMENT_KINDS = {
   REFUND_RESERVE: 'refund:reserve',
   /** 후원자가 사전서명·원화송금 마감을 넘김 */
   REFUND_SPONSOR_TIMEOUT: 'refund:sponsor-timeout',
-  /** 고객이 15분 내 계좌를 공개하지 않음 */
+  /** 고객이 마감(`ACCOUNT_WINDOW_SEC`) 안에 계좌를 공개하지 않음 */
   REFUND_CUSTOMER_LATE: 'refund:customer-late',
   /** `funded` 진입 시 후원자 보증금이 이미 만료 (O-015) */
   REFUND_BOND_EXPIRED: 'refund:bond-expired',

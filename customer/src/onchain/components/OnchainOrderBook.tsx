@@ -12,8 +12,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { InvoicePayBlock, freshPrice, type PriceTracker } from '@sajwo-tracker/shared';
 import {
-  MempoolChainAdapter, RESERVE_MIN_GAP_PERCENT, TYPICAL_SETTLEMENT_VSIZE, addressProblem,
-  releaseFeerateProblem, type FeeEstimates, type OnchainOrder,
+  FUNDING_WINDOW_SEC, MempoolChainAdapter, PRESIGN_WINDOW_SEC, RESERVE_MIN_GAP_PERCENT, TYPICAL_SETTLEMENT_VSIZE,
+  addressProblem, durationText, releaseFeerateProblem, type FeeEstimates, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrdersSnapshot, listedOrders, subscribeOnchainOrders } from '../store';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
@@ -192,8 +192,8 @@ function ClaimForm({ order }: { order: OnchainOrder }) {
       </label>
 
       <div style={styles.warn}>
-        결제하면 <strong>6시간 안에</strong> 고객이 펀딩을 컨펌시키고, 그 뒤
-        <strong> 15분 안에 앱이 서명</strong>합니다. 앱을 열어둘 수 있을 때 결제하세요.
+        결제하면 <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 상대방이 입금을 컨펌시키고, 그 뒤
+        <strong> {durationText(PRESIGN_WINDOW_SEC)} 안에 앱이 서명</strong>합니다. 앱을 열어둘 수 있을 때 결제하세요.
       </div>
 
       {error && <p style={styles.error}>{error}</p>}

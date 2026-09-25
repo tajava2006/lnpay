@@ -147,19 +147,19 @@ export function checkSignRequest(input: SignCheckInput): SignCheck {
     destination = dest.address;
   } else {
     const outpoint = parseOutpoint(order.fundingOutpoint);
-    if (!outpoint) return { ok: false, reason: '이 주문에 펀딩 기록이 없다' };
+    if (!outpoint) return { ok: false, reason: '이 주문에 입금 기록이 없다' };
     input0 = { outpoint, valueSat: order.amountSat };
 
     if (purpose === 'release') {
-      if (role !== 'customer') return { ok: false, reason: '릴리스는 고객이 서명한다' };
+      if (role !== 'customer') return { ok: false, reason: '지급 서명은 파는 쪽이 한다' };
       if (order.releaseFeeSat === undefined) return { ok: false, reason: '릴리스 수수료가 없다' };
       // 후원자 주소는 내가 모른다 — 대신 **후원자 서명이 이 tx에 대해 유효한지**로 묶는다.
       path = 'release';
       destination = shown;
       feeSat = order.releaseFeeSat;
     } else if (purpose === 'dispute-sponsor') {
-      if (role !== 'sponsor') return { ok: false, reason: '후원자승 집행은 후원자가 서명한다' };
-      if (order.settlementKind !== 'sponsor_win') return { ok: false, reason: '후원자승 판정이 없다' };
+      if (role !== 'sponsor') return { ok: false, reason: '송금 인정 판정의 집행은 사는 쪽이 서명한다' };
+      if (order.settlementKind !== 'sponsor_win') return { ok: false, reason: '송금 인정 판정이 없다' };
       if (!input.payoutAddress) return { ok: false, reason: '클레임 때 낸 받을 주소를 이 기기가 모른다' };
       if (shown !== input.payoutAddress) return { ok: false, reason: '받는 주소가 내가 낸 받을 주소가 아니다' };
       path = 'sponsor-win';
@@ -168,7 +168,7 @@ export function checkSignRequest(input: SignCheckInput): SignCheck {
       feeSat = order.settlementFeeSat;
     } else {
       // refund · dispute-customer — 둘 다 `{A,C}`로 **내게** 돌아오는 tx다
-      if (role !== 'customer') return { ok: false, reason: '환불은 고객이 서명한다' };
+      if (role !== 'customer') return { ok: false, reason: '환불은 파는 쪽이 서명한다' };
       const wantKind = purpose === 'refund' ? order.state === 'refunding' : order.settlementKind === 'customer_win';
       if (!wantKind) return { ok: false, reason: '이 서명에 해당하는 결정이 없다' };
       if (order.settlementFeeSat === undefined) return { ok: false, reason: '결정된 수수료가 없다' };
@@ -211,7 +211,7 @@ export function checkSignRequest(input: SignCheckInput): SignCheck {
       return { ok: false, reason: '릴리스 금액이 오더의 지급액과 다르다' };
     }
     const sponsor = verifyPresignature({ psbtBase64: psbt, expected, signerXonly: order.sponsorXonly! });
-    if (!sponsor.ok) return { ok: false, reason: `후원자 서명이 맞지 않는다: ${sponsor.reason}` };
+    if (!sponsor.ok) return { ok: false, reason: `상대방 서명이 맞지 않는다: ${sponsor.reason}` };
     counterparty = { xonly: order.sponsorXonly!, sig: sponsor.sig, leafScript: sponsor.leafScript };
   }
 
@@ -253,11 +253,11 @@ export function checkFundingOnChain(
   funds: ChainQuery<AddressFunds> | undefined,
 ): { ok: true; confirmations: number } | { ok: false; reason: string } {
   const outpoint = parseOutpoint(order.fundingOutpoint);
-  if (!outpoint) return { ok: false, reason: '펀딩 기록이 없다' };
+  if (!outpoint) return { ok: false, reason: '입금 기록이 없다' };
   if (!funds) return { ok: false, reason: '체인을 확인하는 중' };
   if (!funds.known) return { ok: false, reason: `체인 조회 실패: ${funds.reason}` };
   const utxo = funds.value.confirmed.find(u => u.txid === outpoint.txid && u.vout === outpoint.vout);
-  if (!utxo) return { ok: false, reason: '에스크로 주소에 그 펀딩이 없다 — 송금하지 마세요' };
+  if (!utxo) return { ok: false, reason: '에스크로 주소에 그 입금이 없다 — 송금하지 마세요' };
   if (utxo.valueSat !== order.amountSat) {
     return { ok: false, reason: `에스크로 금액이 약정과 다르다 (${utxo.valueSat} sats) — 송금하지 마세요` };
   }

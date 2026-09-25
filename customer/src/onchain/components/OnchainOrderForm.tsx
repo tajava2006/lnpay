@@ -16,7 +16,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { freshPrice, type PriceTracker } from '@sajwo-tracker/shared';
 import {
-  MAX_ORDER_EXPIRY_SEC, RESERVE_MIN_GAP_PERCENT, addressProblem, reserveProblem,
+  FUNDING_WINDOW_SEC, MAX_ORDER_EXPIRY_SEC, RESERVE_MIN_GAP_PERCENT, addressProblem, durationText, reserveProblem,
 } from '@sajwo-tracker/shared/onchain';
 import { myOrderXonly } from '../keys';
 import { publishOnchainOrderRequest } from '../nostr/publish';
@@ -152,14 +152,14 @@ export function OnchainOrderForm({ onDone, tracker }: {
           {[1, 2, 3, 5, 7].map(d => <option key={d} value={d}>{d}일</option>)}
         </select>
         <span style={styles.hint}>
-          최대 {MAX_ORDER_EXPIRY_SEC / DAY}일. 그 안에 후원자가 안 붙으면 취소되고 보증금은 돌려받습니다.
+          최대 {MAX_ORDER_EXPIRY_SEC / DAY}일. 그 안에 사는 사람이 안 붙으면 취소되고 보증금은 돌려받습니다.
         </span>
       </label>
 
       <div style={styles.notice}>
         <strong>등록하면 보증금 인보이스가 옵니다.</strong> 결제해야 오더북에 올라갑니다.
-        거래가 정상적으로 끝나면 돌려받고, <strong>후원자가 붙은 뒤 6시간 안에 펀딩을
-        컨펌시키지 못하면 잃습니다.</strong>
+        거래가 정상적으로 끝나면 돌려받고, <strong>사는 사람이 붙은 뒤 {durationText(FUNDING_WINDOW_SEC)} 안에
+        입금을 컨펌시키지 못하면 몰수됩니다.</strong>
       </div>
 
       {error && <p style={styles.error}>{error}</p>}

@@ -50,7 +50,7 @@ export function EscrowAddressPanel({ order, role }: Props) {
         정확히 <strong>{order.amountSat.toLocaleString()} sats</strong>를 보내세요
       </p>
       <p style={styles.note}>
-        이 주소는 앱이 내 키·후원자 키·운영자 키로 <strong>직접 다시 만들어</strong> 대조한 것입니다.
+        이 주소는 앱이 내 키·상대방 키·운영자 키로 <strong>직접 다시 만들어</strong> 대조한 것입니다.
         금액이 다르면 처리되지 않습니다.
       </p>
     </div>

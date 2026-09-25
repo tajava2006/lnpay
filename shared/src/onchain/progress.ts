@@ -26,6 +26,9 @@
  * 몰수됐다는 건 트롤을 했다는 뜻이다.
  */
 import type { OnchainState, SettlementKind } from './state-machine';
+import {
+  ACCOUNT_WINDOW_SEC, FUNDING_WINDOW_SEC, KRW_WINDOW_SEC, PRESIGN_WINDOW_SEC, durationText,
+} from './timing';
 
 export type OnchainRole = 'customer' | 'sponsor';
 export type StepStatus = 'done' | 'current' | 'upcoming';
@@ -55,50 +58,59 @@ export interface OnchainProgressContext {
   settlementKind?: SettlementKind;
 }
 
+const FUNDING = durationText(FUNDING_WINDOW_SEC);
+const PRESIGN = durationText(PRESIGN_WINDOW_SEC);
+const ACCOUNT = durationText(ACCOUNT_WINDOW_SEC);
+const KRW = durationText(KRW_WINDOW_SEC);
+
+/**
+ * 문구는 **나·상대방**으로 적는다 — 각 목록이 이미 한 역할에게만 보인다. 고객·후원자는 쿠팡 대리구매 시절의
+ * 이름이라 온체인에서는 누가 누구인지 안 읽힌다(2026-09-25). 단계 제목은 두 역할이 같이 보므로 역할 이름 없이.
+ * 창 길이는 `timing.ts` 상수에서 만든다 — 숫자를 박아 두면 창을 바꿀 때 따로 논다.
+ */
 export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
   {
     state: 'listed',
-    title: '후원자 찾는 중',
+    title: '사는 사람 찾는 중',
     actor: 'sponsor',
     customer: [
-      { text: '후원자가 나타날 때까지 기다립니다. 알림을 켜두면 붙는 즉시 알려드립니다.' },
+      { text: '사는 사람이 나타날 때까지 기다립니다. 알림을 켜두면 붙는 즉시 알려드립니다.' },
       { text: '의뢰는 최대 7일간 오더북에 떠 있습니다. 그 안에 아무도 안 붙으면 취소되고 보증금은 돌려받습니다.' },
       { text: '최저가를 걸어두면 그보다 낮은 시세에서는 체결되지 않습니다.', optional: true },
     ],
     sponsor: [
-      { text: "'사줄게'를 누르면 보증금 인보이스가 발행됩니다." },
+      { text: '사기로 하면 보증금 인보이스가 발행됩니다.' },
       { text: '**결제한 분이 가져갑니다.** 여러 명이 동시에 시도해도 되고, 결제 전에는 아무도 이 의뢰를 붙잡지 않습니다.' },
       { text: '받을 비트코인 주소와 희망 수수료율을 이때 함께 등록합니다.' },
     ],
   },
   {
     state: 'bonded',
-    title: '고객 펀딩 (컨펌까지)',
+    title: '에스크로 입금 (컨펌까지)',
     actor: 'customer',
     customer: [
       { text: '화면의 에스크로 주소로 **정확한 수량**을 보냅니다. 금액이 다르면 처리되지 않습니다.' },
       { text: '앱이 그 주소를 내 키로 직접 다시 만들어 대조합니다. **경고가 뜨면 절대 보내지 마세요.**' },
-      { text: '**6시간 안에 컨펌까지** 끝나야 합니다. 보내는 것만으로는 부족하니 수수료를 넉넉히 잡으세요.' },
-      { text: '늦으면 거래가 취소되고 **보증금을 잃습니다.** 안 잡히면 RBF·CPFP로 수수료를 올릴 수 있습니다.' },
-      { text: '펀딩 트랜잭션 수수료는 내 지갑이 정하고 내가 냅니다.' },
+      { text: `**${FUNDING} 안에 컨펌까지** 끝나야 합니다. 보내는 것만으로는 부족하니 수수료를 넉넉히 잡으세요.` },
+      { text: '늦으면 거래가 취소되고 **내 보증금이 몰수됩니다.** 안 잡히면 RBF·CPFP로 수수료를 올릴 수 있습니다.' },
+      { text: '입금 트랜잭션 수수료는 내 지갑이 정하고 내가 냅니다.' },
     ],
     sponsor: [
-      { text: '고객이 펀딩을 컨펌시킬 때까지 기다립니다. 보통 10~60분입니다.' },
-      { text: '**컨펌될 때까지 원화를 보내지 마세요.** 멤풀에 보이는 것은 되돌려질 수 있습니다.' },
+      { text: '상대방의 입금이 컨펌될 때까지 기다립니다. 보통 10~60분입니다.' },
       { text: '**가격은 아직 정해지지 않았습니다** — 컨펌되는 시점의 시세로 정해집니다.' },
     ],
   },
   {
     state: 'funded',
-    title: '가격 확정 · 후원자 서명',
+    title: '가격 확정 · 사전서명',
     actor: 'sponsor',
     customer: [
       { text: '컨펌 시점 시세로 받을 원화가 확정됐습니다.' },
-      { text: '후원자가 서명할 때까지 기다립니다. 15분이 지나면 환불 경로로 넘어갑니다.' },
+      { text: `상대방 앱이 서명할 때까지 기다립니다. ${PRESIGN}이 지나면 환불로 넘어갑니다.` },
     ],
     sponsor: [
-      { text: '앱이 펀딩 트랜잭션을 확인하고 **자동으로 사전서명**합니다. 고민할 것은 없습니다.' },
-      { text: '**15분 안에** 앱이 깨어나야 합니다. 넘기면 거래가 환불되고 **보증금을 잃습니다.**' },
+      { text: '앱이 입금을 확인하고 **자동으로 사전서명**합니다. 고민할 것은 없습니다.' },
+      { text: `**${PRESIGN} 안에** 앱이 깨어나야 합니다. 넘기면 거래가 환불되고 **내 보증금이 몰수됩니다.**` },
       { text: '받을 sats = 판매 수량 − 네트워크 수수료입니다. 수수료율은 내가 정했고 내가 부담합니다.' },
     ],
   },
@@ -108,29 +120,27 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     actor: 'customer',
     customer: [
       { text: "'계좌 정보 전달'로 입금받을 은행·계좌번호·예금주를 보냅니다." },
-      { text: '**15분 안에** 보내야 합니다. 넘기면 거래가 취소되고 **보증금을 잃습니다.**' },
-      { text: '후원자가 원화를 보낼 때까지 기다립니다(계좌 전달 후 30분).' },
+      { text: `**${ACCOUNT} 안에** 보내야 합니다. 넘기면 거래가 취소되고 **내 보증금이 몰수됩니다.**` },
+      { text: `상대방이 원화를 보낼 때까지 기다립니다(계좌 전달 후 ${KRW}).` },
     ],
     sponsor: [
-      { text: '계좌가 도착하면 **30분 안에** 원화를 보냅니다. 시계는 계좌가 도착한 시점부터 갑니다.' },
-      { text: '**즉시 이체만 사용하세요.** 지연 이체는 시간 안에 도착하지 않아 보증금을 잃습니다.' },
+      { text: `상대방 계좌가 도착하면 **${KRW} 안에** 원화를 보냅니다. 시계는 계좌가 도착한 시점부터 갑니다.` },
       { text: "송금을 마쳤으면 '원화 송금했어요'를 누릅니다." },
-      { text: '계좌를 쓸 수 없으면 증거와 함께 이의를 제기합니다. **마감 시계는 멈추지 않습니다.**' },
     ],
   },
   {
     state: 'remitted',
-    title: '입금 확인 · 릴리스 서명',
+    title: '입금 확인',
     actor: 'customer',
     customer: [
       { text: '내 계좌에 원화가 들어왔는지 확인합니다.' },
-      { text: '확인했으면 서명합니다. **이때 비트코인이 후원자에게 넘어갑니다.**' },
-      { text: '**24시간 안에** 확인도 이의제기도 없으면 분쟁으로 넘어갑니다. 동의를 묻지 않습니다.' },
-      { text: '입금이 없으면 서명하지 말고 이의를 제기하세요. 계좌 내역을 준비해 두면 판정이 빨라집니다.' },
+      { text: "들어왔으면 '원화 입금을 확인했어요'를 누릅니다. **이때 비트코인이 상대방에게 넘어갑니다.**" },
+      { text: '**24시간 안에** 확인도 이의제기도 없으면 분쟁으로 넘어갑니다.' },
+      { text: '입금이 없으면 누르지 말고 이의를 제기하세요.' },
     ],
     sponsor: [
-      { text: '고객의 확인을 기다립니다.' },
-      { text: '고객이 응답하지 않으면 24시간 뒤 자동으로 분쟁이 열립니다. 이체 내역 원본을 준비해 두세요.' },
+      { text: '상대방의 입금 확인을 기다립니다.' },
+      { text: '상대방이 응답하지 않으면 24시간 뒤 자동으로 분쟁이 열립니다. 이체 내역을 준비해 두세요.' },
     ],
   },
   {
@@ -169,33 +179,44 @@ export interface OnchainTerminalInfo {
   description: string;
 }
 
-const TERMINALS: Record<OnchainTerminalInfo['state'], Omit<OnchainTerminalInfo, 'state'>> = {
-  cancelled: {
-    label: '취소됨',
-    description: '거래가 시작되기 전에 취소되었습니다. 온체인 트랜잭션은 없습니다.',
-  },
-  refunded: {
-    label: '환불됨',
-    description:
-      '에스크로가 고객에게 돌아갔습니다. 되돌아가는 경로라 온체인 수수료가 두 번(펀딩·환불) '
-      + '들었고, 그 부담은 고객 몫입니다. 상대 과실로 환불된 경우 운영자가 보전할 수 있지만 '
-      + '보장되지는 않습니다.',
-  },
-  sponsor_wins: {
-    label: '후원자 승리',
-    description: '분쟁 판정 결과 후원자의 송금이 인정되어 비트코인이 후원자에게 갔습니다.',
-  },
-  customer_wins: {
-    label: '고객 승리',
-    description: '분쟁 판정 결과 송금이 확인되지 않아 에스크로가 고객에게 돌아갔습니다.',
-  },
-  swept: {
-    label: '타임락 회수',
-    description:
-      '운영자가 응답하지 않아 고객이 타임락으로 직접 회수했습니다. '
-      + '양쪽 보증금은 자체 만료로 환불됩니다.',
-  },
-};
+/** 종결 안내 — 보는 사람 입장에서(나·상대방). 배지 이름은 `display.ts`와 같다 */
+function terminalInfo(state: OnchainTerminalInfo['state'], role: OnchainRole): Omit<OnchainTerminalInfo, 'state'> {
+  const seller = role === 'customer';
+  switch (state) {
+    case 'cancelled':
+      return { label: '취소됨', description: '거래가 시작되기 전에 취소되었습니다. 온체인 트랜잭션은 없습니다.' };
+    case 'refunded':
+      return {
+        label: '환불됨',
+        description: seller
+          ? '에스크로가 나에게 돌아왔습니다. 되돌아오는 경로라 온체인 수수료가 두 번(입금·환불) 들었고, 그 부담은 '
+            + '내 몫입니다. 상대 과실로 환불된 경우 운영자가 보전할 수 있지만 보장되지는 않습니다.'
+          : '에스크로가 상대방에게 돌아갔습니다. 이 거래는 끝났습니다.',
+      };
+    case 'sponsor_wins':
+      return {
+        label: '판정: 송금 인정',
+        description: seller
+          ? '분쟁 판정 결과 원화 송금이 인정되어 비트코인이 상대방에게 갔습니다.'
+          : '분쟁 판정 결과 원화 송금이 인정되어 비트코인이 나에게 왔습니다.',
+      };
+    case 'customer_wins':
+      return {
+        label: '판정: 송금 불인정',
+        description: seller
+          ? '분쟁 판정 결과 송금이 확인되지 않아 에스크로가 나에게 돌아왔습니다.'
+          : '분쟁 판정 결과 송금이 확인되지 않아 에스크로가 상대방에게 돌아갔습니다.',
+      };
+    case 'swept':
+      return {
+        label: '타임락 회수',
+        description: (seller
+          ? '운영자가 응답하지 않아 타임락으로 직접 회수했습니다. '
+          : '운영자가 응답하지 않아 상대방이 타임락으로 회수했습니다. ')
+          + '양쪽 보증금은 자체 만료로 환불됩니다.',
+      };
+  }
+}
 
 function isTerminalWithInfo(state: OnchainState): state is OnchainTerminalInfo['state'] {
   return state === 'cancelled' || state === 'refunded' || state === 'sponsor_wins'
@@ -253,19 +274,28 @@ export interface OnchainRefundingInfo {
  * 행방과 보상은 약속하지 않는다.
  */
 function refundingInfo(role: OnchainRole, kind: SettlementKind | undefined): OnchainRefundingInfo {
+  const seller = role === 'customer';
   const why: Partial<Record<SettlementKind, string>> = {
-    'refund:reserve': '컨펌 시점 시세가 최저가보다 낮아 거래가 성립하지 않았습니다. 양쪽 보증금은 돌려받습니다.',
-    'refund:bond-expired': '후원자 보증금이 먼저 만료돼 거래를 이어갈 수 없었습니다.',
-    'refund:sponsor-timeout': '후원자가 마감 안에 서명이나 원화 송금을 마치지 않았습니다. 후원자 보증금은 몰수됐습니다.',
-    'refund:customer-late': '고객이 마감 안에 계좌를 보내지 않았습니다. 고객 보증금은 몰수됐습니다.',
-    'refund:account-disputed': '후원자가 계좌를 쓸 수 없다고 이의를 냈습니다. 누구 과실인지 운영자가 판정하고, 그때 보증금이 처리됩니다.',
+    'refund:reserve': '입금 컨펌 시점 시세가 최저가보다 낮아 거래가 성립하지 않았습니다. 양쪽 보증금은 돌려받습니다.',
+    'refund:bond-expired': seller
+      ? '상대방 보증금이 먼저 만료돼 거래를 이어갈 수 없었습니다.'
+      : '내 보증금이 먼저 만료돼 거래를 이어갈 수 없었습니다.',
+    'refund:sponsor-timeout': seller
+      ? '상대방이 마감 안에 서명이나 원화 송금을 마치지 않았습니다. 상대방 보증금은 몰수됐습니다.'
+      : '마감 안에 서명이나 원화 송금을 마치지 못했습니다. 내 보증금은 몰수됐습니다.',
+    'refund:customer-late': seller
+      ? '마감 안에 계좌를 보내지 않았습니다. 내 보증금은 몰수됐습니다.'
+      : '상대방이 마감 안에 계좌를 보내지 않았습니다. 상대방 보증금은 몰수됐고, 내 보증금은 돌려받습니다.',
+    'refund:account-disputed': seller
+      ? '상대방이 계좌를 쓸 수 없다고 이의를 냈습니다. 누구 과실인지 운영자가 판정하고, 그때 보증금이 처리됩니다.'
+      : '계좌 이의를 냈습니다. 누구 과실인지 운영자가 판정하고, 그때 보증금이 처리됩니다.',
   };
   const reason = (kind && why[kind]) ?? '마감을 넘겨 거래가 환불로 넘어갔습니다.';
   return {
     label: '환불 진행 중',
-    description: role === 'customer'
+    description: seller
       ? `${reason} 에스크로를 돌려받으려면 환불 서명이 필요합니다 — 운영자 혼자서는 환불할 수 없습니다. `
-        + '되돌아가는 경로라 온체인 수수료는 두 번(펀딩·환불) 들고, 그 부담은 고객 몫입니다.'
+        + '되돌아오는 경로라 온체인 수수료는 두 번(입금·환불) 들고, 그 부담은 내 몫입니다.'
       : `${reason} 원화를 보내지 마세요. 이 거래는 더 진행되지 않습니다.`,
   };
 }
@@ -289,7 +319,7 @@ export function resolveOnchainProgress(
   ctx: OnchainProgressContext = {},
 ): OnchainProgress {
   const terminal: OnchainTerminalInfo | null = isTerminalWithInfo(state)
-    ? { state, ...TERMINALS[state] }
+    ? { state, ...terminalInfo(state, role) }
     : null;
 
   const disputed = state === 'disputed';

@@ -2,15 +2,17 @@
  * 남은 시간 (PLAN-ONCHAIN-TRACK §6.2)
  *
  * ⚠️ **마감이 있는데 안 보이면 없는 것과 같다.** 이 트랙은 마감을 넘기면
- * 보증금이 몰수되는 구간이 여럿이라(펀딩 6h / 서명 15분 / 계좌 15분 /
- * 송금 30분), "얼마 남았는지"가 화면에 없으면 유저는 자기가 쫓기는 줄도 모른다.
+ * 보증금이 몰수되는 구간이 여럿이라(입금 컨펌 · 사전서명 · 계좌 전달 · 원화 송금 — 길이는
+ * `timing.ts`), "얼마 남았는지"가 화면에 없으면 유저는 자기가 쫓기는 줄도 모른다.
+ *
+ * 무엇을 잃는지는 **보는 사람 입장에서** 적는다(`role`) — 내 마감이면 내 보증금, 상대 마감이면 상대방 보증금.
  *
  * 어느 시계가 도는지는 `currentOnchainDeadline`이 한 곳에서 정한다 —
  * `presigned`는 **한 상태 안에서 주인이 바뀌므로**(O-013) 화면이 스스로
  * 판단하게 두면 갈린다.
  */
 import { useEffect, useState } from 'react';
-import { currentOnchainDeadline, type OnchainOrder } from '@sajwo-tracker/shared/onchain';
+import { currentOnchainDeadline, type DeadlineViewer, type OnchainOrder } from '@sajwo-tracker/shared/onchain';
 
 function remainText(seconds: number): string {
   if (seconds <= 0) return '마감 지남';
@@ -22,7 +24,7 @@ function remainText(seconds: number): string {
   return `${s}초 남음`;
 }
 
-export function DeadlineCountdown({ order }: { order: OnchainOrder }) {
+export function DeadlineCountdown({ order, role }: { order: OnchainOrder; role: DeadlineViewer }) {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export function DeadlineCountdown({ order }: { order: OnchainOrder }) {
     return () => clearInterval(id);
   }, []);
 
-  const deadline = currentOnchainDeadline(order);
+  const deadline = currentOnchainDeadline(order, role);
   if (!deadline) return null;
 
   const remain = deadline.at - now;

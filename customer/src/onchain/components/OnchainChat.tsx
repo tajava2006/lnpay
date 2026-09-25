@@ -71,7 +71,7 @@ export function OnchainChat({ order, myPubkey, role }: {
         <button
           style={styles.toggle}
           onClick={() => {
-            if (!confirm('받은 계좌 정보를 운영자에게 공개합니다. 운영자가 고객이 보낸 원본과 대조합니다.')) return;
+            if (!confirm('받은 계좌 정보를 운영자에게 공개합니다. 운영자가 상대방이 보낸 원본과 대조합니다.')) return;
             const payload: DisputeMessagePayload = {
               type: 'account-reveal',
               accountInfo: account.accountInfo,

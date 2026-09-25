@@ -73,7 +73,7 @@ export function releaseFeerateProblem(args: {
  * 그대로 체결. 후원자는 보증금과 시간을 묶인 채 손해 보는 쪽만 떠안는다.
  * "컨펌 시점 고정이면 아무도 옵션을 못 쥔다"(§2.4)가 reserve로 뚫렸다(리뷰 #8).
  *
- * 컨펌 대기(최대 6시간)의 통상 변동폭보다 넓게 잡는다.
+ * 컨펌 대기(최대 `FUNDING_WINDOW_SEC`)의 통상 변동폭보다 넓게 잡는다.
  */
 export const RESERVE_MIN_GAP_PERCENT = 3;
 

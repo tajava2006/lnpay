@@ -15,7 +15,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { InvoicePayBlock } from '@sajwo-tracker/shared';
 import {
-  MempoolChainAdapter, accountDeadlineOf, canActOnSignRequest, isPast, krwDeadlineOf,
+  ACCOUNT_WINDOW_SEC, MempoolChainAdapter, accountDeadlineOf, canActOnSignRequest, durationText, isPast, krwDeadlineOf,
   onchainStateDisplay, presignDeadlineOf,
   type AddressFunds, type ChainQuery, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
@@ -217,7 +217,7 @@ export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signReq
         </div>
       )}
 
-      <DeadlineCountdown order={order} />
+      <DeadlineCountdown order={order} role={role} />
 
       <OnchainProgressBar order={order} role={role} accountInfoSent={Boolean(order.accountSentAt)} />
 
@@ -286,7 +286,7 @@ function CancelOrderPanel({ order }: { order: OnchainOrder }) {
     <div style={styles.section}>
       <p style={styles.warnText}>
         이 의뢰를 오더북에서 내립니다. <strong>보증금은 그대로 돌려받습니다</strong> —
-        후원자가 아직 붙지 않았으니 아무도 손해를 보지 않습니다.
+        아직 아무도 붙지 않았으니 아무도 손해를 보지 않습니다.
       </p>
       <button
         style={styles.primary}
@@ -353,7 +353,7 @@ function PresignStatus({ order, now }: { order: OnchainOrder; now: number }) {
   );
 }
 
-/** 고객: 계좌 공개 — 여기서부터 후원자의 30분이 시작된다 (O-013) */
+/** 고객: 계좌 공개 — 여기서부터 후원자의 송금 시계가 시작된다 (O-013) */
 function AccountInfoForm({ order }: { order: OnchainOrder }) {
   const [bank, setBank] = useState('');
   const [number, setNumber] = useState('');
@@ -376,10 +376,10 @@ function AccountInfoForm({ order }: { order: OnchainOrder }) {
 
   return (
     <div style={styles.section}>
-      <p style={styles.sectionTitle}>입금받을 계좌 (15분 안에)</p>
+      <p style={styles.sectionTitle}>입금받을 계좌 ({durationText(ACCOUNT_WINDOW_SEC)} 안에)</p>
       <p style={styles.warnText}>
-        늦으면 거래가 취소되고 <strong>보증금을 잃습니다.</strong> 계좌는 후원자에게만
-        암호화되어 전달됩니다. 틀린 계좌를 주면 후원자가 이의를 내고, 판정에 따라 보증금을 잃을 수 있습니다.
+        늦으면 거래가 취소되고 <strong>내 보증금이 몰수됩니다.</strong> 계좌는 상대방에게만 암호화되어 전달됩니다.
+        틀린 계좌를 주면 상대방이 이의를 내고, 판정에 따라 보증금을 잃을 수 있습니다.
       </p>
       <input style={styles.input} placeholder="은행" value={bank} onChange={e => setBank(e.target.value)} />
       <input style={styles.input} placeholder="계좌번호" value={number} onChange={e => setNumber(e.target.value)} />
@@ -440,21 +440,18 @@ function RemitPanel({ order, now }: { order: OnchainOrder; now: number }) {
         <p style={styles.warnText}>
           {order.accountSentAt
             ? '계좌 정보를 아직 받지 못했습니다. 잠시 후 다시 보세요.'
-            : '고객이 계좌를 보내기를 기다리는 중입니다.'}
+            : '상대방이 계좌를 보내기를 기다리는 중입니다.'}
         </p>
       )}
 
       <p style={funding.ok ? styles.okText : styles.warnText}>
-        {funding.ok ? `에스크로 확인: 약정 금액이 체인에 있습니다 (${funding.confirmations} 컨펌)` : funding.reason}
+        {funding.ok ? `에스크로에 비트코인이 들어와 있습니다 (${funding.confirmations} 컨펌)` : funding.reason}
       </p>
-      <p style={status.safeToRemit ? styles.okText : styles.warnText}>{status.reason}</p>
+      {/* 타임락은 막힐 때만 말한다 — 여유가 있을 때 블록 수를 보여주면 읽는 사람만 헷갈린다(2026-09-25) */}
+      {!status.safeToRemit && <p style={styles.warnText}>{status.reason}</p>}
       {deadlinePassed && (
         <p style={styles.dangerText}>송금 마감이 지났습니다. <strong>원화를 보내지 마세요</strong> — 거래가 환불로 넘어갑니다.</p>
       )}
-      <p style={styles.warnText}>
-        <strong>즉시 이체만 사용하세요.</strong> 지연 이체는 시간 안에 도착하지 않아
-        보증금을 잃습니다.
-      </p>
       <button
         style={canRemit ? styles.primary : styles.disabled}
         disabled={!canRemit || busy || sent}
@@ -473,6 +470,10 @@ function RemitPanel({ order, now }: { order: OnchainOrder; now: number }) {
 
 /**
  * 서명 요청 — 릴리스·환불·분쟁·구조 공용. **내 기록으로 다시 만든 tx에만 서명한다.**
+ *
+ * 릴리스(원화 입금 확인)는 **버튼 하나**로 보인다(2026-09-25 드릴). 파는 사람이 알아야 할 건 "원화가
+ * 들어왔는가" 하나다 — 금액·받는 주소·수수료·"내 기록과 같다"는 그 판단에 쓸모가 없다. 대조는 그대로
+ * 돈다: 맞지 않으면 버튼 대신 경고가 뜬다. 되돌릴 수 없으니 누르기 전에 한 번 묻는다.
  *
  * 받는 주소가 내가 기대한 곳(환불이면 내가 낸 환불 주소, 후원자승이면 내가 낸 받을
  * 주소)이 아니면 버튼이 안 열린다. 이 기기가 환불 주소를 모르면(다른 기기에서 키를
@@ -509,13 +510,15 @@ function SignPanel({ order, role, request }: {
     return () => { alive = false; };
   }, [order, request, role, typedRefund]);
 
-  const title = request.purpose === 'release' ? '릴리스 서명 (비트코인 지급)'
+  const isRelease = request.purpose === 'release';
+  const title = isRelease ? '원화 입금 확인'
     : request.purpose === 'refund' ? '환불 서명 (에스크로 회수)'
     : request.purpose === 'rescue' ? '구조 서명 (약정 밖의 자금 돌려받기)'
     : '분쟁 판정 집행 서명';
 
   async function sign() {
     if (!check?.ok) return;
+    if (isRelease && !confirm('은행에 원화가 실제로 들어왔나요?\n\n확인하면 비트코인이 상대방에게 넘어가고, 되돌릴 수 없습니다.')) return;
     setBusy(true);
     setError(null);
     try {
@@ -534,10 +537,10 @@ function SignPanel({ order, role, request }: {
       <p style={styles.sectionTitle}>{title}</p>
 
       {!check ? (
-        <p style={styles.warnText}>요청을 내 기록과 대조하는 중…</p>
+        <p style={styles.warnText}>확인하는 중…</p>
       ) : !check.ok ? (
         <>
-          <p style={styles.dangerText}>⚠️ {check.reason} — 서명하지 마세요.</p>
+          <p style={styles.dangerText}>⚠️ {check.reason} — {isRelease ? '진행하지 말고 운영자에게 알리세요' : '서명하지 마세요'}.</p>
           {check.needsRefundAddress && (
             <input
               style={styles.input}
@@ -549,17 +552,18 @@ function SignPanel({ order, role, request }: {
         </>
       ) : (
         <>
-          <p style={styles.okText}>
-            <strong>{check.amountSat.toLocaleString()} sats</strong>가 아래 주소로 갑니다
-            (네트워크 수수료 {check.feeSat.toLocaleString()} sats). 내 기록으로 다시 만든 tx와 같습니다.
-          </p>
-          <code style={styles.addr}>{check.destination}</code>
-
-          {request.purpose === 'release' && (
+          {isRelease ? (
             <p style={styles.warnText}>
-              <strong>은행에 원화가 실제로 들어왔는지 먼저 확인하세요.</strong>
-              서명하는 순간 비트코인이 후원자에게 넘어갑니다.
+              <strong>은행에 원화가 실제로 들어왔는지 먼저 확인하세요.</strong> 누르면 비트코인이 상대방에게 넘어갑니다.
             </p>
+          ) : (
+            <>
+              <p style={styles.okText}>
+                <strong>{check.amountSat.toLocaleString()} sats</strong>가 아래 주소로 갑니다
+                (네트워크 수수료 {check.feeSat.toLocaleString()} sats).
+              </p>
+              <code style={styles.addr}>{check.destination}</code>
+            </>
           )}
 
           {stale && (
@@ -582,7 +586,7 @@ function SignPanel({ order, role, request }: {
             disabled={busy || (stale && !override)}
             onClick={() => void sign()}
           >
-            {busy ? '서명 중…' : '서명하고 보내기'}
+            {busy ? '보내는 중…' : isRelease ? '원화 입금을 확인했어요' : '서명하고 보내기'}
           </button>
         </>
       )}
@@ -611,18 +615,12 @@ function DisputeButton({ order, role, now }: {
   const remittedDispute = order.state === 'remitted';
 
   if (order.state === 'presigned' && role === 'sponsor' && order.accountDisputedAt) {
-    return <p style={styles.warnText}>계좌 이의를 냈습니다. 채팅에 증거를 올려주세요 — 마감 시계는 멈추지 않습니다.</p>;
+    return <p style={styles.warnText}>계좌 이의를 냈습니다. 채팅에 증거(이체 거절 화면 등)를 올려주세요.</p>;
   }
   if (!accountIssue && !remittedDispute) return null;
 
   return (
     <div style={styles.section}>
-      {accountIssue && (
-        <p style={styles.warnText}>
-          계좌를 쓸 수 없다면 알려주세요. <strong>다만 송금 마감 시계는 멈추지 않습니다</strong> —
-          운영자가 확인할 수 있는 증거(이체 거절 화면 등)가 있으면 보증금을 돌려받습니다.
-        </p>
-      )}
       <button
         style={styles.ghost}
         disabled={busy}
@@ -632,7 +630,7 @@ function DisputeButton({ order, role, now }: {
             .finally(() => setBusy(false));
         }}
       >
-        {accountIssue ? '계좌를 쓸 수 없습니다' : '문제가 있습니다 (분쟁)'}
+        {accountIssue ? '계좌에 문제가 있어요' : '문제가 있습니다 (분쟁)'}
       </button>
     </div>
   );

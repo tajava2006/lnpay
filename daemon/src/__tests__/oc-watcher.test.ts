@@ -99,7 +99,7 @@ describe('reorg — 가격 고정을 실제로 지운다 (O-008)', () => {
     await claimOc(h, orderId);
     await fundOc(h, orderId);
     await presignOc(h, orderId);
-    h.advance(2 * 60 * 60); // 원래 펀딩 마감은 4시간 남짓 남았다
+    h.advance(90 * 60); // 원래 펀딩 마감은 30분 남짓 남았다 — 리오그는 새로 2시간을 준다
     h.chain.confirm(FUND_TXID, 0); // 멤풀로 내려갔다
     await h.run();
     const o = h.row(orderId)!.order;

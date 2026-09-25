@@ -14,33 +14,39 @@
  *
  * 그래서 "당신 차례입니다"뿐 아니라 **마감 임박 경고**도 보낸다(§7.5의 유예 경고).
  *
+ * 문구는 **상대방**으로 적는다 — 고객·후원자는 쿠팡 대리구매 시절 이름이라 온체인에서 안 읽힌다
+ * (2026-09-25). 창 길이는 `timing.ts` 상수에서 만든다 — 숫자를 박아 두면 창을 바꿀 때 따로 논다.
+ *
  * ── 표를 `Record<OnchainState, …>`로 못박은 이유
  *
  * 라이트닝에서 `invoiced`를 추가했을 때 이 표를 빠뜨려서, 거래가 실제로 멈추는
  * 단계에 알림이 없었다(2026-09-19). 상태를 추가하면 **빌드가 깨지게** 한다.
  * 알림이 필요 없는 상태는 `null`을 **명시**한다 — 빠뜨린 것과 구분된다.
  */
-import type { OnchainState } from '@sajwo-tracker/shared/onchain';
+import {
+  ACCOUNT_WINDOW_SEC, FUNDING_WINDOW_SEC, KRW_WINDOW_SEC, PRESIGN_WINDOW_SEC, durationText, type OnchainState,
+} from '@sajwo-tracker/shared/onchain';
 import type { Notice } from '../ln/notify-messages';
 
 export const ONCHAIN_NOTIFY = {
   // ── 고객 차례 ──
 
-  /** 후원자 보증금이 잡혔다 = 클레임 성립. 고객이 6시간 안에 펀딩해야 한다. */
+  /** 후원자 보증금이 잡혔다 = 클레임 성립. 고객이 `FUNDING_WINDOW_SEC` 안에 펀딩해야 한다. */
   customerShouldFund: (): Notice => ({
-    body: '후원자가 확정되었습니다. 6시간 안에 에스크로 주소로 보내고 컨펌까지 마쳐주세요. 늦으면 보증금을 잃습니다.',
+    body: `사는 사람이 정해졌습니다. ${durationText(FUNDING_WINDOW_SEC)} 안에 에스크로 주소로 보내고 컨펌까지 `
+      + '마쳐주세요. 늦으면 보증금이 몰수됩니다.',
     tab: 'history', track: 'onchain',
   }),
 
-  /** 후원자 사전서명이 검증됐다. 고객이 15분 안에 계좌를 공개해야 한다. */
+  /** 후원자 사전서명이 검증됐다. 고객이 `ACCOUNT_WINDOW_SEC` 안에 계좌를 공개해야 한다. */
   customerShouldSendAccount: (): Notice => ({
-    body: '후원자가 서명을 마쳤습니다. 15분 안에 입금받을 계좌 정보를 보내주세요.',
+    body: `상대방이 서명을 마쳤습니다. ${durationText(ACCOUNT_WINDOW_SEC)} 안에 입금받을 계좌 정보를 보내주세요.`,
     tab: 'history', track: 'onchain',
   }),
 
   /** 후원자가 송금을 주장했다. **가장 급한 알림** — 상대는 이미 돈을 보내놓고 기다린다. */
   customerShouldConfirm: (): Notice => ({
-    body: '후원자가 원화를 보냈다고 알려왔습니다. 입금을 확인하고 서명해 주세요.',
+    body: '상대방이 원화를 보냈다고 알려왔습니다. 입금을 확인해 주세요.',
     tab: 'history', track: 'onchain',
   }),
 
@@ -49,7 +55,7 @@ export const ONCHAIN_NOTIFY = {
    * 그러면 어드민이 안 불려 나온다.
    */
   customerDisputeSoon: (): Notice => ({
-    body: '곧 분쟁으로 넘어갑니다. 입금을 확인하고 서명해 주세요.',
+    body: '곧 분쟁으로 넘어갑니다. 입금을 확인해 주세요.',
     tab: 'history', track: 'onchain',
   }),
 
@@ -90,13 +96,13 @@ export const ONCHAIN_NOTIFY = {
    * 15분은 고민할 시간이 아니라 앱이 깨어나는 시간이다.
    */
   sponsorShouldPresign: (): Notice => ({
-    body: '펀딩이 확인되어 금액이 확정됐습니다. 앱을 열어 15분 안에 서명을 마쳐주세요.',
+    body: `입금이 확인되어 금액이 확정됐습니다. 앱을 열어 ${durationText(PRESIGN_WINDOW_SEC)} 안에 서명을 마쳐주세요.`,
     tab: 'history', track: 'onchain',
   }),
 
   /** 계좌가 도착했다. 여기서부터 30분 (O-013 — 고객 지연이 이 창을 깎지 않는다). */
   sponsorShouldRemit: (): Notice => ({
-    body: '계좌 정보가 도착했습니다. 30분 안에 원화를 보내고 송금 완료를 눌러주세요.',
+    body: `계좌 정보가 도착했습니다. ${durationText(KRW_WINDOW_SEC)} 안에 원화를 보내고 송금 완료를 눌러주세요.`,
     tab: 'history', track: 'onchain',
   }),
 

@@ -58,7 +58,7 @@ export async function buildPresignature(order: OnchainOrder): Promise<BuildResul
 
   const descriptor = descriptorOf(order);
   const outpoint = parseOutpoint(order.fundingOutpoint);
-  if (!descriptor || !outpoint) return { ok: false, reason: '아직 펀딩이 확정되지 않았다' };
+  if (!descriptor || !outpoint) return { ok: false, reason: '아직 입금이 확정되지 않았다' };
   if (order.releaseFeeSat === undefined) return { ok: false, reason: '릴리스 수수료가 없다' };
 
   // 어드민이 고정한 수수료가 **내가 낸 feerate에서 나온 값**인지 본다.
@@ -217,7 +217,7 @@ export function timelockStatus(
     return { safeToRemit: false, reason: '타임락 값을 아직 모른다' };
   }
   if (fundingConfirmations === undefined) {
-    return { safeToRemit: false, reason: '펀딩 컨펌 수를 확인하지 못했다' };
+    return { safeToRemit: false, reason: '입금 컨펌 수를 확인하지 못했다' };
   }
 
   const remainingBlocks = Math.max(0, total - fundingConfirmations);
@@ -225,12 +225,12 @@ export function timelockStatus(
     return {
       remainingBlocks,
       safeToRemit: false,
-      reason: `타임락 잔여가 ${remainingBlocks}블록뿐입니다. 지금 보내면 고객이 혼자 회수할 수 있습니다.`,
+      reason: `타임락이 ${remainingBlocks}블록밖에 안 남았습니다. 지금 보내면 상대방이 혼자 회수할 수 있어 위험합니다 — 보내지 마세요.`,
     };
   }
   return {
     remainingBlocks,
     safeToRemit: true,
-    reason: `타임락 잔여 ${remainingBlocks}블록 — 보호 창이 열려 있습니다.`,
+    reason: '타임락 여유 충분',
   };
 }

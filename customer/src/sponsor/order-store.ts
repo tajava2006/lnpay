@@ -8,8 +8,7 @@
  *   Nostr 구독 서비스 → order-store (upsert) → localStorage + listeners
  *   OrderBook → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
-import type { Order } from '@sajwo-tracker/shared';
-import { nowSec } from '@sajwo-tracker/shared';
+import { nowSec, type Order } from '@sajwo-tracker/shared';
 
 type OrderMap = Record<string, Order>;
 type Listener = () => void;

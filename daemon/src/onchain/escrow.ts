@@ -4,8 +4,7 @@
  * 사유·수수료·받는 주소가 오더(+meta)에 있으므로 언제 만들어도 한 바이트까지 같은 tx가 나온다.
  * 상대가 보낸 PSBT는 **서명 바이트를 꺼내는 데만** 쓴다 — 받은 PSBT를 그대로 완성하지 않는다.
  *
- * 어드민 키는 주문마다 시드에서 파생한다(DM-005). 프론트 시절의 키 저장소·릴레이 백업·"백업이 확인돼야
- * 주소를 낸다"(공격 M)가 통째로 사라졌다 — 시드만 있으면 언제든 같은 키가 나온다.
+ * 어드민 키는 주문마다 시드에서 파생한다(DM-005) — 시드만 있으면 언제든 같은 키가 나온다.
  */
 import {
   deriveEscrowAddress, deriveSingleKeyAddress, parseOutpoint, settlementFeeSat, settlementPathForKind,

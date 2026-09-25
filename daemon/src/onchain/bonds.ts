@@ -37,6 +37,7 @@ import { notifyOcTransition } from './notify';
 import {
   candidatesOf, deleteCandidate, getCandidate, getOc, insertOc, requestOcDetail, updateOc, type OcCandidate,
 } from './store';
+import { COMPENSATION_SHARE } from './deposit';
 
 export const OC_BOND_PURPOSES = ['oc-customer-bond', 'oc-sponsor-bond'] as const satisfies readonly HoldPurpose[];
 
@@ -53,7 +54,7 @@ export function applyOutcome(ctx: OcContext, order: OnchainOrder, outcome: Oncha
   if (use) {
     raiseAlert(ctx, {
       dedup: `oc:${order.orderId}:forfeit:${outcome}`, level: 'warn', track: 'onchain', orderId: order.orderId,
-      message: `보증금 몰수(${OUTCOME_RULES[outcome].label}) — ${use === 'arbitration-fee' ? '중재료' : '50% 피해자 충당(재량)'} 처리가 필요하다`,
+      message: `보증금 몰수(${OUTCOME_RULES[outcome].label}) — ${use === 'arbitration-fee' ? '중재료' : `${COMPENSATION_SHARE * 100}% 피해자 충당(재량)`} 처리가 필요하다`,
     });
   }
 }

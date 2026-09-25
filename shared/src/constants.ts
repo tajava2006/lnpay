@@ -100,7 +100,6 @@ export const REQUEST_ACTIONS = {
 
   // ── 온체인 트랙 ──
   // 라이트닝과 같은 kind·같은 배관을 쓰고 action 값만 다르다.
-  // ⚠️ 액션을 추가하면 `parse-request.test.ts`의 전수 census가 먼저 깨진다. 그게 정상이다.
   /** 고객 → Admin: 온체인 의뢰 등록 */
   ONCHAIN_ORDER_REQUEST: 'onchain-order-request',
   /** 후원자 → Admin: 클레임 (받을 주소·feerate는 암호문) */

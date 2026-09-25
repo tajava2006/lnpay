@@ -49,6 +49,12 @@ export const LN_MIN_CLAIM_LEAD_SEC = 60 * 60;
  */
 export const LN_MAX_DEADLINE_LEAD_SEC = 7 * 24 * 60 * 60;
 
+/**
+ * 후원자가 낼 지급 인보이스의 최소 잔여 수명 — 원화 송금과 입금 확인이 그 안에 들어가야 한다.
+ * 데몬이 거절하고, 유저 앱은 입력 폼에서 미리 거른다(같은 값이어야 한다).
+ */
+export const LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC = 6 * 60 * 60;
+
 /** 오더북에서 클레임할 수 있는 의뢰인가 */
 export function isClaimableLn(order: Pick<Order, 'state' | 'expiration'>, nowSec: number): boolean {
   return order.state === 'requested' && order.expiration - nowSec >= LN_MIN_CLAIM_LEAD_SEC;

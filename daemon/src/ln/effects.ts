@@ -14,7 +14,7 @@ import {
   ADMIN_STATE_KIND, SAJWO_REQUEST_KIND, adminOrderDTag, nip44Encrypt,
   type AdminLnInvoice, type AdminLnOrderDetail,
 } from '@sajwo-tracker/shared/core';
-import { CLOSE_RULES, lnOrderTags, lnRetention, type LnCloseReason } from '@sajwo-tracker/shared/ln';
+import { CLOSE_RULES, isPayoutAmountExact, lnOrderTags, lnRetention, type LnCloseReason } from '@sajwo-tracker/shared/ln';
 import { nowSec } from '../admin/context';
 import { loadSettings } from '../admin/settings';
 import type { EffectExecutor } from '../effects';
@@ -112,7 +112,9 @@ export function createPayoutExecutor(ctx: LnContext): EffectExecutor<OrderPayloa
       const info = readBolt11(order.sponsor_invoice);
       if (!info) return { status: 'dead', error: '지급처 인보이스를 읽을 수 없다' };
       // 제출 때 봤지만 한 번 더 — 틀린 금액으로 나가면 되돌릴 수 없다
-      if (info.amountSat !== order.payout_sat) return { status: 'dead', error: `금액 불일치 ${info.amountSat} ≠ ${order.payout_sat}` };
+      if (!isPayoutAmountExact(order.payout_sat, info.amountSat)) {
+        return { status: 'dead', error: `금액 불일치 ${info.amountSat} ≠ ${order.payout_sat}` };
+      }
 
       const tracked = await ctx.node.trackPayment(info.paymentHash);
       if (tracked === 'succeeded') return { status: 'done', result: { outcome: 'paid' } };

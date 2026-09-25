@@ -4,28 +4,16 @@
  * - claim: kind 1111로 클레임 요청을 발행한다.
  * - remit-request: 원화 송금 완료 통보를 발행한다.
  */
-import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
+import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import {
-  SAJWO_REQUEST_EVENT_KIND,
-  SAJWO_REQUEST_KIND,
-  CLIENT_TAG,
-  APP_PUBKEY,
-  REQUEST_ACTIONS,
-  getSecretKey,
-  getReadRelays,
-  nip44Encrypt,
-  type Order,
-  type DisputeMessagePayload,
-  storage,
-  idbMigrateOrderWithRequests,
-  idbGetRequestsByOrderId,
-  type ClaimRequest,
-  type AccountInfoRequest,
-  type PreparedChatMessage, nowSec,
+  SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, CLIENT_TAG, APP_PUBKEY, REQUEST_ACTIONS, getSecretKey, getReadRelays,
+  type Order, type DisputeMessagePayload, storage, idbMigrateOrderWithRequests, idbGetRequestsByOrderId,
+  type ClaimRequest, type AccountInfoRequest, nowSec,
 } from '@sajwo-tracker/shared';
 import { lnRequestExpiration } from '@sajwo-tracker/shared/ln';
 import type { EventTemplate } from 'nostr-tools/core';
+import { prepareDisputeMessage } from '../../nostr/dispute-message';
 
 /**
  * 특정 오더에 대해 클레임 이벤트를 발행한다.
@@ -161,61 +149,12 @@ export async function publishRemitRequest(order: Order): Promise<boolean> {
   }
 }
 
-/**
- * 분쟁 채팅 메시지를 서명까지만 끝낸다. 발행은 호출부가 돌린다.
- * 서명을 먼저 해야 발행 전에 eventId가 확정되어 낙관적 렌더링이 중복을 안 만든다
- * (shared/chat-send 참조).
- */
-export async function prepareDisputeMessage(
-  order: Order,
-  payload: DisputeMessagePayload,
-): Promise<PreparedChatMessage> {
-  const sk = await getSecretKey(storage);
-  const myPubkey = getPublicKey(sk);
-  const encrypted = nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY);
-  const createdAt = nowSec();
-
-  const signed = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: createdAt,
-    tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
-      ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
-      ['p', APP_PUBKEY],
-      ['p', myPubkey],
-      ['t', CLIENT_TAG],
-    ],
-    content: encrypted,
-  }, sk);
-
-  return {
-    message: {
-      eventId: signed.id,
-      orderId: order.orderId,
-      senderPubkey: myPubkey,
-      recipientPubkey: APP_PUBKEY,
-      payload,
-      createdAt,
-    },
-    publish: async () => {
-      const relays = await getReadRelays(storage);
-      const pool = new SimplePool();
-      try {
-        const results = await Promise.allSettled(pool.publish(relays, signed));
-        return results.some(r => r.status === 'fulfilled');
-      } finally {
-        pool.destroy();
-      }
-    },
-  };
-}
-
 /** 계좌 공개 등 발행 결과만 필요한 곳을 위한 래퍼. */
 export async function publishDisputeMessage(
   order: Order,
   payload: DisputeMessagePayload,
 ): Promise<boolean> {
-  const prepared = await prepareDisputeMessage(order, payload);
+  const prepared = await prepareDisputeMessage(order.orderId, payload, CLIENT_TAG);
   return prepared.publish();
 }
 

@@ -8,7 +8,8 @@ export {
 export { CLOSE_RULES, LN_CLOSE_REASON_LABEL, expiryReasonFor, isLnCloseReason } from './outcomes';
 export type { CloseRule, Disposition, LnCloseReason } from './outcomes';
 export {
-  LN_ACTIVE_RETENTION_SEC, LN_MAX_DEADLINE_LEAD_SEC, LN_MIN_CLAIM_LEAD_SEC, LN_REQUEST_RETENTION_SEC,
+  LN_ACTIVE_RETENTION_SEC, LN_MAX_DEADLINE_LEAD_SEC, LN_MIN_CLAIM_LEAD_SEC, LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC,
+  LN_REQUEST_RETENTION_SEC,
   LN_TERMINAL_RETENTION_SEC, isClaimableLn, lnOrderTags, lnRequestExpiration, lnRetention, parseLnOrderEvent,
 } from './order';
 export type { LnOrderFields } from './order';

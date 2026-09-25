@@ -10,7 +10,7 @@
 import {
   REQUEST_ACTIONS, extractOrderId, isTerminalState, nip44Decrypt,
 } from '@sajwo-tracker/shared/core';
-import { canTransition } from '@sajwo-tracker/shared/ln';
+import { canTransition, isPayoutAmountExact } from '@sajwo-tracker/shared/ln';
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import { loadSettings } from '../admin/settings';
@@ -131,8 +131,8 @@ const sponsorInvoice: OrderHandler = (ctx, event, order) => {
   if (!info) return reject('DECODE_FAILED');
   // 우리 인보이스(에스크로·보증금)를 지급처로 내밀면 우리 돈으로 우리 홀드를 채우게 된다
   if (ctx.holds.isOurs(info.paymentHash)) return ignored('our-invoice');
-  // 범위가 아니라 **정확 일치** — 금액을 정한 게 우리다
-  if (info.amountSat !== payout) return reject('AMOUNT_MISMATCH');
+  // 범위가 아니라 **정확 일치**(I-011) — 금액을 정한 게 우리다
+  if (!isPayoutAmountExact(order.payout_sat ?? undefined, info.amountSat)) return reject('AMOUNT_MISMATCH');
   const now = nowSec(ctx);
   const minLife = payoutPending ? MIN_REPLACEMENT_LIFETIME_SEC : MIN_SPONSOR_INVOICE_LIFETIME_SEC;
   if (info.expiresAt - now < minLife) return reject('EXPIRES_TOO_SOON');

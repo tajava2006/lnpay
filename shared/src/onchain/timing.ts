@@ -1,16 +1,16 @@
 /**
- * 온체인 트랙의 마감 시계
+ * 온체인 트랙의 마감 시계 — 값·부등식은 docs/ONCHAIN-TRACK.md §6, 관계는 `timing-invariants.test.ts`
  *
- * **마감 없는 상태는 없다**(O-009). 예외는 `disputed` 하나뿐이고, 그건 자동
- * 해소가 어느 방향이든 탈취라서다.
+ * **마감 없는 상태는 없다**(O-009). 예외는 머물러서 아무도 이득을 못 보는 둘뿐이다 — `disputed`(자동 해소가
+ * 어느 방향이든 탈취다)와 `refunding`(고객 자기 돈이고 보증금은 결정 때 처리됐다).
  *
  * ```
  * listed ──의뢰 만료(최대 7일)──→ cancelled
- * bonded ──2시간(컨펌까지)──────→ cancelled + 고객 몰수
- * funded ──15분──────────────────→ refund:sponsor-timeout
- *            └ presigned ──1시간(계좌 공개)──→ refund:customer-late
- *                          └ 계좌공개+30분──→ refund:sponsor-timeout
- * remitted ──24시간──────────────→ disputed (고객 동의 불필요)
+ * bonded ──펀딩 창(컨펌까지)────→ cancelled + 고객 몰수
+ * funded ──사전서명 창───────────→ refund:sponsor-timeout
+ *            └ presigned ──계좌 창──→ refund:customer-late
+ *                          └ 계좌 공개 + 송금 창──→ refund:sponsor-timeout
+ * remitted ──확인 창────────────→ disputed (고객 동의 불필요)
  * settling ──24시간──────────────→ 경고 + CPFP 안내
  * ```
  *
@@ -24,6 +24,9 @@
  * **총 창을 늘릴 수 있다** — 그래서 각 마감을 자기가 통제 못 하는 지점에 앵커한다.
  */
 import { PRICE_VALIDITY_MS } from './state-machine';
+import { durationText } from '../time';
+
+export { durationText };
 
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
@@ -51,10 +54,10 @@ export const PRESIGN_WINDOW_SEC = 15 * MINUTE;
  * 알림을 받고 앱을 열어 은행·계좌번호·예금주를 입력해야 한다 — 15분은 급했다.
  *
  * ⚠️ **대가가 있다 — 가격은 T0에 고정됐다.** 이 창 동안 시세가 오르면 고객은 계좌를 안 내고 빠지는 게
- * 이득일 수 있다(대가: 고객 보증금 1% + 온체인 수수료 2회). 피해자(후원자)는 원화를 아직 안 보냈으니 잃는
- * 건 시간뿐이다. 그리고 고객이 늦게 낼수록 후원자의 송금 마감(계좌 공개 +30분)이 뒤로 밀려 **후원자의 옵션
- * 창이 최대 105분으로 늘어난다** — 후원자 보증금 3%는 60분 꼬리로 잡은 값이다. 다만 그 연장은 고객이
- * 늦을 때만 생기고, 후원자가 그 창으로 빠지면 수수료를 잃는 것도 늦은 그 고객이다.
+ * 이득일 수 있다(대가: 고객 보증금 + 온체인 수수료 2회). 피해자(후원자)는 원화를 아직 안 보냈으니 잃는
+ * 건 시간뿐이다. 고객이 늦게 낼수록 후원자의 송금 마감(계좌 공개 + 송금 창)도 뒤로 밀려 옵션 창이 최대
+ * `MAX_OPTION_WINDOW_SEC`까지 늘어나는데, 그 연장은 고객이 늦을 때만 생긴다. 보증금이 이 창의 시세 변동까지
+ * 덮는지는 따지지 않기로 했다(운영 결정).
  */
 export const ACCOUNT_WINDOW_SEC = 1 * HOUR;
 
@@ -121,8 +124,7 @@ export const ONCHAIN_WINDOWS = {
 export type OnchainWindows = Record<keyof typeof ONCHAIN_WINDOWS, number>;
 
 /**
- * 총 옵션 창의 상한(지금 15+60+30 = 105분). 앞 두 마감이 T0에 묶여 있어 **합이 이걸 못 넘는다.**
- * 보증금은 이 구간의 변동폭을 덮어야 한다 — 계좌 창을 늘리며 60분에서 늘었다(`ACCOUNT_WINDOW_SEC`).
+ * 총 옵션 창의 상한(지금 15 + 60 + 30 = 105분). 앞 두 마감이 T0에 묶여 있어 **합이 이걸 못 넘는다.**
  */
 export const MAX_OPTION_WINDOW_SEC = PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + KRW_WINDOW_SEC;
 
@@ -130,14 +132,14 @@ export const MAX_OPTION_WINDOW_SEC = PRESIGN_WINDOW_SEC + ACCOUNT_WINDOW_SEC + K
  * **클레임이 성립한 뒤 마지막 몰수 결정까지의 최악 소요.**
  *
  * ```
- * bonded 2h + 옵션 창 105m + cosign 24h + 판정 예산 24h ≈ 52시간
+ * 펀딩 창 2h + 옵션 창 105m + 확인 창 24h + 판정 예산 24h = 49시간 45분
  * ```
  *
  * ⚠️ **보증금 HTLC가 이 구간을 덮어야 한다.** 안 덮으면 거래 도중에 보증금이
  * LN 만료로 환불되고, 그 순간 **몰수라는 억제 장치가 통째로 사라진다.**
  * 의뢰 만료(최대 7일)만 보고 CLTV를 잡으면 **막바지에 클레임된 주문이 정확히
  * 그 상태가 된다** — 만료 1시간 전에 클레임하면 보증금은 하루 남짓 사는데
- * 거래는 52시간이 걸릴 수 있다.
+ * 거래는 이만큼 걸릴 수 있다.
  *
  * 몰수는 **결정 시점**에 집행되므로 종결 tx 컨펌 대기(`settling`)는
  * 여기 안 들어간다. 그 자리를 분쟁 판정 예산이 대신한다.
@@ -242,17 +244,6 @@ export interface OnchainDeadline {
 /** 마감을 보는 사람. 없으면 운영자(어드민) — 역할 이름(고객·후원자)으로 적는다 */
 export type DeadlineViewer = 'customer' | 'sponsor';
 
-/**
- * 창 길이를 문구로 — "2시간", "1시간", "15분", "1시간 30분". 문구에 숫자를 박아 두면 창을 바꿀 때 따로
- * 논다(6시간·15분이 앱·진행도·푸시 여섯 군데에 박혀 있었다, 2026-09-25).
- */
-export function durationText(sec: number): string {
-  const h = Math.floor(sec / HOUR);
-  const m = Math.round((sec % HOUR) / MINUTE);
-  if (h > 0 && m > 0) return `${h}시간 ${m}분`;
-  return h > 0 ? `${h}시간` : `${m}분`;
-}
-
 type DeadlineKind = 'funding' | 'presign' | 'account' | 'krw' | 'cosign';
 
 /**
@@ -311,8 +302,8 @@ function deadline(kind: DeadlineKind, at: number, viewer: DeadlineViewer | undef
  * 화면이 "몇 분 남았는지"를 보여주려면 어느 시계가 도는지 한 곳에서 알아야 한다.
  * 상태마다 시계가 다르고, `presigned`는 **한 상태 안에서 주인이 바뀐다**(O-013).
  *
- * `null`이면 마감이 없는 구간이다 — `disputed`(자동 해소가 어느 방향이든 탈취라서,
- * §7.5)와 `refunding`(고객 자기 돈이고 보증금은 결정 때 이미 처리됐다).
+ * `null`이면 마감이 없는 구간이다 — `disputed`(자동 해소가 어느 방향이든 탈취라서)와 `refunding`(고객 자기
+ * 돈이고 보증금은 결정 때 이미 처리됐다).
  */
 export function currentOnchainDeadline(
   order: {

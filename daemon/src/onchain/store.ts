@@ -3,7 +3,6 @@
  *
  * 오더는 shared `OnchainOrder`를 그대로 JSON으로 둔다 — 필드가 많고 공개 이벤트 코덱(`onchainOrderTags`)이
  * 그 타입을 먹는다. 공개하지 않는 값(후원자의 받을 주소, 사전서명, 환불 주소, outbox, 구조 기록)은 `meta`다.
- * 프론트 시절 사이드 스토어 다섯 개(escrow-meta·pending-deposit·rescue·sign-request-log·alert)가 여기로 모였다.
  *
  * **오더를 바꾸는 길은 `updateOc` 하나다.** 전이를 FSM으로 확인하고, 버전을 올리고(DM-006), 공개 발행과
  * 운영자 상세를 같이 쌓는다.

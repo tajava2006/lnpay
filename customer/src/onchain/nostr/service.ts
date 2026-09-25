@@ -15,11 +15,10 @@
  */
 import type { Event } from 'nostr-tools/core';
 import {
-  APP_PUBKEY, CLIENT_TAG_ONCHAIN, NOSTR_SINCE, SAJWO_REQUEST_EVENT_KIND,
-  SAJWO_REQUEST_KIND, createSubscriptionPool, createSubscriptionGuard,
-  getReadRelays, getSecretKey, getUserPubkey, nip44Decrypt, storage,
+  APP_PUBKEY, CLIENT_TAG_ONCHAIN, createSubscriptionGuard, createSubscriptionPool, getReadRelays, getSecretKey,
+  getUserPubkey, nip44Decrypt, NOSTR_SINCE, parseAccountInfoEnvelope, SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND,
+  storage,
 } from '@sajwo-tracker/shared';
-import { parseAccountInfoEnvelope } from '@sajwo-tracker/shared';
 import {
   bytesToHex, fromPsbtBase64, isOnchainPsbtPayload, isOnchainTerminal, parseOnchainOrder,
   type OnchainOrder,

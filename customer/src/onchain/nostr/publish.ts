@@ -6,14 +6,13 @@
  * ⚠️ **PSBT와 받을 주소는 암호문으로 나간다.** kind 1111은 공개 이벤트이고,
  * PSBT 안에는 후원자의 실제 지갑 주소가 들어 있다.
  */
-import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
+import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
-  APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
-  SAJWO_REQUEST_KIND, computeAccountCommitment, generateCommitmentSalt, getReadRelays,
-  getSecretKey, nip44Encrypt, storage,
-  type AccountInfo, type DisputeMessagePayload, type PreparedChatMessage, nowSec,
+  APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND,
+  computeAccountCommitment, generateCommitmentSalt, getReadRelays, getSecretKey, nip44Encrypt, storage,
+  type AccountInfo, nowSec,
 } from '@sajwo-tracker/shared';
 import { onchainMessageExpiration, type SignPurpose } from '@sajwo-tracker/shared/onchain';
 
@@ -208,52 +207,4 @@ export async function publishOnchainAccountInfo(
     ],
     content: nip44Encrypt(JSON.stringify({ accountInfo: account, salt }), sk, sponsorPubkey),
   });
-}
-
-/**
- * 온체인 분쟁 채팅 메시지 (고객·후원자 → 어드민). 서명까지만, 발행은 shared/chat-send가.
- *
- * 전에는 온체인 주문에 채팅이 아예 없었다 — 알림은 "증거를 채팅에 올려주세요"라고
- * 보냈는데. 분쟁 증거는 보존해야 하므로 `expiration`을 달지 않는다.
- */
-export async function prepareOnchainDisputeMessage(
-  orderId: string,
-  payload: DisputeMessagePayload,
-): Promise<PreparedChatMessage> {
-  const sk = await getSecretKey(storage);
-  const myPubkey = getPublicKey(sk);
-  const createdAt = nowSec();
-  const signed = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: createdAt,
-    tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
-      ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
-      ['t', CLIENT_TAG_ONCHAIN],
-      ['p', APP_PUBKEY],
-      ['p', myPubkey],
-    ],
-    content: nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY),
-  }, sk);
-
-  return {
-    message: {
-      eventId: signed.id,
-      orderId,
-      senderPubkey: myPubkey,
-      recipientPubkey: APP_PUBKEY,
-      payload,
-      createdAt,
-    },
-    publish: async () => {
-      const relays = await getReadRelays(storage);
-      const pool = new SimplePool();
-      try {
-        const results = await Promise.allSettled(pool.publish(relays, signed));
-        return results.some(r => r.status === 'fulfilled');
-      } finally {
-        pool.destroy();
-      }
-    },
-  };
 }

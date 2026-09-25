@@ -1,8 +1,5 @@
 /**
- * 반응형 클레임 가격 에러 스토어
- *
- * Admin이 클레임 가격 범위 초과로 거부했을 때 수신한 에러를 보관하고,
- * useSyncExternalStore로 OrderCard UI에 자동 전파한다.
+ * 후원자 인보이스 거절·경고 스토어 — 데몬이 보낸 `claim-price-error`(이름은 옛것)를 보관해 카드에 띄운다.
  * 영구 저장 불필요 (세션 알림 목적).
  */
 import { nowSec } from '@sajwo-tracker/shared';

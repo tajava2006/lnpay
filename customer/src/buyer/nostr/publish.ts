@@ -7,25 +7,12 @@
  * - cancel-request: 주문 취소 요청
  * - account-info: 계좌정보 전달 (NIP-44 암호화)
  */
-import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
+import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
-  SAJWO_REQUEST_KIND,
-  SAJWO_REQUEST_EVENT_KIND,
-  APP_PUBKEY,
-  CLIENT_TAG,
-  REQUEST_ACTIONS,
-  getSecretKey,
-  getReadRelays,
-  nip44Encrypt,
-  generateCommitmentSalt,
-  computeAccountCommitment,
-  type RequestAction,
-  type AccountInfo,
-  type AccountInfoEnvelope,
-  type DisputeMessagePayload,
-  type PreparedChatMessage,
+  SAJWO_REQUEST_KIND, SAJWO_REQUEST_EVENT_KIND, APP_PUBKEY, CLIENT_TAG, getSecretKey, getReadRelays, nip44Encrypt,
+  generateCommitmentSalt, computeAccountCommitment, type RequestAction, type AccountInfo, type AccountInfoEnvelope,
   storage, nowSec,
 } from '@sajwo-tracker/shared';
 import { lnRequestExpiration } from '@sajwo-tracker/shared/ln';
@@ -182,57 +169,3 @@ export async function publishAccountInfo(
  * 수신자는 항상 APP_PUBKEY (Admin).
  * dispute-message는 증거 보존 목적으로 expiration 없음.
  */
-/**
- * 분쟁 채팅 메시지를 서명까지만 끝내고, 발행은 호출부가 돌리게 한다.
- *
- * 서명을 먼저 하는 이유는 **발행 전에 진짜 eventId를 확보하기 위해서**다.
- * 그 id로 스토어에 낙관적으로 넣어두면 릴레이 에코가 도착해도 중복 제거된다
- * (shared/chat-send 참조). 수신자는 항상 APP_PUBKEY(Admin).
- * dispute-message는 증거 보존 목적으로 expiration 없음.
- */
-export async function prepareDisputeMessage(
-  order: Pick<CustomerOrder, 'orderId'>,
-  payload: DisputeMessagePayload,
-): Promise<PreparedChatMessage> {
-  const sk = await getSecretKey(storage);
-  const myPubkey = getPublicKey(sk);
-  const encrypted = nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY);
-  const createdAt = nowSec();
-
-  const signed = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
-    created_at: createdAt,
-    tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
-      ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
-      ['t', CLIENT_TAG],
-      ['p', APP_PUBKEY],
-      ['p', myPubkey],
-    ],
-    content: encrypted,
-  }, sk);
-
-  return {
-    message: {
-      eventId: signed.id,
-      orderId: order.orderId,
-      senderPubkey: myPubkey,
-      recipientPubkey: APP_PUBKEY,
-      payload,
-      createdAt,
-    },
-    publish: () => publishSigned(signed),
-  };
-}
-
-/** 서명된 이벤트를 읽기 릴레이에 발행한다. 한 곳이라도 성공하면 true. */
-async function publishSigned(signed: ReturnType<typeof finalizeEvent>): Promise<boolean> {
-  const relays = await getReadRelays(storage);
-  const pool = new SimplePool();
-  try {
-    const results = await Promise.allSettled(pool.publish(relays, signed));
-    return results.some(r => r.status === 'fulfilled');
-  } finally {
-    pool.destroy();
-  }
-}

@@ -6,8 +6,7 @@
  * 의뢰를 탭마다 다른 버튼으로 보게 됐다.
  */
 import { useState } from 'react';
-import { lnOrderDisplay, remainingText, sponsorRelation } from '@sajwo-tracker/shared';
-import type { Order } from '@sajwo-tracker/shared';
+import { lnOrderDisplay, remainingText, sponsorRelation, type Order } from '@sajwo-tracker/shared';
 import { publishClaim } from '../nostr/claim';
 import { ui } from '../../ui';
 

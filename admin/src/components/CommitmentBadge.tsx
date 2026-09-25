@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { verifyAccountCommitment } from '@sajwo-tracker/shared';
-import type { AccountInfo } from '@sajwo-tracker/shared';
+import { verifyAccountCommitment, type AccountInfo } from '@sajwo-tracker/shared';
 
 interface Props {
   accountInfo: AccountInfo;

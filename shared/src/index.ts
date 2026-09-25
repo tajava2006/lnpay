@@ -75,7 +75,7 @@ export { ChatWindow } from './components/ChatWindow';
 export { InvoicePayBlock } from './components/InvoicePayBlock';
 export { OrderProgress } from './components/OrderProgress';
 export { useNow } from './components/useNow';
-export { nowSec, remainingText, dateTimeText } from './time';
+export { nowSec, remainingText, dateTimeText, durationText } from './time';
 export { BUTTON, STEP_TEXT } from './copy';
 
 // 거래 진행도 (고객·후원자 공용 단계 모델)

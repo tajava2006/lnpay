@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  KeyInit, BtcPrice, createPriceTracker, getUserPubkey, subscribeRelayLists, storage,
+  BtcPrice, createPriceTracker, KeyInit, storage, subscribeRelayLists, type PriceTracker,
 } from '@sajwo-tracker/shared';
-import type { PriceTracker } from '@sajwo-tracker/shared';
+import { useMyPubkey } from './hooks';
 import { startSubscriptions, stopSubscriptions } from './nostr/service';
 import { Dashboard } from './buyer/components/Dashboard';
 import { startCleanup as startBuyerCleanup, stopCleanup as stopBuyerCleanup } from './buyer/order-store';
@@ -65,7 +65,8 @@ function AppContent() {
   const [track, setTrack] = useState<Track>(readTrackFromUrl);
   const [tab, setTab] = useState<Tab>(readTabFromUrl);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(readOrderFromUrl);
-  const [myPubkey, setMyPubkey] = useState<string | null>(null);
+  // 내 pubkey — 온체인 카드의 역할 판정에 쓴다. 로딩 전엔 null
+  const myPubkey = useMyPubkey();
   const [notifyOpen, setNotifyOpen] = useState(false);
 
   useEffect(() => {
@@ -132,11 +133,6 @@ function AppContent() {
   const openFromRequests = useCallback((orderId: string) => openDetail(orderId, 'request'), [openDetail]);
   const openFromBook = useCallback((orderId: string) => openDetail(orderId, 'fulfill'), [openDetail]);
   const openFromHistory = useCallback((orderId: string) => openDetail(orderId, 'history'), [openDetail]);
-
-  // 내 pubkey — 온체인 카드의 역할 판정에 쓴다. 로딩 전엔 null로 둔다.
-  useEffect(() => {
-    void getUserPubkey(storage).then(setMyPubkey);
-  }, []);
 
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);

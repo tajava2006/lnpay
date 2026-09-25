@@ -1,10 +1,7 @@
 /**
- * dispute-message 이벤트 공통 처리
+ * dispute-message 이벤트 받기 — NIP-44 복호화 → ChatMessage → IDB 저장
  *
- * NIP-44 복호화 → ChatMessage 구성 → IDB 저장 로직을
- * 3개 앱(customer, sponsor, admin)이 공유한다.
- *
- * 복호화 방식만 앱마다 다르므로(sk 직접 / NIP-46 signer) 콜백으로 주입한다.
+ * 복호화는 부르는 쪽이 넣는다(유저 앱은 자기 키로).
  */
 import { extractOrderId } from './order-ref';
 import { idbUpsertMessage } from './idb';
@@ -25,8 +22,6 @@ export interface DisputeEvent {
  * dispute-message 이벤트를 복호화하여 ChatMessage로 변환하고 IDB에 저장한다.
  *
  * @param decrypt NIP-44 복호화 함수. (content, senderPubkey, recipientPubkey)를 받는다.
- *   - customer/sponsor: `(content) => nip44Decrypt(content, sk, APP_PUBKEY)`
- *   - admin: senderPubkey/recipientPubkey로 remotePubkey 결정 후 signer.nip44Decrypt
  */
 export async function processDisputeEvent(
   event: DisputeEvent,

@@ -15,7 +15,7 @@ import {
   type ChatMessage, type DisputeMessagePayload,
 } from '@sajwo-tracker/shared';
 import type { OnchainOrder } from '@sajwo-tracker/shared/onchain';
-import { prepareOnchainDisputeMessage } from '../nostr/publish';
+import { prepareDisputeMessage } from '../../nostr/dispute-message';
 import { getOnchainAccount } from '../account-store';
 
 export function OnchainChat({ order, myPubkey, role }: {
@@ -41,11 +41,11 @@ export function OnchainChat({ order, myPubkey, role }: {
 
   const send = useCallback(async (text: string) => {
     const payload: DisputeMessagePayload = { type: 'text', content: text };
-    await sendChatMessage(() => prepareOnchainDisputeMessage(order.orderId, payload));
+    await sendChatMessage(() => prepareDisputeMessage(order.orderId, payload, CLIENT_TAG_ONCHAIN));
   }, [order.orderId]);
 
   const retry = useCallback(async (failed: ChatMessage) => {
-    await retryChatMessage(failed, () => prepareOnchainDisputeMessage(order.orderId, failed.payload));
+    await retryChatMessage(failed, () => prepareDisputeMessage(order.orderId, failed.payload, CLIENT_TAG_ONCHAIN));
   }, [order.orderId]);
 
   if (!open) {
@@ -77,7 +77,7 @@ export function OnchainChat({ order, myPubkey, role }: {
               accountInfo: account.accountInfo,
               commitmentSalt: account.salt || undefined,
             };
-            void sendChatMessage(() => prepareOnchainDisputeMessage(order.orderId, payload));
+            void sendChatMessage(() => prepareDisputeMessage(order.orderId, payload, CLIENT_TAG_ONCHAIN));
           }}
         >
           받은 계좌를 증거로 공개

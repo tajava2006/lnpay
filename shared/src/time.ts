@@ -23,6 +23,17 @@ export function remainingText(seconds: number, past: string): string {
   return `${s}초 남음`;
 }
 
+/**
+ * 창 길이를 문구로 — "2시간", "1시간", "15분", "1시간 30분". 문구에 숫자를 박아 두면 창을 바꿀 때 따로
+ * 논다(6시간·15분이 앱·진행도·푸시 여섯 군데에 박혀 있었다, 2026-09-25).
+ */
+export function durationText(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.round((sec % 3600) / 60);
+  if (h > 0 && m > 0) return `${h}시간 ${m}분`;
+  return h > 0 ? `${h}시간` : `${m}분`;
+}
+
 /** 날짜·시각 (한국어 로캘). 없으면 '—' */
 export function dateTimeText(sec: number | undefined): string {
   return sec ? new Date(sec * 1000).toLocaleString('ko-KR') : '—';

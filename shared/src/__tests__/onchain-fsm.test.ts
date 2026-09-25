@@ -1,7 +1,7 @@
 /**
  * 온체인 FSM 전이 + 불변조건
  *
- * 라이트닝 FSM 테스트(`admin/src/tests/state-machine.test.ts`)와 **같은 구조**로
+ * 라이트닝 FSM 테스트(`ln-state-machine.test.ts`)와 **같은 구조**로
  * 짰다 — 두 트랙을 나란히 놓고 리뷰할 수 있어야 한다.
  *
  * 여기 있는 항목 하나하나가 docs/RISKS.md 온체인 공격 표의 한 줄에 대응한다. 전이 맵이 느슨해지면

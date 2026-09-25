@@ -11,17 +11,15 @@
  * 와서야 거절 사유를 아는 것보다 낫다.
  */
 import { useState, useCallback, lazy, Suspense } from 'react';
-import type { Order } from '@sajwo-tracker/shared';
+import { durationText, nowSec, type Order } from '@sajwo-tracker/shared';
+import { LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC } from '@sajwo-tracker/shared/ln';
 import { publishSponsorInvoice } from '../nostr/claim';
 import { decodeBolt11 } from '../bolt11';
-import { nowSec } from '@sajwo-tracker/shared';
 
-// 폰 지갑에서 인보이스를 옮기는 현실적인 방법은 QR이다. 클레임 화면에 있던 걸
-// 인보이스를 실제로 입력하는 여기로 옮겼다.
+// 폰 지갑에서 인보이스를 옮기는 현실적인 방법은 QR이다.
 const QrScanner = lazy(() => import('./QrScanner').then(m => ({ default: m.QrScanner })));
 
-/** 어드민이 요구하는 최소 잔여 수명과 같은 값. 미리 걸러 왕복을 아낀다. */
-const MIN_LIFETIME_SEC = 6 * 60 * 60;
+
 
 interface Props {
   order: Order;
@@ -63,8 +61,8 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
       return `금액이 다릅니다. ${payoutSat.toLocaleString()} sats로 정확히 만들어 주세요 (지금 ${sat.toLocaleString()} sats).`;
     }
     const remaining = decoded.expiresAt - nowSec();
-    if (remaining < MIN_LIFETIME_SEC) {
-      return '유효시간이 너무 짧습니다. 최소 6시간 이상으로 만들어 주세요 — 원화 송금과 입금 확인에 시간이 걸립니다.';
+    if (remaining < LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC) {
+      return `유효시간이 너무 짧습니다. 최소 ${durationText(LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC)} 이상으로 만들어 주세요 — 원화 송금과 입금 확인에 시간이 걸립니다.`;
     }
     return null;
   })();

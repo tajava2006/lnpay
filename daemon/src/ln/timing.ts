@@ -9,7 +9,9 @@
  *                                                  └ 에스크로 HTLC는 max(결제창, 기한 + 유예) + 48h (분쟁 여유)
  * ```
  */
-import { LN_MAX_DEADLINE_LEAD_SEC, LN_MIN_CLAIM_LEAD_SEC } from '@sajwo-tracker/shared/ln';
+import {
+  LN_MAX_DEADLINE_LEAD_SEC, LN_MIN_CLAIM_LEAD_SEC, LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC,
+} from '@sajwo-tracker/shared/ln';
 
 const MIN = 60;
 const HOUR = 60 * MIN;
@@ -22,7 +24,7 @@ export const BLOCK_SEC = 600;
 /** 기한이 이만큼 안 남았으면 클레임을 받지 않는다 — 유저 앱 오더북과 같은 값(shared) */
 export const MIN_CLAIM_LEAD_SEC = LN_MIN_CLAIM_LEAD_SEC;
 
-/** 에스크로 결제 창의 상한 (예전 `ESCROW_WINDOW_MAX_SEC`) */
+/** 에스크로 결제 창의 상한 */
 export const ESCROW_PAY_WINDOW_SEC = 24 * HOUR;
 
 /** 에스크로 결제는 기한 이만큼 전에 끝나야 한다 — 그 뒤에 결제해 봐야 원화가 갈 시간이 없다 */
@@ -31,7 +33,7 @@ export const ESCROW_PAY_LEAD_SEC = 30 * MIN;
 /** 승인할 때 결제 창이 이보다 짧으면 승인하지 않는다 (의미 없는 에스크로) */
 export const MIN_ESCROW_PAY_WINDOW_SEC = 10 * MIN;
 
-/** 에스크로 HTLC가 결제 창 뒤로 더 사는 시간 — 송금 완료·입금 확인·분쟁 여유 (예전 `DISPUTE_MARGIN`) */
+/** 에스크로 HTLC가 결제 창 뒤로 더 사는 시간 — 송금 완료·입금 확인·분쟁 여유 */
 export const ESCROW_HOLD_MARGIN_SEC = 48 * HOUR;
 
 /**
@@ -51,7 +53,7 @@ export const SPONSOR_DEPOSIT_MARGIN_SEC = DEADLINE_GRACE_SEC + ESCROW_HOLD_MARGI
 
 /**
  * 고객 보증금도 거래가 닫힐 때까지 산다 — 에스크로 뒤에도 몰수가 있다(`expired:no-account`, 2026-09-25).
- * 예전엔 에스크로 때 돌려줘서 기한 + 하루면 됐다. 7일 기한이면 ≈ 1446블록 — `CLTV_MAX_BLOCKS` 안이다.
+ * 7일 기한이면 ≈ 1446블록 — `CLTV_MAX_BLOCKS` 안이다(`timing-invariants.test.ts` ①).
  */
 export const CUSTOMER_DEPOSIT_MARGIN_SEC = SPONSOR_DEPOSIT_MARGIN_SEC;
 
@@ -64,8 +66,8 @@ export const CLTV_MAX_BLOCKS = 1500;
 /** LND가 받는 최종 CLTV 하한 근처 — 너무 짧은 홀드는 만들지 않는다 */
 export const CLTV_MIN_BLOCKS = 40;
 
-/** 후원자 인보이스 최소 잔여 수명 (예전 `MIN_INVOICE_LIFETIME_SEC`) */
-export const MIN_SPONSOR_INVOICE_LIFETIME_SEC = 6 * HOUR;
+/** 후원자 인보이스 최소 잔여 수명 — 유저 앱 입력 폼과 같은 값(shared) */
+export const MIN_SPONSOR_INVOICE_LIFETIME_SEC = LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC;
 
 /**
  * 선제 settle — `remitted`인데 에스크로 HTLC가 이만큼 안 남으면 먼저 받아 둔다(비대칭 손실 원칙).

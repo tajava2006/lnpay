@@ -10,8 +10,7 @@
  *   Dashboard → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
 import type { AdminOrderUpdate, CustomerOrder } from './types';
-import type { AccountInfo } from '@sajwo-tracker/shared';
-import { nowSec } from '@sajwo-tracker/shared';
+import { nowSec, type AccountInfo } from '@sajwo-tracker/shared';
 
 type OrderMap = Record<string, CustomerOrder>;
 type Listener = () => void;

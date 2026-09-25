@@ -8,11 +8,11 @@
  */
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
-  ChatWindow, OrderProgress, addMessage, clearMessages, getChatSnapshot, idbGetOrder, loadFromIdb,
+  CLIENT_TAG, ChatWindow, OrderProgress, addMessage, clearMessages, getChatSnapshot, idbGetOrder, loadFromIdb,
   retryChatMessage, sendChatMessage, subscribeChatMessages, subscribeChatStore,
   type ChatMessage, type DisputeMessagePayload, type Order, type PriceTracker,
 } from '@sajwo-tracker/shared';
-import { prepareDisputeMessage } from '../buyer/nostr/publish';
+import { prepareDisputeMessage } from '../nostr/dispute-message';
 import { LnOrderCard } from './LnOrderCard';
 import { useLnCard } from './use-ln-card';
 
@@ -45,11 +45,11 @@ export function LnOrderDetail({ orderId, onBack, tracker }: Props) {
 
   const handleSend = useCallback(async (text: string) => {
     const payload: DisputeMessagePayload = { type: 'text', content: text };
-    await sendChatMessage(() => prepareDisputeMessage({ orderId }, payload));
+    await sendChatMessage(() => prepareDisputeMessage(orderId, payload, CLIENT_TAG));
   }, [orderId]);
 
   const handleRetry = useCallback(async (failed: ChatMessage) => {
-    await retryChatMessage(failed, () => prepareDisputeMessage({ orderId }, failed.payload));
+    await retryChatMessage(failed, () => prepareDisputeMessage(orderId, failed.payload, CLIENT_TAG));
   }, [orderId]);
 
   return (

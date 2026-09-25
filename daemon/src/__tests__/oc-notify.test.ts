@@ -13,7 +13,7 @@ import {
 import {
   ONCHAIN_NOTIFY, ONCHAIN_TIMER_NOTICES, ONCHAIN_TRANSITION_NOTICES,
 } from '../onchain/notify-messages';
-import { asDirectMessage, asPush } from '../ln/notify-messages';
+import { asPush } from '../ln/notify-messages';
 
 const ALL = Object.values(ONCHAIN_STATES);
 
@@ -163,10 +163,8 @@ describe('통로 형식은 라이트닝과 공유한다', () => {
       .toBe('/?track=onchain&tab=history');
   });
 
-  it('DM에는 링크가 글로 붙는다', () => {
-    const dm = asDirectMessage(ONCHAIN_NOTIFY.customerShouldFund());
-    expect(dm).toMatch(/^\[페어바이\] /);
-    expect(dm).toMatch(/\?track=onchain&tab=history$/);
+  it('푸시 링크는 온체인 트랙을 연다', () => {
+    expect(asPush(ONCHAIN_NOTIFY.customerShouldFund()).url).toMatch(/\?track=onchain&tab=history$/);
   });
 
   it('푸시 태그로 주문별 묶음이 된다', () => {

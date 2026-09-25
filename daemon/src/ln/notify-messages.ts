@@ -31,9 +31,6 @@
  * "무슨 일이 생겼고 어디로 가면 되는지"만 알린다.
  */
 
-/** 앱으로 돌아오는 경로. 알림만 보고 뭘 해야 할지 모르면 소용이 없다. */
-const APP_URL = 'https://customer.hoppe-relay.it.com';
-
 /**
  * 앱 탭. **두 트랙이 같은 탭 구조를 공유한다** — 온체인과 라이트닝은 동등한
  * 거래 방법이라 한쪽을 다른 쪽 밑에 넣지 않는다.
@@ -64,11 +61,6 @@ function path(notice: Notice, orderId?: string): string {
   if (orderId) params.set('order', orderId);
   const query = params.toString();
   return query ? `/?${query}` : '/';
-}
-
-/** NIP-17 DM 본문 — 링크를 글로 붙인다. */
-export function asDirectMessage(n: Notice): string {
-  return `[페어바이] ${n.body}\n${APP_URL}${path(n)}`;
 }
 
 /**

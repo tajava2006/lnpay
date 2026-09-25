@@ -15,8 +15,6 @@ export interface Route {
   orderId: string | null;
 }
 
-export const DEFAULT_ROUTE: Route = { tab: 'daemon', orderId: null };
-
 export function parseRoute(search: string): Route {
   const params = new URLSearchParams(search);
   const raw = params.get('tab');

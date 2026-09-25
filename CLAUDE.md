@@ -98,7 +98,10 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
 - 테스트는 **프로덕션이 실제로 부르는 경로**를 탄다. 프로덕션이 안 부르는 헬퍼를 검증하면 버그가 초록으로 남는다.
 - Dev/Prod 데이터 격리: 태그가 dev(`…-dev`)·prod로 갈린다. dev 전용 코드는 `dev-only/`에 파일 단위로 두고
   `import.meta.env.DEV` 가드 안에서만 import한다.
-- 공용 문구·스타일·헬퍼가 두 곳 이상에서 같은 뜻이면 한 곳에 두고 가져다 쓴다.
+- 공용 문구·스타일·헬퍼가 두 곳 이상에서 같은 뜻이면 한 곳에 두고 가져다 쓴다. 이미 있는 자리:
+  시간 문구·`useNow` = `shared/src/time.ts`·`components/useNow.ts`, 버튼 이름·공통 안내 = `shared/src/copy.ts`,
+  유저 앱 훅·스타일 = `customer/src/hooks.ts`·`ui.ts`, 어드민 문구·스타일 = `admin/src/format.ts`·`ui.ts`.
+  데몬과 앱이 같은 값을 봐야 하는 규약 상수는 shared 트랙 모듈(`shared/src/ln`·`onchain`)에.
 
 ## 레포지토리 구조
 

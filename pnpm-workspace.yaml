@@ -16,3 +16,8 @@ allowBuilds:
 onlyBuiltDependencies:
   - esbuild
   - secp256k1
+
+# 막 올라온 버전은 3일 묵힌다(분 단위). latest를 따라가되, npm 계정 탈취로 올라온 악성 버전이 보통 며칠 안에
+# 내려가는 그 창을 피한다 — 유저 앱은 브라우저에 nsec를 들고 있어 악성 의존성 하나가 곧 키 탈취다.
+# 해석할 때만 본다: 락파일대로 까는 설치(--frozen-lockfile, CI·ship)는 영향이 없다.
+minimumReleaseAge: 4320

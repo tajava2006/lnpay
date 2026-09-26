@@ -50,6 +50,10 @@ pnpm ship                    # VPS 배포: pull → 설치 → verify:web → �
 
 의존성은 핀하지 않고 latest를 따라간다 — 최말단 앱이라 깨지면 그때 고치는 게 몇 달치 breaking을 한꺼번에 맞는
 것보다 싸다. 예외: 온체인 서명 경로의 `@noble/curves`는 `@scure/btc-signer`와 **같은 버전에 정확히 핀**한다.
+단 **막 올라온 버전은 3일 묵힌다**(`pnpm-workspace.yaml`의 `minimumReleaseAge`) — npm 계정 탈취로 올라온 악성
+버전이 내려가는 창을 피한다. 유저 앱은 브라우저에 nsec를 들고 있다.
+
+TS 엄격함은 루트 `tsconfig.base.json` 하나다 — 패키지는 target·lib·jsx·types만 정한다.
 
 ## 헌법 (반드시 준수)
 
@@ -92,6 +96,8 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
   유도한다(`shared/order-display.ts`가 본보기).
 - **문구에 숫자를 박지 않는다.** 창 길이는 상수에서 가져온다(`durationText`).
 - **"모름"을 "없음"으로 뭉개지 않는다.** 조회 실패는 보류, 모르는 마감은 지난 것으로 본다.
+- **렌더 예외는 가둔다**(`ErrorBoundary`·`guarded`, shared). 화면·카드 단위로 두고, 온체인 회수처럼 **다른 칸이 깨져도
+  남아야 하는 칸은 따로** 감싼다. 헤더(🔑 키 보기)는 화면 경계 밖이다.
 - 이벤트에는 반드시 `expiration` 태그(보존)를 단다. 예외 3종: `dispute-message`(증거 보존), 운영자 DM gift wrap
   kind 1059, `push-subscription`(계정 단위). **보존과 거래 마감을 섞지 않는다**(DM-009).
 - **사람이 알아야 할 일은 운영자 DM으로 보낸다**(`raiseAlert`·`notifyOperators`). 우리 이벤트는 전용 kind라 어떤 nostr

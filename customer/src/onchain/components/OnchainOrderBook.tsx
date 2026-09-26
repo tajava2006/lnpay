@@ -10,7 +10,7 @@
  * 약속할 수 없으니 약속하지 않는다. 진 쪽은 취소되어 아무것도 잃지 않는다.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { InvoicePayBlock, freshPrice, type PriceTracker } from '@sajwo-tracker/shared';
+import { InvoicePayBlock, freshPrice, guarded, type PriceTracker } from '@sajwo-tracker/shared';
 import {
   FUNDING_WINDOW_SEC, MempoolChainAdapter, PRESIGN_WINDOW_SEC, RESERVE_MIN_GAP_PERCENT, TYPICAL_SETTLEMENT_VSIZE,
   addressProblem, durationText, releaseFeerateProblem, type FeeEstimates, type OnchainOrder,
@@ -64,7 +64,9 @@ export function OnchainOrderBook({ myPubkey, tracker }: Props) {
 /**
  * 남의 의뢰 하나 — 오더북 목록과 상세(다른 오더 모음의 링크로 들어온 사람)가 같이 쓴다
  */
-export function OnchainBookCard({ order, invoice, price }: {
+export const OnchainBookCard = guarded(OnchainBookCardBody, '오더북 카드');
+
+function OnchainBookCardBody({ order, invoice, price }: {
   order: OnchainOrder; invoice: DepositInvoice | undefined; price: number | null;
 }) {
   return (

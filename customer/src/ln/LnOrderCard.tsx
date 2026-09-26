@@ -6,7 +6,9 @@
  * 탭에서만 됐던 게 그 사고다. 온체인 `OnchainOrderCard`와 같은 원칙.
  */
 import { useState } from 'react';
-import { BUTTON, canSendAccountInfo, remainingText, type AccountInfo, type Order, type PriceTracker } from '@sajwo-tracker/shared';
+import {
+  BUTTON, canSendAccountInfo, guarded, remainingText, type AccountInfo, type Order, type PriceTracker,
+} from '@sajwo-tracker/shared';
 import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
 import { publishAccountInfo, publishNotification, publishOrderRequest } from '../buyer/nostr/publish';
 import { deleteOrder, markPublished, setAccountInfo } from '../buyer/order-store';
@@ -30,7 +32,10 @@ interface Props {
   allowDelete?: boolean;
 }
 
-export function LnOrderCard({ orderId, archived, tracker, onOpen, allowDelete }: Props) {
+/** 카드 하나가 깨져도 목록·다른 카드는 그대로 */
+export const LnOrderCard = guarded(LnOrderCardBody, '이 의뢰 카드');
+
+function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Props) {
   const { view, order, local, now } = useLnCard(orderId, archived);
   const [busy, setBusy] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);

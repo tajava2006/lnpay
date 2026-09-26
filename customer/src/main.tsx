@@ -30,11 +30,17 @@ if (MAINTENANCE && !import.meta.env.DEV && !__LOCAL_OPEN__) {
   }
 
   void Promise.all([import('@sajwo-tracker/shared'), import('./App')])
-    .then(([{ initIdb, ORDER_DB_NAME }, { App }]) => {
+    .then(([{ initIdb, ErrorBoundary, ORDER_DB_NAME }, { App }]) => {
       initIdb(ORDER_DB_NAME);
+      // 최후의 경계 — 헤더까지 깨졌을 때. 화면 단위 경계는 App 안에 있다
       root.render(
         <StrictMode>
-          <App />
+          <ErrorBoundary
+            label="앱"
+            extra={<button type="button" onClick={() => location.reload()}>새로고침</button>}
+          >
+            <App />
+          </ErrorBoundary>
         </StrictMode>,
       );
     });

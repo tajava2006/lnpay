@@ -1,0 +1,17 @@
+{
+  "//": "네 패키지(shared·daemon·customer·admin)가 같은 엄격함으로 돈다. 패키지별로는 target·lib·jsx·types만 다르다",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  }
+}

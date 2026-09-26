@@ -13,7 +13,7 @@
  *      받지 않는다 — 화면이 열어두면 원화만 헛되이 나간다
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { BUTTON, InvoicePayBlock, useNow } from '@sajwo-tracker/shared';
+import { BUTTON, ErrorBoundary, InvoicePayBlock, useNow } from '@sajwo-tracker/shared';
 import {
   ACCOUNT_WINDOW_SEC, MempoolChainAdapter, accountDeadlineOf, canActOnSignRequest, canSendAccountInfoOnchain, durationText,
   isPast, krwDeadlineOf,
@@ -157,14 +157,35 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
  * 주문 하나. 목록과 상세가 **같은 카드를 쓴다** — 둘이 갈리면 한쪽에만 있는
  * 버튼이 생기고, 그게 "왜 여기선 안 보이지"가 된다.
  */
-export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signRequests, onSelect }: {
+interface OnchainOrderCardProps {
   order: OnchainOrder;
   role: 'customer' | 'sponsor';
   myPubkey: string;
   invoiceBolt11?: string;
   signRequests: SignRequest[];
   onSelect?: (orderId: string) => void;
-}) {
+}
+
+/**
+ * 거래 카드. 회수 칸은 **따로 가둔다** — 카드의 다른 칸이 깨져도 타임락 회수(어드민이 사라졌을 때의 마지막
+ * 탈출구)는 남아야 한다.
+ */
+export function OnchainOrderCard(props: OnchainOrderCardProps) {
+  return (
+    <div style={styles.card}>
+      <ErrorBoundary label="이 거래 카드">
+        <OnchainOrderCardBody {...props} />
+      </ErrorBoundary>
+      {props.role === 'customer' && (
+        <ErrorBoundary label="자금 회수">
+          <RecoveryPanel order={props.order} />
+        </ErrorBoundary>
+      )}
+    </div>
+  );
+}
+
+function OnchainOrderCardBody({ order, role, myPubkey, invoiceBolt11, signRequests, onSelect }: OnchainOrderCardProps) {
   const badge = onchainStateDisplay(order.state);
   const notices = useSyncExternalStore(subscribeNotices, getNoticesSnapshot);
   const notice = notices[order.orderId];
@@ -180,7 +201,7 @@ export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signReq
     || (order.state === 'refunding' && order.settlementKind === 'refund:account-disputed');
 
   return (
-    <div style={styles.card}>
+    <>
       <div
         style={{ ...styles.head, ...(onSelect ? styles.clickable : {}) }}
         onClick={onSelect ? () => onSelect(order.orderId) : undefined}
@@ -258,9 +279,7 @@ export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signReq
       <DisputeButton order={order} role={role} now={now} />
 
       {chatOpen && <OnchainChat order={order} myPubkey={myPubkey} role={role} />}
-
-      {role === 'customer' && <RecoveryPanel order={order} />}
-    </div>
+    </>
   );
 }
 

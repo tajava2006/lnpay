@@ -32,3 +32,8 @@ jobs:
       - run: pnpm build:customer
       - run: pnpm build:sponsor
       - run: pnpm build:admin
+      - run: pnpm build:daemon
+
+      # 운영 PC가 빌드하는 그 이미지. Dockerfile은 워크스페이스 매니페스트를 손으로 하나씩 COPY한다 —
+      # 패키지를 더하거나 파일을 옮기면 여기서 먼저 깨져야 한다(운영 PC에서 처음 알면 늦다)
+      - run: docker build -f daemon/Dockerfile -t lnpay-daemon:ci .

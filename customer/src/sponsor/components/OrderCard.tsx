@@ -6,7 +6,7 @@
  * 의뢰를 탭마다 다른 버튼으로 보게 됐다.
  */
 import { useState } from 'react';
-import { lnOrderDisplay, remainingText, sponsorRelation, type Order } from '@sajwo-tracker/shared';
+import { guarded, lnOrderDisplay, remainingText, sponsorRelation, type Order } from '@sajwo-tracker/shared';
 import { publishClaim } from '../nostr/claim';
 import { ui } from '../../ui';
 
@@ -23,7 +23,9 @@ function formatDate(unixSeconds: number): string {
   });
 }
 
-export function OrderCard({ order, now, myPubkey }: Props) {
+export const OrderCard = guarded(OrderCardBody, '오더북 카드');
+
+function OrderCardBody({ order, now, myPubkey }: Props) {
   const [claiming, setClaiming] = useState(false);
   const relation = sponsorRelation(order, myPubkey);
   const isTaken = relation === 'taken';

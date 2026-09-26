@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { nip19 } from 'nostr-tools';
-import { storage, subscribeRelayLists } from '@sajwo-tracker/shared';
+import { ErrorBoundary, storage, subscribeRelayLists } from '@sajwo-tracker/shared';
 import { clearSession, loadSession, restoreSigner } from './nostr/nip46';
 import { LoginScreen } from './components/LoginScreen';
 import { DaemonPanel } from './components/DaemonPanel';
@@ -91,13 +91,15 @@ export function App() {
         ))}
       </nav>
       <main>
-        {tab === 'daemon' && <DaemonPanel />}
-        {tab === 'ln' && (orderId
-          ? <LnOrderDetail key={orderId} orderId={orderId} onBack={back} />
-          : <LnOrderList onSelect={select} />)}
-        {tab === 'onchain' && (orderId
-          ? <OnchainOrderDetail key={orderId} orderId={orderId} onBack={back} />
-          : <OnchainOrderList onSelect={select} />)}
+        <ErrorBoundary key={`${tab}:${orderId ?? ''}`} label="이 화면">
+          {tab === 'daemon' && <DaemonPanel />}
+          {tab === 'ln' && (orderId
+            ? <LnOrderDetail key={orderId} orderId={orderId} onBack={back} />
+            : <LnOrderList onSelect={select} />)}
+          {tab === 'onchain' && (orderId
+            ? <OnchainOrderDetail key={orderId} orderId={orderId} onBack={back} />
+            : <OnchainOrderList onSelect={select} />)}
+        </ErrorBoundary>
       </main>
     </div>
   );

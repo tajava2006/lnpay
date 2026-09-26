@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  BtcPrice, createPriceTracker, KeyInit, storage, subscribeRelayLists, type PriceTracker,
+  BtcPrice, createPriceTracker, ErrorBoundary, KeyInit, storage, subscribeRelayLists, type PriceTracker,
 } from '@sajwo-tracker/shared';
 import { useMyPubkey } from './hooks';
 import { startSubscriptions, stopSubscriptions } from './nostr/service';
@@ -219,31 +219,34 @@ function AppContent() {
         ))}
       </nav>
 
+      {/* 화면 단위 경계 — 헤더(🔑 키 보기)는 밖에 둔다. 주소가 바뀌면 key가 바뀌어 새로 그린다 */}
       <main>
-        {track === 'onchain' ? (
-          detailOrderId ? (
-            <OnchainOrderDetail
-              orderId={detailOrderId}
-              myPubkey={myPubkey}
-              onBack={closeDetail}
-              tracker={tracker}
-            />
+        <ErrorBoundary key={`${track}:${tab}:${detailOrderId ?? ''}`} label="이 화면">
+          {track === 'onchain' ? (
+            detailOrderId ? (
+              <OnchainOrderDetail
+                orderId={detailOrderId}
+                myPubkey={myPubkey}
+                onBack={closeDetail}
+                tracker={tracker}
+              />
+            ) : tab === 'request' ? (
+              <OnchainOrderForm onDone={() => goTab('history')} tracker={tracker} />
+            ) : tab === 'fulfill' ? (
+              <OnchainOrderBook myPubkey={myPubkey} tracker={tracker} />
+            ) : (
+              <OnchainMyOrders myPubkey={myPubkey} onSelectOrder={openFromHistory} />
+            )
+          ) : detailOrderId ? (
+            <LnOrderDetail orderId={detailOrderId} onBack={closeDetail} tracker={tracker} />
           ) : tab === 'request' ? (
-            <OnchainOrderForm onDone={() => goTab('history')} tracker={tracker} />
+            <Dashboard tracker={tracker} onSelectOrder={openFromRequests} />
           ) : tab === 'fulfill' ? (
-            <OnchainOrderBook myPubkey={myPubkey} tracker={tracker} />
+            <OrderBook tracker={tracker} onSelectOrder={openFromBook} />
           ) : (
-            <OnchainMyOrders myPubkey={myPubkey} onSelectOrder={openFromHistory} />
-          )
-        ) : detailOrderId ? (
-          <LnOrderDetail orderId={detailOrderId} onBack={closeDetail} tracker={tracker} />
-        ) : tab === 'request' ? (
-          <Dashboard tracker={tracker} onSelectOrder={openFromRequests} />
-        ) : tab === 'fulfill' ? (
-          <OrderBook tracker={tracker} onSelectOrder={openFromBook} />
-        ) : (
-          <HistoryPage onSelectOrder={openFromHistory} tracker={tracker} />
-        )}
+            <HistoryPage onSelectOrder={openFromHistory} tracker={tracker} />
+          )}
+        </ErrorBoundary>
       </main>
 
       <p style={styles.version}>{__COMMIT_HASH__}</p>

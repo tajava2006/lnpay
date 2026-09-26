@@ -18,6 +18,8 @@ COPY admin/package.json admin/
 COPY daemon/package.json daemon/
 RUN pnpm install --frozen-lockfile --filter @sajwo-tracker/daemon...
 COPY shared/src shared/src
+# daemon/tsconfig.json이 이걸 extends한다 — esbuild가 읽는다
+COPY tsconfig.base.json ./
 COPY daemon/build.mjs daemon/tsconfig.json daemon/
 COPY daemon/src daemon/src
 RUN pnpm --filter @sajwo-tracker/daemon build

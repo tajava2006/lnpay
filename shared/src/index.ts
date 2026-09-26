@@ -75,6 +75,7 @@ export { ChatWindow } from './components/ChatWindow';
 export { InvoicePayBlock } from './components/InvoicePayBlock';
 export { OrderProgress } from './components/OrderProgress';
 export { useNow } from './components/useNow';
+export { ErrorBoundary, guarded } from './components/ErrorBoundary';
 export { nowSec, remainingText, dateTimeText, durationText } from './time';
 export { BUTTON, STEP_TEXT } from './copy';
 

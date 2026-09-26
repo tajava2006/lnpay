@@ -20,7 +20,7 @@ import type { OnchainState, SettlementKind } from './state-machine';
 import { ONCHAIN_STATES, SETTLEMENT_KINDS } from './state-machine';
 import type { BtcNetworkName } from './address';
 import { isXonlyHex } from './hex';
-import { nip69Tags, type Nip69Status } from '../nip69';
+import { nip69Tags, orderLink, type Nip69Status } from '../nip69';
 
 export interface OnchainOrder {
   orderId: string;
@@ -156,8 +156,9 @@ const ONCHAIN_NIP69_STATUS: Record<OnchainState, Nip69Status> = {
  *
  * `clientTag`를 인자로 받는 이유: `CLIENT_TAG_ONCHAIN`이 dev/prod로 갈리는데
  * 그 판단은 앱의 환경 변수 몫이고, 이 함수는 순수하게 유지해야 테스트가 쉽다.
+ * `appUrl`이 있으면 NIP-69 `source`로 우리 앱의 이 오더 주소를 싣는다.
  */
-export function onchainOrderTags(order: OnchainOrder, clientTag: string): TagList {
+export function onchainOrderTags(order: OnchainOrder, clientTag: string, appUrl?: string): TagList {
   const tags: TagList = [
     ['d', order.orderId],
     ['t', clientTag],
@@ -211,6 +212,7 @@ export function onchainOrderTags(order: OnchainOrder, clientTag: string): TagLis
     network: order.network,
     layer: 'onchain',
     expiresAt: order.expiration,
+    ...(appUrl ? { source: orderLink(appUrl, 'onchain', order.orderId) } : {}),
   })];
 }
 

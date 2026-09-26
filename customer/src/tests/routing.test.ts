@@ -6,6 +6,7 @@
  * 자리를 잃으면 그 시간을 그냥 까먹는다.
  */
 import { describe, it, expect } from 'vitest';
+import { orderLink } from '@sajwo-tracker/shared';
 import { parseRoute, urlFor } from '../routing';
 
 describe('주소 읽기', () => {
@@ -67,5 +68,14 @@ describe('왕복', () => {
   ] as const)('%s / %s / %s', (track, tab, orderId) => {
     const url = urlFor(track, tab, orderId);
     expect(parseRoute(url.replace('/', ''))).toEqual({ track, tab, orderId });
+  });
+});
+
+/** 데몬이 공개 오더에 싣는 링크(NIP-69 `source`) — 다른 오더 모음에서 눌러 들어오면 그 오더 상세가 열려야 한다 */
+describe('오더 링크', () => {
+  it.each(['ln', 'onchain'] as const)('%s 링크는 그 트랙의 그 오더로 열린다', track => {
+    const url = new URL(orderLink('https://app.test/', track, 'ord-1'));
+    expect(url.origin + url.pathname).toBe('https://app.test/');
+    expect(parseRoute(url.search)).toEqual({ track, tab: 'fulfill', orderId: 'ord-1' });
   });
 });

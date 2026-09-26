@@ -19,7 +19,7 @@
  */
 import type { Event } from 'nostr-tools/core';
 import { isTerminalState, type OrderState } from '../constants';
-import { nip69Tags, type Nip69Status } from '../nip69';
+import { nip69Tags, orderLink, type Nip69Status } from '../nip69';
 import type { Order } from '../types';
 
 /** 종결된 오더가 릴레이에 남는 기간 — 양쪽이 결과를 한 번은 보게 */
@@ -109,7 +109,8 @@ const LN_NIP69_STATUS: Record<OrderState, Nip69Status> = {
   expired: 'expired',
 };
 
-export function lnOrderTags(order: LnOrderFields, clientTag: string, retainUntil: number): string[][] {
+/** `appUrl`이 있으면 NIP-69 `source`로 우리 앱의 이 오더 주소를 싣는다 */
+export function lnOrderTags(order: LnOrderFields, clientTag: string, retainUntil: number, appUrl?: string): string[][] {
   const tags: string[][] = [
     ['d', order.orderId],
     ['t', clientTag],
@@ -136,6 +137,7 @@ export function lnOrderTags(order: LnOrderFields, clientTag: string, retainUntil
     network: 'mainnet',
     layer: 'lightning',
     expiresAt: order.deadline,
+    ...(appUrl ? { source: orderLink(appUrl, 'ln', order.orderId) } : {}),
   })];
 }
 

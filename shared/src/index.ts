@@ -119,3 +119,4 @@ export type {
   AdminLnOrderDetail, AdminOcBond, AdminOcOrderDetail, AdminOcUtxo, AdminState, DaemonSettings, OrderTarget, TrackName,
 } from './admin-protocol';
 export { orderRef } from './order-ref';
+export { orderLink } from './nip69';

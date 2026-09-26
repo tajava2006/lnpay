@@ -52,6 +52,8 @@ describe('① 정상 완료', () => {
     const orderId = await openOc(h);
     expect(state(h, orderId)).toBe('listed');
     expect(lastPublic(h, orderId)?.state).toBe('listed');
+    const raw = lastPublic(h, orderId)!.raw as { tags: string[][] };
+    expect(raw.tags).toContainEqual(['source', `https://app.test/?track=onchain&order=${orderId}`]);
     const dms = h.relay.published.filter(e => e.kind === 1059).map(e => unwrapEvent(e, h.operator.secretKey).content);
     expect(dms).toContain(`[페어바이] 새 의뢰 — 온체인 ${AMOUNT.toLocaleString('ko-KR')} sats (${orderId})`);
 

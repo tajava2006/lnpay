@@ -21,6 +21,8 @@ export interface AdminContext {
   startedAt: number;
   /** 받기 시작한 시각 (`resolveEpoch`) — 운영자 상태에 실어 어드민이 그 전 오더를 거른다 */
   epoch: number;
+  /** 유저 앱 주소 — 공개 오더의 NIP-69 `source`. 없으면 싣지 않는다 */
+  appUrl?: string;
   nowMs: () => number;
   log: Logger;
 }

@@ -57,6 +57,8 @@ export interface DaemonDeps {
   onchain?: OcDeps;
   /** 테스트가 오더를 심는 목록. 트랙 목록 앞에 붙는다 */
   directory?: OrderDirectory;
+  /** 유저 앱 주소 (`DaemonConfig.appUrl`) */
+  appUrl?: string;
   /** 있으면 틱마다 하트비트 파일을 쓴다 (docker healthcheck) */
   dataDir?: string;
 }
@@ -91,6 +93,7 @@ export class Daemon {
       db, effects: this.effects, appKey: deps.appKey, operators: deps.operators, tags: deps.tags,
       mode: deps.mode, relays: deps.relays, directory,
       version: DAEMON_VERSION, startedAt: Math.floor(nowMs() / 1000), epoch: resolveEpoch(db, deps.epoch), nowMs, log,
+      ...(deps.appUrl ? { appUrl: deps.appUrl } : {}),
     };
 
     this.effects.register(PUBLISH_EFFECT, createPublishExecutor(deps.transport, nowMs));

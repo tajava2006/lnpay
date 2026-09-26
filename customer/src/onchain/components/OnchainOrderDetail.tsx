@@ -8,27 +8,31 @@
  * 카드는 목록과 **같은 컴포넌트**를 쓴다 — 갈리면 한쪽에만 있는 버튼이 생긴다.
  */
 import { useSyncExternalStore } from 'react';
+import type { PriceTracker } from '@sajwo-tracker/shared';
 import {
   getOnchainOrdersSnapshot, roleIn, subscribeOnchainOrders,
 } from '../store';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
 import { getSignRequestsSnapshot, signRequestsFor, subscribeSignRequests } from '../sign-request-store';
 import { OnchainOrderCard } from './OnchainMyOrders';
+import { OnchainBookCard, useBookPrice } from './OnchainOrderBook';
 import { ui } from '../../ui';
 
 interface Props {
   orderId: string;
   myPubkey: string | null;
   onBack: () => void;
+  tracker?: PriceTracker;
 }
 
-export function OnchainOrderDetail({ orderId, myPubkey, onBack }: Props) {
+export function OnchainOrderDetail({ orderId, myPubkey, onBack, tracker }: Props) {
   const orders = useSyncExternalStore(subscribeOnchainOrders, getOnchainOrdersSnapshot);
   const invoices = useSyncExternalStore(subscribeDepositInvoices, getDepositInvoicesSnapshot);
   const signRequests = useSyncExternalStore(subscribeSignRequests, getSignRequestsSnapshot);
 
   const order = orders[orderId];
   const role = order && myPubkey ? roleIn(order, myPubkey) : null;
+  const price = useBookPrice(tracker);
 
   return (
     <div style={styles.wrap}>
@@ -37,8 +41,13 @@ export function OnchainOrderDetail({ orderId, myPubkey, onBack }: Props) {
       {!order ? (
         // 다른 기기에서 열었거나 아직 동기화 전일 수 있다 — 없다고 단정하지 않는다.
         <p style={ui.empty}>이 주문을 아직 못 받았습니다. 잠시 후 다시 보세요.</p>
-      ) : !role || !myPubkey ? (
-        <p style={ui.empty}>내가 참여한 주문이 아닙니다.</p>
+      ) : !myPubkey ? (
+        <p style={ui.empty}>키를 준비하는 중…</p>
+      ) : !role ? (
+        // 남의 의뢰 — 다른 오더 모음의 링크(NIP-69 `source`)로 들어온 사람도 오더북에서 보던 카드로 맡는다
+        order.state === 'listed'
+          ? <OnchainBookCard order={order} invoice={invoices[orderId]} price={price} />
+          : <p style={ui.empty}>이미 다른 분이 맡았거나 끝난 의뢰입니다.</p>
       ) : (
         <OnchainOrderCard
           order={order}

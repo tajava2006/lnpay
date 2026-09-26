@@ -45,7 +45,7 @@ export function createOcPublishExecutor(ctx: OcContext, transport: RelayTranspor
         // 만료된 의뢰(listed) — 릴레이가 받지 않는다. 곧 워처가 닫고 종결을 다시 낸다
         return { status: 'done', result: {} };
       }
-      const tags = onchainOrderTags(order, ctx.tags.onchain)
+      const tags = onchainOrderTags(order, ctx.tags.onchain, ctx.appUrl)
         .map(t => (t[0] === 'expiration' ? ['expiration', String(expiration)] : t));
       const event = finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
       const report = await transport.publish(event);

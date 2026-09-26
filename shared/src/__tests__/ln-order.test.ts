@@ -147,6 +147,12 @@ describe('NIP-69 태그', () => {
     expect(nip(tags, 'expires_at')).toEqual([[String(NOW + DAY)]]);
   });
 
+  it('앱 주소를 주면 source로 이 오더를 여는 주소가 실린다 — 없으면 태그 자체가 없다', () => {
+    expect(nip(lnOrderTags({ ...base, state: 'requested' }, 't', NOW + DAY, 'https://app.test/'), 'source'))
+      .toEqual([['https://app.test/?order=o1']]);
+    expect(nip(lnOrderTags({ ...base, state: 'requested' }, 't', NOW + DAY), 'source')).toEqual([]);
+  });
+
   it('지급액이 정해지면 amt가 그 sats다', () => {
     expect(nip(lnOrderTags({ ...base, state: 'escrowed', payoutSat: 24_512 }, 't', NOW + DAY), 'amt')).toEqual([['24512']]);
   });

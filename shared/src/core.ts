@@ -34,6 +34,7 @@ export type {
 } from './admin-protocol';
 export type { DisputeMessagePayload, AccountInfo } from './types';
 export { extractOrderId, orderRef } from './order-ref';
+export { orderLink } from './nip69';
 
 export { createPriceTracker, freshPrice } from './price';
 export type { PriceTracker, PriceSnapshot } from './price';

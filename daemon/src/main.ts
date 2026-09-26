@@ -74,6 +74,7 @@ async function main(): Promise<void> {
     nowMs: () => Date.now(),
     log,
     dataDir: config.dataDir,
+    ...(config.appUrl ? { appUrl: config.appUrl } : {}),
     ln: { node, price: () => freshPrice(prices.getSnapshot(), Date.now()), push },
     ...(config.onchain ? {
       onchain: {

@@ -32,13 +32,18 @@ interface Props {
 const NO_SUBSCRIBE = () => () => {};
 const NO_SNAPSHOT = () => null;
 
-export function OnchainOrderBook({ myPubkey, tracker }: Props) {
-  useSyncExternalStore(subscribeOnchainOrders, getOnchainOrdersSnapshot);
-  const priceSnapshot = useSyncExternalStore(
+/** 오더북이 쓰는 시세 — 1분 넘게 낡았으면 없는 것으로 본다 */
+export function useBookPrice(tracker: PriceTracker | undefined): number | null {
+  const snapshot = useSyncExternalStore(
     tracker?.subscribe ?? NO_SUBSCRIBE,
     tracker?.getSnapshot ?? NO_SNAPSHOT,
   );
-  const price = priceSnapshot ? freshPrice(priceSnapshot, Date.now(), 60_000, 1) : null;
+  return snapshot ? freshPrice(snapshot, Date.now(), 60_000, 1) : null;
+}
+
+export function OnchainOrderBook({ myPubkey, tracker }: Props) {
+  useSyncExternalStore(subscribeOnchainOrders, getOnchainOrdersSnapshot);
+  const price = useBookPrice(tracker);
   const invoices = useSyncExternalStore(subscribeDepositInvoices, getDepositInvoicesSnapshot);
   const orders = myPubkey ? listedOrders(myPubkey) : [];
 
@@ -49,35 +54,43 @@ export function OnchainOrderBook({ myPubkey, tracker }: Props) {
 
   return (
     <div style={styles.list}>
-      {orders.map(order => {
-        const invoice = invoices[order.orderId];
-        return (
-          <div key={order.orderId} style={styles.card}>
-            <div style={styles.row}>
-              <strong style={styles.amount}>{order.amountSat.toLocaleString()} sats</strong>
-              <span style={styles.network}>{order.network}</span>
-            </div>
-            {order.reserveKrw !== undefined && <ReserveLine order={order} price={price} />}
+      {orders.map(order => (
+        <OnchainBookCard key={order.orderId} order={order} invoice={invoices[order.orderId]} price={price} />
+      ))}
+    </div>
+  );
+}
 
-            {invoice && !invoice.done ? (
-              <div style={styles.invoiceBox}>
-                <p style={styles.invoiceNote}>
-                  <strong>보증금 {depositAmountText(invoice.bolt11)}</strong>을 결제하면
-                  이 의뢰를 맡게 됩니다. 거래가 정상적으로 끝나면 <strong>그대로 돌려받습니다.</strong>
-                </p>
-                <p style={styles.invoiceNote}>
-                  ⚠️ 같은 의뢰에 다른 분도 보증금을 내고 있을 수 있습니다 —
-                  <strong> 결제가 먼저 확인된 쪽이 맡습니다.</strong> 늦은 쪽은 결제가
-                  실패 처리되어 아무것도 잃지 않습니다.
-                </p>
-                <InvoicePayBlock bolt11={invoice.bolt11} />
-              </div>
-            ) : (
-              <ClaimForm order={order} invoice={invoice} />
-            )}
-          </div>
-        );
-      })}
+/**
+ * 남의 의뢰 하나 — 오더북 목록과 상세(다른 오더 모음의 링크로 들어온 사람)가 같이 쓴다
+ */
+export function OnchainBookCard({ order, invoice, price }: {
+  order: OnchainOrder; invoice: DepositInvoice | undefined; price: number | null;
+}) {
+  return (
+    <div style={styles.card}>
+      <div style={styles.row}>
+        <strong style={styles.amount}>{order.amountSat.toLocaleString()} sats</strong>
+        <span style={styles.network}>{order.network}</span>
+      </div>
+      {order.reserveKrw !== undefined && <ReserveLine order={order} price={price} />}
+
+      {invoice && !invoice.done ? (
+        <div style={styles.invoiceBox}>
+          <p style={styles.invoiceNote}>
+            <strong>보증금 {depositAmountText(invoice.bolt11)}</strong>을 결제하면
+            이 의뢰를 맡게 됩니다. 거래가 정상적으로 끝나면 <strong>그대로 돌려받습니다.</strong>
+          </p>
+          <p style={styles.invoiceNote}>
+            ⚠️ 같은 의뢰에 다른 분도 보증금을 내고 있을 수 있습니다 —
+            <strong> 결제가 먼저 확인된 쪽이 맡습니다.</strong> 늦은 쪽은 결제가
+            실패 처리되어 아무것도 잃지 않습니다.
+          </p>
+          <InvoicePayBlock bolt11={invoice.bolt11} />
+        </div>
+      ) : (
+        <ClaimForm order={order} invoice={invoice} />
+      )}
     </div>
   );
 }

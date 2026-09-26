@@ -74,6 +74,8 @@ echo "LNPAY_EPOCH=$(date +%s)" >> .env                # 새 장부일 때만
 echo 'LNPAY_ONCHAIN_NETWORK=mainnet' >> .env           # 온체인을 켤 때만. 자체 인스턴스면 LNPAY_ONCHAIN_API도
 ```
 
+유저 앱 도메인을 옮기면 `LNPAY_APP_URL`도 준다(공개 오더의 NIP-69 `source` 링크 — prod 기본은 `customer.hoppe-relay.it.com`).
+
 **코드를 바꾸면 이미지를 다시 빌드한다** — `up -d`만으로는 옛 이미지로 재시작한다(옛 이미지로 돌면 마감·문구가 어긋난다.
 어드민 데몬 탭이 창 길이 불일치를 경고한다).
 

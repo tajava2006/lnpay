@@ -56,9 +56,17 @@ export interface DaemonConfig {
    * 바꾸면 이미 낸 주소가 다른 체인의 것이 된다(그래서 `config.set`에 없다).
    */
   onchain: { network: 'mainnet' | 'signet' | 'testnet'; apiUrl: string | undefined } | undefined;
+  /**
+   * 유저 앱 주소 — 공개 오더에 NIP-69 `source`(이 오더를 여는 링크)로 싣는다. prod는 운영 도메인이 기본이고,
+   * dev는 비운다(dev 오더는 `-dev` 태그라 운영 앱에서 안 보인다 — 링크가 헛돈다).
+   */
+  appUrl: string | undefined;
 }
 
 const HEX64 = /^[0-9a-f]{64}$/;
+
+/** 운영 유저 앱 도메인 */
+const DEFAULT_APP_URL = 'https://customer.hoppe-relay.it.com';
 
 export function tagsFor(mode: DaemonMode): DaemonTags {
   const suffix = mode === 'dev' ? '-dev' : '';
@@ -110,9 +118,17 @@ export function loadConfig(env: Record<string, string | undefined>): DaemonConfi
       macaroonFile: required(env, 'LNPAY_LND_MACAROON_FILE'),
     },
     vapidKeyFile: env.LNPAY_VAPID_KEY_FILE?.trim() || undefined,
-    vapidSubject: env.LNPAY_VAPID_SUBJECT?.trim() || 'https://customer.hoppe-relay.it.com',
+    vapidSubject: env.LNPAY_VAPID_SUBJECT?.trim() || DEFAULT_APP_URL,
     onchain: onchainConfig(env),
+    appUrl: appUrlFor(env, mode),
   };
+}
+
+function appUrlFor(env: Record<string, string | undefined>, mode: DaemonMode): string | undefined {
+  const raw = env.LNPAY_APP_URL?.trim();
+  if (!raw) return mode === 'prod' ? DEFAULT_APP_URL : undefined;
+  if (!/^https?:\/\/[^/]+/.test(raw)) throw new Error(`LNPAY_APP_URL이 주소가 아니다: ${raw}`);
+  return raw.replace(/\/+$/, '');
 }
 
 function onchainConfig(env: Record<string, string | undefined>): DaemonConfig['onchain'] {

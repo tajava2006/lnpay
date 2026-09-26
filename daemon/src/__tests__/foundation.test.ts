@@ -45,6 +45,14 @@ describe('설정 — 틀리면 뜨지 않는다', () => {
     });
   });
 
+  /** 공개 오더의 NIP-69 source — dev 오더는 운영 앱에서 안 보이니 링크를 싣지 않는다 */
+  it('앱 주소는 prod면 운영 도메인, dev면 비운다 — 적으면 그 값(끝 / 없이)', () => {
+    expect(loadConfig(baseEnv).appUrl).toBe('https://customer.hoppe-relay.it.com');
+    expect(loadConfig({ ...baseEnv, LNPAY_MODE: 'dev' }).appUrl).toBeUndefined();
+    expect(loadConfig({ ...baseEnv, LNPAY_APP_URL: 'https://pay.example/' }).appUrl).toBe('https://pay.example');
+    expect(() => loadConfig({ ...baseEnv, LNPAY_APP_URL: 'pay.example' })).toThrow(/LNPAY_APP_URL/);
+  });
+
   it('숫자가 아니면 거부', () => {
     expect(() => loadConfig({ ...baseEnv, LNPAY_TICK_MS: 'fast' })).toThrow();
   });

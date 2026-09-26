@@ -107,6 +107,12 @@ describe('NIP-69 태그', () => {
     expect(nip(tags, 'expires_at')).toEqual([['1700086400']]);
   });
 
+  it('앱 주소를 주면 source는 온체인 트랙으로 여는 주소다', () => {
+    expect(nip(onchainOrderTags(base(), TAG, 'https://app.test'), 'source'))
+      .toEqual([['https://app.test/?track=onchain&order=order-1']]);
+    expect(nip(onchainOrderTags(base(), TAG), 'source')).toEqual([]);
+  });
+
   it('가격이 고정되면 fa가 원화다', () => {
     expect(nip(onchainOrderTags(base({ state: 'funded', priceKrw: 95_000_000 }), TAG), 'fa')).toEqual([['95000000']]);
   });

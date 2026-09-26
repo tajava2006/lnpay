@@ -21,6 +21,8 @@ export interface Nip69Order {
   layer: 'lightning' | 'onchain';
   /** `pending`이 끝나는 시각 — 그 뒤엔 `expired`가 된다 */
   expiresAt: number;
+  /** 우리 앱에서 이 오더를 여는 주소(`orderLink`). 없으면 `source`를 싣지 않는다 */
+  source?: string;
 }
 
 /** NIP-69 `y` — 오더를 낸 플랫폼 */
@@ -40,5 +42,19 @@ export function nip69Tags(o: Nip69Order): string[][] {
     ['expires_at', String(o.expiresAt)],
     ['y', NIP69_PLATFORM],
     ['z', 'order'],
+    ...(o.source ? [['source', o.source]] : []),
   ];
+}
+
+/**
+ * 우리 앱에서 이 오더를 여는 주소 — NIP-69 `source`. 다른 오더 모음에서 본 사람이 눌러 들어와 바로 맡을 수 있게.
+ *
+ * 모양은 유저 앱 `customer/src/routing.ts`의 `parseRoute`가 읽는 그대로다(유저 앱 테스트가 왕복을 확인한다).
+ * 라이트닝은 기본 트랙이라 `track`을 붙이지 않는다.
+ */
+export function orderLink(appUrl: string, track: 'ln' | 'onchain', orderId: string): string {
+  const params = new URLSearchParams();
+  if (track === 'onchain') params.set('track', 'onchain');
+  params.set('order', orderId);
+  return `${appUrl.replace(/\/+$/, '')}/?${params.toString()}`;
 }

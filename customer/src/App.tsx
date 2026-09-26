@@ -226,6 +226,7 @@ function AppContent() {
               orderId={detailOrderId}
               myPubkey={myPubkey}
               onBack={closeDetail}
+              tracker={tracker}
             />
           ) : tab === 'request' ? (
             <OnchainOrderForm onDone={() => goTab('history')} tracker={tracker} />

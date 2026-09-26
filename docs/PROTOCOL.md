@@ -65,6 +65,10 @@ DM으로 간다**(§7). 옛 kind의 이벤트는 새 앱·데몬이 아예 보�
 | `network` · `layer` | 라이트닝 `mainnet`(dev 데몬도 운영 LND) · `lightning` / 온체인 설정 네트워크 · `onchain` |
 | `expires_at` | `pending`이 끝나는 시각 — 라이트닝 쿠팡 기한, 온체인 의뢰 만료 |
 | `y` · `z` | `pairbuy` · `order` |
+| `source` | 우리 앱에서 이 오더를 여는 주소(`orderLink`) — 라이트닝 `…/?order=<id>`, 온체인 `…/?track=onchain&order=<id>`. 데몬 `LNPAY_APP_URL`(prod 기본 운영 도메인, dev는 싣지 않는다) |
+
+`source`로 들어온 남에게 유저 앱 상세 화면은 **오더북 카드**를 그린다 — 의뢰 대기면 바로 맡고, 이미 맡겨졌으면 그렇다고
+말한다(`LnOrderDetail`·`OnchainOrderDetail`). 링크 모양은 유저 앱 `parseRoute`와 왕복 테스트로 묶여 있다.
 
 ### 라이트닝 (`shared/src/ln/order.ts`)
 

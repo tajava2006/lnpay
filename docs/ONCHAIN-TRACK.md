@@ -14,9 +14,11 @@ non-KYC 비트코인 직거래다. **고객**이 BTC를 2-of-3 taproot 에스크
 | 시간 | `shared/src/onchain/timing.ts`, `daemon/src/onchain/deposit.ts`, `daemon/src/onchain/watcher.ts` |
 | 받아들일 값의 경계 | `shared/src/onchain/policy.ts` |
 | 종결 tx · 서명 검증 | `shared/src/onchain/tx.ts`, `verify.ts` |
-| 요청 처리 · 종결 결정 | `daemon/src/onchain/flow.ts` |
+| 요청 처리 | `daemon/src/onchain/handlers.ts` |
+| 종결 결정 · 장부 → 브로드캐스트 · 구조 | `daemon/src/onchain/flow.ts` |
 | 체인이 미는 전이 | `daemon/src/onchain/decide.ts`(순수 함수) + `watcher.ts`(집행) |
 | 유저 쪽 검증 | `customer/src/onchain/verify.ts`, `actions.ts` |
+| 유저 카드에 띄울 칸 | `customer/src/onchain/card-view.ts`(순수 함수) + `components/OnchainOrderCard.tsx` |
 
 ---
 

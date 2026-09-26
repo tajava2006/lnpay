@@ -16,7 +16,8 @@ import { OC_BOND_PURPOSES, createOcBondHooks } from './bonds';
 import { registerOcCommands } from './commands';
 import type { OcContext } from './context';
 import { createBroadcastExecutor, createOcDetailExecutor, createOcPublishExecutor } from './effects';
-import { OC_BROADCAST_EFFECT, createOcHandlers } from './flow';
+import { OC_BROADCAST_EFFECT } from './flow';
+import { createOcHandlers } from './handlers';
 import { OC_DETAIL_EFFECT, OC_ORDER_PUBLISH_EFFECT } from './store';
 import { OcWatcher } from './watcher';
 

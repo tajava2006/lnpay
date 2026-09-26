@@ -23,8 +23,9 @@ Two tracks share one app and one key per user:
 
 ```
  user app (static SPA)                       nostr relays                     admin app (static SPA)
- customer + sponsor, one key ──kind 1111 requests──▶ ◀──kind 1111 commands── operator key (NIP-46 signer)
-                             ◀──kind 30402 orders──   ──kind 30078 status──▶
+ customer + sponsor, one key ──kind 3838 requests──▶ ◀──kind 3838 commands── operator key (NIP-46 signer)
+                             ◀──kind 38383 orders──   ──kind 33838 status──▶
+                                  (NIP-69)             ──NIP-17 DMs──▶ operator's nostr app
                                                     ▲
                                                     │ (outbound only — no open ports)
                                              ┌──────┴──────┐

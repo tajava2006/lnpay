@@ -20,7 +20,7 @@ pubkey를 비교해 유도한다 — 저장된 역할 칼럼이 없다. 어드�
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 데몬 구조·불변조건(DM-001~009)·명령 채널·유저 앱 구조. **데몬·어드민 코드를 만질 때** |
 | [docs/LN-TRACK.md](docs/LN-TRACK.md) | 라이트닝 FSM·닫기 사유 → 돈·시간 값과 부등식·불변조건(I-xxx) |
 | [docs/ONCHAIN-TRACK.md](docs/ONCHAIN-TRACK.md) | 온체인 스크립트·FSM·서명 순서·수수료·시간·불변조건(O-xxx) |
-| [docs/PROTOCOL.md](docs/PROTOCOL.md) | 이벤트 kind·태그·요청/통지 action·구독 필터 |
+| [docs/PROTOCOL.md](docs/PROTOCOL.md) | 이벤트 kind(왜 그 kind인지)·태그·요청/통지 action·구독 필터·운영자 DM |
 | [docs/RISKS.md](docs/RISKS.md) | **불안한 점 전부** — 열린 위험(R-xx)·신뢰 모델·공격 표(T-xxx)·변경 전 체크리스트. 새로 발견하면 여기 추가 |
 | [docs/DAEMON-DEPLOY.md](docs/DAEMON-DEPLOY.md) | 운영 런북(데몬 배포·앱 배포·감시). 배포할 때 **먼저** |
 | [docs/ONCHAIN-SIGNET-DRILL.md](docs/ONCHAIN-SIGNET-DRILL.md) | signet 드릴 런북 |
@@ -55,7 +55,7 @@ pnpm ship                    # VPS 배포: pull → 설치 → verify:web → �
 
 ### 1. 쓰는 곳은 데몬 하나다
 
-상태를 바꾸는 코드는 데몬에만 있다(DM-001). 유저 앱은 kind 1111로 **요청만** 하고, 어드민 앱은 **명령만** 보낸다.
+상태를 바꾸는 코드는 데몬에만 있다(DM-001). 유저 앱은 요청 이벤트로 **요청만** 하고, 어드민 앱은 **명령만** 보낸다.
 어드민 앱에 APP 키·LN 자격증명·집행 코드를 들이지 않는다.
 
 데몬 코드는:
@@ -80,8 +80,8 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
 
 ### 3. 받은 것은 보낸 사람을 본다
 
-누구나 kind 1111·30402를 쏠 수 있다. 오더는 APP이 서명한 것만, 요청은 그 오더의 그 역할이 보낸 것만 받는다
-(I-008·O-020). 유저 앱은 데몬이 보낸 것도 믿지 않고 **스스로 다시 만들어 대조한다** — 에스크로 주소(T-107),
+누구나 요청 이벤트(3838)·오더 이벤트(38383, NIP-69 공용 kind)를 쏠 수 있다. 오더는 APP이 서명한 것만, 요청은
+그 오더의 그 역할이 보낸 것만 받는다(I-008·O-020). 유저 앱은 데몬이 보낸 것도 믿지 않고 **스스로 다시 만들어 대조한다** — 에스크로 주소(T-107),
 서명할 tx(O-021).
 
 ## 코딩 규칙
@@ -92,8 +92,10 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
   유도한다(`shared/order-display.ts`가 본보기).
 - **문구에 숫자를 박지 않는다.** 창 길이는 상수에서 가져온다(`durationText`).
 - **"모름"을 "없음"으로 뭉개지 않는다.** 조회 실패는 보류, 모르는 마감은 지난 것으로 본다.
-- 이벤트에는 반드시 `expiration` 태그(보존)를 단다. 예외 3종: `dispute-message`(증거 보존), 운영자 경보 gift wrap
+- 이벤트에는 반드시 `expiration` 태그(보존)를 단다. 예외 3종: `dispute-message`(증거 보존), 운영자 DM gift wrap
   kind 1059, `push-subscription`(계정 단위). **보존과 거래 마감을 섞지 않는다**(DM-009).
+- **사람이 알아야 할 일은 운영자 DM으로 보낸다**(`raiseAlert`·`notifyOperators`). 우리 이벤트는 전용 kind라 어떤 nostr
+  클라이언트도 울리지 않는다 — 이벤트만 쏘고 운영자가 보겠거니 하면 아무도 모른다(docs/PROTOCOL.md §7).
 - Nostr 코드는 각 앱의 `nostr/` 디렉토리에 둔다.
 - 테스트는 **프로덕션이 실제로 부르는 경로**를 탄다. 프로덕션이 안 부르는 헬퍼를 검증하면 버그가 초록으로 남는다.
 - Dev/Prod 데이터 격리: 태그가 dev(`…-dev`)·prod로 갈린다. dev 전용 코드는 `dev-only/`에 파일 단위로 두고

@@ -162,7 +162,7 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 | `CATCHUP_WARMUP_SEC` | 2분 | 재시작 직후엔 기한 만료로 닫지 않는다 — 꺼져 있던 동안 쌓인 요청을 먼저 받는다 |
 | `LN_ACTIVE_RETENTION_SEC` | 30일 | 진행 중 오더 이벤트 보존 = max(기한, 지금) + 30일 |
 | `LN_TERMINAL_RETENTION_SEC` | 7일 | 종결 오더 이벤트 보존 |
-| `LN_REQUEST_RETENTION_SEC` | 7일 | 요청(kind 1111) 보존 |
+| `LN_REQUEST_RETENTION_SEC` | 7일 | 요청 이벤트 보존 |
 
 ### 지켜야 할 부등식
 

@@ -3,43 +3,74 @@
 앱 사이를 오가는 이벤트의 모양. 상태 전이 규칙은 트랙 문서([LN-TRACK.md](LN-TRACK.md) ·
 [ONCHAIN-TRACK.md](ONCHAIN-TRACK.md)), 운영자 ↔ 데몬 명령 채널은 [ARCHITECTURE.md](ARCHITECTURE.md) §2에 있다.
 
-**데몬(APP 키)이 모든 오더의 유일한 상태 소유자다.** 유저는 kind 1111로 요청만 하고, 데몬이 kind 30402를 발행·갱신한다.
+**데몬(APP 키)이 모든 오더의 유일한 상태 소유자다.** 유저는 요청 이벤트로 요청만 하고, 데몬이 오더 이벤트를 발행·갱신한다.
 
 ```
-유저 ──[kind 1111 요청, p=APP]──→ 릴레이 ──→ 데몬 ──[kind 30402 오더]──→ 릴레이 ──→ 유저 앱 (표시)
-                                          └──[kind 1111 통지, p=유저]──→ 릴레이 ──→ 유저 앱
+유저 ──[3838 요청, p=APP]──→ 릴레이 ──→ 데몬 ──[38383 오더]──→ 릴레이 ──→ 유저 앱 (표시)
+                                     └──[3838 통지, p=유저]──→ 릴레이 ──→ 유저 앱
+                                     └──[1059 DM]──→ 운영자 nostr 앱 (사람이 알아야 할 일만, §7)
 ```
 
 | 값 | |
 |---|---|
 | APP pubkey | `f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848` (`shared/src/constants.ts`). 개인키는 데몬만 |
-| 오더 | kind **30402** (NIP-99 주소형, `d` = 오더 id) |
-| 요청·통지 | kind **1111** (NIP-22) |
-| 운영자 상태·상세 | kind 30078 (NIP-78) |
-| 웹 푸시 구독 | kind 1111 `push-subscription` (암호문) |
+| 오더 `ORDER_KIND` | **38383** — NIP-69 P2P 오더 (주소형, `d` = 오더 id) |
+| 요청·통지 `MESSAGE_KIND` | **3838** — 우리 전용 일반 kind (NIP 없음) |
+| 운영자 상태·상세 `ADMIN_STATE_KIND` | **33838** — 우리 전용 주소형 kind |
+| 운영자 DM | 1059 (NIP-17 gift wrap) |
+| 웹 푸시 구독 | 3838 `push-subscription` (암호문) |
 | 트랙 태그 `t` | 라이트닝 `sajwo-tracker` · 온체인 `sajwo-tracker-onchain` · 어드민 어드민 태그. dev 빌드는 전부 `-dev` |
 
 `sajwo-tracker`라는 이름은 옛 프로젝트명이다. 바꾸면 릴레이에 있는 모든 이벤트와 끊긴다.
 
+### 왜 이 kind인가 (2026-09-26)
+
+예전엔 NIP-99(30402)·NIP-22(1111)·NIP-78(30078)을 빌렸다. 그랬더니:
+
+- 다른 nostr 클라이언트가 1111을 **댓글 알림**으로 띄웠다 — `p`가 박힌 요청이 전부(유저가 푸시를 켠 것까지) 울렸다.
+- 30402는 장터 판매글로 그려졌다.
+- NIP-78은 **작성자 자신의** 앱 데이터라 릴레이가 AUTH한 작성자에게만 내줘도 된다(SHOULD). APP이 쓰고 운영자가
+  읽는 우리 용도와 안 맞는다.
+
+오더는 NIP-69가 딱 맞는 자리라 옮겼다(필수 태그를 우리 태그 옆에 싣는다 — §2). 요청·통지·운영자 상태는 우리 앱만
+읽는 내용이라 맞는 NIP이 없어 억지로 빌리지 않고 전용 kind를 쓴다. 그래서 **운영자가 알아야 할 일은 이벤트가 아니라
+DM으로 간다**(§7). 옛 kind의 이벤트는 새 앱·데몬이 아예 보지 않는다 — 진행 중 거래가 없을 때 마이그레이션 없이 끊었다.
+
 ## 1. 공통 규칙
 
-- **APP이 서명한 30402만 오더다.** 누구나 30402를 낼 수 있으므로 파서가 발행자를 먼저 본다.
+- **APP이 서명한 오더 이벤트만 오더다.** 38383은 NIP-69 공용 kind라 누구나 낸다 — 파서가 발행자와 트랙 태그를 먼저 본다.
 - **요청은 보낸 사람을 본다**(I-008·O-020). 고객 요청은 그 오더의 고객, 후원자 요청은 그 오더의 후원자, 통지는 APP.
-- 요청은 `a` 태그(`30402:<APP>:<오더 id>`)로 오더를 가리킨다. 오더 id는 랜덤이다(쿠팡 주문번호를 쓰지 않는다).
+- 요청은 `a` 태그(`38383:<APP>:<오더 id>`)로 오더를 가리킨다. 오더 id는 랜덤이다(쿠팡 주문번호를 쓰지 않는다).
 - **모든 이벤트에 `expiration`(NIP-40)** — 릴레이 찌꺼기 방지. 예외 셋:
-  `dispute-message`(분쟁 증거 보존), 운영자 경보 gift wrap kind 1059, `push-subscription`(계정 단위라 주문보다
+  `dispute-message`(분쟁 증거 보존), 운영자 DM gift wrap 1059, `push-subscription`(계정 단위라 주문보다
   오래 산다).
 - **`expiration`은 보존이지 거래 마감이 아니다**(DM-009). 릴레이는 지난 `expiration`을 가진 이벤트를 거절하고
   내주지도 않는다 — 거래 도중에 그러면 발행이 전부 실패한다.
 - 암호문은 NIP-44. 계좌 정보는 **받는 사람(후원자)에게만** 암호화하고 공개 태그엔 솔트 커밋먼트만 둔다.
 
-## 2. 오더 (kind 30402, APP)
+## 2. 오더 (38383, APP)
+
+### NIP-69 태그 (두 트랙 공통, `shared/src/nip69.ts`)
+
+우리 앱은 **읽지 않는다** — 다른 P2P 오더 모음이 우리 오더를 알아보라고 싣는다. 상태를 접는 표는 트랙 모듈에
+`Record<상태, …>`로 있어 상태가 늘면 빌드가 깨진다.
+
+| 태그 | 값 |
+|---|---|
+| `k` · `f` | `sell` (오더를 내는 고객이 BTC를 판다) · `KRW` |
+| `s` | 의뢰 대기 `pending` · 진행 `in-progress` · 성사(정상 완료·후원자 승) `success` · 무산(취소·고객 승·강제 종결·환불·타임락 회수) `canceled` · 라이트닝 기한 만료 `expired` |
+| `amt` | 라이트닝 = 지급액(검증 전엔 `0` — 테이커가 붙은 뒤 시세로 정한다는 NIP-69 뜻 그대로) · 온체인 = 판매 수량 |
+| `fa` | 라이트닝 = 쿠팡 금액 · 온체인 = 고정된 원화(가격 고정 전 `0`) |
+| `pm` · `premium` | `bank transfer` · `0` (후원자는 시세만큼 받는다 — 마진은 고객이 낸다) |
+| `network` · `layer` | 라이트닝 `mainnet`(dev 데몬도 운영 LND) · `lightning` / 온체인 설정 네트워크 · `onchain` |
+| `expires_at` | `pending`이 끝나는 시각 — 라이트닝 쿠팡 기한, 온체인 의뢰 만료 |
+| `y` · `z` | `pairbuy` · `order` |
 
 ### 라이트닝 (`shared/src/ln/order.ts`)
 
 | 태그 | 뜻 |
 |---|---|
-| `d` · `t` · `status`(`active`/`sold`) · `state` | 식별·트랙·상태 |
+| `d` · `t` · `state` | 식별·트랙·상태 |
 | `price` `<원>` `KRW` | 쿠팡 결제 금액 |
 | `customer` · `sponsor` | 역할 pubkey |
 | `deadline` | **쿠팡 가상계좌 기한** — 카운트다운·오더북 필터 |
@@ -52,14 +83,14 @@
 | `sponsor-deposit` = `pending` | 클레임됐지만 후원자 보증금 대기 — 양쪽 화면이 "후원자 찾는 중"으로 그린다 |
 | `close-reason` | 종결 사유(`LnCloseReason`) |
 
-`deadline`이 없는 옛 이벤트는 `expiration`을 기한으로 읽는다. 파싱 결과의 `Order.expiration`은 **기한**이고 보존은
-`retainUntil`이다.
+`deadline`이 없으면 지난 기한으로 읽는다(보존을 기한으로 믿지 않는다). 파싱 결과의 `Order.expiration`은 **기한**이고
+보존은 `retainUntil`이다.
 
 ### 온체인 (`shared/src/onchain/order.ts`)
 
 | 태그 | 뜻 |
 |---|---|
-| `d` · `t` · `status` · `state` · `network` | |
+| `d` · `t` · `state` | `network`는 NIP-69 태그를 같이 읽는다 |
 | `customer` · `sponsor` · `amount-sat` · `reserve-krw` | |
 | `customer-xonly` · `sponsor-xonly` · `admin-xonly` · `escrow-address` · `timelock-blocks` | 세 키와 주소 — **유저 앱이 직접 파생해 대조한다** |
 | `funding-deadline` · `presign-deadline` · `account-deadline` · `krw-deadline` · `cosign-deadline` | 데몬이 전이 때 찍은 마감 |
@@ -71,7 +102,7 @@
 
 후원자의 받을 주소는 공개하지 않는다(요청 암호문 안에만 있다).
 
-## 3. 요청 (kind 1111, 유저 → APP)
+## 3. 요청 (3838, 유저 → APP)
 
 공통 태그: `a` · `action` · `t` · `p`=APP · `expiration`.
 
@@ -107,7 +138,7 @@
 데몬이 받는 action은 트랙별 핸들러 표(`createLnHandlers` · `createOcHandlers`)에 있는 것뿐이다. 나머지는
 `ignored:no-route`로 닫힌다.
 
-## 4. 통지 (kind 1111, APP → 유저)
+## 4. 통지 (3838, APP → 유저)
 
 `p`=받는 사람. 만료는 **그 통지가 쓸모 있는 동안**이다(쿠팡 기한이 아니다 — 기한 직후의 환불 통지가 거절됐었다).
 
@@ -125,19 +156,19 @@
 
 | 누가 | 필터 |
 |---|---|
-| 유저 앱 — 오더 | `kinds:[30402] authors:[APP] #t:[트랙 태그] since:VITE_NOSTR_SINCE` (트랙마다 하나) |
-| 유저 앱 — 수신함 | `kinds:[1111] #p:[내 pubkey] #t:[트랙 태그] since:…` (역할 공용, 받은 뒤 action으로 분기) |
-| 유저 앱 — 내가 보낸 요청 | `kinds:[1111] authors:[내 pubkey] #t:[트랙 태그] since:…` — 로컬 기록 되살리기 |
-| 데몬 | `kinds:[1111] #p:[APP] since:커서−6h` — 5분마다 새로 연다 |
+| 유저 앱 — 오더 | `kinds:[38383] authors:[APP] #t:[트랙 태그] since:VITE_NOSTR_SINCE` (트랙마다 하나) |
+| 유저 앱 — 수신함 | `kinds:[3838] #p:[내 pubkey] #t:[트랙 태그] since:…` (역할 공용, 받은 뒤 action으로 분기) |
+| 유저 앱 — 내가 보낸 요청 | `kinds:[3838] authors:[내 pubkey] #t:[트랙 태그] since:…` — 로컬 기록 되살리기 |
+| 데몬 | `kinds:[3838] #p:[APP] since:커서−6h` — 5분마다 새로 연다 |
 | 어드민 앱 | [ARCHITECTURE.md](ARCHITECTURE.md) §2 |
 
 ## 6. 이벤트 예시
 
 ```json
 {
-  "kind": 1111,
+  "kind": 3838,
   "tags": [
-    ["a", "30402:f1f3…a848:9b2e71c04d"],
+    ["a", "38383:f1f3…a848:9b2e71c04d"],
     ["action", "order-request"],
     ["price", "32900", "KRW"],
     ["deadline", "1790400000"],
@@ -151,14 +182,30 @@
 
 ```json
 {
-  "kind": 30402,
+  "kind": 38383,
   "pubkey": "f1f3…a848",
   "tags": [
-    ["d", "9b2e71c04d"], ["t", "sajwo-tracker"], ["status", "active"], ["state", "escrowed"],
+    ["d", "9b2e71c04d"], ["t", "sajwo-tracker"], ["state", "escrowed"],
     ["price", "32900", "KRW"], ["customer", "…"], ["sponsor", "…"],
     ["deadline", "1790400000"], ["expiration", "1792992000"],
-    ["bolt11", "lnbc…"], ["payout", "24512"], ["sponsor-deposit-payment-hash", "…"]
+    ["bolt11", "lnbc…"], ["payout", "24512"], ["sponsor-deposit-payment-hash", "…"],
+    ["k", "sell"], ["f", "KRW"], ["s", "in-progress"], ["amt", "24512"], ["fa", "32900"],
+    ["pm", "bank transfer"], ["premium", "0"], ["network", "mainnet"], ["layer", "lightning"],
+    ["expires_at", "1790400000"], ["y", "pairbuy"], ["z", "order"]
   ],
   "content": ""
 }
 ```
+
+## 7. 운영자 DM (NIP-17, APP → 운영자)
+
+요청·통지·운영자 상태는 우리 kind라 어떤 nostr 클라이언트도 울리지 않는다. 사람이 알아야 할 일은 데몬이 운영자에게
+NIP-17 DM으로 따로 보낸다(`daemon/src/admin/notify.ts`, 데몬 릴레이로만 — 운영자 앱이 그 릴레이를 읽어야 받는다).
+
+| 언제 | 몇 번 |
+|---|---|
+| **경보** — 분쟁 진입, 계좌 이의, 송금 뒤 무응답, 정산·지급 실패, 체인 이상 등 (`raiseAlert`) | 사유(`dedup`)마다 한 번. 어드민 앱 경보 목록에도 남는다 |
+| **유저의 분쟁 채팅** — 앞 80자, 계좌 공개는 "계좌를 공개했습니다" | 오더마다 `CHAT_DM_QUIET_SEC`(10분)에 한 번 — 전문은 어드민 앱 |
+| **새 의뢰** — 라이트닝 오더 생성·온체인 등록 | 오더마다 한 번 |
+
+운영과 무관한 일(유저가 푸시를 켠 것 등)은 울리지 않는다.

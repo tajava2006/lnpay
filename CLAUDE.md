@@ -32,7 +32,8 @@ pubkey를 비교해 유도한다 — 저장된 역할 칼럼이 없다. 어드�
 
 ```bash
 pnpm install
-pnpm verify                  # 전 패키지 타입체크 + 테스트 (CI와 같다)
+pnpm verify                  # 전 패키지 타입체크 + 린트 + 테스트 (CI와 같다)
+pnpm lint                    # oxlint --type-aware — 훅 규칙·버린 promise (깨끗하면 아무것도 안 찍는다)
 pnpm verify:web              # 데몬 제외 (VPS의 ship이 쓴다)
 pnpm build:customer          # 통합 유저 앱
 pnpm build:admin             # 어드민 앱 (리모컨)
@@ -99,6 +100,9 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
   유도한다(`shared/order-display.ts`가 본보기).
 - **문구에 숫자를 박지 않는다.** 창 길이는 상수에서 가져온다(`durationText`).
 - **"모름"을 "없음"으로 뭉개지 않는다.** 조회 실패는 보류, 모르는 마감은 지난 것으로 본다.
+- **promise를 버리지 않는다**(린트가 막는다). 핸들러에 async 함수를 그대로 넘기지 않고 `() => void fn()`으로 넘기되,
+  **실패는 `fn` 안에서 잡아 화면에 말한다** — `void`는 린트만 달랠 뿐 실패를 보여주지 않는다. 버튼이 잠긴 채 멈추거나
+  로딩에 영영 머무는 게 이 자리에서 났다.
 - **렌더 예외는 가둔다**(`ErrorBoundary`·`guarded`, shared). 화면·카드 단위로 두고, 온체인 회수처럼 **다른 칸이 깨져도
   남아야 하는 칸은 따로** 감싼다. 헤더(🔑 키 보기)는 화면 경계 밖이다.
 - 이벤트에는 반드시 `expiration` 태그(보존)를 단다. 예외 3종: `dispute-message`(증거 보존), 운영자 DM gift wrap

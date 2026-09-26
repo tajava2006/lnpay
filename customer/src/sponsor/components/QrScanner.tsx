@@ -57,7 +57,7 @@ export function QrScanner({ onScan, onClose }: Props) {
       rafRef.current = requestAnimationFrame(scan);
     }
 
-    start();
+    void start(); // 안에서 잡는다(카메라 오류 → 화면 문구)
 
     return () => {
       stopped = true;

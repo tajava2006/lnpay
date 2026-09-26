@@ -1,0 +1,21 @@
+{
+  // 타입체커가 못 잡는 것만 — 훅 규칙과 promise 처리.
+  // typescript-eslint는 TS 7(Go 네이티브)을 못 돌린다(피어 <6.1) → oxlint + tsgolint(`--type-aware`).
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react"],
+  "categories": { "correctness": "error" },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    // 버린 promise·핸들러에 넘긴 async — 실패가 아무 데도 안 보인다(폼이 잠기거나 로딩에 멈춘 적이 있다)
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    // React Compiler용 규칙 — 컴파일러를 안 쓰고, 걸린 곳(ref 지연 초기화·신선도용 Date.now·props 따라
+    // 상태 리셋)은 의도다
+    "react/refs": "off",
+    "react/purity": "off",
+    "react/set-state-in-effect": "off"
+  },
+  "ignorePatterns": ["**/dist/**", "**/node_modules/**"]
+}

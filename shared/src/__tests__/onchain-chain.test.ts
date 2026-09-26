@@ -17,7 +17,7 @@ const TXID = 'a'.repeat(64);
 function fakeFetch(routes: Record<string, { body: string; status?: number } | Error>) {
   const calls: string[] = [];
   const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     calls.push(`${init?.method ?? 'GET'} ${url}`);
     const key = Object.keys(routes).find(k => url.endsWith(k));
     if (!key) throw new Error(`테스트가 준비하지 않은 경로: ${url}`);

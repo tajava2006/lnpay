@@ -174,7 +174,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
           {attachable.map(o => (
             <button
               key={o.orderId}
-              onClick={() => handleAttach(o.orderId)}
+              onClick={() => void handleAttach(o.orderId)}
               disabled={attaching || requesting}
               style={styles.attachBtn}
             >
@@ -186,7 +186,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
 
       <div style={styles.orderActions}>
         <button
-          onClick={handleRequest}
+          onClick={() => void handleRequest()}
           disabled={requesting}
           style={styles.requestBtn}
         >

@@ -49,7 +49,7 @@ export function InvoicePayBlock({ bolt11, maxQrSize = 280, hint }: Props) {
         <a href={`lightning:${bolt11}`} style={styles.openBtn}>
           지갑 앱으로 열기
         </a>
-        <button type="button" onClick={handleCopy} style={styles.copyBtn}>
+        <button type="button" onClick={() => void handleCopy()} style={styles.copyBtn}>
           {copyState === 'done' ? '복사됨!' : '인보이스 복사'}
         </button>
       </div>

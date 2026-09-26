@@ -138,7 +138,7 @@ function AppContent() {
 
   useEffect(() => {
     const stopRelaySubscription = subscribeRelayLists(storage);
-    startSubscriptions();
+    void startSubscriptions(); // 가드가 안에서 잡는다
     // 온체인은 `t` 태그가 달라 **소켓을 따로 연다**. 섞으면 구버전
     // 클라이언트가 온체인 오더를 라이트닝으로 렌더링하는 사고가 재현된다.
     void startOnchainSubscriptions();
@@ -149,7 +149,7 @@ function AppContent() {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         stopSubscriptions();
-        startSubscriptions();
+        void startSubscriptions();
         stopOnchainSubscriptions();
         void startOnchainSubscriptions();
       }

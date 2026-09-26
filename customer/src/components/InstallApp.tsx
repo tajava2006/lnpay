@@ -71,10 +71,15 @@ export function InstallApp() {
 
   async function handleInstall() {
     if (!promptEvent) return;
-    await promptEvent.prompt();
-    // 프롬프트는 한 번 쓰면 재사용할 수 없다. 거절당했으면 브라우저가
-    // 나중에 이벤트를 다시 준다.
-    setPromptEvent(null);
+    try {
+      await promptEvent.prompt();
+    } catch (e) {
+      console.warn('[설치] 프롬프트를 띄우지 못했다', e);
+    } finally {
+      // 프롬프트는 한 번 쓰면 재사용할 수 없다. 거절당했으면 브라우저가
+      // 나중에 이벤트를 다시 준다.
+      setPromptEvent(null);
+    }
   }
 
   if (installed) {
@@ -93,7 +98,7 @@ export function InstallApp() {
         <p style={styles.text}>
           주소창 없이 앱처럼 열리고, 알림도 더 안정적으로 받습니다.
         </p>
-        <button onClick={handleInstall} style={ui.primaryButton}>홈 화면에 추가</button>
+        <button onClick={() => void handleInstall()} style={ui.primaryButton}>홈 화면에 추가</button>
       </div>
     );
   }

@@ -23,14 +23,14 @@ export function readBolt11(bolt11: string): Bolt11Info | null {
   const hash = section('payment_hash');
   const amount = section('amount');
   const timestamp = section('timestamp');
-  if (!hash || !('value' in hash) || !amount || !('value' in amount)) return null;
+  if (!hash || !('value' in hash) || typeof hash.value !== 'string' || !amount || !('value' in amount)) return null;
 
   const msat = Number(amount.value);
   if (!Number.isFinite(msat) || msat <= 0 || msat % 1000 !== 0) return null; // sat 단위가 아닌 금액은 받지 않는다
   const issuedAt = timestamp && 'value' in timestamp ? Number(timestamp.value) : 0;
   return {
     amountSat: msat / 1000,
-    paymentHash: String(hash.value),
+    paymentHash: hash.value,
     expiresAt: issuedAt + decoded.expiry,
   };
 }

@@ -156,16 +156,23 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
     return () => clearInterval(id);
   }, [pending]);
 
+  /** 던지지 않는다 — 실패는 false. 다시 보내기 버튼도 이걸 부른다 */
   async function send(claim: MyClaim): Promise<boolean> {
-    const sponsorXonly = await myOrderXonly(orderId);
-    // ⚠️ 먼저 기억해 둔다. 발행만 하고 못 적어두면 나중에 **사전서명을 만들 수 없다.**
-    rememberMyClaim({ ...claim, requestedAt: Date.now() });
-    const result = await publishOnchainClaim({
-      orderId, sponsorXonly, payoutAddress: claim.payoutAddress, feerateSatPerVb: claim.feerateSatPerVb,
-    });
-    if (!result.success) forgetMyClaim(orderId);
+    let ok = false;
+    try {
+      const sponsorXonly = await myOrderXonly(orderId);
+      // ⚠️ 먼저 기억해 둔다. 발행만 하고 못 적어두면 나중에 **사전서명을 만들 수 없다.**
+      rememberMyClaim({ ...claim, requestedAt: Date.now() });
+      ok = (await publishOnchainClaim({
+        orderId, sponsorXonly, payoutAddress: claim.payoutAddress, feerateSatPerVb: claim.feerateSatPerVb,
+      })).success;
+    } catch (e) {
+      console.error('[온체인] 클레임 발행 실패', e);
+    }
+    // 못 보냈으면 잊는다 — **던진 경우도**. 남겨 두면 데몬이 모르는 값을 붙든 채 폼이 "기다리는 중"으로 잠긴다
+    if (!ok) forgetMyClaim(orderId);
     rerender(n => n + 1);
-    return result.success;
+    return ok;
   }
 
   if (pending) {
@@ -220,7 +227,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
   }
 
   return (
-    <form onSubmit={submit} style={styles.form}>
+    <form onSubmit={e => void submit(e)} style={styles.form}>
       {rejected && notice && (
         <p style={styles.error}>보증금 인보이스를 받지 못했습니다 — {notice.reason}</p>
       )}

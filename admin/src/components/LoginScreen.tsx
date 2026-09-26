@@ -87,7 +87,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
   // 마운트 시 자동 시작
   useEffect(() => {
-    startLogin();
+    void startLogin(); // 안에서 잡는다
     return () => { abortRef.current?.abort(); };
   }, [startLogin]);
 
@@ -129,7 +129,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         {state.phase === 'error' && (
           <div style={styles.errorBox}>
             <p style={styles.errorMessage}>{state.message}</p>
-            <button style={styles.retryButton} onClick={startLogin}>
+            <button style={styles.retryButton} onClick={() => void startLogin()}>
               다시 시도
             </button>
           </div>

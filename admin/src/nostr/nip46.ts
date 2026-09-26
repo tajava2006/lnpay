@@ -81,7 +81,7 @@ export function saveSession(session: Nip46Session): void {
 export function clearSession(): void {
   localStorage.removeItem(SESSION_KEY);
   if (currentSigner) {
-    try { currentSigner.close(); } catch { /* 이미 닫힌 경우 무시 */ }
+    currentSigner.close().catch(() => { /* 이미 닫힌 경우 무시 */ });
     currentSigner = null;
   }
 }

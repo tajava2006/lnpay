@@ -14,14 +14,18 @@
  * 그래서 값을 바꿀 때는 늘 새 객체를 만든다(`update(prev => ({ ...prev, … }))`).
  */
 
+/**
+ * 함수 칸으로 둔다(메서드가 아니다) — `this`를 안 쓰므로 `useSyncExternalStore(store.subscribe, store.get)`처럼
+ * 떼어 넘겨도 된다.
+ */
 export interface Store<T> {
-  get(): T;
+  get: () => T;
   /** 같은 참조면 아무 일도 없다 */
-  set(next: T): void;
-  update(fn: (prev: T) => T): void;
-  subscribe(listener: () => void): () => void;
+  set: (next: T) => void;
+  update: (fn: (prev: T) => T) => void;
+  subscribe: (listener: () => void) => () => void;
   /** 처음 값으로 — 저장된 것도 지운다 */
-  reset(): void;
+  reset: () => void;
 }
 
 type KeyValueStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -87,11 +91,11 @@ export function createStore<T>(initial: T, persist?: Persist<T>): Store<T> {
     get: () => value,
     set,
     update: fn => set(fn(value)),
-    subscribe(listener) {
+    subscribe: listener => {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    reset() {
+    reset: () => {
       value = initial;
       if (persist) {
         try { backend()?.removeItem(persist.key); } catch { /* 지우기 실패는 무시 */ }

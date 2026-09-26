@@ -114,7 +114,7 @@ export function checkSignRequest(input: SignCheckInput): SignCheck {
   try {
     theirs = fromPsbtBase64(psbt);
   } catch (e) {
-    return { ok: false, reason: `PSBT를 읽지 못했다: ${e instanceof Error ? e.message : e}` };
+    return { ok: false, reason: `PSBT를 읽지 못했다: ${e instanceof Error ? e.message : String(e)}` };
   }
   if (theirs.inputsLength !== 1 || theirs.outputsLength !== 1) {
     return { ok: false, reason: '입력 1개·출력 1개가 아니다' };
@@ -187,7 +187,7 @@ export function checkSignRequest(input: SignCheckInput): SignCheck {
   try {
     vsize = estimateSettlementVsize(path, descriptor, destination);
   } catch (e) {
-    return { ok: false, reason: `받는 주소를 쓸 수 없다: ${e instanceof Error ? e.message : e}` };
+    return { ok: false, reason: `받는 주소를 쓸 수 없다: ${e instanceof Error ? e.message : String(e)}` };
   }
   if (feeSat < 0 || feeSat / vsize > MAX_SANE_SETTLEMENT_FEERATE) {
     return { ok: false, reason: `수수료가 비정상이다: ${feeSat.toLocaleString()} sats` };
@@ -198,7 +198,7 @@ export function checkSignRequest(input: SignCheckInput): SignCheck {
   try {
     mineId = buildSettlementTx(expected).id;
   } catch (e) {
-    return { ok: false, reason: `기대 tx를 만들지 못했다: ${e instanceof Error ? e.message : e}` };
+    return { ok: false, reason: `기대 tx를 만들지 못했다: ${e instanceof Error ? e.message : String(e)}` };
   }
   if (theirs.id !== mineId) {
     return { ok: false, reason: '요청받은 tx가 내가 기대한 tx와 다르다 (금액·주소·수수료 중 무엇인가 다르다)' };

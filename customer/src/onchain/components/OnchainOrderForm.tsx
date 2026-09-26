@@ -96,13 +96,16 @@ export function OnchainOrderForm({ onDone, tracker }: {
       setReserveKrw('');
       setRefundAddress('');
       onDone?.();
+    } catch (err) {
+      console.error('[온체인] 의뢰 등록 실패', err);
+      setError('의뢰를 올리지 못했습니다. 잠시 후 다시 시도하세요.');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={submit} style={styles.form}>
+    <form onSubmit={e => void submit(e)} style={styles.form}>
       <label style={styles.label}>
         팔 수량 (sats)
         <input

@@ -167,7 +167,7 @@ function publishToRelay(
           if (data[2]) {
             resolve();
           } else {
-            reject(new Error(String(data[3] ?? 'rejected')));
+            reject(new Error(typeof data[3] === 'string' ? data[3] : 'rejected'));
           }
         }
       } catch {

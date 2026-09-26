@@ -75,7 +75,7 @@ export function NotifySetup({ onClose }: { onClose: () => void }) {
         */}
         <InstallApp />
 
-        <PushSection state={push} onEnable={handleEnable} onDisable={handleDisable} />
+        <PushSection state={push} onEnable={() => void handleEnable()} onDisable={() => void handleDisable()} />
     </Modal>
   );
 }

@@ -194,10 +194,12 @@ export class Daemon {
 
   private schedule(delayMs: number): void {
     if (this.timer) clearTimeout(this.timer);
-    this.timer = setTimeout(async () => {
+    this.timer = setTimeout(() => {
       this.timer = null;
-      await this.tick();
-      if (!this.stopped && !this.timer) this.schedule(this.deps.tickMs);
+      // tick은 던지지 않는다(안에서 잡아 로그) — 그래도 다음 틱 예약이 끊기지 않게 finally에 둔다
+      void this.tick().finally(() => {
+        if (!this.stopped && !this.timer) this.schedule(this.deps.tickMs);
+      });
     }, delayMs);
   }
 

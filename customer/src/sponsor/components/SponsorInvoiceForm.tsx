@@ -147,7 +147,7 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
 
       <button
         style={canSubmit ? styles.btn : styles.btnOff}
-        onClick={handleSubmit}
+        onClick={() => void handleSubmit()}
         disabled={!canSubmit}
       >
         {sending ? '등록 중…' : '인보이스 등록'}

@@ -65,14 +65,19 @@ export function UserscriptGuide() {
 
   async function handleCopy() {
     if (!scriptContent) return;
-    await navigator.clipboard.writeText(scriptContent);
+    try {
+      await navigator.clipboard.writeText(scriptContent);
+    } catch {
+      alert('복사하지 못했습니다. 브라우저의 클립보드 권한을 확인하세요.');
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
     <div style={styles.card}>
-      <button onClick={handleExpand} style={styles.headerBtn}>
+      <button onClick={() => void handleExpand()} style={styles.headerBtn}>
         <span style={styles.headerTitle}>쿠팡 자동 파싱 (유저스크립트)</span>
         <span style={styles.arrow}>{expanded ? '\u25B2' : '\u25BC'}</span>
       </button>
@@ -142,7 +147,7 @@ export function UserscriptGuide() {
                   유저스크립트 (키 포함)
                   {version && <span style={styles.versionBadge}>v{version}</span>}
                 </span>
-                <button onClick={handleCopy} style={styles.copyBtn}>
+                <button onClick={() => void handleCopy()} style={styles.copyBtn}>
                   {copied ? '복사됨' : '코드 복사'}
                 </button>
               </div>

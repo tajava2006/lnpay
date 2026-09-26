@@ -27,13 +27,14 @@ export interface PriceSnapshot {
   exchanges: ExchangeState[];
 }
 
+/** 함수 칸이다(`this`를 안 쓴다) — `tracker.subscribe`를 떼어 넘겨도 된다 */
 export interface PriceTracker {
-  start(): void;
-  stop(): void;
+  start: () => void;
+  stop: () => void;
   /** useSyncExternalStore 용 subscribe */
-  subscribe(listener: () => void): () => void;
+  subscribe: (listener: () => void) => () => void;
   /** useSyncExternalStore 용 getSnapshot */
-  getSnapshot(): PriceSnapshot;
+  getSnapshot: () => PriceSnapshot;
 }
 
 // ── 거래소 연결 설정 ──────────────────────────────
@@ -264,7 +265,7 @@ export function createPriceTracker(): PriceTracker {
   }
 
   return {
-    start() {
+    start: () => {
       if (running) return;
       running = true;
       for (let i = 0; i < EXCHANGES.length; i++) {
@@ -272,7 +273,7 @@ export function createPriceTracker(): PriceTracker {
       }
     },
 
-    stop() {
+    stop: () => {
       running = false;
       for (let i = 0; i < EXCHANGES.length; i++) {
         cleanupSocket(i);
@@ -290,14 +291,12 @@ export function createPriceTracker(): PriceTracker {
       notify();
     },
 
-    subscribe(listener: () => void) {
+    subscribe: (listener: () => void) => {
       listeners.add(listener);
-      return () => listeners.delete(listener);
+      return () => { listeners.delete(listener); };
     },
 
-    getSnapshot() {
-      return snapshot;
-    },
+    getSnapshot: () => snapshot,
   };
 }
 

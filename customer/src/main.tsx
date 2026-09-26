@@ -26,7 +26,8 @@ if (MAINTENANCE && !import.meta.env.DEV && !__LOCAL_OPEN__) {
   );
 } else {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js');
+    // 등록 실패(사생활 모드·비보안 출처)는 앱을 막지 않는다 — 푸시만 못 쓴다
+    navigator.serviceWorker.register('/sw.js').catch((e: unknown) => console.warn('[SW] 등록 실패', e));
   }
 
   void Promise.all([import('@sajwo-tracker/shared'), import('./App')])

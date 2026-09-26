@@ -42,18 +42,21 @@ export function HistoryPage({ onSelectOrder, tracker }: Props) {
   const [past, setPast] = useState<Order[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const myPubkey = useMyPubkey();
   const live = useSyncExternalStore(subscribeOrders, getOrderSnapshot);
 
   const loadPage = useCallback(async (cursor?: number) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const page = await idbGetOrdersPage(cursor, PAGE_SIZE);
       setPast(prev => (cursor ? [...prev, ...page] : page));
       setHasMore(page.length >= PAGE_SIZE);
     } catch (err) {
       console.warn('[HistoryPage] IDB load failed:', err);
+      setLoadError('지난 거래를 불러오지 못했습니다. 이 앱이 열린 다른 탭을 닫고 새로고침해 주세요.');
     } finally {
       setLoading(false);
     }
@@ -107,7 +110,8 @@ export function HistoryPage({ onSelectOrder, tracker }: Props) {
       )}
 
       {done.length > 0 && <h2 className="section-title">지난 거래</h2>}
-      {active.length === 0 && done.length === 0 && !loading && (
+      {loadError && <div style={styles.error}>{loadError}</div>}
+      {active.length === 0 && done.length === 0 && !loading && !loadError && (
         <div style={styles.empty}>
           {past.length === 0 ? '거래 이력이 없습니다' : '이 조건에 맞는 거래가 없습니다'}
         </div>
@@ -118,7 +122,7 @@ export function HistoryPage({ onSelectOrder, tracker }: Props) {
         ))}
       </div>
 
-      {hasMore && (
+      {hasMore && !loadError && (
         <button style={styles.loadMore} onClick={loadMore} disabled={loading}>
           {loading ? '불러오는 중...' : '더 보기'}
         </button>
@@ -136,6 +140,7 @@ const styles = {
   chipOn: { background: '#4F46E5', borderColor: '#4F46E5', color: '#fff', fontWeight: 600 as const },
   list: { display: 'flex', flexDirection: 'column' as const, gap: 12 },
   empty: { textAlign: 'center' as const, padding: 48, color: '#666', fontSize: 14 },
+  error: { padding: 12, marginBottom: 12, fontSize: 13, color: '#991B1B', background: '#FEF2F2', borderRadius: 8 },
   loadMore: {
     display: 'block', width: '100%', marginTop: 12, padding: '10px 0', fontSize: 13, fontWeight: 500 as const,
     color: '#4F46E5', background: '#fff', border: '1px solid #C7D2FE', borderRadius: 8, cursor: 'pointer',

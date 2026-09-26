@@ -55,7 +55,17 @@ export function initIdb(dbName: string): void {
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      // 다른 탭이 DB를 지우거나 올리려 하면 비켜 준다. 안 비키면 그 탭의 요청이 멈추고, 그 뒤에 줄 선
+      // 모든 열기(새로고침한 탭 포함)가 영영 안 열린다
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
+    request.onblocked = () => console.warn('[IDB] 다른 탭이 DB를 쥐고 있어 열기를 기다린다');
     request.onerror = () => {
       dbPromise = null;
       reject(request.error);
@@ -64,25 +74,34 @@ export function initIdb(dbName: string): void {
 }
 
 /**
- * 이 앱의 IDB를 통째로 지운다 — 다른 키로 바꿀 때(옛 키의 기록이 새 키 화면에 섞이지 않게).
- * 열린 연결을 먼저 닫는다. 안 닫으면 삭제가 `blocked`로 멈춘다.
+ * 이 앱의 IDB 내용을 전부 비운다 — 다른 키로 바꿀 때(옛 키의 기록이 새 키 화면에 섞이지 않게).
+ *
+ * DB를 지우지(`deleteDatabase`) 않고 **저장소만 비운다.** 삭제는 다른 탭이 연결을 쥐고 있으면 멈추고, 멈춘 삭제
+ * 뒤에 줄 선 열기가 새로고침 뒤에도 영영 안 열린다(2026-09-26 — 키를 옮긴 브라우저에서 라이트닝 내역이 "불러오는
+ * 중"에 멈췄다). 비우기는 보통 트랜잭션이라 막히지 않는다.
  */
-export async function idbDeleteAll(dbName: string): Promise<void> {
-  if (dbPromise) {
-    const db = await dbPromise.catch(() => null);
-    db?.close();
-    dbPromise = null;
-  }
+export async function idbClearAll(): Promise<void> {
+  const db = await openDb();
   await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(dbName);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+    const names = Array.from(db.objectStoreNames);
+    const tx = db.transaction(names, 'readwrite');
+    for (const name of names) tx.objectStore(name).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
 }
 
+/** 이만큼 안 열리면 포기한다 — 화면이 "불러오는 중"에 영영 멈추지 않게. 늦게 열리면 다음 호출부터 쓴다 */
+const OPEN_TIMEOUT_MS = 5000;
+
 function openDb(): Promise<IDBDatabase> {
   if (!dbPromise) throw new Error('initIdb()를 먼저 호출해야 합니다.');
-  return dbPromise;
+  return Promise.race([
+    dbPromise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('IDB가 열리지 않는다 — 이 앱의 다른 탭을 닫아 주세요')), OPEN_TIMEOUT_MS)),
+  ]);
 }
 
 // ── 오더 API ─────────────────────────────────────────

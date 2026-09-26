@@ -10,7 +10,7 @@
 import { decode, nsecEncode } from 'nostr-tools/nip19';
 import { getPublicKey } from 'nostr-tools/pure';
 import {
-  ORDER_DB_NAME, STORAGE_KEYS, getSecretKey, idbDeleteAll, isTerminalState, storage, type NostrKeypair,
+  STORAGE_KEYS, getSecretKey, idbClearAll, isTerminalState, storage, type NostrKeypair,
 } from '@sajwo-tracker/shared';
 import { isOnchainTerminal } from '@sajwo-tracker/shared/onchain';
 import { myOnchainOrders } from './onchain/store';
@@ -58,10 +58,10 @@ export function activeTradeCount(myPubkey: string): number {
  * 불러온다. 이 브라우저의 웹 푸시는 옛 키 앞으로 등록돼 있어 끊는다(알림은 새 키로 다시 켠다).
  */
 export async function replaceKey(sk: Uint8Array): Promise<void> {
-  // 둘 다 멈출 수 있다 — 서비스 워커가 없으면 `ready`가 영영 안 오고, 다른 탭이 DB를 쥐고 있으면 삭제가 막힌다.
-  // 기다리다 키 교체가 안 되는 것보다 넘어가는 게 낫다(옛 구독은 데몬이 404로 정리하고, 옛 기록은 내 것이 아니라 안 보인다)
+  // 서비스 워커가 없으면 `ready`가 영영 안 온다 — 기다리다 키 교체가 안 되는 것보다 넘어가는 게 낫다
+  // (옛 구독은 데몬이 404로 정리한다). IDB는 지우지 않고 비운다 — 지우기는 다른 탭 때문에 멈출 수 있다
   await settleWithin(unsubscribeFromPush(), 3000);
-  await settleWithin(idbDeleteAll(ORDER_DB_NAME), 3000);
+  await settleWithin(idbClearAll(), 3000);
   localStorage.clear();
   const keypair: NostrKeypair = { secretKey: Array.from(sk), publicKey: getPublicKey(sk) };
   await storage.set(STORAGE_KEYS.KEYPAIR, keypair);

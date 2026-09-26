@@ -14,7 +14,7 @@ import {
 import {
   BLOCK_SEC, CATCHUP_WARMUP_SEC, CLTV_MAX_BLOCKS, CUSTOMER_DEPOSIT_MARGIN_SEC, DEADLINE_GRACE_SEC, ESCROW_END_BLOCKS,
   ESCROW_HOLD_MARGIN_SEC, ESCROW_PAY_LEAD_SEC, INVOICE_ESCROW_MIN_BLOCKS, MIN_ESCROW_PAY_WINDOW_SEC,
-  SAFETY_SETTLE_BLOCKS, SPONSOR_DEPOSIT_MARGIN_SEC, SPONSOR_DEPOSIT_PAY_SEC, cltvBlocksFor,
+  LND_DOWN_ALERT_SEC, SAFETY_SETTLE_BLOCKS, SPONSOR_DEPOSIT_MARGIN_SEC, SPONSOR_DEPOSIT_PAY_SEC, cltvBlocksFor,
 } from '../ln/timing';
 import { depositCltvBlocks } from '../onchain/deposit';
 import { FEES_MAX_AGE_SEC, FEES_REFRESH_SEC } from '../onchain/fees';
@@ -45,6 +45,11 @@ describe('라이트닝 (LN-TRACK §5)', () => {
     expect(INVOICE_ESCROW_MIN_BLOCKS).toBeGreaterThan(ESCROW_END_BLOCKS);
     expect(ESCROW_END_BLOCKS).toBeGreaterThan(SAFETY_SETTLE_BLOCKS);
     expect(SAFETY_SETTLE_BLOCKS).toBeGreaterThan(LND_HOLD_EXPIRY_DELTA);
+  });
+
+  /** 선제 settle이 필요한 순간 LND가 죽으면, 노드가 홀드를 스스로 취소하기 전에 고쳐야 한다 */
+  it('④-2 LND 불통 경보는 선제 settle 창의 4분의 1 안에 온다 — 고칠 틈이 남게', () => {
+    expect(LND_DOWN_ALERT_SEC * 4).toBeLessThan((SAFETY_SETTLE_BLOCKS - LND_HOLD_EXPIRY_DELTA) * BLOCK_SEC);
   });
 
   it('⑤ 막바지 클레임도 승인될 틈이 있다', () => {

@@ -134,9 +134,22 @@ pnpm ship    # pull → 설치 → 타입체크·테스트 → 유저스크립�
 - 사람을 부르는 경보(운영자 DM + 데몬 탭): 분쟁 진입, 계좌 이의, 몰수금 처리, 약정 밖 자금(구조), 선제 settle, 오래
   실패하는 효과(지급·settle·브로드캐스트), 장부에 없는 에스크로 소모(키 유출 의심), 데몬이 하지 않은 settle.
   경보 말고도 **유저의 분쟁 채팅**(오더마다 10분에 한 번)과 **새 의뢰**가 DM으로 온다([PROTOCOL.md](PROTOCOL.md) §7).
-- ⚠️ **데몬이 죽으면 DM도 못 보낸다.** 지금 외부 감시는 없다 — docker healthcheck(로컬)와 어드민 앱의 하트비트 표시뿐이다.
-  라이트닝 `remitted` 거래는 데몬이 약 이틀 넘게 꺼지면 후원자가 잃을 수 있다(RISKS R-3). 하트비트 파일
-  (`lnpay-data/heartbeat`)을 보는 외부 알림을 붙이는 게 다음 일이다.
+- **LND만 죽으면** 데몬이 직접 알린다 — 10분(`LND_DOWN_ALERT_SEC`) 넘게 응답이 없으면 경보 DM, 돌아오면 한 번 더.
+- **데몬·운영 PC·그 네트워크가 멈추면** 데몬이 스스로 못 알린다 → **바깥 감시**(`daemon/scripts/watchdog.mjs`)를
+  클라우드 VPS cron으로 돌린다. 데몬이 1분마다 내는 운영자 상태의 **시각만** 보고(내용은 못 읽는다), 10분 넘게 없으면
+  운영자에게 NIP-17 DM(멈춘 동안 6시간마다 다시), 돌아오면 한 번 더. 릴레이가 하나도 답하지 않으면 판단을 보류한다
+  (VPS 쪽 문제일 수 있다). 라이트닝 `remitted` 거래는 데몬이 약 이틀 넘게 꺼지면 후원자가 잃을 수 있다(RISKS R-3).
+
+  VPS에 한 번:
+  ```bash
+  # 감시용 키 — APP 키가 아니다. DM의 보낸 사람이니 운영자 nostr 앱에서 팔로우해 두면 알림함에 바로 뜬다
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" > ~/.lnpay-watchdog.key && chmod 600 ~/.lnpay-watchdog.key
+  # 한 번 돌려 본다 — DM 없이 판단만
+  cd ~/dev/lnpay && WATCHDOG_OPERATORS=<운영자 hex> node daemon/scripts/watchdog.mjs --dry-run
+  # crontab -e
+  */5 * * * * cd ~/dev/lnpay && WATCHDOG_KEY_FILE=~/.lnpay-watchdog.key WATCHDOG_OPERATORS=<운영자 hex> node daemon/scripts/watchdog.mjs >> ~/lnpay-watchdog.log 2>&1
+  ```
+  VPS 레포는 `pnpm ship`이 설치하므로 `nostr-tools`가 이미 있다. 스크립트가 바뀌면 `ship`(git pull)으로 따라온다.
 
 ## 8. 옛 구조 걷어내기 (VPS, 한 번)
 

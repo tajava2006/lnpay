@@ -13,6 +13,7 @@ import { unwrapEvent } from 'nostr-tools/nip17';
 import { finalizeEvent } from 'nostr-tools/pure';
 import { openAlerts } from '../admin/alerts';
 import { CHAT_DM_QUIET_SEC } from '../admin/chat';
+import { LND_DOWN_ALERT_SEC } from '../ln/timing';
 import { STUCK_EFFECT_ATTEMPTS } from '../admin/stuck';
 import { TEST_TAGS, adminCommand, eventsTo, newKey, openResult, type TestKey } from './fakes';
 import { createLnHarness, lnRequest, makeInvoice, tagOf, type LnHarness } from './ln-fakes';
@@ -380,6 +381,28 @@ describe('운영자 DM (NIP-17)', () => {
     const h = await createLnHarness();
     const orderId = await openOrder(h, { price: 32_900 });
     expect(dmsTo(h, /새 의뢰/)).toEqual([`[페어바이] 새 의뢰 — 라이트닝 32,900원 (${orderId})`]);
+  });
+
+  /** RISKS R-3 — 데몬은 살아 있는데 LND가 죽으면 선제 settle을 못 한다. 하트비트로는 안 보인다 */
+  it('LND가 오래 응답하지 않으면 경보(DM) — 한 번만, 돌아오면 한 번 더 알린다', async () => {
+    const h = await createLnHarness();
+    h.node.down = true;
+    h.advance(LND_DOWN_ALERT_SEC - 60);
+    await h.run(1);
+    expect(dmsTo(h, /LND가 .*분째/)).toHaveLength(0);
+
+    h.advance(120);
+    await h.run(2);
+    expect(dmsTo(h, /LND가 .*분째/)).toHaveLength(1);
+    expect(openAlerts(h.ln).filter(a => /LND/.test(a.message))).toHaveLength(1);
+
+    h.advance(10 * 60); // 계속 죽어 있어도 다시 울리지 않는다
+    await h.run(2);
+    expect(dmsTo(h, /LND가 .*분째/)).toHaveLength(1);
+
+    h.node.down = false;
+    await h.run(2);
+    expect(dmsTo(h, /다시 응답/)).toHaveLength(1);
   });
 
   /** 사본은 우리 kind라 운영자 폰을 울리지 않는다 — 분쟁은 반드시 알아야 한다 */

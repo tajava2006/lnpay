@@ -12,6 +12,7 @@
 import { expiryReasonFor, type LnCloseReason } from '@sajwo-tracker/shared/ln';
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
+import { notifyOperators } from '../admin/notify';
 import { loadSettings } from '../admin/settings';
 import type { LnContext } from './context';
 import {
@@ -20,8 +21,13 @@ import {
 import { allDrafts, deleteDraft, insertOrder, ordersInStates, type LnOrderRow } from './store';
 import {
   CATCHUP_WARMUP_SEC, CUSTOMER_DEPOSIT_PAY_SEC, DEADLINE_GRACE_SEC, ESCROW_END_BLOCKS, PAY_BY_SKEW_SEC,
-  REMITTED_ALERT_SEC, SAFETY_SETTLE_BLOCKS,
+  LND_DOWN_ALERT_SEC, REMITTED_ALERT_SEC, SAFETY_SETTLE_BLOCKS,
 } from './timing';
+
+/** LND가 마지막으로 응답한 시각(초) */
+const LND_OK_KEY = 'ln.ok_at';
+/** 지금 열린 LND 불통 경보의 기준 시각 — 복구되면 지운다 */
+const LND_DOWN_KEY = 'ln.down_alert';
 
 export class LnWatcher {
   constructor(private readonly ctx: LnContext) {}
@@ -35,7 +41,35 @@ export class LnWatcher {
     } catch (e) {
       ctx.log.warn('블록 높이 조회 실패', { error: e instanceof Error ? e.message : String(e) });
     }
-    ctx.db.tx(() => this.clock(height));
+    ctx.db.tx(() => {
+      this.lndHealth(height !== undefined);
+      this.clock(height);
+    });
+  }
+
+  /**
+   * LND가 응답하나 — 데몬은 살아 있어도 LND가 죽으면 선제 settle을 못 한다(RISKS R-3). 한동안 안 되면 경보(DM),
+   * 돌아오면 한 번 더 알린다. 하트비트는 LND와 무관하게 돌므로 바깥 감시(watchdog)로는 이걸 못 본다.
+   */
+  lndHealth(ok: boolean): void {
+    const { ctx } = this;
+    const now = nowSec(ctx);
+    if (ok) {
+      ctx.db.kvSet(LND_OK_KEY, String(now));
+      if (ctx.db.kvGet(LND_DOWN_KEY)) {
+        ctx.db.kvSet(LND_DOWN_KEY, '');
+        notifyOperators(ctx, 'LND가 다시 응답합니다.');
+      }
+      return;
+    }
+    // 부팅부터 안 됐으면 데몬 시작 시각을 기준으로 센다
+    const since = Number(ctx.db.kvGet(LND_OK_KEY) ?? ctx.startedAt);
+    if (now - since < LND_DOWN_ALERT_SEC) return;
+    ctx.db.kvSet(LND_DOWN_KEY, String(since));
+    raiseAlert(ctx, {
+      dedup: `ln:lnd-down:${since}`, level: 'anomaly', track: 'ln',
+      message: `LND가 ${Math.floor((now - since) / 60)}분째 응답하지 않습니다 — 송금한 거래의 선제 settle이 막힙니다. LND를 확인하세요.`,
+    });
   }
 
   /** 시각·블록 높이로 판단한다 */

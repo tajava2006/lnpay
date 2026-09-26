@@ -90,6 +90,12 @@ export const INVOICE_ESCROW_MIN_BLOCKS = ESCROW_END_BLOCKS + 36;
 export const REMITTED_ALERT_SEC = 12 * HOUR;
 
 /**
+ * LND가 이만큼 응답하지 않으면 사람을 부른다(RISKS R-3). 데몬은 살아 있어도 LND가 죽으면 선제 settle을 못 한다 —
+ * 원화를 보낸 후원자가 잃는 자리다. 선제 settle 창(노드 자동 취소 전까지 ~4시간)보다 한참 먼저 알아야 고칠 틈이 있다.
+ */
+export const LND_DOWN_ALERT_SEC = 10 * MIN;
+
+/**
  * 결제 기한(`pay_by`)을 넘겼다고 판단할 때 주는 여유 — 노드 시계와 우리 시계가 조금 달라도
  * "기한 직전에 낸 결제"를 미납으로 치지 않게. 노드는 인보이스 만료 뒤의 HTLC를 받지 않는다.
  */

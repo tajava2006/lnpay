@@ -17,7 +17,7 @@ interface CoupangNotPayedPayment {
   depositPrice: number;
 }
 
-interface CoupangOrderData {
+export interface CoupangOrderData {
   pageProps: {
     domains: {
       order: {
@@ -159,3 +159,59 @@ export function isPaid(data: CoupangOrderData, orderId: string): boolean {
   if (!payment) return false;
   return payment.payed === true && !isCancelled(data, orderId);
 }
+
+// ── 웹앱에 보낼 값 ─────────────────────────────────────
+
+/**
+ * parsed-order 이벤트의 내용 — 웹앱이 받을 때 `isParsedOrderPayload`(customer/src/buyer/types.ts)로 같은 모양을
+ * 본다. 두 쪽이 갈리면 보낸 주문이 **조용히 사라진다** — 계약 테스트(customer/src/tests/userscript-contract.test.ts)가
+ * 묶는다.
+ */
+export interface ParsedOrderPayload {
+  coupangOrderId: string;
+  productName: string;
+  price: number;
+  bankName: string;
+  accountNumber: string;
+  depositor: string;
+  /** 입금 기한 (ms) */
+  expirationDate: number;
+}
+
+export type ParseResult =
+  | { kind: 'order'; payload: ParsedOrderPayload }
+  /** 무통장입금 미결제가 아니다 — 할 일 없음 */
+  | { kind: 'not-target' }
+  /** 무통장 미결제인데 계좌 칸을 못 읽었다 — 쿠팡이 응답 모양을 바꿨을 가능성이 크다 */
+  | { kind: 'shape-changed' };
+
+const filled = (v: unknown): v is string => typeof v === 'string' && v.trim() !== '';
+
+/**
+ * 쿠팡 주문 → 웹앱에 보낼 값.
+ *
+ * 쿠팡 응답은 남의 JSON이라 타입이 약속이 아니다. 칸이 빈 채로 보내면 웹앱이 받지 않아 유저는 "감지가 안 된다"만
+ * 본다 — 그래서 여기서 걸러 `shape-changed`로 알린다(화면에 알림).
+ */
+export function buildParsedPayload(data: CoupangOrderData, orderId: string): ParseResult {
+  if (!isTargetOrder(data, orderId)) return { kind: 'not-target' };
+  const account = extractVirtualAccount(data, orderId);
+  if (!account) return { kind: 'shape-changed' };
+  const { bankName, accountNumber, depositor, depositPrice, expirationDate } = account;
+  if (!filled(bankName) || !filled(accountNumber) || !filled(depositor)) return { kind: 'shape-changed' };
+  if (!Number.isInteger(depositPrice) || depositPrice <= 0) return { kind: 'shape-changed' };
+  if (!Number.isFinite(expirationDate) || expirationDate <= 0) return { kind: 'shape-changed' };
+  return {
+    kind: 'order',
+    payload: {
+      coupangOrderId: orderId,
+      productName: extractProductName(data, orderId),
+      price: depositPrice,
+      bankName,
+      accountNumber,
+      depositor,
+      expirationDate,
+    },
+  };
+}
+

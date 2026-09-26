@@ -6,11 +6,9 @@
  */
 import { ensureNsec, getProcessedOrders, markProcessed, getCachedRelays, setCachedRelays } from './storage';
 import {
+  buildParsedPayload,
   extractOrderIdFromUrl,
   fetchCoupangOrder,
-  isTargetOrder,
-  extractProductName,
-  extractVirtualAccount,
   isCancelled,
   isPaid,
 } from './coupang';
@@ -74,22 +72,15 @@ async function main() {
   const processed = getProcessedOrders();
 
   // 6. 신규 주문: 무통장입금 미결제 → parsed-order 발행
-  if (!processed[orderId]?.status && isTargetOrder(orderData, orderId)) {
-    const account = extractVirtualAccount(orderData, orderId);
-    if (!account) {
-      console.log('[사줘] Failed to extract virtual account');
-      return;
-    }
-
-    const payload = {
-      coupangOrderId: orderId,
-      productName: extractProductName(orderData, orderId),
-      price: account.depositPrice,
-      bankName: account.bankName,
-      accountNumber: account.accountNumber,
-      depositor: account.depositor,
-      expirationDate: account.expirationDate,
-    };
+  const parsed = processed[orderId]?.status ? null : buildParsedPayload(orderData, orderId);
+  if (parsed?.kind === 'shape-changed') {
+    // 콘솔에만 남기면 유저는 "감지가 안 된다"만 본다
+    console.warn('[사줘] 무통장 주문인데 계좌를 읽지 못했다 — 쿠팡 응답 모양이 바뀐 것 같다');
+    showNotification('주문을 읽지 못했습니다', '쿠팡 화면이 바뀐 것 같습니다. 의뢰는 웹앱에서 직접 입력해 주세요.');
+    return;
+  }
+  if (parsed?.kind === 'order') {
+    const { payload } = parsed;
 
     console.log('[사줘] New order detected:', payload);
 
@@ -97,7 +88,7 @@ async function main() {
     const result = await publishToRelays(signed, relays);
 
     if (result.success) {
-      markProcessed(orderId, 'parsed', Math.floor(account.expirationDate / 1000));
+      markProcessed(orderId, 'parsed', Math.floor(payload.expirationDate / 1000));
       console.log('[사줘] parsed-order published to', result.publishedTo.length, 'relays');
       showNotification('주문 감지됨', `${payload.productName} — ₩${payload.price.toLocaleString()}`);
     } else {

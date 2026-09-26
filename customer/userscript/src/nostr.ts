@@ -4,6 +4,7 @@
  * SimplePool 대신 직접 WebSocket을 사용하여 번들 크기를 최소화한다.
  * nostr-tools/pure의 finalizeEvent + getPublicKey만 사용.
  */
+import type { ParsedOrderPayload } from './coupang';
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import * as nip19 from 'nostr-tools/nip19';
 import { v2 as nip44 } from 'nostr-tools/nip44';
@@ -78,9 +79,11 @@ function fetchRelayList(relayUrl: string): Promise<string[]> {
         const data = JSON.parse(msg.data as string) as unknown[];
         if (data[0] === 'EVENT' && data[1] === subId) {
           const event = data[2] as { tags: string[][] };
+          // 주소가 빠진 `r` 태그가 섞이면 undefined로 소켓을 열려다 터진다 — 문자열만
           const readRelays = event.tags
             .filter((t: string[]) => t[0] === 'r' && (!t[2] || t[2] === 'read'))
-            .map((t: string[]) => t[1]);
+            .map((t: string[]) => t[1])
+            .filter((url): url is string => typeof url === 'string' && /^wss?:\/\//.test(url));
 
           if (readRelays.length > 0 && !resolved) {
             resolved = true;
@@ -122,17 +125,10 @@ export async function publishToRelays(
   signed: ReturnType<typeof finalizeEvent>,
   relays: string[],
 ): Promise<PublishResult> {
-  const publishedTo: string[] = [];
-
   const results = await Promise.allSettled(
     relays.map(relay => publishToRelay(signed, relay)),
   );
-
-  for (let i = 0; i < results.length; i++) {
-    if (results[i].status === 'fulfilled') {
-      publishedTo.push(relays[i]);
-    }
-  }
+  const publishedTo = relays.filter((_, i) => results[i]?.status === 'fulfilled');
 
   return { success: publishedTo.length > 0, publishedTo };
 }
@@ -186,16 +182,6 @@ function publishToRelay(
 }
 
 // ── 이벤트 빌더 ──────────────────────────────────────
-
-interface ParsedOrderPayload {
-  coupangOrderId: string;
-  productName: string;
-  price: number;
-  bankName: string;
-  accountNumber: string;
-  depositor: string;
-  expirationDate: number;
-}
 
 /** parsed-order 이벤트를 빌드하고 서명한다 (#p=ownPubkey, content NIP-44 자기암호화) */
 export function buildParsedOrderEvent(

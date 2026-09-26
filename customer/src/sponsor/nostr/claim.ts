@@ -1,13 +1,13 @@
 /**
  * Sponsor → Admin 요청 이벤트 발행
  *
- * - claim: kind 1111로 클레임 요청을 발행한다.
+ * - claim: `MESSAGE_KIND`로 클레임 요청을 발행한다.
  * - remit-request: 원화 송금 완료 통보를 발행한다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import {
-  SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, CLIENT_TAG, APP_PUBKEY, REQUEST_ACTIONS, getSecretKey, getReadRelays,
+  MESSAGE_KIND, ORDER_KIND, CLIENT_TAG, APP_PUBKEY, REQUEST_ACTIONS, getSecretKey, getReadRelays,
   type Order, type DisputeMessagePayload, storage, idbMigrateOrderWithRequests, idbGetRequestsByOrderId,
   type ClaimRequest, type AccountInfoRequest, nowSec,
 } from '@sajwo-tracker/shared';
@@ -25,7 +25,7 @@ import { prepareDisputeMessage } from '../../nostr/dispute-message';
  * 만료되는 구간도 줄어든다. 규칙은 docs/LN-TRACK.md(I-009·I-010)
  *
  * Tags:
- *   ['a', '30402:<APP_PUBKEY>:<orderId>']  - Admin 오더 참조
+ *   ['a', '<ORDER_KIND>:<APP_PUBKEY>:<orderId>']  - Admin 오더 참조
  *   ['action', 'claim']                    - 요청 종류
  *   ['p', APP_PUBKEY]                      - Admin 디스커버리용
  *   ['t', CLIENT_TAG]                      - 클라이언트 식별
@@ -35,7 +35,7 @@ export async function publishClaim(order: Order): Promise<boolean> {
   const sk = await getSecretKey(storage);
   const relays = await getReadRelays(storage);
 
-  const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`;
+  const aCoord = `${ORDER_KIND}:${APP_PUBKEY}:${order.orderId}`;
   const now = nowSec();
 
   const tags: string[][] = [
@@ -49,7 +49,7 @@ export async function publishClaim(order: Order): Promise<boolean> {
   tags.push(['expiration', String(lnRequestExpiration(now))]);
 
   const template = {
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: now,
     tags,
     content: '',
@@ -98,7 +98,7 @@ export async function publishClaim(order: Order): Promise<boolean> {
  * 원화 송금 완료 통보를 발행한다 (escrowed → remitted 전이 요청).
  *
  * Tags:
- *   ['a', '30402:<APP_PUBKEY>:<orderId>']  - Admin 오더 참조
+ *   ['a', '<ORDER_KIND>:<APP_PUBKEY>:<orderId>']  - Admin 오더 참조
  *   ['action', 'remit-request']            - 요청 종류
  *   ['p', APP_PUBKEY]                      - Admin 디스커버리용
  *   ['t', CLIENT_TAG]                      - 클라이언트 식별
@@ -108,7 +108,7 @@ export async function publishRemitRequest(order: Order): Promise<boolean> {
   const sk = await getSecretKey(storage);
   const relays = await getReadRelays(storage);
 
-  const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`;
+  const aCoord = `${ORDER_KIND}:${APP_PUBKEY}:${order.orderId}`;
   const now = nowSec();
 
   const tags: string[][] = [
@@ -122,7 +122,7 @@ export async function publishRemitRequest(order: Order): Promise<boolean> {
   tags.push(['expiration', String(lnRequestExpiration(now))]);
 
   const template = {
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: now,
     tags,
     content: '',
@@ -204,10 +204,10 @@ export async function publishSponsorInvoice(
 
   const now = nowSec();
   const template: EventTemplate = {
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: now,
     tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['a', `${ORDER_KIND}:${APP_PUBKEY}:${order.orderId}`],
       ['action', REQUEST_ACTIONS.SPONSOR_INVOICE],
       ['t', CLIENT_TAG],
       ['p', APP_PUBKEY],

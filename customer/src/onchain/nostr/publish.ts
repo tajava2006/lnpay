@@ -3,14 +3,14 @@
  *
  * 라이트닝과 **같은 kind·같은 배관**을 쓰고 `t` 태그와 action만 다르다.
  *
- * ⚠️ **PSBT와 받을 주소는 암호문으로 나간다.** kind 1111은 공개 이벤트이고,
+ * ⚠️ **PSBT와 받을 주소는 암호문으로 나간다.** 요청 이벤트는 공개 이벤트이고,
  * PSBT 안에는 후원자의 실제 지갑 주소가 들어 있다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
-  APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND,
+  APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, MESSAGE_KIND, ORDER_KIND,
   computeAccountCommitment, generateCommitmentSalt, getReadRelays, getSecretKey, nip44Encrypt, storage,
   type AccountInfo, nowSec,
 } from '@sajwo-tracker/shared';
@@ -44,7 +44,7 @@ async function publish(template: EventTemplate): Promise<PublishResult> {
  */
 function baseTags(orderId: string, action: string, extra: string[][] = []): string[][] {
   return [
-    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+    ['a', `${ORDER_KIND}:${APP_PUBKEY}:${orderId}`],
     ['action', action],
     ['t', CLIENT_TAG_ONCHAIN],
     ['p', APP_PUBKEY],
@@ -85,7 +85,7 @@ export async function publishOnchainOrderRequest(params: {
     .map(t => (t[0] === 'expiration' ? ['expiration', String(params.expiration)] : t));
 
   return publish({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: nowSec(),
     tags,
     content: await encryptToAdmin({ refundAddress: params.refundAddress.trim() }),
@@ -106,7 +106,7 @@ export async function publishOnchainClaim(params: {
   feerateSatPerVb: number;
 }): Promise<PublishResult> {
   return publish({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: nowSec(),
     tags: baseTags(params.orderId, REQUEST_ACTIONS.ONCHAIN_CLAIM, [
       ['sponsor-xonly', params.sponsorXonly],
@@ -121,7 +121,7 @@ export async function publishOnchainClaim(params: {
 /** 후원자: 사전서명 */
 export async function publishOnchainPresig(orderId: string, psbt: string): Promise<PublishResult> {
   return publish({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: nowSec(),
     tags: baseTags(orderId, REQUEST_ACTIONS.ONCHAIN_PRESIG),
     content: await encryptToAdmin({ psbt }),
@@ -135,7 +135,7 @@ export async function publishOnchainCosign(
   psbt: string,
 ): Promise<PublishResult> {
   return publish({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: nowSec(),
     tags: baseTags(orderId, REQUEST_ACTIONS.ONCHAIN_COSIGN, [['purpose', purpose]]),
     content: await encryptToAdmin({ psbt }),
@@ -153,7 +153,7 @@ export async function publishOnchainDispute(
   stage?: 'account-unusable' | 'remitted',
 ): Promise<PublishResult> {
   return publish({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: nowSec(),
     tags: baseTags(orderId, REQUEST_ACTIONS.ONCHAIN_DISPUTE, stage ? [['stage', stage]] : []),
     content: '',
@@ -170,7 +170,7 @@ export async function publishOnchainDispute(
  */
 export async function publishOnchainCancelRequest(orderId: string): Promise<PublishResult> {
   return publish({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: nowSec(),
     tags: baseTags(orderId, REQUEST_ACTIONS.CANCEL_REQUEST),
     content: '',
@@ -194,10 +194,10 @@ export async function publishOnchainAccountInfo(
   const salt = generateCommitmentSalt();
   const commitment = await computeAccountCommitment(account, salt);
   return publish({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: nowSec(),
     tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ['a', `${ORDER_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', REQUEST_ACTIONS.ACCOUNT_INFO],
       ['t', CLIENT_TAG_ONCHAIN],
       ['p', sponsorPubkey],

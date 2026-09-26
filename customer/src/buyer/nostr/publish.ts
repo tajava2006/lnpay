@@ -1,5 +1,5 @@
 /**
- * kind 1111 이벤트 빌드 + 발행
+ * 요청 이벤트 빌드 + 발행
  *
  * Customer가 Admin에게 보내는 요청 이벤트를 빌드, 서명, 발행한다.
  * - order-request: 의뢰 등록
@@ -11,7 +11,7 @@ import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
-  SAJWO_REQUEST_KIND, SAJWO_REQUEST_EVENT_KIND, APP_PUBKEY, CLIENT_TAG, getSecretKey, getReadRelays, nip44Encrypt,
+  ORDER_KIND, MESSAGE_KIND, APP_PUBKEY, CLIENT_TAG, getSecretKey, getReadRelays, nip44Encrypt,
   generateCommitmentSalt, computeAccountCommitment, type RequestAction, type AccountInfo, type AccountInfoEnvelope,
   storage, nowSec,
 } from '@sajwo-tracker/shared';
@@ -27,7 +27,7 @@ export interface PublishResult {
 }
 
 /**
- * kind 1111 order-request 이벤트 빌드
+ * order-request 이벤트 빌드
  *
  * 쿠팡 기한은 `deadline` 태그로, `expiration`은 **요청 이벤트의 보존**으로 따로 싣는다(DM-009).
  * 예전엔 둘이 같았다 — 그래서 기한 직후의 송금 완료·입금 확인이 릴레이에서 거절됐다.
@@ -35,10 +35,10 @@ export interface PublishResult {
 function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
   const now = nowSec();
   return {
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: now,
     tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['a', `${ORDER_KIND}:${APP_PUBKEY}:${order.orderId}`],
       ['action', 'order-request'],
       ['price', String(order.price), 'KRW'],
       ['deadline', String(order.expiration)],
@@ -54,10 +54,10 @@ function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
 function buildNotificationEvent(order: Pick<CustomerOrder, 'orderId'>, action: RequestAction): EventTemplate {
   const now = nowSec();
   return {
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: now,
     tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['a', `${ORDER_KIND}:${APP_PUBKEY}:${order.orderId}`],
       ['action', action],
       ['t', CLIENT_TAG],
       ['p', APP_PUBKEY],
@@ -123,7 +123,7 @@ export async function publishNotification(
 }
 
 /**
- * 계좌정보를 NIP-44 암호화하여 kind 1111로 발행한다.
+ * 계좌정보를 NIP-44 암호화하여 `MESSAGE_KIND`로 발행한다.
  * Sponsor pubkey로 암호화하며, commitment 태그에 솔티드 해시를 포함한다.
  *
  * 솔트는 암호문 안에만 들어간다 — 후원자만 알고, 분쟁 시 계좌정보와 함께 공개된다.
@@ -143,7 +143,7 @@ export async function publishAccountInfo(
   const commitment = await computeAccountCommitment(accountInfo, salt);
 
   const tags: string[][] = [
-    ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${order.orderId}`],
+    ['a', `${ORDER_KIND}:${APP_PUBKEY}:${order.orderId}`],
     ['action', 'account-info'],
     ['t', CLIENT_TAG],
     ['p', APP_PUBKEY],
@@ -155,7 +155,7 @@ export async function publishAccountInfo(
   tags.push(['expiration', String(lnRequestExpiration(now))]);
 
   const template = {
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: now,
     tags,
     content: encrypted,
@@ -165,7 +165,7 @@ export async function publishAccountInfo(
 }
 
 /**
- * 분쟁 채팅 메시지를 NIP-44 암호화하여 kind 1111로 발행한다.
+ * 분쟁 채팅 메시지를 NIP-44 암호화하여 `MESSAGE_KIND`로 발행한다.
  * 수신자는 항상 APP_PUBKEY (Admin).
  * dispute-message는 증거 보존 목적으로 expiration 없음.
  */

@@ -5,6 +5,7 @@
  * 다시 열렸다는 뜻이다.
  */
 import { describe, it, expect } from 'vitest';
+import { ORDER_KIND } from '../constants';
 import { Transaction, p2tr, TEST_NETWORK, utils } from '@scure/btc-signer';
 import { deriveEscrowAddress, deriveSingleKeyAddress, addressProblem } from '../onchain/address';
 import { xonlyFromPrivkey } from '../onchain/keys';
@@ -248,7 +249,7 @@ describe('단일키 주소 스윕 (환불금 꺼내기 · CPFP)', () => {
 
 describe('결정 태그 왕복', () => {
   const order: OnchainOrder = {
-    orderId: 'o', state: 'refunding', status: 'active', customerPubkey: 'c', sponsorPubkey: 's',
+    orderId: 'o', state: 'refunding', customerPubkey: 'c', sponsorPubkey: 's',
     amountSat: 500_000, createdAt: 1, updatedAt: 2, expiration: 3, network: 'signet',
     customerXonly: KEYS.customer, sponsorXonly: KEYS.sponsor, adminXonly: KEYS.admin,
     escrowAddress: D.address, timelockBlocks: D.timelockBlocks,
@@ -260,7 +261,7 @@ describe('결정 태그 왕복', () => {
 
   it('사유·수수료·결정 시각·이의·분쟁 시각이 왕복한다', () => {
     const tags = onchainOrderTags(order, 'T');
-    const back = parseOnchainOrder({ kind: 30402, pubkey: 'x', created_at: 2, tags }, 'T')!;
+    const back = parseOnchainOrder({ kind: ORDER_KIND, pubkey: 'x', created_at: 2, tags }, 'T')!;
     expect(back.settlementKind).toBe('refund:account-disputed');
     expect(back.settlementFeeSat).toBe(400);
     expect(back.decidedAt).toBe(10);
@@ -271,7 +272,7 @@ describe('결정 태그 왕복', () => {
   /** 사유가 서명할 tx를 정한다 — 모르는 값을 아는 척하면 엉뚱한 tx에 서명한다 */
   it('모르는 사유가 실린 이벤트는 버린다', () => {
     const tags = onchainOrderTags(order, 'T').map(t => (t[0] === 'settlement-kind' ? ['settlement-kind', 'refund:whatever'] : t));
-    expect(parseOnchainOrder({ kind: 30402, pubkey: 'x', created_at: 2, tags }, 'T')).toBeNull();
+    expect(parseOnchainOrder({ kind: ORDER_KIND, pubkey: 'x', created_at: 2, tags }, 'T')).toBeNull();
   });
 });
 

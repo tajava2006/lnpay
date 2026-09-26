@@ -10,7 +10,7 @@ import { encode, sign } from 'bolt11';
 import { decode as decodeBolt11 } from 'light-bolt11-decoder';
 import type { Event } from 'nostr-tools/core';
 import { finalizeEvent, generateSecretKey } from 'nostr-tools/pure';
-import { SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, orderRef } from '@sajwo-tracker/shared/core';
+import { MESSAGE_KIND, ORDER_KIND, orderRef } from '@sajwo-tracker/shared/core';
 import type { HoldLookup, HoldState, LnNode, PayResult, PayStatus } from '../ln/lnd';
 import type { PushConfig } from '../push/send';
 import type { OcDeps } from '../onchain';
@@ -203,7 +203,7 @@ export function lnRequest(
   extra: string[][] = [], content = '',
 ): Event {
   return finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
       ...(orderId ? [['a', orderRef(appPubkey, orderId)]] : []),
@@ -220,7 +220,7 @@ export function lnRequest(
 /** 이 오더의 가장 최근 공개 이벤트 */
 export function latestOrderEvent(published: Event[], orderId: string): Event | undefined {
   return published
-    .filter(e => e.kind === SAJWO_REQUEST_KIND && e.tags.some(t => t[0] === 'd' && t[1] === orderId))
+    .filter(e => e.kind === ORDER_KIND && e.tags.some(t => t[0] === 'd' && t[1] === orderId))
     .sort((a, b) => a.created_at - b.created_at)
     .at(-1);
 }

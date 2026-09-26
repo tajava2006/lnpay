@@ -1,12 +1,12 @@
 /**
- * APP → 유저 kind 1111 (라이트닝) — 보증금 요구·상태, 인보이스 거절, 계좌 공개 요청
+ * APP → 유저 요청·통지 이벤트 (라이트닝) — 보증금 요구·상태, 인보이스 거절, 계좌 공개 요청
  *
  * - **서명은 쌓을 때 한 번** — 재시도가 같은 이벤트를 다시 낸다(발행 효과 참고).
  * - 만료는 쿠팡 기한이 아니라 **메시지가 쓸모 있는 동안**이다(DM-009). 기한을 붙이면 기한 직후에 내는
  *   보증금 환불 통지가 릴레이에서 거절된다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
-import { REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND, orderRef } from '@sajwo-tracker/shared/core';
+import { REQUEST_ACTIONS, MESSAGE_KIND, orderRef } from '@sajwo-tracker/shared/core';
 import { nowSec } from '../admin/context';
 import { PUBLISH_EFFECT, type PublishPayload } from '../nostr/publisher';
 import type { LnContext } from './context';
@@ -38,7 +38,7 @@ function send(
 ): void {
   const createdAt = nowSec(ctx);
   const event = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
       ['a', orderRef(ctx.appKey.pubkey, orderId)],

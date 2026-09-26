@@ -6,10 +6,10 @@
  *
  * | 무엇 | 이벤트 | 방향 |
  * |---|---|---|
- * | 명령 | kind 1111 · `action=admin-command` · `p=APP` | 운영자 → 데몬 |
- * | 결과 | kind 1111 · `action=admin-result` · `p=운영자` · `e=명령` | 데몬 → 운영자 |
- * | 채팅 사본 | kind 1111 · `action=admin-chat` · `p=운영자` | 데몬 → 운영자 |
- * | 상태 | kind 30078 · `d=adminStateDTag(…)` | 데몬 → 운영자 |
+ * | 명령 | `MESSAGE_KIND` · `action=admin-command` · `p=APP` | 운영자 → 데몬 |
+ * | 결과 | `MESSAGE_KIND` · `action=admin-result` · `p=운영자` · `e=명령` | 데몬 → 운영자 |
+ * | 채팅 사본 | `MESSAGE_KIND` · `action=admin-chat` · `p=운영자` | 데몬 → 운영자 |
+ * | 상태 | `ADMIN_STATE_KIND` · `d=adminStateDTag(…)` | 데몬 → 운영자 |
  *
  * 전부 NIP-44 암호문이고 `t`는 어드민 태그(`CLIENT_TAG_ADMIN`)다.
  */
@@ -27,8 +27,13 @@ export const ADMIN_ACTIONS = {
 /** 이보다 오래된 명령은 집행하지 않는다 — 폰에서 눌러놓고 한참 뒤 전달된 명령 */
 export const ADMIN_COMMAND_TTL_SEC = 10 * 60;
 
-/** 데몬 상태 이벤트 (NIP-78) */
-export const ADMIN_STATE_KIND = 30078;
+/**
+ * 데몬 상태·오더 상세 — 주소형, 우리 전용 kind.
+ *
+ * 예전엔 NIP-78(30078)이었다. NIP-78은 **작성자 자신의** 앱 데이터라, 릴레이가 AUTH한 작성자에게만 내줘도
+ * 된다고 적혀 있다(SHOULD). 이건 APP이 쓰고 운영자가 읽는다 — 그런 릴레이에선 어드민이 아무것도 못 본다.
+ */
+export const ADMIN_STATE_KIND = 33838;
 
 /** 운영자마다 따로 둔다 — 한 d에 여러 수신자를 쓰면 서로 덮는다 */
 export function adminStateDTag(adminTag: string, operatorPubkey: string): string {

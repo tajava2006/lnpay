@@ -9,8 +9,9 @@
  * 한 트랜잭션에 쓰고, 뿌리는 건 그 뒤의 효과다. 그 자리에 "브로드캐스트가 실패해도 장부는 settling이고 효과가
  * 다시 뿌린다"를 둔다.
  */
+import { unwrapEvent } from 'nostr-tools/nip17';
 import { describe, expect, it } from 'vitest';
-import { ADMIN_ACTIONS, REQUEST_ACTIONS, SAJWO_REQUEST_KIND } from '@sajwo-tracker/shared/core';
+import { ADMIN_ACTIONS, REQUEST_ACTIONS, ORDER_KIND } from '@sajwo-tracker/shared/core';
 import {
   ACCOUNT_WINDOW_SEC, COSIGN_WINDOW_SEC, FUNDING_WINDOW_SEC, PRESIGN_WINDOW_SEC,
   buildSettlementTx, finalizeSettlement, fromPsbtBase64, fromRawHex, outputAddressOf, parseOnchainOrder,
@@ -40,7 +41,7 @@ const holdState = (h: OcHarness, hash: string | undefined) => (hash ? h.node.sta
 /** 이 오더의 가장 최근 공개 이벤트 (온체인 코덱으로 읽는다) */
 function lastPublic(h: OcHarness, orderId: string) {
   const e = h.relay.published
-    .filter(ev => ev.kind === SAJWO_REQUEST_KIND && ev.tags.some(t => t[0] === 'd' && t[1] === orderId))
+    .filter(ev => ev.kind === ORDER_KIND && ev.tags.some(t => t[0] === 'd' && t[1] === orderId))
     .sort((a, b) => a.created_at - b.created_at).at(-1);
   return e ? parseOnchainOrder(e, TEST_TAGS.onchain) : null;
 }
@@ -51,6 +52,8 @@ describe('① 정상 완료', () => {
     const orderId = await openOc(h);
     expect(state(h, orderId)).toBe('listed');
     expect(lastPublic(h, orderId)?.state).toBe('listed');
+    const dms = h.relay.published.filter(e => e.kind === 1059).map(e => unwrapEvent(e, h.operator.secretKey).content);
+    expect(dms).toContain(`[페어바이] 새 의뢰 — 온체인 ${AMOUNT.toLocaleString('ko-KR')} sats (${orderId})`);
 
     await claimOc(h, orderId);
     const bonded = h.row(orderId)!.order;
@@ -403,6 +406,8 @@ describe('계좌 이의 — 시계는 멈추지 않고, 사람이 과실을 가�
     await h.send(ocRequest(h.sponsor, h.app.pubkey, orderId, REQUEST_ACTIONS.ONCHAIN_DISPUTE, h.sec(), [['stage', 'account-unusable']]));
     expect(h.row(orderId)!.order).toMatchObject({ state: 'presigned' });
     expect(h.row(orderId)!.order.accountDisputedAt).toBeDefined();
+    // 판정은 마감 뒤지만 운영자는 이의가 난 순간 안다
+    expect(openAlerts(h.ln).some(a => a.orderId === orderId && /이의/.test(a.message))).toBe(true);
 
     h.advance(30 * 60 + 1);
     await h.run();

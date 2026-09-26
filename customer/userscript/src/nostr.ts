@@ -9,7 +9,7 @@ import * as nip19 from 'nostr-tools/nip19';
 import { v2 as nip44 } from 'nostr-tools/nip44';
 import {
   APP_PUBKEY,
-  SAJWO_REQUEST_EVENT_KIND,
+  MESSAGE_KIND,
   CLIENT_TAG,
   DISCOVERY_RELAYS,
   FALLBACK_RELAYS,
@@ -210,7 +210,7 @@ export function buildParsedOrderEvent(
   const encrypted = nip44.encrypt(JSON.stringify(payload), conversationKey);
 
   return finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
       ['p', pubkey],
@@ -254,7 +254,7 @@ export function buildCoupangStatusEvent(
   if (expiration > 0) tags.push(['expiration', String(expiration)]);
 
   return finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags,
     content: encrypted,

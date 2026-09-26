@@ -5,8 +5,8 @@ export type { RequestBase, RouteHintHop, DecodedBolt11, Invoice, OrderRequest, C
 // Constants
 export {
   APP_PUBKEY,
-  SAJWO_REQUEST_KIND,
-  SAJWO_REQUEST_EVENT_KIND,
+  ORDER_KIND,
+  MESSAGE_KIND,
   CLIENT_TAG,
   CLIENT_TAG_ONCHAIN,
   CLIENT_TAG_ADMIN,

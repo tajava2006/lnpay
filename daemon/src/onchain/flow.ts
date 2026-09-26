@@ -443,6 +443,11 @@ function ocDispute(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult
       && !isPast(krwDeadlineOf(order), requestAt(ctx, event));
     if (!allowed) return r('계좌 이의는 계좌를 받은 뒤 송금 마감 전에만 낼 수 있습니다');
     updateOc(ctx, order.orderId, { accountDisputedAt: nowSec(ctx) });
+    // 마감이 차면 누구 과실인지 사람이 가른다 — 그때 가서 알리면 늦다
+    raiseAlert(ctx, {
+      dedup: `oc:${order.orderId}:account-disputed`, level: 'warn', track: 'onchain', orderId: order.orderId,
+      message: '후원자가 받은 계좌를 쓸 수 없다고 이의를 냈습니다. 송금 마감 뒤 과실 판정이 필요합니다.',
+    });
     return ok;
   }
   return r('이 단계에서는 분쟁을 열 수 없습니다');

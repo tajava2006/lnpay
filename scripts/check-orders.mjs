@@ -4,10 +4,12 @@
  * 화면이 이상할 때 "앱이 잘못 읽은 건가, 애초에 안 실린 건가"를 가르는 용도다.
  * 실제로 payout 태그가 통째로 빠진 걸 이걸로 확인했다(2026-09-19).
  *
- * kind 30402는 addressable이라 릴레이에 **주문당 최신 하나**만 남는다.
+ * 오더 이벤트(NIP-69 kind 38383 — `shared/src/constants.ts`의 `ORDER_KIND`)는 addressable이라 릴레이에
+ * **주문당 최신 하나**만 남는다.
  * 즉 여기 안 보이는 값은 과거에 있었더라도 이미 덮어써진 것이고, 복구 못 한다.
  */
 const APP = 'f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848';
+const ORDER_KIND = 38383;
 
 function query(url, filter, ms = 6000) {
   return new Promise(res => {
@@ -40,7 +42,7 @@ console.log('릴레이:', relays.join(', ') || '(못 찾음)');
 // ② 오더 이벤트 수집
 const seen = new Map();
 for (const r of relays) {
-  for (const ev of await query(r, { kinds: [30402], authors: [APP], '#t': ['sajwo-tracker'] })) {
+  for (const ev of await query(r, { kinds: [ORDER_KIND], authors: [APP], '#t': ['sajwo-tracker'] })) {
     const d = ev.tags.find(t => t[0] === 'd')?.[1];
     if (!d) continue;
     const prev = seen.get(d);

@@ -2,7 +2,7 @@
  * 반응형 주문 스토어
  *
  * Customer가 수동 생성한 주문을 관리하고,
- * Admin kind 30402 이벤트로 수신한 상태를 오버레이한다.
+ * 오더 이벤트로 수신한 상태를 오버레이한다.
  *
  * 구조:
  *   OrderForm → addOrder → localStorage + listeners

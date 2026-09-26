@@ -9,7 +9,7 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure
 import { nsecEncode } from 'nostr-tools/nip19';
 import type { Event } from 'nostr-tools/core';
 import {
-  APP_PUBKEY, CLIENT_TAG, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND,
+  APP_PUBKEY, CLIENT_TAG, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, MESSAGE_KIND, ORDER_KIND,
   nip44Encrypt,
 } from '@sajwo-tracker/shared';
 
@@ -21,9 +21,9 @@ const NOW = 1_800_000_000;
 
 function request(action: string, orderId: string, extra: string[][] = [], content = '', at = NOW, sk = SK, t = CLIENT_TAG): Event {
   return finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: at,
-    tags: [['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`], ['action', action], ['t', t], ['p', APP_PUBKEY], ...extra],
+    tags: [['a', `${ORDER_KIND}:${APP_PUBKEY}:${orderId}`], ['action', action], ['t', t], ['p', APP_PUBKEY], ...extra],
     content,
   }, sk);
 }
@@ -89,14 +89,14 @@ describe('라이트닝', () => {
   it('공개 오더가 먼저 와 있었으면 그 상태를 바로 입힌다', async () => {
     const { own, local, book } = await ln();
     const published = finalizeEvent({
-      kind: SAJWO_REQUEST_KIND, created_at: NOW,
+      kind: ORDER_KIND, created_at: NOW,
       tags: [['d', 'o1'], ['t', CLIENT_TAG], ['status', 'active'], ['state', 'invoiced'], ['price', '32900', 'KRW'],
         ['customer', ME], ['sponsor', SPONSOR], ['deadline', String(NOW + 86_400)], ['expiration', String(NOW + 90 * 86_400)]],
       content: '',
     }, generateSecretKey());
     // 오더북 스토어는 APP 서명만 받는 파서를 거치지 않고 넣는다 — 여기서 보는 건 되살린 뒤의 상태 반영이다
     book.upsertOrder({
-      orderId: 'o1', status: 'active', state: 'invoiced', customerPubkey: ME, sponsorPubkey: SPONSOR, price: 32900,
+      orderId: 'o1', state: 'invoiced', customerPubkey: ME, sponsorPubkey: SPONSOR, price: 32900,
       createdAt: NOW, updatedAt: NOW, expiration: NOW + 86_400, raw: { ...published, pubkey: APP_PUBKEY },
     });
     own.handleOwnLnRequest(orderRequest('o1'), SK, ME);

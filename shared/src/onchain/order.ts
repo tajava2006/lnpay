@@ -1,7 +1,7 @@
 /**
  * 온체인 오더 이벤트 규약
  *
- * kind 30402를 `CLIENT_TAG_ONCHAIN`으로 발행한다. **라이트닝과 태그가 겹치면
+ * 오더 이벤트(`ORDER_KIND`)를 `CLIENT_TAG_ONCHAIN`으로 발행한다. **라이트닝과 태그가 겹치면
  * 배포 사고가 난다** — 구버전 앱이 온체인 오더를 라이트닝 오더로 렌더링한다.
  *
  * ── 직렬화와 파싱을 한 파일에 둔 이유
@@ -17,15 +17,14 @@
  * 요청 암호문과 사전서명 PSBT 안에만 실려 데몬·고객에게만 간다.
  */
 import type { OnchainState, SettlementKind } from './state-machine';
-import { ONCHAIN_STATES, SETTLEMENT_KINDS, isOnchainTerminal } from './state-machine';
+import { ONCHAIN_STATES, SETTLEMENT_KINDS } from './state-machine';
 import type { BtcNetworkName } from './address';
 import { isXonlyHex } from './hex';
+import { nip69Tags, type Nip69Status } from '../nip69';
 
 export interface OnchainOrder {
   orderId: string;
   state: OnchainState;
-  /** NIP-99 listing status. 터미널이면 `sold` */
-  status: 'active' | 'sold';
   /** 고객의 앱 키 (nostr pubkey) */
   customerPubkey: string;
   /** 후원자의 앱 키. `bonded` 이후 */
@@ -131,7 +130,29 @@ function str(tags: TagList, name: string, value: string | undefined): void {
 }
 
 /**
- * 오더 → kind 30402 태그. `d`·`t`·`status`·`state`는 언제나 실린다.
+ * 온체인 상태 → NIP-69 상태. 후원자 승은 원화가 갔고 후원자가 BTC를 받았으니 성사다. 타임락 회수(`swept`)는
+ * 고객이 BTC를 되찾은 것이라 무산이다. 의뢰 만료로 접힌 것도 `cancelled`라 여기선 `canceled`로 보인다
+ * (만료 여부는 오더에 안 실린다 — 릴레이는 `expiration`으로 이미 지웠다).
+ */
+const ONCHAIN_NIP69_STATUS: Record<OnchainState, Nip69Status> = {
+  listed: 'pending',
+  bonded: 'in-progress',
+  funded: 'in-progress',
+  presigned: 'in-progress',
+  remitted: 'in-progress',
+  disputed: 'in-progress',
+  refunding: 'in-progress',
+  settling: 'in-progress',
+  released: 'success',
+  sponsor_wins: 'success',
+  refunded: 'canceled',
+  customer_wins: 'canceled',
+  cancelled: 'canceled',
+  swept: 'canceled',
+};
+
+/**
+ * 오더 → 태그. `d`·`t`·`state`·`network`와 NIP-69 필수 태그는 언제나 실린다.
  *
  * `clientTag`를 인자로 받는 이유: `CLIENT_TAG_ONCHAIN`이 dev/prod로 갈리는데
  * 그 판단은 앱의 환경 변수 몫이고, 이 함수는 순수하게 유지해야 테스트가 쉽다.
@@ -140,9 +161,7 @@ export function onchainOrderTags(order: OnchainOrder, clientTag: string): TagLis
   const tags: TagList = [
     ['d', order.orderId],
     ['t', clientTag],
-    ['status', isOnchainTerminal(order.state) ? 'sold' : 'active'],
     ['state', order.state],
-    ['network', order.network],
     ['customer', order.customerPubkey],
     ['amount-sat', String(order.amountSat)],
     ['expiration', String(order.expiration)],
@@ -184,7 +203,15 @@ export function onchainOrderTags(order: OnchainOrder, clientTag: string): TagLis
   str(tags, 'customer-deposit-payment-hash', order.customerDepositHash);
   str(tags, 'sponsor-deposit-payment-hash', order.sponsorDepositHash);
 
-  return tags;
+  // `network`는 NIP-69와 뜻이 같아 거기서 한 번만 싣는다(파서는 그걸 읽는다)
+  return [...tags, ...nip69Tags({
+    status: ONCHAIN_NIP69_STATUS[order.state],
+    amountSat: order.amountSat,
+    fiatKrw: order.priceKrw ?? 0,
+    network: order.network,
+    layer: 'onchain',
+    expiresAt: order.expiration,
+  })];
 }
 
 /** 파싱에 필요한 이벤트의 최소 모양 (nostr-tools 타입에 묶이지 않게) */
@@ -212,7 +239,7 @@ function readNum(tags: TagList, name: string): number | undefined {
 }
 
 /**
- * kind 30402 → 오더. **모르는 모양이면 `null`이다.**
+ * 오더 이벤트 → 오더. **모르는 모양이면 `null`이다.**
  *
  * 릴레이에서 오는 건 남이 만든 바이트다. 상태 문자열 하나가 모르는 값이면
  * (새 버전 클라이언트가 발행한 것일 수 있다) 추측하지 않고 버린다 —
@@ -249,7 +276,6 @@ export function parseOnchainOrder(
   return {
     orderId,
     state: state as OnchainState,
-    status: isOnchainTerminal(state as OnchainState) ? 'sold' : 'active',
     customerPubkey,
     sponsorPubkey: tagValue(tags, 'sponsor'),
     amountSat,
@@ -318,7 +344,7 @@ export function parseOutpoint(value: string | undefined): { txid: string; vout: 
 /**
  * 이 상태에서 **반드시 있어야 하는 값이 비었는지** 본다.
  *
- * kind 30402는 addressable이라 새 발행이 이전 이벤트를 **덮어쓴다.** 한 번 빠진
+ * 오더 이벤트는 addressable이라 새 발행이 이전 이벤트를 **덮어쓴다.** 한 번 빠진
  * 태그는 영영 복구되지 않는다 — 라이트닝 트랙에서 `payoutSat` 없이 발행해
  * 주문 두 건을 그렇게 잃었다(2026-09-19).
  *

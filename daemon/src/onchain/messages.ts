@@ -1,5 +1,5 @@
 /**
- * APP → 유저 kind 1111 (온체인) — 보증금 요구·상태, 거절, 서명 요청
+ * APP → 유저 요청·통지 이벤트 (온체인) — 보증금 요구·상태, 거절, 서명 요청
  *
  * 라이트닝 통지와 같은 배관이고 `t`만 온체인 것이다.
  * 서명은 **쌓을 때 한 번** 한다 — 재시도가 같은 이벤트를 다시 낸다.
@@ -8,7 +8,7 @@
  * 클레임된 주문의 통지가 릴레이에서 거절된다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
-import { REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND, nip44Encrypt, orderRef } from '@sajwo-tracker/shared/core';
+import { REQUEST_ACTIONS, MESSAGE_KIND, nip44Encrypt, orderRef } from '@sajwo-tracker/shared/core';
 import { onchainMessageExpiration, type SignPurpose } from '@sajwo-tracker/shared/onchain';
 import { nowSec } from '../admin/context';
 import { PUBLISH_EFFECT, type PublishPayload } from '../nostr/publisher';
@@ -20,7 +20,7 @@ function send(
 ): void {
   const createdAt = nowSec(ctx);
   const event = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
       ['a', orderRef(ctx.appKey.pubkey, p.orderId)],

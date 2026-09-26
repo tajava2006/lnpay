@@ -6,10 +6,12 @@
  *
  * **알려진 오더의 당사자가 보낸 것만** 중계한다. `p=APP`인 dispute-message는 누구나 쏠 수 있다 —
  * 가리지 않으면 운영자 폰이 스팸 창구가 된다.
+ *
+ * 사본은 어드민 앱만 읽는 우리 kind라 폰을 울리지 않는다. 그래서 유저 메시지는 운영자 DM(NIP-17)도 따로 보낸다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
-  ADMIN_ACTIONS, MAX_CHAT_TEXT, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
+  ADMIN_ACTIONS, MAX_CHAT_TEXT, REQUEST_ACTIONS, MESSAGE_KIND,
   extractOrderId, nip44Decrypt, nip44Encrypt, orderRef,
   type AdminChatCopy, type AdminCommandResult, type DisputeMessagePayload, type TrackName,
 } from '@sajwo-tracker/shared/core';
@@ -18,9 +20,20 @@ import { tagValue } from '../dispatch';
 import { isTrack, roleIn } from '../orders/directory';
 import { PUBLISH_EFFECT, type PublishPayload } from '../nostr/publisher';
 import { nowSec, type AdminContext } from './context';
+import { notifyOperators } from './notify';
 
 /** 채팅 사본 보존 — 분쟁 기록이라 길게. 원본 dispute-message는 만료가 없다(증거) */
 const CHAT_COPY_RETENTION_SEC = 90 * 24 * 60 * 60;
+
+/**
+ * 유저 채팅 DM의 조용한 창 — 한 오더에서 DM이 나간 뒤 이만큼은 다음 메시지로 다시 울리지 않는다.
+ * 분쟁은 운영자가 **반드시** 알아야 하지만, 몰아서 쓰는 메시지마다 폰이 울릴 필요는 없다(전문은 어드민 앱에 있다).
+ */
+export const CHAT_DM_QUIET_SEC = 10 * 60;
+
+const TRACK_NAME: Record<TrackName, string> = { ln: '라이트닝', onchain: '온체인' };
+const ROLE_NAME = { customer: '고객', sponsor: '후원자' } as const;
+const DM_PREVIEW_CHARS = 80;
 
 function isDisputePayload(v: unknown): v is DisputeMessagePayload {
   if (typeof v !== 'object' || v === null) return false;
@@ -62,8 +75,24 @@ export function createChatForwarder(ctx: AdminContext): (event: InboxEvent) => H
       track, orderId, from: event.pubkey, to: ctx.appKey.pubkey, role, payload,
       sentAt: event.created_at, originalId: event.id,
     });
+    dmOperators(ctx, track, orderId, role, payload);
     return { outcome: 'ok' };
   };
+}
+
+/** 유저가 분쟁 채팅을 보냈다 — 운영자 폰을 울린다(오더마다 `CHAT_DM_QUIET_SEC`에 한 번) */
+function dmOperators(
+  ctx: AdminContext, track: TrackName, orderId: string, role: keyof typeof ROLE_NAME, payload: DisputeMessagePayload,
+): void {
+  const key = `chat.dm:${track}:${orderId}`;
+  const now = nowSec(ctx);
+  if (now - Number(ctx.db.kvGet(key) ?? 0) < CHAT_DM_QUIET_SEC) return;
+  ctx.db.kvSet(key, String(now));
+  const text = payload.content ?? '';
+  const what = payload.type === 'text'
+    ? `"${text.length > DM_PREVIEW_CHARS ? `${text.slice(0, DM_PREVIEW_CHARS)}…` : text}"`
+    : '계좌를 공개했습니다';
+  notifyOperators(ctx, `분쟁 채팅 — ${TRACK_NAME[track]} ${ROLE_NAME[role]}: ${what} (${orderId})`);
 }
 
 /**
@@ -86,7 +115,7 @@ export function chatSend(ctx: AdminContext, args: Record<string, unknown>): Admi
   const createdAt = nowSec(ctx);
   // 증거라 만료를 달지 않는다 (CLAUDE.md 예외 — dispute-message)
   const event = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
       ['a', orderRef(ctx.appKey.pubkey, orderId)],
@@ -109,7 +138,7 @@ function forwardToOperators(ctx: AdminContext, copy: AdminChatCopy): void {
   const createdAt = nowSec(ctx);
   for (const operator of ctx.operators) {
     const event = finalizeEvent({
-      kind: SAJWO_REQUEST_EVENT_KIND,
+      kind: MESSAGE_KIND,
       created_at: createdAt,
       tags: [
         ['p', operator],

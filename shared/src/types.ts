@@ -13,10 +13,9 @@ export interface NostrKeypair {
   publicKey: string;
 }
 
-/** Admin이 발행하는 kind 30402 오더 (Admin이 유일한 상태 소유자) */
+/** 데몬이 발행하는 라이트닝 오더 (데몬이 유일한 상태 소유자) */
 export interface Order {
   orderId: string;
-  status: 'active' | 'sold';
   state: import('./constants').OrderState;
   customerPubkey: string;
   /** 클레임한 Sponsor의 pubkey (claimed 이후 존재) */
@@ -56,7 +55,7 @@ export interface Order {
   raw: object;
 }
 
-/** kind 1111 요청 이벤트 공통 필드 */
+/** 요청 이벤트(`MESSAGE_KIND`) 공통 필드 */
 export interface RequestBase {
   eventId: string;
   orderId: string;

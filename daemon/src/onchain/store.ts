@@ -8,10 +8,11 @@
  * 운영자 상세를 같이 쌓는다.
  */
 import {
-  canOnchainTransition, isOnchainTerminal,
+  canOnchainTransition,
   type OnchainOrder, type SettlementKind,
 } from '@sajwo-tracker/shared/onchain';
 import { nowSec } from '../admin/context';
+import { notifyOperators } from '../admin/notify';
 import type { OcContext } from './context';
 
 export const OC_ORDER_PUBLISH_EFFECT = 'oc.order.publish';
@@ -106,6 +107,8 @@ export function insertOc(ctx: OcContext, order: OnchainOrder, meta: OcMeta): voi
     order.orderId, order.state, toData(order), JSON.stringify(meta),
   );
   requestProjection(ctx, order.orderId);
+  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다
+  notifyOperators(ctx, `새 의뢰 — 온체인 ${order.amountSat.toLocaleString('ko-KR')} sats (${order.orderId})`);
 }
 
 /**
@@ -124,7 +127,6 @@ export function updateOc(ctx: OcContext, orderId: string, patch: OcPatch, metaPa
     ...row.order,
     ...patch,
     state: to,
-    status: isOnchainTerminal(to) ? 'sold' : 'active',
     // 같은 초에 두 번 바뀌어도 앞으로 간다 — 발행 created_at이 이걸 따른다
     updatedAt: Math.max(nowSec(ctx), row.order.updatedAt + 1),
   };

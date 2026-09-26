@@ -5,8 +5,8 @@
  * 이벤트를 역할별 핸들러로 흘려보낸다. 여기는 "고객으로서 이 이벤트를 어떻게
  * 소화할 것인가"만 담당한다.
  *
- * 1. Admin kind 30402 → order-store 상태 반영 + IDB 아카이브
- * 2. kind 1111 → parsed-store / 보증금 / 분쟁 채팅
+ * 1. 오더 이벤트 → order-store 상태 반영 + IDB 아카이브
+ * 2. 요청·통지 이벤트 → parsed-store / 보증금 / 분쟁 채팅
  * 3. 파싱 주문이 escrowed에 도달하면 계좌정보 자동 전송
  */
 import {
@@ -26,7 +26,7 @@ import { applyAdminUpdate, applyDepositRequired, applyDepositStatus, getSnapshot
 import { addParsedOrder } from '../parsed-store';
 
 
-// ── Admin kind 30402 ───────────────────────────────
+// ── 오더 이벤트 ───────────────────────────────
 
 /**
  * 내가 고객으로 올린 주문이면 상태를 반영하고 IDB에 아카이브한다.
@@ -60,7 +60,7 @@ export function handleOrdersEose(): void {
   console.log('[고객] 오더 초기 동기화 완료');
 }
 
-// ── kind 1111 ──────────────────────────────────────
+// ── 요청·통지 이벤트 ──────────────────────────────────────
 
 /**
  * 고객 역할로 소화할 수 있는 이벤트면 처리하고 true를 돌려준다.

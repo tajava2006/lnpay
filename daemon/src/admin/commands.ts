@@ -15,7 +15,7 @@
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
-  ADMIN_ACTIONS, ADMIN_COMMAND_TTL_SEC, SAJWO_REQUEST_EVENT_KIND, applySettingsPatch,
+  ADMIN_ACTIONS, ADMIN_COMMAND_TTL_SEC, MESSAGE_KIND, applySettingsPatch,
   nip44Decrypt, nip44Encrypt, type AdminCommand, type AdminCommandResult,
 } from '@sajwo-tracker/shared/core';
 import type { HandlerResult, InboxEvent } from '../dispatch';
@@ -115,7 +115,7 @@ export function createAdminHandler(ctx: AdminContext, registry: CommandRegistry)
 function reply(ctx: AdminContext, command: InboxEvent, result: AdminCommandResult): void {
   const createdAt = nowSec(ctx);
   const event = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
       ['p', command.pubkey],

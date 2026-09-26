@@ -147,7 +147,6 @@ function onCustomerBond(ctx: OcContext, inv: HoldRow, cand: Extract<OcCandidate,
   insertOc(ctx, {
     orderId: inv.order_id,
     state: 'listed',
-    status: 'active',
     customerPubkey: inv.party,
     amountSat: info.amountSat,
     ...(info.reserveKrw !== undefined ? { reserveKrw: info.reserveKrw } : {}),

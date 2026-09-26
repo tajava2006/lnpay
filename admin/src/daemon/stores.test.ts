@@ -19,14 +19,14 @@ function withEpoch(epoch: number | undefined): void {
 
 function ln(orderId: string, createdAt: number, retainUntil = NOW + 3600): Order {
   return {
-    orderId, status: 'active', state: 'requested', customerPubkey: 'c', price: 1000,
+    orderId, state: 'requested', customerPubkey: 'c', price: 1000,
     createdAt, updatedAt: createdAt, expiration: createdAt + 600, retainUntil, raw: {},
   };
 }
 
 function oc(orderId: string, createdAt: number, expiration = NOW + 3600): OnchainOrder {
   return {
-    orderId, state: 'listed', status: 'active', customerPubkey: 'c', amountSat: 100_000,
+    orderId, state: 'listed', customerPubkey: 'c', amountSat: 100_000,
     createdAt, updatedAt: createdAt, expiration, network: 'signet',
   } as OnchainOrder;
 }

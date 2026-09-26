@@ -1,5 +1,5 @@
 /**
- * 라이트닝 오더 이벤트 (kind 30402) — 만들기와 읽기를 한 곳에
+ * 라이트닝 오더 이벤트 (`ORDER_KIND`) — 만들기와 읽기를 한 곳에
  *
  * ── 거래 마감과 이벤트 보존을 가른다 (DM-009)
  *
@@ -19,6 +19,7 @@
  */
 import type { Event } from 'nostr-tools/core';
 import { isTerminalState, type OrderState } from '../constants';
+import { nip69Tags, type Nip69Status } from '../nip69';
 import type { Order } from '../types';
 
 /** 종결된 오더가 릴레이에 남는 기간 — 양쪽이 결과를 한 번은 보게 */
@@ -28,7 +29,7 @@ export const LN_TERMINAL_RETENTION_SEC = 7 * 24 * 60 * 60;
 export const LN_ACTIVE_RETENTION_SEC = 30 * 24 * 60 * 60;
 
 /**
- * 요청 이벤트(kind 1111)의 보존. 거래 마감을 쓰면 **마감 직후의 송금 완료·입금 확인이 릴레이에서
+ * 요청 이벤트(`MESSAGE_KIND`)의 보존. 거래 마감을 쓰면 **마감 직후의 송금 완료·입금 확인이 릴레이에서
  * 거절된다** — 그 요청들이 제일 중요한 순간이다. 데몬이 잠시 꺼져 있어도 받게 일주일.
  */
 export const LN_REQUEST_RETENTION_SEC = 7 * 24 * 60 * 60;
@@ -89,11 +90,29 @@ export interface LnOrderFields {
   closeReason?: string;
 }
 
+/**
+ * 라이트닝 상태 → NIP-69 상태. 후원자 승은 원화가 갔고 후원자가 sats를 받았으니 성사다.
+ * `claimed`는 후원자 보증금 대기로 다시 `requested`에 돌아올 수 있지만, 테이커가 붙은 동안은 진행 중이다.
+ */
+const LN_NIP69_STATUS: Record<OrderState, Nip69Status> = {
+  requested: 'pending',
+  claimed: 'in-progress',
+  verified: 'in-progress',
+  escrowed: 'in-progress',
+  invoiced: 'in-progress',
+  remitted: 'in-progress',
+  paid: 'success',
+  sponsor_wins: 'success',
+  customer_wins: 'canceled',
+  cancelled: 'canceled',
+  admin_closed: 'canceled',
+  expired: 'expired',
+};
+
 export function lnOrderTags(order: LnOrderFields, clientTag: string, retainUntil: number): string[][] {
   const tags: string[][] = [
     ['d', order.orderId],
     ['t', clientTag],
-    ['status', isTerminalState(order.state) ? 'sold' : 'active'],
     ['state', order.state],
     ['price', String(order.price), 'KRW'],
     ['customer', order.customerPubkey],
@@ -109,15 +128,22 @@ export function lnOrderTags(order: LnOrderFields, clientTag: string, retainUntil
   if (order.sponsorDepositPaymentHash) tags.push(['sponsor-deposit-payment-hash', order.sponsorDepositPaymentHash]);
   if (order.sponsorDepositPending) tags.push(['sponsor-deposit', 'pending']);
   if (order.closeReason) tags.push(['close-reason', order.closeReason]);
-  return tags;
+  // 라이트닝은 늘 mainnet이다 — dev 데몬도 운영 LND를 같이 쓴다
+  return [...tags, ...nip69Tags({
+    status: LN_NIP69_STATUS[order.state],
+    amountSat: order.payoutSat ?? 0,
+    fiatKrw: order.price,
+    network: 'mainnet',
+    layer: 'lightning',
+    expiresAt: order.deadline,
+  })];
 }
 
 const tag = (event: Pick<Event, 'tags'>, name: string) => event.tags.find(t => t[0] === name)?.[1];
 
 /**
- * 오더 이벤트를 읽는다. **APP이 서명한 것만** — 누구나 30402를 낼 수 있다.
- *
- * `deadline` 태그가 없는 옛 이벤트는 `expiration`을 마감으로 읽는다(예전 뜻 그대로).
+ * 오더 이벤트를 읽는다. **APP이 서명한 것만** — 누구나 같은 kind를 낼 수 있다.
+ * `deadline`이 없으면 0(지난 것)으로 읽는다 — 모르는 마감을 먼 마감으로 믿지 않는다.
  */
 export function parseLnOrderEvent(event: Event, appPubkey: string): Order | null {
   if (event.pubkey !== appPubkey) return null;
@@ -125,7 +151,7 @@ export function parseLnOrderEvent(event: Event, appPubkey: string): Order | null
   if (!orderId) return null;
 
   const retainUntil = Number(tag(event, 'expiration') ?? 0);
-  const deadline = Number(tag(event, 'deadline') ?? retainUntil);
+  const deadline = Number(tag(event, 'deadline') ?? 0);
   const payoutSat = Number(tag(event, 'payout') ?? 0);
   const sponsorPubkey = tag(event, 'sponsor');
   const bolt11 = tag(event, 'bolt11');
@@ -136,7 +162,6 @@ export function parseLnOrderEvent(event: Event, appPubkey: string): Order | null
 
   return {
     orderId,
-    status: (tag(event, 'status') ?? 'active') as 'active' | 'sold',
     state: (tag(event, 'state') ?? 'requested') as OrderState,
     customerPubkey: tag(event, 'customer') ?? '',
     ...(sponsorPubkey ? { sponsorPubkey } : {}),

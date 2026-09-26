@@ -1,10 +1,10 @@
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, SAJWO_REQUEST_KIND, type Order } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, ORDER_KIND, type Order } from '@sajwo-tracker/shared';
 import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
 
 // ── account-info 이벤트 파싱 ─────────────────────────
 
-/** account-info kind 1111 이벤트에서 추출한 정보 */
+/** account-info 요청 이벤트에서 추출한 정보 */
 export interface AccountInfoEvent {
   eventId: string;
   orderId: string;
@@ -16,7 +16,7 @@ export interface AccountInfoEvent {
 }
 
 /**
- * kind 1111 이벤트를 AccountInfoEvent로 파싱한다.
+ * 요청 이벤트를 AccountInfoEvent로 파싱한다.
  * action이 'account-info'인 이벤트만 처리.
  */
 export function parseAccountInfoEvent(event: Event): AccountInfoEvent | null {
@@ -27,7 +27,7 @@ export function parseAccountInfoEvent(event: Event): AccountInfoEvent | null {
   if (!aTag) return null;
 
   const parts = aTag.split(':');
-  if (parts.length < 3 || parts[0] !== String(SAJWO_REQUEST_KIND)) return null;
+  if (parts.length < 3 || parts[0] !== String(ORDER_KIND)) return null;
   const orderId = parts[2]!;
 
   const commitment = event.tags.find(t => t[0] === 'commitment')?.[1] ?? '';
@@ -44,10 +44,10 @@ export function parseAccountInfoEvent(event: Event): AccountInfoEvent | null {
   };
 }
 
-// ── kind 30402 오더 이벤트 파싱 ──────────────────────
+// ── 오더 이벤트 파싱 ──────────────────────
 
 /**
- * kind 30402 이벤트를 Order로 파싱한다. Admin(APP_PUBKEY)이 발행한 것만.
+ * 오더 이벤트를 Order로 파싱한다. Admin(APP_PUBKEY)이 발행한 것만.
  *
  * 규칙은 shared `parseLnOrderEvent` 한 곳에 있다 — 데몬이 만드는 쪽과 같은 파일이다. 여기 따로 두었을 때
  * 발행만 하고 안 읽은 태그(payout)가 에코에 증발한 적이 있다(2026-09-19). `expiration`은 **쿠팡 기한**,

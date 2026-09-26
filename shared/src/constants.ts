@@ -3,11 +3,22 @@ import { LN_TERMINAL_STATES } from './ln/state-machine';
 /** 페어바이 앱 pubkey (데몬) — 오더 서명자이자 NIP-65 릴레이 디스커버리의 기준 */
 export const APP_PUBKEY = 'f1f3300a45164b562a82b86a9dcc0ee0e5f6c5b833a92e41cbf95b28b03ba848';
 
-/** 오더 이벤트 kind (NIP-99 Classified Listing, 주소형) — 데몬만 발행한다 */
-export const SAJWO_REQUEST_KIND = 30402;
+/**
+ * 오더 이벤트 kind — NIP-69 P2P 오더(주소형, `d` = 오더 id). 데몬만 발행한다.
+ *
+ * NIP-69 필수 태그(`nip69.ts`) 위에 우리 태그를 얹는다. 우리 앱은 우리 태그만 읽고, NIP-69 태그는 다른
+ * P2P 오더 모음이 읽으라고 단다. 예전엔 NIP-99 판매글(30402)이었는데, 다른 클라이언트가 장터 글로 그렸다.
+ */
+export const ORDER_KIND = 38383;
 
-/** 요청·통지 이벤트 kind (NIP-22 Comment) — 유저 → 데몬 요청, 데몬 → 유저 통지 */
-export const SAJWO_REQUEST_EVENT_KIND = 1111;
+/**
+ * 요청·통지 이벤트 kind — 유저 → 데몬 요청, 데몬 → 유저 통지, 운영자 명령·결과·채팅 사본.
+ *
+ * 등록된 NIP이 없는 **우리 전용** 일반 kind다. 예전엔 NIP-22 댓글(1111)을 빌렸는데, 다른 클라이언트가
+ * `p` 태그를 보고 댓글 알림으로 띄웠다(유저가 푸시를 켠 것까지 울렸다). 우리 앱 말고는 읽을 수 없는
+ * 내용이라 남의 kind를 빌릴 이유가 없다. 사람이 봐야 할 일은 운영자 DM(NIP-17)으로 따로 간다.
+ */
+export const MESSAGE_KIND = 3838;
 
 /**
  * Vite가 빌드 때 채우는 환경. **데몬(Node)에는 없다** — 그때는 빈 객체라 prod 값이 된다.
@@ -19,13 +30,13 @@ export const SAJWO_REQUEST_EVENT_KIND = 1111;
 const viteEnv: { DEV?: unknown; VITE_NOSTR_SINCE?: unknown } =
   (import.meta as { env?: Record<string, unknown> }).env ?? {};
 
-/** 클라이언트 식별 태그 (다른 30402 이벤트와 구분, dev/prod 데이터 격리) */
+/** 클라이언트 식별 태그 (트랙 구분, dev/prod 데이터 격리) */
 export const CLIENT_TAG = viteEnv.DEV === true ? 'sajwo-tracker-dev' : 'sajwo-tracker';
 
 /**
  * 온체인 트랙 전용 태그 — **라이트닝과 반드시 분리한다**.
  *
- * 이미 배포된 클라이언트가 `{ kinds:[30402], authors:[APP_PUBKEY], '#t':[CLIENT_TAG] }`
+ * 이미 배포된 클라이언트가 `{ kinds:[ORDER_KIND], authors:[APP_PUBKEY], '#t':[CLIENT_TAG] }`
  * 로 돌고 있다. 온체인 오더를 같은 태그로 발행하면 **구버전 앱이 그걸 라이트닝
  * 오더로 렌더링한다.** 그 결과는 이미 봤다 — `payoutSat`이 없으면 후원자 화면에
  * "0 sat을 등록하세요"가 뜬다(2026-09-19 실측). 클레임까지 하면 어드민 FSM이
@@ -74,7 +85,7 @@ export const NOSTR_SINCE: number | undefined =
     ? Number(viteEnv.VITE_NOSTR_SINCE)
     : undefined;
 
-/** kind 1111 request의 action 태그 값 */
+/** 요청·통지 이벤트(`MESSAGE_KIND`)의 action 태그 값 */
 export const REQUEST_ACTIONS = {
   ORDER_REQUEST: 'order-request',
   CLAIM: 'claim',

@@ -8,7 +8,7 @@
 import { SimplePool } from 'nostr-tools/pool';
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
 import {
-  APP_PUBKEY, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, getReadRelays, getSecretKey, nip44Encrypt,
+  APP_PUBKEY, REQUEST_ACTIONS, MESSAGE_KIND, ORDER_KIND, getReadRelays, getSecretKey, nip44Encrypt,
   nowSec, storage, type DisputeMessagePayload, type PreparedChatMessage,
 } from '@sajwo-tracker/shared';
 
@@ -22,10 +22,10 @@ export async function prepareDisputeMessage(
   const myPubkey = getPublicKey(sk);
   const createdAt = nowSec();
   const signed = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ['a', `${ORDER_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE],
       ['t', trackTag],
       ['p', APP_PUBKEY],

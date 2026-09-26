@@ -3,21 +3,21 @@
  *
  * | 구독 | 무엇 |
  * |---|---|
- * | kind 1111 · `#p`=운영자 · `#t`=어드민 | 명령 결과, 분쟁 채팅 사본 |
- * | kind 30078 · APP · `#p`=운영자 · `#t`=어드민 | 데몬 상태(하트비트·설정·경보), 오더별 상세 |
- * | kind 30402 · APP · `#t`=라이트닝/온체인 · `since`=데몬 epoch | 공개 오더 (보기 전용) |
+ * | `MESSAGE_KIND` · `#p`=운영자 · `#t`=어드민 | 명령 결과, 분쟁 채팅 사본 |
+ * | `ADMIN_STATE_KIND` · APP · `#p`=운영자 · `#t`=어드민 | 데몬 상태(하트비트·설정·경보), 오더별 상세 |
+ * | `ORDER_KIND` · APP · `#t`=라이트닝/온체인 · `since`=데몬 epoch | 공개 오더 (보기 전용) |
  *
  * **APP이 서명한 것만** 믿는다 — 운영자 앞으로 온 결과를 아무나 흉내 낼 수 있다.
  * 복호화는 NIP-46 벙커를 거친다(운영자 키).
  *
- * **오더 구독은 데몬 epoch를 알 때만 연다.** 옛 프론트 어드민이 같은 APP 키·같은 태그로 낸 오더가 릴레이에
- * 남아 있다(NIP-40을 안 지키는 릴레이도 있다). epoch는 상태 이벤트로 오고, 바뀌면(데몬 DB를 새로 시작)
- * 다시 연다. `since`를 무시하는 릴레이가 있어 받을 때도 거른다.
+ * **오더 구독은 데몬 epoch를 알 때만 연다.** 데몬 DB를 새로 시작하면 옛 DB가 같은 APP 키·같은 태그로 낸 오더가
+ * 릴레이에 남아 있다(NIP-40을 안 지키는 릴레이도 있다). epoch는 상태 이벤트로 오고, 바뀌면 다시 연다.
+ * `since`를 무시하는 릴레이가 있어 받을 때도 거른다.
  */
 import type { Event } from 'nostr-tools/core';
 import {
   ADMIN_ACTIONS, ADMIN_STATE_KIND, APP_PUBKEY, CLIENT_TAG, CLIENT_TAG_ADMIN, CLIENT_TAG_ONCHAIN,
-  SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND, adminOrderDTagPrefix, adminStateDTag, createSubscriptionGuard,
+  MESSAGE_KIND, ORDER_KIND, adminOrderDTagPrefix, adminStateDTag, createSubscriptionGuard,
   createSubscriptionPool, getReadRelays, storage,
   type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type AdminOcOrderDetail, type AdminState, nowSec,
 } from '@sajwo-tracker/shared';
@@ -39,7 +39,7 @@ export function startDaemonFeed(operatorPubkey: string): Promise<void> {
 
     const inbox = pool.subscribeMany(
       relays,
-      { kinds: [SAJWO_REQUEST_EVENT_KIND], '#p': [operatorPubkey], '#t': [CLIENT_TAG_ADMIN] },
+      { kinds: [MESSAGE_KIND], '#p': [operatorPubkey], '#t': [CLIENT_TAG_ADMIN] },
       { onevent: (event: Event) => void onAdminEvent(event) },
     );
     const stateDTag = adminStateDTag(CLIENT_TAG_ADMIN, operatorPubkey);
@@ -68,7 +68,7 @@ export function startDaemonFeed(operatorPubkey: string): Promise<void> {
       if (epoch === null) return;
       orders = pool.subscribeMany(
         relays,
-        { kinds: [SAJWO_REQUEST_KIND], authors: [APP_PUBKEY], '#t': [CLIENT_TAG, CLIENT_TAG_ONCHAIN], since: epoch },
+        { kinds: [ORDER_KIND], authors: [APP_PUBKEY], '#t': [CLIENT_TAG, CLIENT_TAG_ONCHAIN], since: epoch },
         { onevent: onOrderEvent },
       );
     };

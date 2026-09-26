@@ -6,7 +6,7 @@
  */
 import type { Event } from 'nostr-tools/core';
 import { finalizeEvent } from 'nostr-tools/pure';
-import { REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND, nip44Decrypt, nip44Encrypt, orderRef } from '@sajwo-tracker/shared/core';
+import { REQUEST_ACTIONS, MESSAGE_KIND, nip44Decrypt, nip44Encrypt, orderRef } from '@sajwo-tracker/shared/core';
 import {
   buildSettlementTx, bytesToHex, deriveEscrowAddress, deriveSingleKeyAddress, fromPsbtBase64, fromRawHex,
   onchainMessageExpiration, signSettlement, toPsbtBase64, xonlyFromPrivkey,
@@ -162,7 +162,7 @@ export function ocRequest(
   extra: string[][] = [], content = '', expiration = onchainMessageExpiration(createdAt),
 ): Event {
   return finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
       ['a', orderRef(appPubkey, orderId)],

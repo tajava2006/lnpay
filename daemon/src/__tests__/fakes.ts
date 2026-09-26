@@ -8,7 +8,7 @@
 import type { Event } from 'nostr-tools/core';
 import type { Filter } from 'nostr-tools/filter';
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure';
-import { ADMIN_ACTIONS, SAJWO_REQUEST_EVENT_KIND, nip44Decrypt, nip44Encrypt } from '@sajwo-tracker/shared/core';
+import { ADMIN_ACTIONS, MESSAGE_KIND, nip44Decrypt, nip44Encrypt } from '@sajwo-tracker/shared/core';
 import type { PublishReport, RelayTransport, Subscription } from '../nostr/transport';
 import type { AppKey } from '../secrets';
 import { tagsFor } from '../config';
@@ -125,7 +125,7 @@ export function adminCommand(
   createdAt: number,
 ): Event {
   return finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
       ['p', appPubkey],

@@ -2,13 +2,13 @@
  * 분쟁 채팅 on-demand 구독
  *
  * 오더 디테일 페이지 진입 시 생성, 이탈 시 해제.
- * kind 1111 + action='dispute-message' 필터로 해당 오더의 채팅만 수신.
+ * `MESSAGE_KIND` + action='dispute-message' 필터로 해당 오더의 채팅만 수신.
  */
 import { createSubscriptionPool } from './relay-pool';
 import type { Event } from 'nostr-tools/core';
 import {
-  SAJWO_REQUEST_EVENT_KIND,
-  SAJWO_REQUEST_KIND,
+  MESSAGE_KIND,
+  ORDER_KIND,
   APP_PUBKEY,
   CLIENT_TAG,
   REQUEST_ACTIONS,
@@ -38,13 +38,13 @@ export async function subscribeChatMessages(
     getUserPubkey(storage),
   ]);
 
-  const aCoord = `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`;
+  const aCoord = `${ORDER_KIND}:${APP_PUBKEY}:${orderId}`;
 
   const pool = createSubscriptionPool();
   const sub = pool.subscribeMany(
     relays,
     {
-      kinds: [SAJWO_REQUEST_EVENT_KIND],
+      kinds: [MESSAGE_KIND],
       '#a': [aCoord],
       '#p': [myPubkey],
       '#t': [clientTag],

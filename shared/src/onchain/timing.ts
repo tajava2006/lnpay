@@ -210,7 +210,7 @@ export function isPast(deadline: number | undefined, now: number): boolean {
 }
 
 /**
- * 오더 이벤트(kind 30402)에 실을 `expiration`.
+ * 오더 이벤트에 실을 `expiration`.
  *
  * - `listed` — 의뢰 만료 그대로. 오더북에서 저절로 사라져야 한다
  * - 터미널 — 이미 지났으면 유예를 준다(종결을 알리는 이벤트는 도달해야 한다)
@@ -227,7 +227,7 @@ export function onchainOrderEventExpiration(
   return Math.max(listingExpiration, now + ONCHAIN_EVENT_HORIZON_SEC);
 }
 
-/** 요청·통지 이벤트(kind 1111)의 `expiration` — 거래가 끝날 때까지 산다 */
+/** 요청·통지 이벤트의 `expiration` — 거래가 끝날 때까지 산다 */
 export function onchainMessageExpiration(now: number): number {
   return now + ONCHAIN_EVENT_HORIZON_SEC;
 }

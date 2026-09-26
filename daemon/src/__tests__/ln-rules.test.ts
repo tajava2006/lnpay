@@ -1,15 +1,18 @@
 /**
  * P3 라이트닝 — 보낸 사람·입력 검증, 지급 재시도, 운영자 명령(DM-006), 운영자 상세
  *
- * kind 1111은 누구나 서명해 쏠 수 있다. 여기 테스트들이 "남의 오더를 건드리는" 요청을 막는 줄이다.
+ * 요청 이벤트는 누구나 서명해 쏠 수 있다. 여기 테스트들이 "남의 오더를 건드리는" 요청을 막는 줄이다.
  */
 import { describe, expect, it } from 'vitest';
 import {
-  ADMIN_ACTIONS, ADMIN_STATE_KIND, REQUEST_ACTIONS, adminOrderDTag, nip44Decrypt, nip44Encrypt, orderRef,
+  ADMIN_ACTIONS, ADMIN_STATE_KIND, MESSAGE_KIND, ORDER_KIND, REQUEST_ACTIONS, adminOrderDTag, nip44Decrypt, nip44Encrypt,
+  orderRef,
   type AdminChatCopy, type AdminLnOrderDetail,
 } from '@sajwo-tracker/shared/core';
+import { unwrapEvent } from 'nostr-tools/nip17';
 import { finalizeEvent } from 'nostr-tools/pure';
 import { openAlerts } from '../admin/alerts';
+import { CHAT_DM_QUIET_SEC } from '../admin/chat';
 import { STUCK_EFFECT_ATTEMPTS } from '../admin/stuck';
 import { TEST_TAGS, adminCommand, eventsTo, newKey, openResult, type TestKey } from './fakes';
 import { createLnHarness, lnRequest, makeInvoice, tagOf, type LnHarness } from './ln-fakes';
@@ -56,17 +59,16 @@ describe('의뢰 검증', () => {
     expect(h.order('dup001')!.price).toBe(100_000);
   });
 
-  /** 옛 유저 앱은 expiration = 쿠팡 기한이었다(DM-009) */
-  it('deadline 태그가 없으면 expiration을 기한으로 읽는다', async () => {
+  /** `expiration`은 보존이다 — 기한으로 읽으면 보존을 늘릴 때마다 거래 마감이 따라 늘어난다(DM-009) */
+  it('deadline 태그가 없으면 받지 않는다 — expiration을 기한으로 읽지 않는다', async () => {
     const h = await createLnHarness();
-    const deadline = h.sec() + DAY;
     await h.send(finalizeEvent({
-      kind: 1111, created_at: h.sec(),
+      kind: MESSAGE_KIND, created_at: h.sec(),
       tags: [['a', orderRef(h.app.pubkey, 'old001')], ['action', 'order-request'], ['price', '50000', 'KRW'],
-        ['t', TEST_TAGS.ln], ['p', h.app.pubkey], ['expiration', String(deadline)]],
+        ['t', TEST_TAGS.ln], ['p', h.app.pubkey], ['expiration', String(h.sec() + DAY)]],
       content: '',
     }, h.customer.secretKey));
-    expect(h.order('old001')!.deadline).toBe(deadline);
+    expect(h.order('old001')).toBeUndefined();
   });
 });
 
@@ -356,7 +358,7 @@ describe('운영자 상세 · 채팅', () => {
     const orderId = await openOrder(h);
     await claim(h, orderId);
     const msg = finalizeEvent({
-      kind: 1111, created_at: h.sec(),
+      kind: MESSAGE_KIND, created_at: h.sec(),
       tags: [['a', orderRef(h.app.pubkey, orderId)], ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE], ['t', TEST_TAGS.ln],
         ['p', h.app.pubkey], ['p', h.sponsor.pubkey]],
       content: nip44Encrypt(JSON.stringify({ type: 'text', content: '송금했어요' }), h.sponsor.secretKey, h.app.pubkey),
@@ -368,10 +370,44 @@ describe('운영자 상세 · 채팅', () => {
   });
 });
 
+describe('운영자 DM (NIP-17)', () => {
+  const dmsTo = (h: LnHarness, pattern: RegExp) => h.relay.published
+    .filter(e => e.kind === 1059)
+    .map(e => unwrapEvent(e, h.operator.secretKey).content)
+    .filter(text => pattern.test(text));
+
+  it('새 의뢰는 운영자에게 DM이 간다', async () => {
+    const h = await createLnHarness();
+    const orderId = await openOrder(h, { price: 32_900 });
+    expect(dmsTo(h, /새 의뢰/)).toEqual([`[페어바이] 새 의뢰 — 라이트닝 32,900원 (${orderId})`]);
+  });
+
+  /** 사본은 우리 kind라 운영자 폰을 울리지 않는다 — 분쟁은 반드시 알아야 한다 */
+  it('유저 채팅은 운영자 폰을 울린다 — 오더마다 조용한 창에 한 번', async () => {
+    const h = await createLnHarness();
+    const orderId = await openOrder(h);
+    await claim(h, orderId);
+    const say = (text: string) => h.send(finalizeEvent({
+      kind: MESSAGE_KIND, created_at: h.sec(),
+      tags: [['a', orderRef(h.app.pubkey, orderId)], ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE], ['t', TEST_TAGS.ln],
+        ['p', h.app.pubkey], ['p', h.sponsor.pubkey]],
+      content: nip44Encrypt(JSON.stringify({ type: 'text', content: text }), h.sponsor.secretKey, h.app.pubkey),
+    }, h.sponsor.secretKey));
+
+    await say('송금했어요');
+    await say('확인 부탁드려요');
+    expect(dmsTo(h, /분쟁 채팅/)).toEqual([`[페어바이] 분쟁 채팅 — 라이트닝 후원자: "송금했어요" (${orderId})`]);
+
+    h.advance(CHAT_DM_QUIET_SEC);
+    await say('아직인가요');
+    expect(dmsTo(h, /분쟁 채팅/)).toHaveLength(2);
+  });
+});
+
 describe('릴레이가 실패해도', () => {
   it('오더 발행은 다시 해서 결국 최신 상태가 나간다', async () => {
     const h = await createLnHarness();
-    h.relay.failWhen = e => e.kind === 30402;
+    h.relay.failWhen = e => e.kind === ORDER_KIND;
     h.relay.failNext = 3;
     const orderId = await openOrder(h);
     await claim(h, orderId);

@@ -32,7 +32,7 @@ vi.mock('@sajwo-tracker/shared', async importOriginal => ({
   storage: {},
 }));
 
-const { APP_PUBKEY, CLIENT_TAG_ONCHAIN, SAJWO_REQUEST_EVENT_KIND } = await import('@sajwo-tracker/shared');
+const { APP_PUBKEY, CLIENT_TAG_ONCHAIN, MESSAGE_KIND, ORDER_KIND } = await import('@sajwo-tracker/shared');
 const { onchainOrderTags, TIMELOCK_REMIT_THRESHOLD_BLOCKS } = await import('@sajwo-tracker/shared/onchain');
 const { myOrderKey, _clearKeyCache } = await import('../onchain/keys');
 const { checkEscrowAddress, checkSignRequest, releaseNeedsPriceOverride } =
@@ -66,7 +66,7 @@ function order(over: Partial<OnchainOrder> = {}): OnchainOrder {
     network: 'signet',
   });
   return {
-    orderId: ORDER_ID, state: 'bonded', status: 'active',
+    orderId: ORDER_ID, state: 'bonded',
     customerPubkey: 'cust', sponsorPubkey: 'spon', amountSat: AMOUNT,
     createdAt: 1, updatedAt: 1, expiration: 2_000_000_000, network: 'signet',
     customerXonly: MY_XONLY, sponsorXonly: XS, adminXonly: XA,
@@ -513,7 +513,7 @@ describe('스토어 스냅샷은 참조가 안정해야 한다', () => {
 });
 
 /**
- * ⚠️ 의뢰 등록은 kind 1111을 쏘는 것으로 끝나고 **오더는 보증금을 결제해야**
+ * ⚠️ 의뢰 등록은 요청 이벤트를 쏘는 것으로 끝나고 **오더는 보증금을 결제해야**
  * 생긴다. 그 사이에 거절되거나 실패하면 유저 쪽에 흔적이 하나도 없다 —
  * 실제로 의뢰 두 건 중 하나가 그렇게 사라졌다(2026-09-21).
  */
@@ -601,8 +601,8 @@ describe('보증금 금액 표시', () => {
 
 function inbox(pubkey: string, orderId: string, action: string, extra: string[][] = [], content = ''): Event {
   return {
-    id: `ev-${Math.random()}`, pubkey, kind: SAJWO_REQUEST_EVENT_KIND, created_at: 1_700_000_000,
-    tags: [['a', `30402:${APP_PUBKEY}:${orderId}`], ['action', action], ['t', CLIENT_TAG_ONCHAIN], ...extra],
+    id: `ev-${Math.random()}`, pubkey, kind: MESSAGE_KIND, created_at: 1_700_000_000,
+    tags: [['a', `${ORDER_KIND}:${APP_PUBKEY}:${orderId}`], ['action', action], ['t', CLIENT_TAG_ONCHAIN], ...extra],
     content, sig: 'sig',
   };
 }
@@ -655,7 +655,7 @@ describe('T-119 — 계좌는 오더의 고객이 보낸 것만 받는다', () =
 
     const o = order({ orderId: 'oc-acc', state: 'presigned', customerPubkey: 'cust', sponsorPubkey: 'spon', updatedAt: 5 });
     await handleOrderEvent({
-      id: 'ord', pubkey: APP_PUBKEY, kind: 30402, created_at: 5,
+      id: 'ord', pubkey: APP_PUBKEY, kind: ORDER_KIND, created_at: 5,
       tags: onchainOrderTags(o, CLIENT_TAG_ONCHAIN), content: '', sig: 'sig',
     }, 'spon');
     await flush();

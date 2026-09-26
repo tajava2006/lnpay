@@ -60,7 +60,7 @@ describe('정상 흐름 — 보증금 없이', () => {
 
     ev = latestOrderEvent(h.relay.published, orderId)!;
     expect(tagOf(ev, 'state')).toBe('paid');
-    expect(tagOf(ev, 'status')).toBe('sold');
+    expect(tagOf(ev, 's')).toBe('success');
     expect(tagOf(ev, 'disbursed')).toBe('true');
     expect(tagOf(ev, 'close-reason')).toBe('paid');
   });

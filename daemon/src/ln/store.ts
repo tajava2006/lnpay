@@ -6,6 +6,7 @@
  */
 import type { OrderState } from '@sajwo-tracker/shared/core';
 import { nowSec } from '../admin/context';
+import { notifyOperators } from '../admin/notify';
 import type { LnContext } from './context';
 
 export interface LnOrderRow {
@@ -73,6 +74,8 @@ export function insertOrder(
     o.orderId, o.customer, o.price, o.deadline, o.customerDepositHash ?? null, now, now,
   );
   requestProjection(ctx, o.orderId);
+  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다
+  notifyOperators(ctx, `새 의뢰 — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
 }
 
 /**

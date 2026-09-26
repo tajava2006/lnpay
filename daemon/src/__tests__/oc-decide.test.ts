@@ -24,7 +24,7 @@ const PRICE_FEED = 100_000_000;
 
 function order(over: Partial<OnchainOrder> = {}): OnchainOrder {
   return {
-    orderId: 'o-1', state: 'listed', status: 'active',
+    orderId: 'o-1', state: 'listed',
     customerPubkey: 'cust', amountSat: AMOUNT,
     createdAt: NOW - 1000, updatedAt: NOW - 1000,
     expiration: NOW + 86_400, network: 'signet', raw: {},

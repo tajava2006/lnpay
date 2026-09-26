@@ -6,7 +6,7 @@ import type { Event } from 'nostr-tools/core';
 import { finalizeEvent } from 'nostr-tools/pure';
 import { unwrapEvent } from 'nostr-tools/nip17';
 import {
-  ADMIN_ACTIONS, ADMIN_STATE_KIND, DEFAULT_SETTINGS, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
+  ADMIN_ACTIONS, ADMIN_STATE_KIND, DEFAULT_SETTINGS, REQUEST_ACTIONS, MESSAGE_KIND,
   adminStateDTag, applySettingsPatch, nip44Decrypt, nip44Encrypt, orderRef,
   type AdminChatCopy, type AdminState,
 } from '@sajwo-tracker/shared/core';
@@ -165,7 +165,7 @@ describe('경보', () => {
 
 function disputeMessage(from: TestKey, appPubkey: string, orderId: string, text: string, createdAt: number, t = TAGS.ln): Event {
   return finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: createdAt,
     tags: [
       ['a', orderRef(appPubkey, orderId)],

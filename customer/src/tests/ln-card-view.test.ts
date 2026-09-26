@@ -16,7 +16,7 @@ const ACCOUNT = { bankName: '국민', accountNumber: '123', holderName: '갑' };
 
 function order(state: OrderState, extra: Partial<Order> = {}): Order {
   return {
-    orderId: 'x', status: 'active', state, customerPubkey: ME, sponsorPubkey: OTHER, price: 30_000,
+    orderId: 'x', state, customerPubkey: ME, sponsorPubkey: OTHER, price: 30_000,
     createdAt: NOW - 100, updatedAt: NOW - 100, expiration: NOW + 86_400, raw: {}, ...extra,
   };
 }

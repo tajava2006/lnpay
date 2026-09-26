@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure';
-import { ORDER_STATES, SAJWO_REQUEST_KIND, TERMINAL_STATES, type OrderState } from '../constants';
+import { ORDER_STATES, ORDER_KIND, TERMINAL_STATES, type OrderState } from '../constants';
 import {
   CLOSE_RULES, LN_ACTIVE_RETENTION_SEC, LN_CLOSE_REASON_LABEL, LN_MIN_CLAIM_LEAD_SEC, LN_TERMINAL_RETENTION_SEC,
   canTransition, expiryReasonFor, isClaimableLn, isLnCloseReason, lnOrderTags, lnRetention, parseLnOrderEvent,
@@ -19,7 +19,7 @@ const NOW = 1_800_000_000;
 const DAY = 86_400;
 
 function sign(tags: string[][], sk = app) {
-  return finalizeEvent({ kind: SAJWO_REQUEST_KIND, created_at: NOW, tags, content: '' }, sk);
+  return finalizeEvent({ kind: ORDER_KIND, created_at: NOW, tags, content: '' }, sk);
 }
 
 describe('오더 코덱 왕복', () => {
@@ -32,7 +32,7 @@ describe('오더 코덱 왕복', () => {
     }, 'sajwo-tracker', NOW + 7 * DAY);
     const order = parseLnOrderEvent(sign(tags), APP)!;
     expect(order).toMatchObject({
-      orderId: 'o1', status: 'sold', state: 'paid', customerPubkey: 'c'.repeat(64), sponsorPubkey: 's'.repeat(64),
+      orderId: 'o1', state: 'paid', customerPubkey: 'c'.repeat(64), sponsorPubkey: 's'.repeat(64),
       price: 50_000, expiration: NOW + DAY, retainUntil: NOW + 7 * DAY, bolt11: 'lnbc1escrow', payoutSat: 33_333,
       sponsorInvoice: 'lnbc1pay', disbursed: true, depositPaymentHash: 'd'.repeat(64),
       sponsorDepositPaymentHash: 'e'.repeat(64), closeReason: 'paid',
@@ -48,15 +48,14 @@ describe('오더 코덱 왕복', () => {
     expect(paid).not.toHaveProperty('sponsorDepositPending');
   });
 
-  it('APP이 서명한 것만 — 누구나 30402를 낼 수 있다', () => {
+  it('APP이 서명한 것만 — 누구나 같은 kind를 낼 수 있다', () => {
     const tags = lnOrderTags({ orderId: 'o1', state: 'requested', customerPubkey: 'c', price: 1, deadline: NOW }, 't', NOW);
     expect(parseLnOrderEvent(sign(tags, generateSecretKey()), APP)).toBeNull();
   });
 
-  /** 데몬 전 이벤트는 expiration이 곧 쿠팡 기한이었다 */
-  it('deadline 태그가 없는 옛 이벤트는 expiration을 기한으로 읽는다', () => {
-    const order = parseLnOrderEvent(sign([['d', 'old'], ['state', 'requested'], ['expiration', String(NOW + 60)]]), APP)!;
-    expect(order.expiration).toBe(NOW + 60);
+  it('deadline이 없으면 지난 마감으로 읽는다 — 보존(expiration)을 마감으로 믿지 않는다', () => {
+    const order = parseLnOrderEvent(sign([['d', 'x'], ['state', 'requested'], ['expiration', String(NOW + 60)]]), APP)!;
+    expect(order.expiration).toBe(0);
   });
 });
 
@@ -129,5 +128,33 @@ describe('닫기 사유 (CLOSE_RULES)', () => {
     expect(CLOSE_RULES['expired:no-invoice'].sponsorDeposit).toBe('forfeit');
     expect(CLOSE_RULES['expired:no-remit'].sponsorDeposit).toBe('refund');
     expect(CLOSE_RULES.admin_closed).toMatchObject({ customerDeposit: 'refund', sponsorDeposit: 'refund' });
+  });
+});
+
+describe('NIP-69 태그', () => {
+  const nip = (tags: string[][], name: string) => tags.filter(t => t[0] === name).map(t => t.slice(1));
+  const base = { orderId: 'o1', customerPubkey: 'c'.repeat(64), price: 32_900, deadline: NOW + DAY };
+
+  it('의뢰는 pending — sats는 검증 때 시세로 정하므로 0, 만료는 쿠팡 기한', () => {
+    const tags = lnOrderTags({ ...base, state: 'requested' }, 't', NOW + DAY);
+    for (const name of ['k', 'f', 's', 'amt', 'fa', 'pm', 'premium', 'network', 'layer', 'expires_at', 'y', 'z']) {
+      expect(nip(tags, name), name).toHaveLength(1);
+    }
+    expect(nip(tags, 's')).toEqual([['pending']]);
+    expect(nip(tags, 'amt')).toEqual([['0']]);
+    expect(nip(tags, 'fa')).toEqual([['32900']]);
+    expect(nip(tags, 'layer')).toEqual([['lightning']]);
+    expect(nip(tags, 'expires_at')).toEqual([[String(NOW + DAY)]]);
+  });
+
+  it('지급액이 정해지면 amt가 그 sats다', () => {
+    expect(nip(lnOrderTags({ ...base, state: 'escrowed', payoutSat: 24_512 }, 't', NOW + DAY), 'amt')).toEqual([['24512']]);
+  });
+
+  it.each([
+    ['claimed', 'in-progress'], ['remitted', 'in-progress'], ['paid', 'success'], ['sponsor_wins', 'success'],
+    ['customer_wins', 'canceled'], ['cancelled', 'canceled'], ['admin_closed', 'canceled'], ['expired', 'expired'],
+  ] as const)('%s → %s', (state, status) => {
+    expect(nip(lnOrderTags({ ...base, state }, 't', NOW + DAY), 's')).toEqual([[status]]);
   });
 });

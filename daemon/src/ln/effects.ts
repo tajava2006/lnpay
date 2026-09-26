@@ -11,7 +11,7 @@
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
-  ADMIN_STATE_KIND, SAJWO_REQUEST_KIND, adminOrderDTag, nip44Encrypt,
+  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, nip44Encrypt,
   type AdminLnInvoice, type AdminLnOrderDetail,
 } from '@sajwo-tracker/shared/core';
 import { CLOSE_RULES, isPayoutAmountExact, lnOrderTags, lnRetention, type LnCloseReason } from '@sajwo-tracker/shared/ln';
@@ -172,7 +172,7 @@ export function createProbeExecutor(ctx: LnContext): EffectExecutor<ProbePayload
   };
 }
 
-// ── 공개 오더 (30402) ───────────────────────────────────────
+// ── 공개 오더 ───────────────────────────────────────
 
 /**
  * 클레임은 됐는데 후원자 보증금을 아직 안 냈다 — 양쪽 화면이 "후원자 찾는 중 · 보증금 대기"로 그린다.
@@ -203,7 +203,7 @@ export function buildOrderEvent(ctx: LnContext, order: LnOrderRow, createdAt: nu
     ...(sponsorDepositPending(ctx, order) ? { sponsorDepositPending: true } : {}),
     ...(order.close_reason ? { closeReason: order.close_reason } : {}),
   }, ctx.tags.ln, lnRetention(order.state, order.deadline, createdAt));
-  return finalizeEvent({ kind: SAJWO_REQUEST_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
+  return finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
 }
 
 export function createOrderPublishExecutor(ctx: LnContext, transport: RelayTransport): EffectExecutor<OrderPayload> {
@@ -230,7 +230,7 @@ export function createOrderPublishExecutor(ctx: LnContext, transport: RelayTrans
   };
 }
 
-// ── 운영자 상세 (30078, 운영자별) ───────────────────────────
+// ── 운영자 상세 (운영자별) ───────────────────────────
 
 const PURPOSE_NAME: Record<LnHoldPurpose, AdminLnInvoice['purpose']> = {
   'ln-escrow': 'escrow',

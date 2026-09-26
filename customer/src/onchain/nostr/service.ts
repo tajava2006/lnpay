@@ -16,7 +16,7 @@
 import type { Event } from 'nostr-tools/core';
 import {
   APP_PUBKEY, CLIENT_TAG_ONCHAIN, createSubscriptionGuard, createSubscriptionPool, getReadRelays, getSecretKey,
-  getUserPubkey, nip44Decrypt, NOSTR_SINCE, parseAccountInfoEnvelope, SAJWO_REQUEST_EVENT_KIND, SAJWO_REQUEST_KIND,
+  getUserPubkey, nip44Decrypt, NOSTR_SINCE, parseAccountInfoEnvelope, MESSAGE_KIND, ORDER_KIND,
   storage,
 } from '@sajwo-tracker/shared';
 import {
@@ -61,7 +61,7 @@ export function startOnchainSubscriptions(): Promise<void> {
     const orderSub = pool.subscribeMany(
       relays,
       {
-        kinds: [SAJWO_REQUEST_KIND],
+        kinds: [ORDER_KIND],
         authors: [APP_PUBKEY],
         '#t': [CLIENT_TAG_ONCHAIN],
         ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
@@ -72,7 +72,7 @@ export function startOnchainSubscriptions(): Promise<void> {
     const inboxSub = pool.subscribeMany(
       relays,
       {
-        kinds: [SAJWO_REQUEST_EVENT_KIND],
+        kinds: [MESSAGE_KIND],
         '#p': [myPubkey],
         '#t': [CLIENT_TAG_ONCHAIN],
         ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
@@ -84,7 +84,7 @@ export function startOnchainSubscriptions(): Promise<void> {
     const ownSub = pool.subscribeMany(
       relays,
       {
-        kinds: [SAJWO_REQUEST_EVENT_KIND],
+        kinds: [MESSAGE_KIND],
         authors: [myPubkey],
         '#t': [CLIENT_TAG_ONCHAIN],
         ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),

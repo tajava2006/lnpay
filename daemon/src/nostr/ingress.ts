@@ -1,7 +1,7 @@
 /**
  * 받기
  *
- * kind 1111 중 APP 앞으로 온 것을 전부 `inbox`에 넣는다. 처리는 디스패처가 따로 한다 — 받는 순서와
+ * 요청 이벤트 중 APP 앞으로 온 것을 전부 `inbox`에 넣는다. 처리는 디스패처가 따로 한다 — 받는 순서와
  * 처리 순서를 떼어 놓아야 릴레이마다 다른 도착 순서가 판단을 흔들지 않는다.
  *
  * **구독을 주기적으로 새로 연다.** 오래 사는 구독은 조용히 죽는다(에러 없이 이벤트만 안 온다 — 형제
@@ -10,7 +10,7 @@
  */
 import type { Event } from 'nostr-tools/core';
 import { verifyEvent } from 'nostr-tools/pure';
-import { SAJWO_REQUEST_EVENT_KIND } from '@sajwo-tracker/shared/core';
+import { MESSAGE_KIND } from '@sajwo-tracker/shared/core';
 import type { Db } from '../db';
 import type { Logger } from '../log';
 import type { RelayTransport, Subscription } from './transport';
@@ -88,7 +88,7 @@ export class Ingress {
    * 디스패처까지 가지 않게.
    */
   accept(event: Event): boolean {
-    if (event.kind !== SAJWO_REQUEST_EVENT_KIND) return false;
+    if (event.kind !== MESSAGE_KIND) return false;
     if (!event.tags.some(t => t[0] === 'p' && t[1] === this.opts.appPubkey)) return false;
     if (event.created_at < this.epoch) return false;
     if (!verifyEvent(event)) {
@@ -117,7 +117,7 @@ export class Ingress {
   private open(): void {
     const since = this.since();
     this.sub = this.transport.subscribe(
-      { kinds: [SAJWO_REQUEST_EVENT_KIND], '#p': [this.opts.appPubkey], since },
+      { kinds: [MESSAGE_KIND], '#p': [this.opts.appPubkey], since },
       event => { this.accept(event); },
     );
     this.log.debug('구독 열림', { since });

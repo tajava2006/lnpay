@@ -1,11 +1,11 @@
 /**
  * 온체인 요청 검증 — 누가, 언제, 무엇을
  *
- * kind 1111은 누구나 서명해 쏠 수 있다. 여기 줄들이 남의 의뢰를 가로채거나, 마감 뒤에 끼어들거나, 이상한
+ * 요청 이벤트는 누구나 서명해 쏠 수 있다. 여기 줄들이 남의 의뢰를 가로채거나, 마감 뒤에 끼어들거나, 이상한
  * 주소·수수료로 고객 BTC를 묶는 요청을 막는다. 거절은 **유저에게 도달해야 한다**(onchain-rejected).
  */
 import { describe, expect, it } from 'vitest';
-import { REQUEST_ACTIONS, nip44Encrypt } from '@sajwo-tracker/shared/core';
+import { ORDER_KIND, REQUEST_ACTIONS, nip44Encrypt } from '@sajwo-tracker/shared/core';
 import {
   PRESIGN_WINDOW_SEC, buildSettlementTx, deriveSingleKeyAddress, signSettlement, toPsbtBase64, xonlyFromPrivkey,
 } from '@sajwo-tracker/shared/onchain';
@@ -48,7 +48,7 @@ describe('의뢰 등록', () => {
     const row = h.row('ocreq1')!;
     expect(row.order.state).toBe('listed');
     expect(row.meta.refundAddress).toBe(REFUND);
-    expect(JSON.stringify(h.relay.published.filter(e => e.kind === 30402))).not.toContain(REFUND);
+    expect(JSON.stringify(h.relay.published.filter(e => e.kind === ORDER_KIND))).not.toContain(REFUND);
   });
 
   it('새 의뢰를 끄면 받지 않는다 (진행 중인 거래는 그대로)', async () => {

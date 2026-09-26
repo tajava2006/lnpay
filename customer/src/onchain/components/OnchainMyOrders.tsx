@@ -170,7 +170,7 @@ export function OnchainOrderCard({ order, role, myPubkey, invoiceBolt11, signReq
   const notice = notices[order.orderId];
   const now = useNow();
 
-  // ⚠️ **스토어에 있다는 것만으로 띄우면 안 된다.** kind 1111은 릴레이에 남아
+  // ⚠️ **스토어에 있다는 것만으로 띄우면 안 된다.** 요청 이벤트는 릴레이에 남아
   // 새로고침마다 다시 배달되므로 로컬에서 지워도 되살아난다 — 진실은 FSM이다.
   const actionable = signRequests.filter(r =>
     canActOnSignRequest(order.state, r.purpose, order.settlementKind));

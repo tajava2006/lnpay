@@ -125,7 +125,7 @@ describe('sponsorRelation', () => {
   });
 
   // 핵심 회귀 방지: Admin이 클레임을 철회하면 오더는 requested로 돌아오고
-  // sponsorPubkey도 지워지지만, 남이 보낸 kind 1111 클레임 이벤트는 릴레이에 남는다.
+  // sponsorPubkey도 지워지지만, 남이 보낸 클레임 요청는 릴레이에 남는다.
   // 이벤트 존재를 근거로 삼으면 다시 열린 주문을 영영 잠긴 것으로 오판한다.
   it('클레임 철회로 requested로 되돌아온 주문은 다시 열린다', () => {
     const taken = { state: 'claimed' as const, customerPubkey: OTHER, sponsorPubkey: THIRD };

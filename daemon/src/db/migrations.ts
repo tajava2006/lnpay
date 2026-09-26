@@ -16,7 +16,7 @@ export const MIGRATIONS: readonly Migration[] = [
         value TEXT NOT NULL
       );
 
-      -- 받은 kind 1111. id가 곧 중복 방지다 (DM-004)
+      -- 받은 요청 이벤트. id가 곧 중복 방지다 (DM-004)
       CREATE TABLE inbox (
         id           TEXT PRIMARY KEY,
         pubkey       TEXT NOT NULL,
@@ -66,7 +66,7 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     version: 3,
     sql: `
-      -- 라이트닝 오더. 공개 이벤트(30402)의 원천 — 발행은 이 행의 투영이다
+      -- 라이트닝 오더. 공개 오더 이벤트의 원천 — 발행은 이 행의 투영이다
       CREATE TABLE ln_orders (
         order_id              TEXT PRIMARY KEY,
         state                 TEXT NOT NULL,

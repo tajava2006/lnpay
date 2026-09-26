@@ -23,7 +23,7 @@ vi.mock('@sajwo-tracker/shared', async importOriginal => ({
   storage: {},
 }));
 
-const { APP_PUBKEY, SAJWO_REQUEST_KIND } = await import('@sajwo-tracker/shared');
+const { APP_PUBKEY, MESSAGE_KIND, ORDER_KIND } = await import('@sajwo-tracker/shared');
 const { handleInboxEvent } = await import('../sponsor/nostr/service');
 const orders = await import('../sponsor/order-store');
 const accounts = await import('../sponsor/account-store');
@@ -32,8 +32,8 @@ const ORDER_ID = 'ln-1';
 
 function accountEvent(from: string, accountNumber: string): Event {
   return {
-    id: `ev-${accountNumber}`, pubkey: from, kind: 1111, created_at: 1_700_000_000,
-    tags: [['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${ORDER_ID}`], ['action', 'account-info']],
+    id: `ev-${accountNumber}`, pubkey: from, kind: MESSAGE_KIND, created_at: 1_700_000_000,
+    tags: [['a', `${ORDER_KIND}:${APP_PUBKEY}:${ORDER_ID}`], ['action', 'account-info']],
     content: `enc:${JSON.stringify({ accountInfo: { bankName: '국민', accountNumber, holderName: '갑' }, salt: 's' })}`,
     sig: 'sig',
   };
@@ -45,7 +45,7 @@ async function flush(): Promise<void> {
 
 beforeEach(() => {
   const order: Order = {
-    orderId: ORDER_ID, status: 'active', state: 'claimed', customerPubkey: 'cust', sponsorPubkey: 'spon',
+    orderId: ORDER_ID, state: 'claimed', customerPubkey: 'cust', sponsorPubkey: 'spon',
     price: 10_000, createdAt: 1, updatedAt: 1, expiration: 2_000_000_000, raw: {},
   };
   orders.upsertOrder(order);

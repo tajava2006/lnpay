@@ -1,10 +1,10 @@
 /**
- * 라이트닝 요청 핸들러 — 유저가 보낸 kind 1111
+ * 라이트닝 요청 핸들러 — 유저가 보낸 요청
  *
  * **트랜잭션 안에서, 네트워크 없이** 판단한다(디스패처가 트랜잭션을 연다). 받지 않는 요청은
  * `ignored:<사유>`로 닫혀 inbox에 남는다 — "왜 안 됐지"를 나중에 DB에서 본다.
  *
- * 보낸 사람 확인이 첫 줄이다. kind 1111은 누구나 서명해 쏠 수 있다 — 남의 오더에 지급처를 꽂거나,
+ * 보낸 사람 확인이 첫 줄이다. 요청 이벤트는 누구나 서명해 쏠 수 있다 — 남의 오더에 지급처를 꽂거나,
  * 남의 거래를 취소하거나, 남 대신 입금 확인을 누르는 걸 여기서 막는다.
  */
 import {
@@ -69,8 +69,8 @@ function orderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
   const price = Number(tagValue(event, 'price'));
   if (!Number.isInteger(price) || price <= 0 || price > MAX_PRICE_KRW) return ignored('bad-price');
 
-  // 새 유저 앱은 `deadline`을 따로 싣는다. 옛 앱은 `expiration`이 곧 쿠팡 기한이었다(DM-009)
-  const deadline = Number(tagValue(event, 'deadline') ?? tagValue(event, 'expiration'));
+  // 쿠팡 기한은 `deadline`이다 — `expiration`은 이벤트 보존이라 기한으로 읽지 않는다(DM-009)
+  const deadline = Number(tagValue(event, 'deadline'));
   if (!Number.isInteger(deadline)) return ignored('bad-deadline');
   const now = nowSec(ctx);
   if (deadline - now < MIN_CLAIM_LEAD_SEC) return ignored('deadline-too-close');

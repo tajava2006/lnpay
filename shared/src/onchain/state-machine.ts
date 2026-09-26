@@ -361,7 +361,7 @@ export function isPriceStale(remittedAtMs: number, nowMs: number): boolean {
 }
 
 /**
- * 서명 요청이 가리키는 종결 (kind 1111 `purpose` 태그).
+ * 서명 요청이 가리키는 종결 (요청 이벤트의 `purpose` 태그).
  *
  * `rescue`는 FSM 밖이다 — 약정과 다른 모양으로 들어온 자금(금액 불일치, 이중 송금,
  * 취소 뒤 늦은 펀딩, 확정 뒤 추가 입금)을 고객에게 돌려주는 `{A,C}` tx다.
@@ -389,7 +389,7 @@ export function awaitingSignerFor(kind: SettlementKind): 'customer' | 'sponsor' 
  * 이 서명 요청이 **아직 쓸모 있는가.**
  *
  * ⚠️ 화면이 "서명 요청이 스토어에 있다"만 보고 버튼을 띄우면 안 된다.
- * kind 1111은 릴레이에 남아 있어 **새로고침할 때마다 다시 배달되므로**,
+ * 요청 이벤트는 릴레이에 남아 있어 **새로고침할 때마다 다시 배달되므로**,
  * 로컬에서 지워도 되살아난다. 실제로 **종결된 주문에 "서명하고 보내기"가
  * 계속 떠 있었다**(2026-09-23).
  *

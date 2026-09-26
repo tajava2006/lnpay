@@ -2,14 +2,14 @@
  * Customer 주문 타입 + Admin 이벤트 파싱 + 유저스크립트 파싱 이벤트
  */
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, SAJWO_REQUEST_EVENT_KIND, REQUEST_ACTIONS, nip44Decrypt, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, MESSAGE_KIND, REQUEST_ACTIONS, nip44Decrypt, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
 import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
 
 /**
  * Customer 로컬 주문
  *
  * 수동 입력 또는 유저스크립트 자동파싱으로 생성되며,
- * Admin kind 30402 이벤트로 상태가 오버레이된다.
+ * 오더 이벤트로 상태가 오버레이된다.
  */
 export interface CustomerOrder {
   /** 고유 식별자 (수동: 자동 생성, 파싱: 쿠팡 주문번호) */
@@ -41,10 +41,10 @@ export interface CustomerOrder {
 
   // ── Nostr 발행 상태 ──
 
-  /** 발행된 kind 1111 서명 이벤트 JSON. 없으면 미발행. */
+  /** 발행된 order-request 서명 이벤트 JSON. 없으면 미발행. */
   raw?: string;
 
-  // ── Admin 오버레이 (kind 30402에서 수신) ──
+  // ── Admin 오버레이 (오더 이벤트에서 수신) ──
 
   /** Admin FSM 상태. undefined = Admin 미등록. */
   adminState?: OrderState;
@@ -77,12 +77,12 @@ export interface ParsedOrderPayload {
 }
 
 /**
- * 유저스크립트가 발행한 kind 1111 parsed-order 이벤트를 파싱한다.
+ * 유저스크립트가 발행한 parsed-order 이벤트를 파싱한다.
  * content는 NIP-44 self-encryption(자기 pubkey로 암호화)되어 있으므로 복호화 필요.
  * 자기 pubkey로 발행된 이벤트만 수신되므로 pubkey 검증은 불필요.
  */
 export function parseParsedOrderEvent(event: Event, sk: Uint8Array): ParsedOrderPayload | null {
-  if (event.kind !== SAJWO_REQUEST_EVENT_KIND) return null;
+  if (event.kind !== MESSAGE_KIND) return null;
 
   const action = event.tags.find(t => t[0] === 'action')?.[1];
   if (action !== REQUEST_ACTIONS.PARSED_ORDER) return null;
@@ -97,7 +97,7 @@ export function parseParsedOrderEvent(event: Event, sk: Uint8Array): ParsedOrder
   }
 }
 
-/** Admin kind 30402 이벤트에서 추출한 갱신 정보 */
+/** 오더 이벤트에서 추출한 갱신 정보 */
 export interface AdminOrderUpdate {
   orderId: string;
   adminState: OrderState;
@@ -108,7 +108,7 @@ export interface AdminOrderUpdate {
 }
 
 /**
- * Admin kind 30402 이벤트를 파싱하여 Customer 관련 갱신 정보를 추출한다.
+ * 오더 이벤트를 파싱하여 Customer 관련 갱신 정보를 추출한다.
  * customer 태그가 myPubkey와 일치하는 이벤트만 처리.
  */
 export function parseAdminEvent(event: Event, myPubkey: string): AdminOrderUpdate | null {

@@ -10,18 +10,18 @@
 import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import {
-  APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, SAJWO_REQUEST_EVENT_KIND,
-  SAJWO_REQUEST_KIND, getReadRelays, getSecretKey, storage, nowSec,
+  APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, MESSAGE_KIND,
+  ORDER_KIND, getReadRelays, getSecretKey, storage, nowSec,
 } from '@sajwo-tracker/shared';
 import { onchainMessageExpiration } from '@sajwo-tracker/shared/onchain';
 
 export async function publishRemitRequestOnchain(orderId: string): Promise<boolean> {
   const sk = await getSecretKey(storage);
   const signed = finalizeEvent({
-    kind: SAJWO_REQUEST_EVENT_KIND,
+    kind: MESSAGE_KIND,
     created_at: nowSec(),
     tags: [
-      ['a', `${SAJWO_REQUEST_KIND}:${APP_PUBKEY}:${orderId}`],
+      ['a', `${ORDER_KIND}:${APP_PUBKEY}:${orderId}`],
       ['action', REQUEST_ACTIONS.REMIT_REQUEST],
       ['t', CLIENT_TAG_ONCHAIN],
       ['p', APP_PUBKEY],

@@ -4,8 +4,8 @@
  * 구독 소켓은 갖지 않는다 — 통합 구독(../../nostr/service)이 소켓을 소유하고
  * 이벤트를 역할별 핸들러로 흘려보낸다.
  *
- * 1. Admin kind 30402 → 오더북(order-store) + 내가 클레임한 건 IDB 아카이브
- * 2. kind 1111 → 계좌정보(NIP-44 복호화) / 보증금 / 가격 오류
+ * 1. 오더 이벤트 → 오더북(order-store) + 내가 클레임한 건 IDB 아카이브
+ * 2. 요청·통지 이벤트 → 계좌정보(NIP-44 복호화) / 보증금 / 가격 오류
  */
 import {
   nip44Decrypt,
@@ -30,7 +30,7 @@ import { setDepositBolt11, setDepositStatus } from '../deposit-store';
 import { setRevealRequested } from '../reveal-request-store';
 import type { AccountInfoEvent } from '../types';
 
-// ── Admin kind 30402 ───────────────────────────────
+// ── 오더 이벤트 ───────────────────────────────
 
 /** 오더북에 반영하고, 내가 클레임한 건이면 IDB 아카이브도 갱신한다. */
 export function handleAdminOrder(event: Event, myPubkey: string): void {
@@ -62,7 +62,7 @@ export function handleOrdersEose(): void {
   console.log('[후원자] 오더북 초기 동기화 완료');
 }
 
-// ── kind 1111 ──────────────────────────────────────
+// ── 요청·통지 이벤트 ──────────────────────────────────────
 
 /** 후원자 역할로 소화할 수 있는 이벤트면 처리하고 true를 돌려준다. */
 export function handleInboxEvent(event: Event): boolean {

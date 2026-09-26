@@ -6,7 +6,7 @@
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
-  ADMIN_STATE_KIND, SAJWO_REQUEST_KIND, adminOrderDTag, nip44Encrypt, type AdminOcOrderDetail,
+  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, nip44Encrypt, type AdminOcOrderDetail,
 } from '@sajwo-tracker/shared/core';
 import {
   isOnchainTerminal, onchainOrderEventExpiration, onchainOrderIssues, onchainOrderTags,
@@ -25,7 +25,7 @@ interface OrderPayload { orderId: string }
 /** 운영자 상세의 보존 — 분쟁 기록으로 한동안 */
 const DETAIL_RETENTION_SEC = 70 * 24 * 60 * 60;
 
-// ── 공개 오더 (30402) ───────────────────────────────────────
+// ── 공개 오더 ───────────────────────────────────────
 
 export function createOcPublishExecutor(ctx: OcContext, transport: RelayTransport): EffectExecutor<OrderPayload> {
   return {
@@ -47,7 +47,7 @@ export function createOcPublishExecutor(ctx: OcContext, transport: RelayTranspor
       }
       const tags = onchainOrderTags(order, ctx.tags.onchain)
         .map(t => (t[0] === 'expiration' ? ['expiration', String(expiration)] : t));
-      const event = finalizeEvent({ kind: SAJWO_REQUEST_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
+      const event = finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
       const report = await transport.publish(event);
       if (report.accepted.length === 0) {
         return { status: 'retry', error: report.rejected.map(r => r.reason).join('; ') || '릴레이 없음' };
@@ -61,7 +61,7 @@ export function createOcPublishExecutor(ctx: OcContext, transport: RelayTranspor
   };
 }
 
-// ── 운영자 상세 (30078, 운영자별) ───────────────────────────
+// ── 운영자 상세 (운영자별) ───────────────────────────
 
 export function buildOcDetail(ctx: OcContext, row: OcRow): AdminOcOrderDetail {
   const { order, meta } = row;

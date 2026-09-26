@@ -5,6 +5,7 @@
  * "태그 하나를 추가하고 한쪽만 고치는" 사고를 잡는다.
  */
 import { describe, it, expect } from 'vitest';
+import { ORDER_KIND } from '../constants';
 import {
   formatOutpoint, onchainOrderIssues, onchainOrderTags, parseOnchainOrder, parseOutpoint,
   type OnchainOrder, type OnchainOrderEvent,
@@ -20,7 +21,6 @@ function base(over: Partial<OnchainOrder> = {}): OnchainOrder {
   return {
     orderId: 'order-1',
     state: 'listed',
-    status: 'active',
     customerPubkey: 'cust-pubkey',
     amountSat: 500_000,
     createdAt: 1_700_000_000,
@@ -34,7 +34,7 @@ function base(over: Partial<OnchainOrder> = {}): OnchainOrder {
 
 function asEvent(order: OnchainOrder, tag = TAG): OnchainOrderEvent {
   return {
-    kind: 30402,
+    kind: ORDER_KIND,
     pubkey: 'app-pubkey',
     created_at: order.updatedAt,
     tags: onchainOrderTags(order, tag),
@@ -79,21 +79,43 @@ describe('왕복 — 직렬화한 걸 다시 읽으면 같다', () => {
     const parsed = parseOnchainOrder(asEvent(order), TAG)!;
     expect(parsed).not.toBeNull();
 
-    // raw/status/createdAt 말고는 전부 그대로 돌아와야 한다
-    const { raw: _r1, status: _s1, createdAt: _c1, ...sent } = order;
-    const { raw: _r2, status: _s2, createdAt: _c2, ...got } = parsed;
+    // raw/createdAt 말고는 전부 그대로 돌아와야 한다
+    const { raw: _r1, createdAt: _c1, ...sent } = order;
+    const { raw: _r2, createdAt: _c2, ...got } = parsed;
     expect(got).toEqual(sent);
   });
+});
 
-  it('터미널이면 status가 sold다', () => {
-    const tags = onchainOrderTags(base({ state: 'released' }), TAG);
-    expect(tags).toContainEqual(['status', 'sold']);
-    expect(parseOnchainOrder({ kind: 30402, pubkey: 'p', created_at: 1, tags }, TAG)!.status)
-      .toBe('sold');
+describe('NIP-69 태그', () => {
+  const nip = (tags: string[][], name: string) => tags.filter(t => t[0] === name).map(t => t.slice(1));
+
+  it('필수 태그가 전부 한 번씩 실린다 — network는 우리 태그와 겹치지 않는다', () => {
+    const tags = onchainOrderTags(base(), TAG);
+    for (const name of ['k', 'f', 's', 'amt', 'fa', 'pm', 'premium', 'network', 'layer', 'expires_at', 'y', 'z']) {
+      expect(nip(tags, name), name).toHaveLength(1);
+    }
+    expect(nip(tags, 'k')).toEqual([['sell']]);
+    expect(nip(tags, 'layer')).toEqual([['onchain']]);
+    expect(nip(tags, 'z')).toEqual([['order']]);
   });
 
-  it('비터미널이면 active다', () => {
-    expect(onchainOrderTags(base({ state: 'disputed' }), TAG)).toContainEqual(['status', 'active']);
+  it('의뢰는 pending — 원화는 가격 고정 전이라 0, 만료는 의뢰 만료', () => {
+    const tags = onchainOrderTags(base({ expiration: 1_700_086_400 }), TAG);
+    expect(nip(tags, 's')).toEqual([['pending']]);
+    expect(nip(tags, 'amt')).toEqual([['500000']]);
+    expect(nip(tags, 'fa')).toEqual([['0']]);
+    expect(nip(tags, 'expires_at')).toEqual([['1700086400']]);
+  });
+
+  it('가격이 고정되면 fa가 원화다', () => {
+    expect(nip(onchainOrderTags(base({ state: 'funded', priceKrw: 95_000_000 }), TAG), 'fa')).toEqual([['95000000']]);
+  });
+
+  it.each([
+    ['disputed', 'in-progress'], ['released', 'success'], ['sponsor_wins', 'success'],
+    ['refunded', 'canceled'], ['customer_wins', 'canceled'], ['swept', 'canceled'], ['cancelled', 'canceled'],
+  ] as const)('%s → %s', (state, status) => {
+    expect(nip(onchainOrderTags(base({ state }), TAG), 's')).toEqual([[status]]);
   });
 });
 
@@ -125,7 +147,7 @@ describe('트랙 분리', () => {
 
 describe('모르는 모양은 버린다', () => {
   function tamper(mutate: (tags: string[][]) => string[][]): OnchainOrderEvent {
-    return { kind: 30402, pubkey: 'p', created_at: 1, tags: mutate(onchainOrderTags(base(), TAG)) };
+    return { kind: ORDER_KIND, pubkey: 'p', created_at: 1, tags: mutate(onchainOrderTags(base(), TAG)) };
   }
 
   /** 새 버전 클라이언트가 발행한 상태일 수 있다. 추측하면 화면이 거짓말을 한다. */
@@ -155,13 +177,13 @@ describe('모르는 모양은 버린다', () => {
   it.each(['customer-xonly', 'sponsor-xonly', 'admin-xonly'])('%s 형식이 틀리면', name => {
     const order = base({ state: 'bonded', customerXonly: XC, sponsorXonly: XS, adminXonly: XA });
     const tags = onchainOrderTags(order, TAG).map(t => t[0] === name ? [name, 'ZZ'] : t);
-    expect(parseOnchainOrder({ kind: 30402, pubkey: 'p', created_at: 1, tags }, TAG)).toBeNull();
+    expect(parseOnchainOrder({ kind: ORDER_KIND, pubkey: 'p', created_at: 1, tags }, TAG)).toBeNull();
   });
 
   it('숫자 태그가 깨졌으면 그 필드만 비운다 (오더 전체를 버리지는 않는다)', () => {
     const order = base({ state: 'funded', priceKrw: 100 });
     const tags = onchainOrderTags(order, TAG).map(t => t[0] === 'price-krw' ? ['price-krw', 'NaN'] : t);
-    const parsed = parseOnchainOrder({ kind: 30402, pubkey: 'p', created_at: 1, tags }, TAG);
+    const parsed = parseOnchainOrder({ kind: ORDER_KIND, pubkey: 'p', created_at: 1, tags }, TAG);
     expect(parsed).not.toBeNull();
     expect(parsed!.priceKrw).toBeUndefined();
   });
@@ -179,7 +201,7 @@ describe('outpoint 문자열', () => {
 
 describe('빠진 태그 감시 (addressable은 덮어쓴다)', () => {
   /**
-   * kind 30402는 새 발행이 이전 이벤트를 **덮어쓴다.** 한 번 빠진 태그는
+   * 오더 이벤트는 새 발행이 이전 이벤트를 **덮어쓴다.** 한 번 빠진 태그는
    * 영영 복구되지 않는다 — 라이트닝에서 `payoutSat` 없이 발행해 주문 두 건을
    * 그렇게 잃었다(2026-09-19).
    */

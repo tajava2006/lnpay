@@ -20,6 +20,7 @@ import type { OnchainState, SettlementKind } from './state-machine';
 import { ONCHAIN_STATES, SETTLEMENT_KINDS } from './state-machine';
 import type { BtcNetworkName } from './address';
 import { isXonlyHex } from './hex';
+import { PROTOCOL_VERSION } from '../constants';
 import { nip69Tags, orderLink, type Nip69Status } from '../nip69';
 import { isNum, isStr, oneOf, optional, shape } from '../shape';
 
@@ -163,6 +164,7 @@ export function onchainOrderTags(order: OnchainOrder, clientTag: string, appUrl?
   const tags: TagList = [
     ['d', order.orderId],
     ['t', clientTag],
+    ['protocol', String(PROTOCOL_VERSION)],
     ['state', order.state],
     ['customer', order.customerPubkey],
     ['amount-sat', String(order.amountSat)],

@@ -21,6 +21,26 @@ export const ORDER_KIND = 38383;
 export const MESSAGE_KIND = 3838;
 
 /**
+ * 프로토콜 버전 — 데몬과 앱이 **같이 배포돼야 하는** 변경(이벤트 태그·action·내용의 모양이나 뜻)을 할 때 올린다.
+ *
+ * 데몬은 이 값을 운영자 상태(`AdminState.protocol`)와 오더 이벤트(`protocol` 태그)에 싣는다. 어드민은 자기 값과
+ * 다르면 경고하고, 유저 앱은 자기보다 새 값을 보면 새로고침을 권한다(캐시된 옛 PWA). 둘 중 한쪽만 배포한 걸
+ * 사람 기억이 아니라 화면이 말하게 하려는 것이다.
+ *
+ * ⚠️ kind를 바꾸는 변경은 옛 앱이 새 이벤트를 **아예 못 보므로** 여기서 못 잡는다 — 그건 배포 순서로 맞춘다.
+ *
+ * 1 = 2026-09-26 kind 전환(38383·3838·33838) 이후.
+ */
+export const PROTOCOL_VERSION = 1;
+
+/** 이벤트에 실린 프로토콜 버전. 없거나 못 읽으면 null(버전을 싣기 전 데몬) */
+export function protocolOf(tags: readonly string[][]): number | null {
+  const raw = tags.find(t => t[0] === 'protocol')?.[1];
+  const n = Number(raw);
+  return raw !== undefined && Number.isInteger(n) ? n : null;
+}
+
+/**
  * Vite가 빌드 때 채우는 환경. **데몬(Node)에는 없다** — 그때는 빈 객체라 prod 값이 된다.
  *
  * 데몬은 태그·에포크를 자기 설정에서 정하고 아래 상수에 기대지 않는다.

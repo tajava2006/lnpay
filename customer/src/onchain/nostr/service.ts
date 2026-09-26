@@ -24,6 +24,7 @@ import {
   type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrder, roleIn, upsertOnchainOrder } from '../store';
+import { noteOrderProtocol } from '../../protocol-store';
 import { buildPresignature } from '../actions';
 import { publishOnchainPresig } from './publish';
 import { clearSignRequestsFor, putSignRequest } from '../sign-request-store';
@@ -109,6 +110,7 @@ export function stopOnchainSubscriptions(): void {
 }
 
 export async function handleOrderEvent(event: Event, myPubkey: string): Promise<void> {
+  noteOrderProtocol(event.tags); // 파싱보다 먼저 — 새 데몬의 이벤트는 못 읽을 수도 있다
   const order = parseOnchainOrder(event, CLIENT_TAG_ONCHAIN);
   if (!order) {
     console.log('[온체인] 오더 이벤트를 못 읽었다 (태그 불일치이거나 모르는 상태)');

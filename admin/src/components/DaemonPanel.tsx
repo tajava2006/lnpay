@@ -6,13 +6,13 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import {
-  ADMIN_STATE_STALE_SEC, CLIENT_TAG_ADMIN, MAX_DEPOSIT_PCT, dateTimeText, useNow,
+  ADMIN_STATE_STALE_SEC, CLIENT_TAG_ADMIN, MAX_DEPOSIT_PCT, PROTOCOL_VERSION, dateTimeText, useNow,
   type AdminAlert, type DaemonSettings,
 } from '@sajwo-tracker/shared';
 import { ONCHAIN_WINDOWS, durationText, type OnchainWindows } from '@sajwo-tracker/shared/onchain';
 import { sendCommand } from '../daemon/client';
 import { daemonState } from '../daemon/stores';
-import { commandResultText } from '../format';
+import { commandResultText, protocolWarning } from '../format';
 import { ui } from '../ui';
 
 function ago(sec: number): string {
@@ -42,6 +42,11 @@ export function DaemonPanel() {
         {state ? (
           <dl style={ui.dl}>
             <dt>버전</dt><dd>{state.daemonVersion} ({state.mode})</dd>
+            <dt>프로토콜</dt>
+            <dd>
+              {state.protocol ?? '모름'} (이 앱 {PROTOCOL_VERSION})
+              {protocolWarning(state) && <span style={ui.warnText}> — 맞지 않는다(맨 위 경고)</span>}
+            </dd>
             <dt>시작</dt><dd>{dateTimeText(state.startedAt)}</dd>
             <dt>받기 시작</dt>
             <dd>

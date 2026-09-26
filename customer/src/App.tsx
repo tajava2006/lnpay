@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   BtcPrice, createPriceTracker, ErrorBoundary, KeyInit, storage, subscribeRelayLists, type PriceTracker,
 } from '@sajwo-tracker/shared';
 import { useMyPubkey } from './hooks';
+import { getProtocolAhead, subscribeProtocolAhead } from './protocol-store';
 import { startSubscriptions, stopSubscriptions } from './nostr/service';
 import { Dashboard } from './buyer/components/Dashboard';
 import { startCleanup as startBuyerCleanup, stopCleanup as stopBuyerCleanup } from './buyer/order-store';
@@ -192,6 +193,8 @@ function AppContent() {
         </div>
       </header>
 
+      <UpdateBanner />
+
       {notifyOpen && <NotifySetup onClose={() => setNotifyOpen(false)} />}
       {keyOpen && <KeyManager onClose={() => setKeyOpen(false)} />}
 
@@ -254,6 +257,18 @@ function AppContent() {
   );
 }
 
+/** 이 앱보다 새 데몬의 오더를 봤다 — 캐시된 옛 앱이라 거래가 어긋날 수 있다 */
+function UpdateBanner() {
+  const ahead = useSyncExternalStore(subscribeProtocolAhead, getProtocolAhead);
+  if (ahead === null) return null;
+  return (
+    <div role="status" style={styles.update}>
+      <span>새 버전이 나왔습니다. 새로고침해야 거래가 제대로 됩니다.</span>
+      <button type="button" style={styles.updateButton} onClick={() => location.reload()}>새로고침</button>
+    </div>
+  );
+}
+
 export function App() {
   return (
     <KeyInit>
@@ -263,6 +278,14 @@ export function App() {
 }
 
 const styles = {
+  update: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const,
+    padding: '10px 12px', marginBottom: 8, borderRadius: 8, background: '#FEF3C7', color: '#92400E', fontSize: 13,
+  },
+  updateButton: {
+    padding: '6px 10px', fontSize: 13, fontWeight: 600 as const, border: '1px solid #F59E0B', borderRadius: 6,
+    background: '#fff', color: '#92400E', cursor: 'pointer',
+  },
   tracks: {
     display: 'flex', gap: 6, marginBottom: 8,
     background: '#F3F4F6', borderRadius: 10, padding: 4,

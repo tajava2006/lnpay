@@ -5,7 +5,7 @@
  * 상태를 보여줄 뿐**이다. 그래서 몇 기기에서 열어도 서로 꼬이지 않는다 — 여기에는 APP 키도 LN 자격증명도
  * 집행 코드도 없다(DM-001).
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { nip19 } from 'nostr-tools';
 import { ErrorBoundary, storage, subscribeRelayLists } from '@sajwo-tracker/shared';
 import { clearSession, loadSession, restoreSigner } from './nostr/nip46';
@@ -15,7 +15,8 @@ import { LnOrderDetail } from './components/LnOrderDetail';
 import { OnchainOrderDetail } from './components/OnchainOrderDetail';
 import { LnOrderList, OnchainOrderList } from './components/OrderLists';
 import { startDaemonFeed, stopDaemonFeed } from './daemon/feed';
-import { clearStores } from './daemon/stores';
+import { clearStores, daemonState } from './daemon/stores';
+import { protocolWarning } from './format';
 import { parseRoute, urlFor, type Route, type Tab } from './routing';
 
 /** 저장된 세션을 되살린다. 운영자 pubkey가 없는 옛 세션(APP 키 로그인 시절)은 버린다 */
@@ -83,6 +84,7 @@ export function App() {
         </div>
         <button style={styles.logout} onClick={logout}>로그아웃</button>
       </header>
+      <ProtocolBanner />
       <nav style={styles.tabs}>
         {([['daemon', '데몬'], ['ln', '라이트닝'], ['onchain', '온체인']] as const).map(([key, label]) => (
           <button key={key} style={{ ...styles.tab, ...(tab === key ? styles.tabActive : {}) }} onClick={() => goTab(key)}>
@@ -105,8 +107,18 @@ export function App() {
   );
 }
 
+/** 데몬과 이 앱을 한쪽만 배포했다 — 어느 탭에서든 보인다 */
+function ProtocolBanner() {
+  const { state } = useSyncExternalStore(daemonState.subscribe, daemonState.get);
+  const text = protocolWarning(state);
+  return text ? <p role="alert" style={styles.protocolBanner}>⚠️ {text}</p> : null;
+}
+
 const styles = {
   page: { maxWidth: 900, margin: '0 auto', padding: '24px 16px' },
+  protocolBanner: {
+    margin: '0 0 12px', padding: '10px 12px', borderRadius: 8, background: '#FEF3C7', color: '#92400E', fontSize: 13,
+  },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
   title: { fontSize: 22, margin: 0, color: '#333' },
   sub: { fontSize: 12, color: '#6B7280', margin: '4px 0 0' },

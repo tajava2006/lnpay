@@ -77,7 +77,7 @@ echo 'LNPAY_ONCHAIN_NETWORK=mainnet' >> .env           # 온체인을 켤 때만
 유저 앱 도메인을 옮기면 `LNPAY_APP_URL`도 준다(공개 오더의 NIP-69 `source` 링크 — prod 기본은 `customer.hoppe-relay.it.com`).
 
 **코드를 바꾸면 이미지를 다시 빌드한다** — `up -d`만으로는 옛 이미지로 재시작한다(옛 이미지로 돌면 마감·문구가 어긋난다.
-어드민 데몬 탭이 창 길이 불일치를 경고한다).
+어드민 데몬 탭이 창 길이 불일치를 경고하고, 프로토콜이 다르면 어드민 **맨 위에** 경고가 뜬다 — 데몬과 앱 중 한쪽만 배포했다).
 
 ```bash
 git -C reference/lnpay pull

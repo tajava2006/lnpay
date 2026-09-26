@@ -95,6 +95,8 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
 ## 코딩 규칙
 
 - TypeScript strict. `any` 금지. 주석은 한국어.
+- **데몬과 앱이 같이 배포돼야 하는 변경이면 `PROTOCOL_VERSION`을 올린다**(shared/constants.ts) — 이벤트 태그·action·
+  내용의 모양이나 뜻이 바뀔 때. 한쪽만 배포하면 어드민·유저 앱이 화면으로 말한다(docs/PROTOCOL.md).
 - **FSM을 고치면 다섯 가지가 세트다**: 전이 맵 → 알림 문구 → 문서 → 진행도 표시 → 상태 배지. 타입체커가 안 잡아주는
   자리라 매번 빠뜨렸다. 상태 목록 표는 `Record<State, …>`로 못박아 **빌드가 깨지게** 하고, 터미널 목록은 전이 맵에서
   유도한다(`shared/order-display.ts`가 본보기).

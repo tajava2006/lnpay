@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure';
-import { ORDER_STATES, ORDER_KIND, TERMINAL_STATES, type OrderState } from '../constants';
+import { ORDER_STATES, ORDER_KIND, PROTOCOL_VERSION, TERMINAL_STATES, protocolOf, type OrderState } from '../constants';
 import {
   CLOSE_RULES, LN_ACTIVE_RETENTION_SEC, LN_CLOSE_REASON_LABEL, LN_MIN_CLAIM_LEAD_SEC, LN_TERMINAL_RETENTION_SEC,
   canTransition, expiryReasonFor, isClaimableLn, isLnCloseReason, isStoredLnOrder, lnOrderTags, lnRetention,
@@ -184,3 +184,16 @@ describe('저장소 모양 확인과 파서가 맞물린다', () => {
     expect(isStoredLnOrder({ ...order, price: '1' })).toBe(false);
   });
 });
+
+describe('프로토콜 버전', () => {
+  it('오더 이벤트에 실리고 protocolOf로 읽힌다 — 유저 앱이 새 데몬을 알아보는 근거', () => {
+    const tags = lnOrderTags({ orderId: 'o1', state: 'requested', customerPubkey: 'c', price: 1, deadline: NOW }, 't', NOW);
+    expect(protocolOf(tags)).toBe(PROTOCOL_VERSION);
+  });
+
+  it('없거나 숫자가 아니면 null — 버전을 싣기 전 데몬', () => {
+    expect(protocolOf([['d', 'x']])).toBeNull();
+    expect(protocolOf([['protocol', 'two']])).toBeNull();
+  });
+});
+

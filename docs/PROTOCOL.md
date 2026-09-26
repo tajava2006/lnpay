@@ -19,6 +19,7 @@
 | 운영자 상태·상세 `ADMIN_STATE_KIND` | **33838** — 우리 전용 주소형 kind |
 | 운영자 DM | 1059 (NIP-17 gift wrap) |
 | 웹 푸시 구독 | 3838 `push-subscription` (암호문) |
+| 프로토콜 버전 `PROTOCOL_VERSION` | 오더 이벤트 `protocol` 태그 · 운영자 상태 `protocol`. **데몬·앱이 같이 배포돼야 하는 변경이면 올린다** — 어드민은 다르면 맨 위에 경고, 유저 앱은 더 새 값을 보면 새로고침 배너. kind를 바꾸는 변경은 옛 앱이 새 이벤트를 못 봐서 여기로 못 잡는다(배포 순서로) |
 | 트랙 태그 `t` | 라이트닝 `sajwo-tracker` · 온체인 `sajwo-tracker-onchain` · 어드민 어드민 태그. dev 빌드는 전부 `-dev` |
 
 `sajwo-tracker`라는 이름은 옛 프로젝트명이다. 바꾸면 릴레이에 있는 모든 이벤트와 끊긴다.

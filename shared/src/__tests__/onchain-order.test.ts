@@ -5,7 +5,7 @@
  * "태그 하나를 추가하고 한쪽만 고치는" 사고를 잡는다.
  */
 import { describe, it, expect } from 'vitest';
-import { ORDER_KIND } from '../constants';
+import { ORDER_KIND, PROTOCOL_VERSION } from '../constants';
 import {
   formatOutpoint, isStoredOnchainOrder, onchainOrderIssues, onchainOrderTags, parseOnchainOrder, parseOutpoint,
   type OnchainOrder, type OnchainOrderEvent,
@@ -105,6 +105,10 @@ describe('NIP-69 태그', () => {
     expect(nip(tags, 'amt')).toEqual([['500000']]);
     expect(nip(tags, 'fa')).toEqual([['0']]);
     expect(nip(tags, 'expires_at')).toEqual([['1700086400']]);
+  });
+
+  it('프로토콜 버전이 실린다', () => {
+    expect(nip(onchainOrderTags(base(), TAG), 'protocol')).toEqual([[String(PROTOCOL_VERSION)]]);
   });
 
   it('앱 주소를 주면 source는 온체인 트랙으로 여는 주소다', () => {

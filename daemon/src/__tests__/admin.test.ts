@@ -6,7 +6,7 @@ import type { Event } from 'nostr-tools/core';
 import { finalizeEvent } from 'nostr-tools/pure';
 import { unwrapEvent } from 'nostr-tools/nip17';
 import {
-  ADMIN_ACTIONS, ADMIN_STATE_KIND, DEFAULT_SETTINGS, REQUEST_ACTIONS, MESSAGE_KIND,
+  ADMIN_ACTIONS, ADMIN_STATE_KIND, DEFAULT_SETTINGS, PROTOCOL_VERSION, REQUEST_ACTIONS, MESSAGE_KIND,
   adminStateDTag, applySettingsPatch, nip44Decrypt, nip44Encrypt, orderRef,
   type AdminChatCopy, type AdminState,
 } from '@sajwo-tracker/shared/core';
@@ -99,6 +99,13 @@ describe('운영자 상태', () => {
     const second = latestState(h, h.operator);
     expect(second.event.created_at).toBeGreaterThan(first.event.created_at);
     expect(second.state.heartbeatAt).toBeGreaterThan(first.state.heartbeatAt);
+  });
+
+  it('프로토콜 버전을 싣는다 — 어드민이 한쪽만 배포한 걸 알아본다', async () => {
+    const h = createHarness();
+    const daemon = h.start();
+    await daemon.tick();
+    expect(latestState(h, h.operator).state.protocol).toBe(PROTOCOL_VERSION);
   });
 
   it('받기 시작한 시각(epoch)을 싣는다 — 어드민이 그 전의 오더를 거르는 기준', async () => {

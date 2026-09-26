@@ -9,7 +9,7 @@
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
-  ADMIN_STATE_KIND, adminStateDTag, nip44Encrypt, type AdminState,
+  ADMIN_STATE_KIND, PROTOCOL_VERSION, adminStateDTag, nip44Encrypt, type AdminState,
 } from '@sajwo-tracker/shared/core';
 import { ONCHAIN_WINDOWS } from '@sajwo-tracker/shared/onchain';
 import type { EffectExecutor } from '../effects';
@@ -43,6 +43,7 @@ export function buildAdminState(ctx: AdminContext): AdminState {
   return {
     v: 1,
     daemonVersion: ctx.version,
+    protocol: PROTOCOL_VERSION,
     mode: ctx.mode,
     startedAt: ctx.startedAt,
     epoch: ctx.epoch,

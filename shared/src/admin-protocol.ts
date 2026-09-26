@@ -169,6 +169,8 @@ export interface AdminAlert {
 export interface AdminState {
   v: 1;
   daemonVersion: string;
+  /** 데몬 번들의 `PROTOCOL_VERSION`. 없으면 싣기 전의 옛 데몬 */
+  protocol?: number;
   mode: 'prod' | 'dev';
   startedAt: number;
   /**

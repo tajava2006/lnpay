@@ -18,7 +18,7 @@
  * 보존은 `Order.retainUntil`로 따로 준다(목록에서 지울 때만 쓴다).
  */
 import type { Event } from 'nostr-tools/core';
-import { ORDER_STATES, isTerminalState, type OrderState } from '../constants';
+import { ORDER_STATES, PROTOCOL_VERSION, isTerminalState, type OrderState } from '../constants';
 import { nip69Tags, orderLink, type Nip69Status } from '../nip69';
 import { isNum, isStr, oneOf, optional, shape } from '../shape';
 import type { Order } from '../types';
@@ -115,6 +115,7 @@ export function lnOrderTags(order: LnOrderFields, clientTag: string, retainUntil
   const tags: string[][] = [
     ['d', order.orderId],
     ['t', clientTag],
+    ['protocol', String(PROTOCOL_VERSION)],
     ['state', order.state],
     ['price', String(order.price), 'KRW'],
     ['customer', order.customerPubkey],

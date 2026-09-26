@@ -2,7 +2,7 @@
  * 어드민 화면의 공용 문구 — 명령 결과, pubkey·금액 표기
  */
 import { nip19 } from 'nostr-tools';
-import type { AdminCommandResult } from '@sajwo-tracker/shared';
+import { PROTOCOL_VERSION, type AdminCommandResult, type AdminState } from '@sajwo-tracker/shared';
 
 /** 데몬이 돌려주는 거절 사유 중 사람이 읽어야 하는 것 */
 const REJECT_TEXT: Record<string, string> = {
@@ -35,3 +35,21 @@ export function shortNpub(pubkey: string | undefined): string {
 export function satsText(n: number | undefined): string {
   return n === undefined ? '—' : `${n.toLocaleString()} sats`;
 }
+
+/**
+ * 데몬과 이 앱의 프로토콜이 다른가 — 한쪽만 배포했다(`PROTOCOL_VERSION`). 같으면 null.
+ * 상태를 아직 못 받았으면 모르는 것이라 말하지 않는다.
+ */
+export function protocolWarning(state: Pick<AdminState, 'protocol'> | null): string | null {
+  if (!state) return null;
+  const daemon = state.protocol;
+  if (daemon === PROTOCOL_VERSION) return null;
+  if (daemon === undefined) {
+    return '데몬이 프로토콜 버전을 싣기 전의 옛 빌드입니다 — 데몬 이미지를 다시 빌드하세요.';
+  }
+  return daemon < PROTOCOL_VERSION
+    ? `데몬(프로토콜 ${daemon})이 이 앱(${PROTOCOL_VERSION})보다 옛것입니다 — 데몬 이미지를 다시 빌드하세요 `
+      + '(docker compose build lnpay-daemon 뒤 재시작).'
+    : `이 앱(프로토콜 ${PROTOCOL_VERSION})이 데몬(${daemon})보다 옛것입니다 — 새로고침하거나 앱을 배포하세요(pnpm ship).`;
+}
+

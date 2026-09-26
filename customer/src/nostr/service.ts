@@ -23,6 +23,7 @@ import { handleOwnLnRequest } from './own-requests';
 import { migratePushSubscriptionIfKeyChanged } from '../push/subscribe';
 import { publishPushSubscription } from '../push/publish';
 import * as buyer from '../buyer/nostr/service';
+import { noteOrderProtocol } from '../protocol-store';
 import * as sponsor from '../sponsor/nostr/service';
 
 const guard = createSubscriptionGuard('통합구독');
@@ -46,6 +47,7 @@ export function startSubscriptions(): Promise<void> {
 
     const stopOrders = subscribeOrders(relays, {
       onOrder: (event) => {
+        noteOrderProtocol(event.tags); // 파싱보다 먼저 — 새 데몬의 이벤트는 못 읽을 수도 있다
         buyer.handleAdminOrder(event, myPubkey);
         sponsor.handleAdminOrder(event, myPubkey);
       },

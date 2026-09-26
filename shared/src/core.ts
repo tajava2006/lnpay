@@ -7,6 +7,8 @@
  */
 export {
   APP_PUBKEY,
+  PROTOCOL_VERSION,
+  protocolOf,
   ORDER_KIND,
   MESSAGE_KIND,
   CLIENT_TAG,

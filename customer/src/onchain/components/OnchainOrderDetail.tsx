@@ -14,7 +14,7 @@ import {
 } from '../store';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
 import { getSignRequestsSnapshot, signRequestsFor, subscribeSignRequests } from '../sign-request-store';
-import { OnchainOrderCard } from './OnchainMyOrders';
+import { OnchainOrderCard } from './OnchainOrderCard';
 import { OnchainBookCard, useBookPrice } from './OnchainOrderBook';
 import { ui } from '../../ui';
 

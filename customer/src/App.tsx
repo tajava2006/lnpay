@@ -16,6 +16,7 @@ import { OnchainMyOrders } from './onchain/components/OnchainMyOrders';
 import { OnchainOrderDetail } from './onchain/components/OnchainOrderDetail';
 import { startOnchainSubscriptions, stopOnchainSubscriptions } from './onchain/nostr/service';
 import { NotifySetup } from './components/NotifySetup';
+import { KeyManager } from './components/KeyManager';
 import { parseRoute, urlFor, type Tab, type Track } from './routing';
 
 /**
@@ -68,6 +69,7 @@ function AppContent() {
   // 내 pubkey — 온체인 카드의 역할 판정에 쓴다. 로딩 전엔 null
   const myPubkey = useMyPubkey();
   const [notifyOpen, setNotifyOpen] = useState(false);
+  const [keyOpen, setKeyOpen] = useState(false);
 
   useEffect(() => {
     const onPop = () => {
@@ -179,10 +181,19 @@ function AppContent() {
           >
             🔔
           </button>
+          <button
+            onClick={() => setKeyOpen(true)}
+            style={styles.bell}
+            title="내 키 — 보관하기 · 다른 기기로 옮기기"
+            aria-label="내 키"
+          >
+            🔑
+          </button>
         </div>
       </header>
 
       {notifyOpen && <NotifySetup onClose={() => setNotifyOpen(false)} />}
+      {keyOpen && <KeyManager onClose={() => setKeyOpen(false)} />}
 
       <nav style={styles.tracks}>
         {TRACKS.map(t => (

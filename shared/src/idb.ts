@@ -63,6 +63,23 @@ export function initIdb(dbName: string): void {
   });
 }
 
+/**
+ * 이 앱의 IDB를 통째로 지운다 — 다른 키로 바꿀 때(옛 키의 기록이 새 키 화면에 섞이지 않게).
+ * 열린 연결을 먼저 닫는다. 안 닫으면 삭제가 `blocked`로 멈춘다.
+ */
+export async function idbDeleteAll(dbName: string): Promise<void> {
+  if (dbPromise) {
+    const db = await dbPromise.catch(() => null);
+    db?.close();
+    dbPromise = null;
+  }
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(dbName);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (!dbPromise) throw new Error('initIdb()를 먼저 호출해야 합니다.');
   return dbPromise;

@@ -127,6 +127,7 @@
 |---|---|
 | 유저 앱 — 오더 | `kinds:[30402] authors:[APP] #t:[트랙 태그] since:VITE_NOSTR_SINCE` (트랙마다 하나) |
 | 유저 앱 — 수신함 | `kinds:[1111] #p:[내 pubkey] #t:[트랙 태그] since:…` (역할 공용, 받은 뒤 action으로 분기) |
+| 유저 앱 — 내가 보낸 요청 | `kinds:[1111] authors:[내 pubkey] #t:[트랙 태그] since:…` — 로컬 기록 되살리기 |
 | 데몬 | `kinds:[1111] #p:[APP] since:커서−6h` — 5분마다 새로 연다 |
 | 어드민 앱 | [ARCHITECTURE.md](ARCHITECTURE.md) §2 |
 

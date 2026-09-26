@@ -9,6 +9,7 @@
  * - kind 30402: 고객 핸들러는 `customer` 태그가 나인 것만 취하고,
  *   후원자 핸들러는 오더북을 위해 전부 취한다. 한 이벤트가 양쪽에 갈 수 있다.
  * - kind 1111: 고객 핸들러가 먼저 보고, 소화 못 하면 후원자 핸들러로 넘긴다.
+ * - 내가 보낸 kind 1111: 로컬 기록을 되살린다(`own-requests.ts`) — 키만 있으면 다른 기기에서도 거래가 이어진다.
  */
 import {
   getReadRelays,
@@ -17,7 +18,8 @@ import {
   createSubscriptionGuard,
   storage,
 } from '@sajwo-tracker/shared';
-import { subscribeOrders, subscribeInbox } from './subscribe';
+import { subscribeOrders, subscribeInbox, subscribeOwnRequests } from './subscribe';
+import { handleOwnLnRequest } from './own-requests';
 import { migratePushSubscriptionIfKeyChanged } from '../push/subscribe';
 import { publishPushSubscription } from '../push/publish';
 import * as buyer from '../buyer/nostr/service';
@@ -65,9 +67,12 @@ export function startSubscriptions(): Promise<void> {
       },
     });
 
+    const stopOwn = subscribeOwnRequests(relays, myPubkey, event => handleOwnLnRequest(event, sk, myPubkey));
+
     return () => {
       stopOrders();
       stopInbox();
+      stopOwn();
     };
   });
 }

@@ -31,6 +31,7 @@ import { putDepositInvoice } from '../deposit-store';
 import { forgetPendingRequest, getPendingRequestsSnapshot, markRequestRejected } from '../pending-request-store';
 import { putOnchainAccount } from '../account-store';
 import { putNotice } from '../notice-store';
+import { handleOwnOnchainRequest } from './own-requests';
 
 const guard = createSubscriptionGuard('온체인구독');
 
@@ -49,9 +50,10 @@ const MAX_BUFFERED_PER_ORDER = 10;
 
 export function startOnchainSubscriptions(): Promise<void> {
   return guard.start(async () => {
-    const [relays, myPubkey] = await Promise.all([
+    const [relays, myPubkey, sk] = await Promise.all([
       getReadRelays(storage),
       getUserPubkey(storage),
+      getSecretKey(storage),
     ]);
 
     const pool = createSubscriptionPool();
@@ -78,11 +80,24 @@ export function startOnchainSubscriptions(): Promise<void> {
       { onevent: (event: Event) => void handleInboxEvent(event) },
     );
 
+    // 내가 보낸 요청 — 환불 주소·클레임 값을 되살린다(키를 옮긴 기기에서도 서명할 수 있게)
+    const ownSub = pool.subscribeMany(
+      relays,
+      {
+        kinds: [SAJWO_REQUEST_EVENT_KIND],
+        authors: [myPubkey],
+        '#t': [CLIENT_TAG_ONCHAIN],
+        ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
+      },
+      { onevent: (event: Event) => handleOwnOnchainRequest(event, sk, myPubkey) },
+    );
+
     console.log('[온체인] 구독 시작 —', relays.length, '릴레이');
 
     return () => {
       orderSub.close();
       inboxSub.close();
+      ownSub.close();
       pool.destroy();
       console.log('[온체인] 구독 종료');
     };

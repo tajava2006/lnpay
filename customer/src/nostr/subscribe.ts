@@ -86,3 +86,29 @@ export function subscribeInbox(
     console.log('[Nostr] 수신함 구독 종료');
   };
 }
+
+/**
+ * 내가 보낸 kind 1111을 구독한다 — 로컬에만 있던 기록을 릴레이에서 되살린다(`own-requests.ts`).
+ * 키를 다른 기기로 옮겨도 거래가 이어지는 이유가 이 구독이다.
+ */
+export function subscribeOwnRequests(
+  relays: string[],
+  myPubkey: string,
+  onEvent: (event: Event) => void,
+): () => void {
+  const pool = createSubscriptionPool();
+  const sub = pool.subscribeMany(
+    relays,
+    {
+      kinds: [SAJWO_REQUEST_EVENT_KIND],
+      authors: [myPubkey],
+      '#t': [CLIENT_TAG],
+      ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
+    },
+    { onevent: onEvent },
+  );
+  return () => {
+    sub.close();
+    pool.destroy();
+  };
+}

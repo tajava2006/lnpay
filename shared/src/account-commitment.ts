@@ -21,6 +21,7 @@
  * 고객이 만들고 Admin이 검증하므로 양쪽이 같은 공식을 써야 한다. 예전에는
  * publish.ts와 CommitmentBadge.tsx에 각각 흩어져 있었다.
  */
+import { isStr, shape } from './shape';
 import { sha256Hex } from './crypto';
 import type { AccountInfo } from './types';
 
@@ -82,17 +83,21 @@ export function parseAccountInfoEnvelope(plaintext: string): AccountInfoEnvelope
   const obj = parsed as Record<string, unknown>;
 
   // 신형: { accountInfo, salt }
-  if (typeof obj.accountInfo === 'object' && obj.accountInfo !== null) {
+  if (isAccountInfo(obj.accountInfo)) {
     return {
-      accountInfo: obj.accountInfo as AccountInfo,
+      accountInfo: obj.accountInfo,
       salt: typeof obj.salt === 'string' ? obj.salt : '',
     };
   }
 
   // 구형: AccountInfo 그 자체 (솔트 없음)
-  if (typeof obj.accountNumber === 'string') {
-    return { accountInfo: obj as unknown as AccountInfo, salt: '' };
-  }
+  if (isAccountInfo(obj)) return { accountInfo: obj, salt: '' };
 
   return null;
 }
+
+/**
+ * 세 칸이 다 있는 계좌인가. 빠진 계좌는 **받지 않는다** — 그대로 받으면 후원자가 반쪽 계좌를 보고 송금하거나,
+ * 저장했다가 다시 읽을 때(저장소 모양 확인) 사라진다.
+ */
+export const isAccountInfo = shape<AccountInfo>({ bankName: isStr, accountNumber: isStr, holderName: isStr });

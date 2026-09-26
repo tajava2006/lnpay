@@ -10,75 +10,61 @@
  *   Dashboard → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
 import type { AdminOrderUpdate, CustomerOrder } from './types';
-import { nowSec, type AccountInfo } from '@sajwo-tracker/shared';
+import {
+  ORDER_STATES, createStore, isAccountInfo, isNum, isStr, nowSec, oneOf, optional, recordOf, shape, type AccountInfo,
+} from '@sajwo-tracker/shared';
 
 type OrderMap = Record<string, CustomerOrder>;
-type Listener = () => void;
 
-const ORDERS_KEY = 'customer:orders';
+/**
+ * 이 기기에만 있는 칸(메모·쿠팡 번호·고정 계좌·보낸 계좌)이 들어 있어 **버리면 릴레이로 다 못 되살린다** —
+ * 그래서 화면·계좌 전달이 기대는 칸만 본다. 계좌 칸은 모양이 틀리면 엉뚱한 계좌를 보내게 되니 본다.
+ */
+const store = createStore<OrderMap>({}, {
+  key: 'customer:orders',
+  parse: recordOf(shape<CustomerOrder>({
+    orderId: isStr,
+    price: isNum,
+    createdAt: isNum,
+    expiration: isNum,
+    adminState: optional(oneOf(Object.values(ORDER_STATES))),
+    raw: optional(isStr),
+    fixedAccountInfo: optional(isAccountInfo),
+    accountInfo: optional(isAccountInfo),
+  })),
+});
+/** 이번 세션의 첫 동기화가 끝났나 — 저장하지 않는다 */
+const synced = createStore(false);
 
-// ── 내부 상태 ──────────────────────────────────────
-
-let orders: OrderMap = loadFromStorage();
-let synced = false;
-const listeners = new Set<Listener>();
-
-// ── localStorage 입출력 ────────────────────────────
-
-function loadFromStorage(): OrderMap {
-  const stored = localStorage.getItem(ORDERS_KEY);
-  if (!stored) return {};
-  try {
-    return JSON.parse(stored) as OrderMap;
-  } catch {
-    return {};
-  }
+/** 한 주문을 고친다. 없는 주문이면 아무 일도 없다 */
+function patchOrder(orderId: string, patch: (o: CustomerOrder) => CustomerOrder): void {
+  const existing = store.get()[orderId];
+  if (!existing) return;
+  store.update(prev => ({ ...prev, [orderId]: patch(existing) }));
 }
 
-function saveToStorage(): void {
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+// ── useSyncExternalStore 호환 API — 주문과 동기화 표시를 한 구독으로 ──
+
+export function subscribe(listener: () => void): () => void {
+  const offOrders = store.subscribe(listener);
+  const offSynced = synced.subscribe(listener);
+  return () => { offOrders(); offSynced(); };
 }
 
-// ── 리스너 통지 ────────────────────────────────────
-
-function notify(): void {
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
-// ── useSyncExternalStore 호환 API ──────────────────
-
-export function subscribe(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function getSnapshot(): OrderMap {
-  return orders;
-}
-
-export function getSyncedSnapshot(): boolean {
-  return synced;
-}
+export const getSnapshot = store.get;
+export const getSyncedSnapshot = synced.get;
 
 // ── 뮤테이션 API ───────────────────────────────────
 
 /** 새 주문을 추가한다 (수동 입력 폼에서 호출). */
 export function addOrder(order: CustomerOrder): void {
-  if (orders[order.orderId]) return;
-  orders = { ...orders, [order.orderId]: order };
-  saveToStorage();
-  notify();
+  if (store.get()[order.orderId]) return;
+  store.update(prev => ({ ...prev, [order.orderId]: order }));
 }
 
 /** 의뢰 발행 성공 시 raw 필드를 저장한다. */
 export function markPublished(orderId: string, raw: string): void {
-  const existing = orders[orderId];
-  if (!existing) return;
-  orders = { ...orders, [orderId]: { ...existing, raw } };
-  saveToStorage();
-  notify();
+  patchOrder(orderId, o => ({ ...o, raw }));
 }
 
 /**
@@ -86,7 +72,7 @@ export function markPublished(orderId: string, raw: string): void {
  */
 export function applyAdminUpdate(update: AdminOrderUpdate): void {
   const { orderId, adminState, bolt11, sponsorPubkey, retainUntil, closeReason } = update;
-  const existing = orders[orderId];
+  const existing = store.get()[orderId];
   if (!existing) return;
 
   const changed = existing.adminState !== adminState
@@ -96,73 +82,51 @@ export function applyAdminUpdate(update: AdminOrderUpdate): void {
     || (closeReason != null && existing.closeReason !== closeReason);
   if (!changed) return;
 
-  orders = {
-    ...orders,
-    [orderId]: {
-      ...existing,
-      adminState,
-      ...(bolt11 != null ? { bolt11 } : {}),
-      ...(sponsorPubkey != null ? { sponsorPubkey } : {}),
-      ...(retainUntil != null ? { retainUntil } : {}),
-      ...(closeReason != null ? { closeReason } : {}),
-    },
-  };
-  saveToStorage();
-  notify();
+  patchOrder(orderId, o => ({
+    ...o,
+    adminState,
+    ...(bolt11 != null ? { bolt11 } : {}),
+    ...(sponsorPubkey != null ? { sponsorPubkey } : {}),
+    ...(retainUntil != null ? { retainUntil } : {}),
+    ...(closeReason != null ? { closeReason } : {}),
+  }));
 }
 
 /** 보증금 인보이스를 주문에 저장한다 (deposit-required 알림 수신 시). */
 export function applyDepositRequired(orderId: string, depositBolt11: string): void {
-  const existing = orders[orderId];
-  if (!existing) return;
-  if (existing.depositBolt11 === depositBolt11) return;
-  orders = { ...orders, [orderId]: { ...existing, depositBolt11 } };
-  saveToStorage();
-  notify();
+  if (store.get()[orderId]?.depositBolt11 === depositBolt11) return;
+  patchOrder(orderId, o => ({ ...o, depositBolt11 }));
 }
 
 /** 보증금 인보이스 상태를 갱신한다 (deposit-accepted/cancelled/settled 알림 수신 시). */
 export function applyDepositStatus(orderId: string, depositStatus: 'accepted' | 'cancelled' | 'settled'): void {
-  const existing = orders[orderId];
-  if (!existing) return;
-  if (existing.depositStatus === depositStatus) return;
-  orders = { ...orders, [orderId]: { ...existing, depositStatus } };
-  saveToStorage();
-  notify();
+  if (store.get()[orderId]?.depositStatus === depositStatus) return;
+  patchOrder(orderId, o => ({ ...o, depositStatus }));
 }
 
 /** 계좌정보 전달 완료 시 로컬 저장 */
 export function setAccountInfo(orderId: string, accountInfo: AccountInfo): void {
-  const existing = orders[orderId];
-  if (!existing) return;
-  orders = { ...orders, [orderId]: { ...existing, accountInfo } };
-  saveToStorage();
-  notify();
+  patchOrder(orderId, o => ({ ...o, accountInfo }));
 }
 
 /** 주문을 삭제한다. */
 export function deleteOrder(orderId: string): void {
-  if (!orders[orderId]) return;
-  const { [orderId]: _, ...rest } = orders;
-  orders = rest;
-  saveToStorage();
-  notify();
+  if (!store.get()[orderId]) return;
+  store.update(({ [orderId]: _gone, ...rest }) => rest);
 }
 
 /** 지워도 되는 주문만 지운다 — 진행 중인 건 남긴다. 지운 개수를 돌려준다 */
 export function clearDeletableOrders(canDelete: (o: CustomerOrder) => boolean): number {
+  const orders = store.get();
   const kept = Object.fromEntries(Object.entries(orders).filter(([, o]) => !canDelete(o)));
   const removed = Object.keys(orders).length - Object.keys(kept).length;
   if (removed === 0) return 0;
-  orders = kept;
-  saveToStorage();
-  notify();
+  store.set(kept);
   return removed;
 }
 
 export function markSynced(): void {
-  synced = true;
-  notify();
+  synced.set(true);
 }
 
 // ── 만료 삭제 ─────────────────────────────────────
@@ -185,19 +149,15 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null;
  */
 function purgeExpired(): void {
   const now = nowSec();
-  const before = Object.keys(orders).length;
-
-  orders = Object.fromEntries(
-    Object.entries(orders).filter(([, o]) => {
+  const current = store.get();
+  const kept = Object.fromEntries(
+    Object.entries(current).filter(([, o]) => {
       const until = o.retainUntil ?? o.expiration;
       return until === 0 || until > now;
     }),
   );
-
-  if (Object.keys(orders).length === before) return;
-
-  saveToStorage();
-  notify();
+  if (Object.keys(kept).length === Object.keys(current).length) return;
+  store.set(kept);
 }
 
 export function startCleanup(): void {
@@ -239,25 +199,18 @@ export function attachParsedToOrder(
     holderName: string;
   },
 ): boolean {
-  const order = orders[orderId];
-  if (!order) return false;
-
-  orders = {
-    ...orders,
-    [orderId]: {
-      ...order,
-      coupangOrderId: parsed.coupangOrderId,
-      memo: parsed.productName,
-      // source는 'parsed'로 바꾸지 않는다. 이 의뢰는 사람이 손으로 만든 것이고,
-      // 자동 전송이 보는 건 source가 아니라 fixedAccountInfo의 유무다.
-      fixedAccountInfo: {
-        bankName: parsed.bankName,
-        accountNumber: parsed.accountNumber,
-        holderName: parsed.holderName,
-      },
+  if (!store.get()[orderId]) return false;
+  patchOrder(orderId, o => ({
+    ...o,
+    coupangOrderId: parsed.coupangOrderId,
+    memo: parsed.productName,
+    // source는 'parsed'로 바꾸지 않는다. 이 의뢰는 사람이 손으로 만든 것이고,
+    // 자동 전송이 보는 건 source가 아니라 fixedAccountInfo의 유무다.
+    fixedAccountInfo: {
+      bankName: parsed.bankName,
+      accountNumber: parsed.accountNumber,
+      holderName: parsed.holderName,
     },
-  };
-  saveToStorage();
-  notify();
+  }));
   return true;
 }

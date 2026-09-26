@@ -18,8 +18,9 @@
  * 보존은 `Order.retainUntil`로 따로 준다(목록에서 지울 때만 쓴다).
  */
 import type { Event } from 'nostr-tools/core';
-import { isTerminalState, type OrderState } from '../constants';
+import { ORDER_STATES, isTerminalState, type OrderState } from '../constants';
 import { nip69Tags, orderLink, type Nip69Status } from '../nip69';
+import { isNum, isStr, oneOf, optional, shape } from '../shape';
 import type { Order } from '../types';
 
 /** 종결된 오더가 릴레이에 남는 기간 — 양쪽이 결과를 한 번은 보게 */
@@ -183,3 +184,20 @@ export function parseLnOrderEvent(event: Event, appPubkey: string): Order | null
     raw: event,
   };
 }
+
+/**
+ * 브라우저 저장소에 남은 라이트닝 오더가 쓸 만한 모양인가 — 화면이 기대는 칸만 본다.
+ * 저장될 때 이미 `parseLnOrderEvent`를 거친 값이다. 여기는 옛 모양·망가진 값만 거른다 — 모르는 상태도 버린다(상태
+ * 표가 `Record`라 모르는 값이면 화면이 깨진다). 버린 건 릴레이에서 다시 온다.
+ */
+export const isStoredLnOrder = shape<Order>({
+  orderId: isStr,
+  state: oneOf(Object.values(ORDER_STATES)),
+  customerPubkey: isStr,
+  price: isNum,
+  createdAt: isNum,
+  updatedAt: isNum,
+  expiration: isNum,
+  sponsorPubkey: optional(isStr),
+  retainUntil: optional(isNum),
+});

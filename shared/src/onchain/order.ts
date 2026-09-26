@@ -21,6 +21,7 @@ import { ONCHAIN_STATES, SETTLEMENT_KINDS } from './state-machine';
 import type { BtcNetworkName } from './address';
 import { isXonlyHex } from './hex';
 import { nip69Tags, orderLink, type Nip69Status } from '../nip69';
+import { isNum, isStr, oneOf, optional, shape } from '../shape';
 
 export interface OnchainOrder {
   orderId: string;
@@ -396,3 +397,20 @@ export function onchainOrderIssues(order: OnchainOrder): string[] {
 
   return issues;
 }
+
+/**
+ * 브라우저 저장소에 남은 온체인 오더가 쓸 만한 모양인가 — 화면이 기대는 칸만 본다(나머지는 그대로 믿는다).
+ * 저장될 때 이미 `parseOnchainOrder`를 거친 값이다. 여기는 옛 모양·망가진 값만 거른다.
+ */
+export const isStoredOnchainOrder = shape<OnchainOrder>({
+  orderId: isStr,
+  state: oneOf(KNOWN_STATES),
+  customerPubkey: isStr,
+  sponsorPubkey: optional(isStr),
+  amountSat: isNum,
+  createdAt: isNum,
+  updatedAt: isNum,
+  expiration: isNum,
+  network: oneOf(KNOWN_NETWORKS),
+  settlementKind: optional(oneOf(KNOWN_KINDS)),
+});

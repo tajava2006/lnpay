@@ -11,47 +11,18 @@
  * 상태만으로는 분쟁 여부를 알 수 없으므로(FSM에 '분쟁 중'이 없다) Admin의 명시적
  * 요청을 신호로 쓴다. 새로고침을 넘겨야 하므로 localStorage에 남긴다.
  */
-
-type Listener = () => void;
+import { createStore, isNum, recordOf } from '@sajwo-tracker/shared';
 
 /** orderId → 요청 수신 시각(unix seconds) */
 type RevealRequestMap = Record<string, number>;
 
-const STORAGE_KEY = 'sponsor:reveal-requests';
+const store = createStore<RevealRequestMap>({}, { key: 'sponsor:reveal-requests', parse: recordOf(isNum) });
 
-let requests: RevealRequestMap = load();
-const listeners = new Set<Listener>();
-
-function load(): RevealRequestMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function save(): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
-}
-
-function notify(): void {
-  for (const l of listeners) l();
-}
-
-export function subscribeRevealRequests(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function getRevealRequestSnapshot(): RevealRequestMap {
-  return requests;
-}
+export const subscribeRevealRequests = store.subscribe;
+export const getRevealRequestSnapshot = store.get;
 
 /** Admin이 공개를 요청했음을 기록한다. */
 export function setRevealRequested(orderId: string, at: number): void {
-  if (requests[orderId]) return;
-  requests = { ...requests, [orderId]: at };
-  save();
-  notify();
+  if (store.get()[orderId]) return;
+  store.update(prev => ({ ...prev, [orderId]: at }));
 }

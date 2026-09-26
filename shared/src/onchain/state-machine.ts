@@ -368,6 +368,15 @@ export function isPriceStale(remittedAtMs: number, nowMs: number): boolean {
  */
 export type SignPurpose = 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor' | 'rescue';
 
+/** `Record`라 목적이 늘면 빌드가 깨진다 — 받은 태그·저장된 값을 거르는 곳이 전부 이걸 본다 */
+const SIGN_PURPOSES: Record<SignPurpose, true> = {
+  release: true, refund: true, 'dispute-customer': true, 'dispute-sponsor': true, rescue: true,
+};
+
+export function isSignPurpose(v: unknown): v is SignPurpose {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(SIGN_PURPOSES, v);
+}
+
 export function isRefundKind(kind: SettlementKind | undefined): boolean {
   return kind !== undefined && kind.startsWith('refund:');
 }

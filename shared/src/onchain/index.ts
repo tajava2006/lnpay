@@ -36,6 +36,7 @@ export {
   onchainOrderTags,
   parseOnchainOrder,
   onchainOrderIssues,
+  isStoredOnchainOrder,
   formatOutpoint,
   parseOutpoint,
 } from './order';
@@ -103,6 +104,7 @@ export {
   canActOnSignRequest,
   isRefundKind,
   signPurposeFor,
+  isSignPurpose,
   awaitingSignerFor,
 } from './state-machine';
 export type {

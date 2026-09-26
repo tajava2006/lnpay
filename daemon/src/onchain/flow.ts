@@ -22,9 +22,9 @@ import {
   canActOnSignRequest, deriveEscrowAddress, dustThresholdFor, finalizeSettlement, formatOutpoint, fromPsbtBase64,
   isOnchainClaimPayload, isOnchainOrderRequestPayload, isOnchainPsbtPayload, isOnchainTerminal, isOrderExpiryAllowed,
   cosignDeadlineFrom, isPast, isRefundKind, isXonlyHex, krwDeadlineFrom, krwDeadlineOf, parseOutpoint, presignDeadlineOf,
-  releaseFeerateProblem, reserveProblem, settlementFeeSat, signPurposeFor, signSettlement, toPsbtBase64,
+  isSignPurpose, releaseFeerateProblem, reserveProblem, settlementFeeSat, signPurposeFor, signSettlement, toPsbtBase64,
   verifyPresignature,
-  type EscrowDescriptor, type OnchainOrder, type Outpoint, type SettlementKind, type SignPurpose,
+  type EscrowDescriptor, type OnchainOrder, type Outpoint, type SettlementKind,
 } from '@sajwo-tracker/shared/onchain';
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
@@ -269,11 +269,9 @@ export function resendRelease(ctx: OcContext, row: OcRow): boolean {
 
 // ── ④ 최종 서명 → 장부 → 브로드캐스트 ───────────────────────
 
-const SIGN_PURPOSES: readonly SignPurpose[] = ['release', 'refund', 'dispute-customer', 'dispute-sponsor', 'rescue'];
-
 function ocCosign(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult {
-  const purpose = tagValue(event, 'purpose') as SignPurpose | undefined;
-  if (!purpose || !SIGN_PURPOSES.includes(purpose)) return ignored('bad-purpose');
+  const purpose = tagValue(event, 'purpose');
+  if (!isSignPurpose(purpose)) return ignored('bad-purpose');
   if (purpose === 'rescue') return ocRescueCosign(ctx, event, row);
   const { order, meta } = row;
 

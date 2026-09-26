@@ -78,6 +78,9 @@ Nostr 릴레이 → Nostr 서비스 (백그라운드) → 영구 저장소 → U
 1. **UI는 Nostr 릴레이를 절대 직접 참조하지 않는다.** 저장소(localStorage·IndexedDB)만 구독한다.
 2. Nostr 서비스가 백그라운드에서 구독·발행하고 결과를 저장소에 쓴다.
 3. 서비스와 UI의 생명주기는 독립이다.
+4. localStorage 저장소는 shared `createStore`(`persisted-store.ts`)로 만든다 — **읽을 때 모양을 본다**(`parse`,
+   맵이면 `recordOf`로 항목마다). `JSON.parse(...) as T` 금지. 저장된 값의 뜻이 바뀌면 `version`을 올린다(한 번 비워진다).
+   모양 확인은 **받을 때와 같은 가드**를 쓴다 — 둘이 다르면 받은 값이 새로고침에 사라진다.
 
 통합 앱은 `customer/src/nostr/`가 소켓을 단독 소유하고 역할별 핸들러로 팬아웃한다. 역할 모듈은 구독을 직접 만들지
 않는다. UI 컴포넌트에서 `SimplePool`을 쓰는 코드는 절대 작성하지 않는다.

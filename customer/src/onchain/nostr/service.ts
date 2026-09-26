@@ -20,7 +20,7 @@ import {
   storage,
 } from '@sajwo-tracker/shared';
 import {
-  bytesToHex, fromPsbtBase64, isOnchainPsbtPayload, isOnchainTerminal, parseOnchainOrder,
+  bytesToHex, fromPsbtBase64, isOnchainPsbtPayload, isOnchainTerminal, isSignPurpose, parseOnchainOrder,
   type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { getOnchainOrder, roleIn, upsertOnchainOrder } from '../store';
@@ -249,8 +249,7 @@ export async function handleInboxEvent(event: Event): Promise<void> {
     // 어드민이 "이 tx에 서명해 달라"고 보낸 것이다. **자동으로 서명하지 않는다** —
     // 화면이 내 기록으로 다시 만들어 대조한 뒤 유저가 누른다.
     const purpose = event.tags.find(t => t[0] === 'purpose')?.[1];
-    if (purpose !== 'release' && purpose !== 'refund' && purpose !== 'dispute-customer'
-        && purpose !== 'dispute-sponsor' && purpose !== 'rescue') return;
+    if (!isSignPurpose(purpose)) return;
     try {
       const sk = await getSecretKey(storage);
       const payload: unknown = JSON.parse(nip44Decrypt(event.content, sk, APP_PUBKEY));

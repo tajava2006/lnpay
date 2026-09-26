@@ -2,7 +2,9 @@
  * Customer 주문 타입 + Admin 이벤트 파싱 + 유저스크립트 파싱 이벤트
  */
 import type { Event } from 'nostr-tools/core';
-import { APP_PUBKEY, MESSAGE_KIND, REQUEST_ACTIONS, nip44Decrypt, type OrderState, type AccountInfo } from '@sajwo-tracker/shared';
+import {
+  APP_PUBKEY, MESSAGE_KIND, REQUEST_ACTIONS, isNum, isStr, nip44Decrypt, shape, type AccountInfo, type OrderState,
+} from '@sajwo-tracker/shared';
 import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
 
 /**
@@ -76,6 +78,12 @@ export interface ParsedOrderPayload {
   expirationDate: number;
 }
 
+/** 받을 때(`parseParsedOrderEvent`)와 저장소에서 읽을 때 같은 확인 — 둘이 다르면 새로고침에 사라진다 */
+export const isParsedOrderPayload = shape<ParsedOrderPayload>({
+  coupangOrderId: isStr, productName: isStr, price: isNum, bankName: isStr, accountNumber: isStr, depositor: isStr,
+  expirationDate: isNum,
+});
+
 /**
  * 유저스크립트가 발행한 parsed-order 이벤트를 파싱한다.
  * content는 NIP-44 self-encryption(자기 pubkey로 암호화)되어 있으므로 복호화 필요.
@@ -89,8 +97,8 @@ export function parseParsedOrderEvent(event: Event, sk: Uint8Array): ParsedOrder
 
   try {
     const plaintext = nip44Decrypt(event.content, sk, event.pubkey);
-    const payload = JSON.parse(plaintext) as ParsedOrderPayload;
-    if (!payload.coupangOrderId || !payload.price) return null;
+    const payload: unknown = JSON.parse(plaintext);
+    if (!isParsedOrderPayload(payload) || !payload.coupangOrderId || !(payload.price > 0)) return null;
     return payload;
   } catch {
     return null;

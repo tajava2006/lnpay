@@ -154,6 +154,10 @@ Nostr 릴레이 → Nostr 서비스(백그라운드) → 영구 저장소 → UI
 통합 앱은 `customer/src/nostr/`가 소켓을 단독 소유하고 역할별 핸들러(`buyer/nostr`, `sponsor/nostr`, `onchain/nostr`)로
 팬아웃한다. 역할 모듈은 구독을 직접 만들지 않는다.
 
+localStorage 저장소(유저 앱 13개·어드민 캐시 6개)는 전부 shared `createStore` 하나로 만든다(`persisted-store.ts`).
+저장 형식은 키·값 JSON 그대로고, 읽을 때 모양을 확인해 **옛 모양·망가진 항목만** 버린다 — 버린 건 대부분 릴레이에서
+다시 채워진다(키 옮기기와 같은 경로). 저장 실패(용량 초과)는 메모리로 계속 돈다.
+
 ### 역할과 탭
 
 - **한 앱·한 키**(2026-09-12 통합). 역할은 오더의 `customerPubkey`·`sponsorPubkey`와 내 pubkey를 비교해 유도한다 — 저장된

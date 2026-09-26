@@ -102,6 +102,12 @@ describe('parseAccountInfoEnvelope', () => {
     expect(parsed).toEqual({ accountInfo: ACCOUNT, salt: '' });
   });
 
+  it('칸이 빠진 계좌는 받지 않는다 — 반쪽 계좌로 송금하게 두지 않는다', () => {
+    const { holderName: _h, ...partial } = ACCOUNT;
+    expect(parseAccountInfoEnvelope(JSON.stringify({ accountInfo: partial, salt: 's' }))).toBeNull();
+    expect(parseAccountInfoEnvelope(JSON.stringify(partial))).toBeNull();
+  });
+
   it('JSON이 아니거나 모양이 다르면 null', () => {
     expect(parseAccountInfoEnvelope('not json')).toBeNull();
     expect(parseAccountInfoEnvelope(JSON.stringify({ foo: 'bar' }))).toBeNull();

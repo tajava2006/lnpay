@@ -5,7 +5,7 @@
  * 내야 클레임이 성립한다. 여러 후원자가 동시에 받을 수 있고,
  * **먼저 결제한 쪽**이 가져간다.
  */
-const STORAGE_KEY = 'onchain:deposit-invoices';
+import { createStore, isBool, isNum, isStr, optional, recordOf, shape } from '@sajwo-tracker/shared';
 
 export interface DepositInvoice {
   orderId: string;
@@ -16,42 +16,23 @@ export interface DepositInvoice {
 }
 
 type InvoiceMap = Record<string, DepositInvoice>;
-type Listener = () => void;
 
-function load(): InvoiceMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as InvoiceMap) : {};
-  } catch {
-    return {};
-  }
-}
+const store = createStore<InvoiceMap>({}, {
+  key: 'onchain:deposit-invoices',
+  parse: recordOf(shape<DepositInvoice>({ orderId: isStr, bolt11: isStr, receivedAt: isNum, done: optional(isBool) })),
+});
 
-let invoices: InvoiceMap = load();
-const listeners = new Set<Listener>();
-
-export function subscribeDepositInvoices(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function getDepositInvoicesSnapshot(): InvoiceMap {
-  return invoices;
-}
+export const subscribeDepositInvoices = store.subscribe;
+export const getDepositInvoicesSnapshot = store.get;
 
 export function getDepositInvoice(orderId: string): DepositInvoice | undefined {
-  const entry = invoices[orderId];
+  const entry = store.get()[orderId];
   return entry && !entry.done ? entry : undefined;
 }
 
 export function putDepositInvoice(invoice: DepositInvoice): void {
-  invoices = { ...invoices, [invoice.orderId]: { ...invoices[invoice.orderId], ...invoice } };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(invoices));
-  for (const l of listeners) l();
+  store.update(prev => ({ ...prev, [invoice.orderId]: { ...prev[invoice.orderId], ...invoice } }));
 }
 
 /** @testing-only */
-export function _resetForTesting(): void {
-  invoices = {};
-  localStorage.removeItem(STORAGE_KEY);
-}
+export const _resetForTesting = store.reset;

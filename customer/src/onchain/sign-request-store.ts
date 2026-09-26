@@ -10,9 +10,8 @@
  * 서로를 덮어써서, 환불 요청이 뒤에 오면 고객은 릴리스를 완성할 방법을 잃었다.
  * 구조(`rescue`)는 UTXO마다 따로 온다.
  */
-import type { SignPurpose } from '@sajwo-tracker/shared/onchain';
-
-const STORAGE_KEY = 'onchain:sign-requests-v2';
+import { createStore, isNum, isStr, optional, recordOf, shape } from '@sajwo-tracker/shared';
+import { isSignPurpose, type SignPurpose } from '@sajwo-tracker/shared/onchain';
 
 export interface SignRequest {
   orderId: string;
@@ -24,39 +23,23 @@ export interface SignRequest {
 }
 
 type RequestMap = Record<string, SignRequest>;
-type Listener = () => void;
 
 export function signRequestKey(r: Pick<SignRequest, 'orderId' | 'purpose' | 'outpoint'>): string {
   return r.purpose === 'rescue' ? `${r.orderId}|rescue|${r.outpoint ?? ''}` : `${r.orderId}|${r.purpose}`;
 }
 
-function load(): RequestMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as RequestMap) : {};
-  } catch {
-    return {};
-  }
-}
+// 키의 `-v2`는 이 헬퍼 전에 모양을 바꾸며 키째 갈아 끼운 흔적이다 — 이제는 `version`을 올린다
+const store = createStore<RequestMap>({}, {
+  key: 'onchain:sign-requests-v2',
+  parse: recordOf(shape<SignRequest>({
+    orderId: isStr, purpose: isSignPurpose, psbt: isStr, receivedAt: isNum, outpoint: optional(isStr),
+  })),
+});
 
-let requests: RequestMap = load();
-const listeners = new Set<Listener>();
-
-function commit(next: RequestMap): void {
-  requests = next;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
-  for (const l of listeners) l();
-}
-
-export function subscribeSignRequests(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
+export const subscribeSignRequests = store.subscribe;
 
 /** ⚠️ 맵 참조 그대로 — 새 객체를 만들면 `useSyncExternalStore`가 무한 루프를 돈다 */
-export function getSignRequestsSnapshot(): RequestMap {
-  return requests;
-}
+export const getSignRequestsSnapshot = store.get;
 
 /** 이 주문의 요청들 */
 export function signRequestsFor(snapshot: RequestMap, orderId: string): SignRequest[] {
@@ -65,30 +48,27 @@ export function signRequestsFor(snapshot: RequestMap, orderId: string): SignRequ
 
 export function putSignRequest(request: SignRequest): void {
   const key = signRequestKey(request);
-  const existing = requests[key];
+  const existing = store.get()[key];
   // 더 나중 것만 남긴다 — 어드민이 다시 보낸 것(수수료를 새로 잡았을 수 있다)이 이긴다.
   if (existing && existing.receivedAt > request.receivedAt) return;
-  commit({ ...requests, [key]: request });
+  store.update(prev => ({ ...prev, [key]: request }));
 }
 
 export function clearSignRequest(request: Pick<SignRequest, 'orderId' | 'purpose' | 'outpoint'>): void {
   const key = signRequestKey(request);
-  if (!requests[key]) return;
-  const { [key]: _gone, ...rest } = requests;
-  commit(rest);
+  if (!store.get()[key]) return;
+  store.update(({ [key]: _gone, ...rest }) => rest);
 }
 
 /** 이 주문의 요청을 전부 치운다 (종결됐을 때) — 구조 요청은 남긴다(FSM 밖이다) */
 export function clearSignRequestsFor(orderId: string): void {
+  const requests = store.get();
   const rest = Object.fromEntries(
     Object.entries(requests).filter(([, r]) => r.orderId !== orderId || r.purpose === 'rescue'),
   );
   if (Object.keys(rest).length === Object.keys(requests).length) return;
-  commit(rest);
+  store.set(rest);
 }
 
 /** @testing-only */
-export function _resetForTesting(): void {
-  requests = {};
-  localStorage.removeItem(STORAGE_KEY);
-}
+export const _resetForTesting = store.reset;

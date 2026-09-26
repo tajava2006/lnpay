@@ -7,45 +7,33 @@
  *
  * 캐시는 릴레이보다 오래 살지 않는다(`pruneStores`) — 데몬 epoch 전의 오더와 보존이 끝난 것은 지운다.
  */
-import type {
-  AdminChatCopy, AdminCommandResult, AdminLnOrderDetail, AdminOcOrderDetail, AdminState, Order, TrackName,
+import {
+  ORDER_STATES, arrayOf, createStore, isNum, isObject, isStr, oneOf, optional, recordOf, shape,
+  type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type AdminOcOrderDetail, type AdminState,
+  type Order, type Store, type TrackName,
 } from '@sajwo-tracker/shared';
-import type { OnchainOrder } from '@sajwo-tracker/shared/onchain';
+import { isStoredLnOrder } from '@sajwo-tracker/shared/ln';
+import { isStoredOnchainOrder, type OnchainOrder } from '@sajwo-tracker/shared/onchain';
 
-export interface Store<T> {
-  get(): T;
-  set(next: T): void;
-  update(fn: (prev: T) => T): void;
-  subscribe(listener: () => void): () => void;
-}
-
-function createStore<T>(initial: T, persistKey?: string): Store<T> {
-  let value = initial;
-  if (persistKey) {
-    try {
-      const raw = localStorage.getItem(persistKey);
-      if (raw) value = JSON.parse(raw) as T;
-    } catch { /* 망가진 캐시는 버린다 */ }
-  }
-  const listeners = new Set<() => void>();
-  const set = (next: T) => {
-    if (next === value) return;
-    value = next;
-    if (persistKey) {
-      try { localStorage.setItem(persistKey, JSON.stringify(value)); } catch { /* 저장 실패는 화면에 영향 없음 */ }
-    }
-    listeners.forEach(l => l());
-  };
-  return {
-    get: () => value,
-    set,
-    update: fn => set(fn(value)),
-    subscribe: listener => {
-      listeners.add(listener);
-      return () => { listeners.delete(listener); };
-    },
-  };
-}
+/** 캐시라 모양이 틀리면 버리고 릴레이에서 다시 받는다 — 화면이 기대는 칸만 본다 */
+const isDaemonStateView = shape<DaemonStateView>({
+  state: v => v === null || isObject(v),
+  eventAt: v => v === null || isNum(v),
+});
+const isChatCopy = shape<AdminChatCopy>({
+  track: oneOf(['ln', 'onchain']), orderId: isStr, from: isStr, to: isStr, payload: isObject, sentAt: isNum,
+  originalId: isStr,
+});
+const isLnDetailView = shape<LnDetailView>({
+  detail: shape<AdminLnOrderDetail>({ orderId: isStr, version: isNum, state: oneOf(Object.values(ORDER_STATES)) }),
+  eventAt: isNum,
+  retainUntil: optional(isNum),
+});
+const isOcDetailView = shape<OcDetailView>({
+  detail: shape<AdminOcOrderDetail>({ orderId: isStr, version: isNum, order: isObject }),
+  eventAt: isNum,
+  retainUntil: optional(isNum),
+});
 
 export interface DaemonStateView {
   state: AdminState | null;
@@ -53,7 +41,9 @@ export interface DaemonStateView {
   eventAt: number | null;
 }
 
-export const daemonState = createStore<DaemonStateView>({ state: null, eventAt: null }, 'admin2:daemon-state');
+export const daemonState = createStore<DaemonStateView>({ state: null, eventAt: null }, {
+  key: 'admin2:daemon-state', parse: raw => (isDaemonStateView(raw) ? raw : null),
+});
 
 /**
  * 데몬이 받기 시작한 시각. 모르면 null — 상태를 아직 못 받았거나, `epoch`를 싣기 전의 데몬이다.
@@ -76,9 +66,13 @@ export interface CommandView {
 export const commands = createStore<Record<string, CommandView>>({});
 
 /** 오더별 채팅 사본 — 키는 `${track}:${orderId}` (P4 분쟁 화면이 쓴다) */
-export const chats = createStore<Record<string, AdminChatCopy[]>>({}, 'admin2:chats');
+export const chats = createStore<Record<string, AdminChatCopy[]>>({}, {
+  key: 'admin2:chats', parse: recordOf(arrayOf(isChatCopy)),
+});
 
-export const lnOrders = createStore<Record<string, Order>>({}, 'admin2:ln-orders');
+export const lnOrders = createStore<Record<string, Order>>({}, {
+  key: 'admin2:ln-orders', parse: recordOf(isStoredLnOrder),
+});
 
 export interface LnDetailView {
   detail: AdminLnOrderDetail;
@@ -88,8 +82,12 @@ export interface LnDetailView {
 }
 
 /** 라이트닝 오더별 비공개 상세 (데몬 → 이 운영자). 판정 명령은 여기 버전을 싣는다 */
-export const lnDetails = createStore<Record<string, LnDetailView>>({}, 'admin2:ln-details');
-export const onchainOrders = createStore<Record<string, OnchainOrder>>({}, 'admin2:onchain-orders');
+export const lnDetails = createStore<Record<string, LnDetailView>>({}, {
+  key: 'admin2:ln-details', parse: recordOf(isLnDetailView),
+});
+export const onchainOrders = createStore<Record<string, OnchainOrder>>({}, {
+  key: 'admin2:onchain-orders', parse: recordOf(isStoredOnchainOrder),
+});
 
 export interface OcDetailView {
   detail: AdminOcOrderDetail;
@@ -99,7 +97,9 @@ export interface OcDetailView {
 }
 
 /** 온체인 오더별 비공개 상세 (받을 주소·보증금·구조 대상 등) — 명령은 여기 버전을 싣는다 */
-export const ocDetails = createStore<Record<string, OcDetailView>>({}, 'admin2:oc-details');
+export const ocDetails = createStore<Record<string, OcDetailView>>({}, {
+  key: 'admin2:oc-details', parse: recordOf(isOcDetailView),
+});
 
 /** 라이트닝 오더를 볼 이유가 있는가 — 데몬이 만든 것(epoch 뒤)이고 릴레이 보존이 남았다 */
 export function lnOrderAlive(order: Order, epoch: number | null, nowSec: number): boolean {

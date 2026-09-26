@@ -44,6 +44,7 @@ export {
   computeAccountCommitment,
   verifyAccountCommitment,
   parseAccountInfoEnvelope,
+  isAccountInfo,
 } from './account-commitment';
 export type { AccountInfoEnvelope } from './account-commitment';
 
@@ -76,6 +77,12 @@ export { InvoicePayBlock } from './components/InvoicePayBlock';
 export { OrderProgress } from './components/OrderProgress';
 export { useNow } from './components/useNow';
 export { ErrorBoundary, guarded } from './components/ErrorBoundary';
+
+// 저장소 (localStorage + 구독) · 모양 확인
+export { createStore, recordOf } from './persisted-store';
+export type { Store, Persist } from './persisted-store';
+export { arrayOf, isBool, isNum, isObject, isStr, oneOf, optional, shape } from './shape';
+export type { Guard } from './shape';
 export { nowSec, remainingText, dateTimeText, durationText } from './time';
 export { BUTTON, STEP_TEXT } from './copy';
 

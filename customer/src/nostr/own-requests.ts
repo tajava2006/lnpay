@@ -44,7 +44,8 @@ export function handleOwnLnRequest(event: Event, sk: Uint8Array, myPubkey: strin
 function restoreOrderRequest(event: Event, orderId: string, myPubkey: string): void {
   if (getLocalOrders()[orderId]) return;
   const price = Number(tag(event, 'price'));
-  const deadline = Number(tag(event, 'deadline') ?? tag(event, 'expiration'));
+  // `expiration`은 보존이다 — 기한으로 읽지 않는다(DM-009, 데몬과 같다)
+  const deadline = Number(tag(event, 'deadline'));
   if (!Number.isInteger(price) || price <= 0 || !Number.isInteger(deadline)) return;
 
   addOrder({ orderId, price, memo: '', createdAt: event.created_at, expiration: deadline, raw: JSON.stringify(event) });

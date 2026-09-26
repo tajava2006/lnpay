@@ -9,7 +9,8 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure
 import { ORDER_STATES, ORDER_KIND, TERMINAL_STATES, type OrderState } from '../constants';
 import {
   CLOSE_RULES, LN_ACTIVE_RETENTION_SEC, LN_CLOSE_REASON_LABEL, LN_MIN_CLAIM_LEAD_SEC, LN_TERMINAL_RETENTION_SEC,
-  canTransition, expiryReasonFor, isClaimableLn, isLnCloseReason, lnOrderTags, lnRetention, parseLnOrderEvent,
+  canTransition, expiryReasonFor, isClaimableLn, isLnCloseReason, isStoredLnOrder, lnOrderTags, lnRetention,
+  parseLnOrderEvent,
   type LnCloseReason,
 } from '../ln';
 
@@ -162,5 +163,24 @@ describe('NIP-69 태그', () => {
     ['customer_wins', 'canceled'], ['cancelled', 'canceled'], ['admin_closed', 'canceled'], ['expired', 'expired'],
   ] as const)('%s → %s', (state, status) => {
     expect(nip(lnOrderTags({ ...base, state }, 't', NOW + DAY), 's')).toEqual([[status]]);
+  });
+});
+
+/** 저장소는 읽을 때 모양을 본다 — 파서가 낸 값이 거기서 떨어지면 새로고침마다 오더가 사라진다 */
+describe('저장소 모양 확인과 파서가 맞물린다', () => {
+  it('파서가 낸 오더는 JSON 왕복 뒤에도 통과한다 — 칸이 다 찬 것도, 최소한인 것도', () => {
+    const full = parseLnOrderEvent(sign(lnOrderTags({
+      orderId: 'o1', state: 'paid', customerPubkey: 'c'.repeat(64), sponsorPubkey: 's'.repeat(64),
+      price: 50_000, deadline: NOW + DAY, bolt11: 'lnbc1', payoutSat: 33_333, sponsorInvoice: 'lnbc2', disbursed: true,
+      closeReason: 'paid',
+    }, 't', NOW + DAY)), APP)!;
+    const bare = parseLnOrderEvent(sign([['d', 'o2']]), APP)!;
+    for (const order of [full, bare]) expect(isStoredLnOrder(JSON.parse(JSON.stringify(order)))).toBe(true);
+  });
+
+  it('모르는 상태·숫자가 아닌 금액은 떨어진다', () => {
+    const order = parseLnOrderEvent(sign(lnOrderTags({ orderId: 'o1', state: 'requested', customerPubkey: 'c', price: 1, deadline: NOW }, 't', NOW)), APP)!;
+    expect(isStoredLnOrder({ ...order, state: 'sold' })).toBe(false);
+    expect(isStoredLnOrder({ ...order, price: '1' })).toBe(false);
   });
 });

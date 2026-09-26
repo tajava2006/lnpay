@@ -20,6 +20,7 @@
  * (라이트닝의 `account-info`와 같은 규약).
  */
 import type { RequestBase } from '../types';
+import type { SignPurpose } from './state-machine';
 
 /**
  * 고객 → 어드민: 온체인 의뢰 등록.
@@ -72,7 +73,7 @@ export interface OnchainCosignMsg extends RequestBase {
    * `rescue`는 FSM 밖이다 — 약정과 다른 모양으로 들어온 자금을 고객에게 돌려준다.
    * 소모하는 UTXO가 PSBT 입력에 들어 있어 핸들러가 그걸로 대기 중인 구조를 찾는다.
    */
-  purpose: 'release' | 'refund' | 'dispute-customer' | 'dispute-sponsor' | 'rescue';
+  purpose: SignPurpose;
 }
 
 /**

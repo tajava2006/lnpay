@@ -8,32 +8,17 @@
  * 이 기기에만 있다. 다른 기기에서 키를 가져온 경우엔 여기 없으므로, 화면이 유저에게
  * 주소를 **다시 입력**하게 해서 대조한다(보여주고 "맞다"를 누르게 하면 대조가 아니다).
  */
-const STORAGE_KEY = 'onchain:refund-addresses';
+import { createStore, isStr, recordOf } from '@sajwo-tracker/shared';
 
-type AddressMap = Record<string, string>;
-
-function load(): AddressMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AddressMap) : {};
-  } catch {
-    return {};
-  }
-}
-
-let addresses: AddressMap = load();
+const store = createStore<Record<string, string>>({}, { key: 'onchain:refund-addresses', parse: recordOf(isStr) });
 
 export function rememberRefundAddress(orderId: string, address: string): void {
-  addresses = { ...addresses, [orderId]: address.trim() };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(addresses));
+  store.update(prev => ({ ...prev, [orderId]: address.trim() }));
 }
 
 export function getRefundAddress(orderId: string): string | undefined {
-  return addresses[orderId];
+  return store.get()[orderId];
 }
 
 /** @testing-only */
-export function _resetForTesting(): void {
-  addresses = {};
-  localStorage.removeItem(STORAGE_KEY);
-}
+export const _resetForTesting = store.reset;

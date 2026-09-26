@@ -23,7 +23,7 @@ import { BunkerSigner, createNostrConnectURI } from 'nostr-tools/nip46';
 import type { BunkerPointer } from 'nostr-tools/nip46';
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import type { EventTemplate } from 'nostr-tools/core';
-import { APP_PUBKEY, nowSec } from '@sajwo-tracker/shared';
+import { APP_PUBKEY, arrayOf, isStr, nowSec, optional, shape } from '@sajwo-tracker/shared';
 
 const SESSION_KEY = 'admin:nip46';
 
@@ -34,6 +34,14 @@ export interface Nip46Session {
   /** 검증된 운영자 신원 pubkey (옛 세션에는 없다 — 다시 로그인) */
   operatorPubkey?: string;
 }
+
+/** 망가진 세션은 없는 것으로 — 로그인 화면으로 돌아간다(깨진 값으로 벙커에 붙으려다 멈추지 않게) */
+const isSession = shape<Nip46Session>({
+  clientSecretKeyHex: v => isStr(v) && /^[0-9a-f]{64}$/.test(v),
+  bunkerPubkey: isStr,
+  relays: arrayOf(isStr),
+  operatorPubkey: optional(isStr),
+});
 
 // ─── 모듈 레벨 signer 인스턴스 ──────────────────────────────
 
@@ -59,7 +67,8 @@ export function loadSession(): Nip46Session | null {
   const raw = localStorage.getItem(SESSION_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as Nip46Session;
+    const session: unknown = JSON.parse(raw);
+    return isSession(session) ? session : null;
   } catch {
     return null;
   }

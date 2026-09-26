@@ -8,57 +8,25 @@
  *   Nostr 구독 서비스 → order-store (upsert) → localStorage + listeners
  *   OrderBook → useSyncExternalStore(subscribe, getSnapshot) → 자동 리렌더
  */
-import { nowSec, type Order } from '@sajwo-tracker/shared';
+import { createStore, nowSec, recordOf, type Order } from '@sajwo-tracker/shared';
+import { isStoredLnOrder } from '@sajwo-tracker/shared/ln';
 
 type OrderMap = Record<string, Order>;
-type Listener = () => void;
 
-const ORDERS_KEY = 'sponsor:orders';
+const orders = createStore<OrderMap>({}, { key: 'sponsor:orders', parse: recordOf(isStoredLnOrder) });
+/** 이번 세션의 첫 동기화가 끝났나 — 저장하지 않는다 */
+const synced = createStore(false);
 
-// ── 내부 상태 ──────────────────────────────────────
+// ── useSyncExternalStore 호환 API — 오더와 동기화 표시를 한 구독으로 ──
 
-let orders: OrderMap = loadFromStorage();
-let synced = false;
-const listeners = new Set<Listener>();
-
-// ── localStorage 입출력 ────────────────────────────
-
-function loadFromStorage(): OrderMap {
-  const stored = localStorage.getItem(ORDERS_KEY);
-  if (!stored) return {};
-  try {
-    return JSON.parse(stored) as OrderMap;
-  } catch {
-    return {};
-  }
+export function subscribe(listener: () => void): () => void {
+  const offOrders = orders.subscribe(listener);
+  const offSynced = synced.subscribe(listener);
+  return () => { offOrders(); offSynced(); };
 }
 
-function saveToStorage(): void {
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-}
-
-// ── 리스너 통지 ────────────────────────────────────
-
-function notify(): void {
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
-// ── useSyncExternalStore 호환 API ──────────────────
-
-export function subscribe(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function getSnapshot(): OrderMap {
-  return orders;
-}
-
-export function getSyncedSnapshot(): boolean {
-  return synced;
-}
+export const getSnapshot = orders.get;
+export const getSyncedSnapshot = synced.get;
 
 // ── 뮤테이션 API (Nostr 서비스에서 호출) ───────────
 
@@ -66,29 +34,21 @@ export function getSyncedSnapshot(): boolean {
  * 오더를 추가/갱신한다. 최신 이벤트만 유지 (updatedAt 비교).
  */
 export function upsertOrder(order: Order): void {
-  const existing = orders[order.orderId];
+  const existing = orders.get()[order.orderId];
   if (existing && existing.updatedAt >= order.updatedAt) return;
-
-  orders = { ...orders, [order.orderId]: order };
-  saveToStorage();
-  notify();
+  orders.update(prev => ({ ...prev, [order.orderId]: order }));
 }
 
 /**
  * 오더를 삭제한다 (sold 이벤트 수신 시).
  */
 export function deleteOrder(orderId: string): void {
-  if (!orders[orderId]) return;
-
-  const { [orderId]: _, ...rest } = orders;
-  orders = rest;
-  saveToStorage();
-  notify();
+  if (!orders.get()[orderId]) return;
+  orders.update(({ [orderId]: _gone, ...rest }) => rest);
 }
 
 export function markSynced(): void {
-  synced = true;
-  notify();
+  synced.set(true);
 }
 
 // ── 만료 삭제 ─────────────────────────────────────
@@ -105,19 +65,15 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null;
  */
 function purgeExpired(): void {
   const now = nowSec();
-  const before = Object.keys(orders).length;
-
-  orders = Object.fromEntries(
-    Object.entries(orders).filter(([, o]) => {
+  const current = orders.get();
+  const kept = Object.fromEntries(
+    Object.entries(current).filter(([, o]) => {
       const until = o.retainUntil ?? o.expiration;
       return until === 0 || until > now;
     }),
   );
-
-  if (Object.keys(orders).length === before) return;
-
-  saveToStorage();
-  notify();
+  if (Object.keys(kept).length === Object.keys(current).length) return;
+  orders.set(kept);
 }
 
 export function startCleanup(): void {

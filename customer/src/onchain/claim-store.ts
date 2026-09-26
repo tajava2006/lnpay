@@ -7,7 +7,7 @@
  *
  * localStorage만 쓴다 — 잃어도 자금이 잠기진 않는다(어드민에게 다시 내면 된다).
  */
-const STORAGE_KEY = 'onchain:my-claims';
+import { createStore, isNum, isStr, optional, recordOf, shape } from '@sajwo-tracker/shared';
 
 export interface MyClaim {
   orderId: string;
@@ -19,38 +19,29 @@ export interface MyClaim {
 
 type ClaimMap = Record<string, MyClaim>;
 
-function load(): ClaimMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as ClaimMap) : {};
-  } catch {
-    return {};
-  }
-}
-
-let claims: ClaimMap = load();
+const store = createStore<ClaimMap>({}, {
+  key: 'onchain:my-claims',
+  parse: recordOf(shape<MyClaim>({
+    orderId: isStr, payoutAddress: isStr, feerateSatPerVb: isNum, requestedAt: optional(isNum),
+  })),
+});
 
 export function rememberMyClaim(claim: MyClaim): void {
-  claims = { ...claims, [claim.orderId]: claim };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(claims));
+  store.update(prev => ({ ...prev, [claim.orderId]: claim }));
 }
 
 export function getMyClaim(orderId: string): MyClaim | undefined {
-  return claims[orderId];
+  return store.get()[orderId];
 }
 
 /** 발행에 실패했다 — 데몬은 이 값을 모른다. 남겨 두면 폼이 기다리는 상태로 잠긴다 */
 export function forgetMyClaim(orderId: string): void {
-  const { [orderId]: _gone, ...rest } = claims;
-  claims = rest;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(claims));
+  if (!store.get()[orderId]) return;
+  store.update(({ [orderId]: _gone, ...rest }) => rest);
 }
 
 /** @testing-only */
-export function _resetForTesting(): void {
-  claims = {};
-  localStorage.removeItem(STORAGE_KEY);
-}
+export const _resetForTesting = store.reset;
 
 /** 데몬 시계와 브라우저 시계의 어긋남을 넉넉히 — 응답의 created_at은 데몬 시계다 */
 const CLOCK_SKEW_MS = 2 * 60_000;
@@ -64,7 +55,7 @@ const CLOCK_SKEW_MS = 2 * 60_000;
  * 답의 시각은 이벤트 created_at(초, 데몬 시계)이다. 보낸 뒤에 온 답만 이 요청의 답으로 친다.
  */
 export function pendingClaim(orderId: string, invoiceAt: number | undefined, rejectedAt: number | undefined): MyClaim | null {
-  const mine = claims[orderId];
+  const mine = store.get()[orderId];
   if (!mine?.requestedAt) return null;
   const since = mine.requestedAt - CLOCK_SKEW_MS;
   if (invoiceAt !== undefined && invoiceAt * 1000 >= since) return null;

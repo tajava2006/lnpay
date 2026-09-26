@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { ORDER_KIND } from '../constants';
 import {
-  formatOutpoint, onchainOrderIssues, onchainOrderTags, parseOnchainOrder, parseOutpoint,
+  formatOutpoint, isStoredOnchainOrder, onchainOrderIssues, onchainOrderTags, parseOnchainOrder, parseOutpoint,
   type OnchainOrder, type OnchainOrderEvent,
 } from '../onchain/order';
 
@@ -243,5 +243,22 @@ describe('빠진 태그 감시 (addressable은 덮어쓴다)', () => {
   it('listed·cancelled는 에스크로 정보를 요구하지 않는다', () => {
     expect(onchainOrderIssues(base({ state: 'listed' }))).toEqual([]);
     expect(onchainOrderIssues(base({ state: 'cancelled' }))).toEqual([]);
+  });
+});
+
+/** 저장소는 읽을 때 모양을 본다 — 파서가 낸 값이 거기서 떨어지면 새로고침마다 오더가 사라진다 */
+describe('저장소 모양 확인과 파서가 맞물린다', () => {
+  it('파서가 낸 오더는 JSON 왕복 뒤에도 통과한다 — 모든 상태에서', () => {
+    for (const state of ['listed', 'bonded', 'funded', 'presigned', 'remitted', 'disputed', 'refunding', 'settling',
+      'released', 'refunded', 'sponsor_wins', 'customer_wins', 'cancelled', 'swept'] as const) {
+      const parsed = parseOnchainOrder(asEvent(base({ state, sponsorPubkey: 'spon', settlementKind: 'release' })), TAG)!;
+      expect(isStoredOnchainOrder(JSON.parse(JSON.stringify(parsed))), state).toBe(true);
+    }
+  });
+
+  it('모르는 상태·네트워크는 떨어진다', () => {
+    const parsed = parseOnchainOrder(asEvent(base()), TAG)!;
+    expect(isStoredOnchainOrder({ ...parsed, state: 'funding' })).toBe(false);
+    expect(isStoredOnchainOrder({ ...parsed, network: 'bitcoin' })).toBe(false);
   });
 });

@@ -13,7 +13,7 @@
  * → 보낸 요청을 로컬에 적어두고, **인보이스나 오더가 도착하면 지운다.**
  *   남아 있으면 그게 곧 "아직 답이 없다"는 뜻이다.
  */
-const STORAGE_KEY = 'onchain:pending-requests';
+import { createStore, isNum, isStr, optional, recordOf, shape } from '@sajwo-tracker/shared';
 
 export interface PendingOrderRequest {
   orderId: string;
@@ -26,54 +26,36 @@ export interface PendingOrderRequest {
 }
 
 type RequestMap = Record<string, PendingOrderRequest>;
-type Listener = () => void;
 
-function load(): RequestMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as RequestMap) : {};
-  } catch {
-    return {};
-  }
-}
+const store = createStore<RequestMap>({}, {
+  key: 'onchain:pending-requests',
+  parse: recordOf(shape<PendingOrderRequest>({
+    orderId: isStr, amountSat: isNum, reserveKrw: optional(isNum), expiration: isNum, submittedAt: isNum,
+    rejectedReason: optional(isStr),
+  })),
+});
 
-let requests: RequestMap = load();
-const listeners = new Set<Listener>();
-
-function commit(next: RequestMap): void {
-  requests = next;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
-  for (const l of listeners) l();
-}
-
-export function subscribePendingRequests(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
+export const subscribePendingRequests = store.subscribe;
 
 export function getPendingRequestsSnapshot(): Readonly<RequestMap> {
-  return requests;
+  return store.get();
 }
 
 export function rememberPendingRequest(request: PendingOrderRequest): void {
-  commit({ ...requests, [request.orderId]: request });
+  store.update(prev => ({ ...prev, [request.orderId]: request }));
 }
 
 export function markRequestRejected(orderId: string, reason: string): void {
-  const existing = requests[orderId];
+  const existing = store.get()[orderId];
   if (!existing) return;
-  commit({ ...requests, [orderId]: { ...existing, rejectedReason: reason } });
+  store.update(prev => ({ ...prev, [orderId]: { ...existing, rejectedReason: reason } }));
 }
 
 /** 인보이스나 오더가 도착했다 — 더 기다릴 게 없다 */
 export function forgetPendingRequest(orderId: string): void {
-  if (!requests[orderId]) return;
-  const { [orderId]: _gone, ...rest } = requests;
-  commit(rest);
+  if (!store.get()[orderId]) return;
+  store.update(({ [orderId]: _gone, ...rest }) => rest);
 }
 
 /** @testing-only */
-export function _resetForTesting(): void {
-  requests = {};
-  localStorage.removeItem(STORAGE_KEY);
-}
+export const _resetForTesting = store.reset;

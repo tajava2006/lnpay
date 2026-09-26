@@ -5,7 +5,7 @@
  * 거절이다 — 클레임(주소·수수료율 불량), 늦은 사전서명, 늦은 계좌, 늦은 송금 주장.
  * 전에는 이 경로들이 콘솔에만 남아서 유저는 "보냈는데 아무 일도 없다"만 봤다.
  */
-const STORAGE_KEY = 'onchain:notices';
+import { createStore, isNum, isStr, recordOf, shape } from '@sajwo-tracker/shared';
 
 export interface OrderNotice {
   orderId: string;
@@ -14,47 +14,25 @@ export interface OrderNotice {
 }
 
 type NoticeMap = Record<string, OrderNotice>;
-type Listener = () => void;
 
-function load(): NoticeMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as NoticeMap) : {};
-  } catch {
-    return {};
-  }
-}
+const store = createStore<NoticeMap>({}, {
+  key: 'onchain:notices',
+  parse: recordOf(shape<OrderNotice>({ orderId: isStr, reason: isStr, receivedAt: isNum })),
+});
 
-let notices: NoticeMap = load();
-const listeners = new Set<Listener>();
-
-export function subscribeNotices(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function getNoticesSnapshot(): NoticeMap {
-  return notices;
-}
+export const subscribeNotices = store.subscribe;
+export const getNoticesSnapshot = store.get;
 
 export function putNotice(notice: OrderNotice): void {
-  const existing = notices[notice.orderId];
+  const existing = store.get()[notice.orderId];
   if (existing && existing.receivedAt > notice.receivedAt) return;
-  notices = { ...notices, [notice.orderId]: notice };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notices));
-  for (const l of listeners) l();
+  store.update(prev => ({ ...prev, [notice.orderId]: notice }));
 }
 
 export function clearNotice(orderId: string): void {
-  if (!notices[orderId]) return;
-  const { [orderId]: _gone, ...rest } = notices;
-  notices = rest;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notices));
-  for (const l of listeners) l();
+  if (!store.get()[orderId]) return;
+  store.update(({ [orderId]: _gone, ...rest }) => rest);
 }
 
 /** @testing-only */
-export function _resetForTesting(): void {
-  notices = {};
-  localStorage.removeItem(STORAGE_KEY);
-}
+export const _resetForTesting = store.reset;

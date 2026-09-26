@@ -8,9 +8,7 @@
  * 실제로 그랬다(2026-09-21) — 수신 핸들러가 `account-info`를 안 다뤄서
  * 이벤트가 조용히 버려졌다.
  */
-import type { AccountInfo } from '@sajwo-tracker/shared';
-
-const STORAGE_KEY = 'onchain:account-info-v2';
+import { createStore, isAccountInfo, isStr, recordOf, shape, type AccountInfo } from '@sajwo-tracker/shared';
 
 /**
  * 받은 계좌 + 커밋먼트 솔트. 분쟁 때 이 둘을 채팅에 공개하면 어드민이 고객 이벤트의
@@ -22,31 +20,21 @@ export interface OnchainAccount {
 }
 
 type AccountMap = Record<string, OnchainAccount>;
-type Listener = () => void;
 
-function load(): AccountMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AccountMap) : {};
-  } catch {
-    return {};
-  }
-}
+// 키의 `-v2`는 이 헬퍼 전에 모양을 바꾸며 키째 갈아 끼운 흔적이다 — 이제는 `version`을 올린다
+const store = createStore<AccountMap>({}, {
+  key: 'onchain:account-info-v2',
+  parse: recordOf(shape<OnchainAccount>({ accountInfo: isAccountInfo, salt: isStr })),
+});
 
-let accounts: AccountMap = load();
-const listeners = new Set<Listener>();
-
-export function subscribeOnchainAccounts(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
+export const subscribeOnchainAccounts = store.subscribe;
 
 export function getOnchainAccountsSnapshot(): Readonly<AccountMap> {
-  return accounts;
+  return store.get();
 }
 
 export function getOnchainAccount(orderId: string): OnchainAccount | undefined {
-  return accounts[orderId];
+  return store.get()[orderId];
 }
 
 /**
@@ -59,14 +47,9 @@ export function getOnchainAccount(orderId: string): OnchainAccount | undefined {
  * 보낸 것만** 들어온다.
  */
 export function putOnchainAccount(orderId: string, account: OnchainAccount): void {
-  if (accounts[orderId]) return;
-  accounts = { ...accounts, [orderId]: account };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-  for (const l of listeners) l();
+  if (store.get()[orderId]) return;
+  store.update(prev => ({ ...prev, [orderId]: account }));
 }
 
 /** @testing-only */
-export function _resetForTesting(): void {
-  accounts = {};
-  localStorage.removeItem(STORAGE_KEY);
-}
+export const _resetForTesting = store.reset;

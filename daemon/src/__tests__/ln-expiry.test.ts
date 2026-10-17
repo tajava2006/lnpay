@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { ADMIN_ACTIONS, REQUEST_ACTIONS } from '@sajwo-tracker/shared/core';
 import { openAlerts } from '../admin/alerts';
 import { beginClose } from '../ln/flow';
-import { DEADLINE_GRACE_SEC, ESCROW_END_BLOCKS, SAFETY_SETTLE_BLOCKS } from '../ln/timing';
+import { DEADLINE_GRACE_SEC, ESCROW_END_BLOCKS, INVOICE_WINDOW_SEC, SAFETY_SETTLE_BLOCKS } from '../ln/timing';
 import { TEST_TAGS, adminCommand, eventsTo, openResult } from './fakes';
 import { createLnHarness, latestOrderEvent, tagOf, type LnHarness } from './ln-fakes';
 import {
@@ -78,10 +78,11 @@ describe('쿠팡 기한 — 사유가 곧 처리', () => {
     expect(messagesTo(h, h.customer.pubkey, REQUEST_ACTIONS.DEPOSIT_SETTLED)).toHaveLength(1);
   });
 
+  // 기한이 인보이스 마감(에스크로 + 6h)보다 이르면 기한 + 유예가 먼저 온다
   it('에스크로 뒤 인보이스를 끝내 안 내면(escrowed) → 유예 뒤 expired, 에스크로 환불 · 후원자 보증금 몰수', async () => {
     const h = await warmHarness();
     setDeposits(h, 0, 3);
-    const orderId = await openOrder(h, { deadlineIn: 6 * HOUR });
+    const orderId = await openOrder(h, { deadlineIn: 3 * HOUR });
     await claim(h, orderId);
     payDepositOf(h, 'sponsor');
     await h.run();
@@ -90,7 +91,7 @@ describe('쿠팡 기한 — 사유가 곧 처리', () => {
     expect(o.state).toBe('escrowed');
 
     // 기한은 지났지만 유예 안 — 아직 안 닫는다
-    h.advance(6 * HOUR + 60);
+    h.advance(3 * HOUR + 60);
     await h.run();
     expect(h.order(orderId)!.state).toBe('escrowed');
 
@@ -101,6 +102,47 @@ describe('쿠팡 기한 — 사유가 곧 처리', () => {
     expect(closed.close_reason).toBe('expired:no-invoice');
     expect(h.node.stateOf(o.escrow_hash!)).toBe('cancelled'); // 고객 환불
     expect(h.node.stateOf(o.sponsor_deposit_hash!)).toBe('settled'); // 몰수
+  });
+
+  /** RISKS R-5 — 예전엔 기한 + 유예까지(최대 7일) 고객 BTC가 묶였다 */
+  it('인보이스 등록 마감 — 에스크로 뒤 INVOICE_WINDOW_SEC 안에 안 내면 기한이 멀어도 닫힌다', async () => {
+    const h = await warmHarness();
+    setDeposits(h, 0, 3);
+    const orderId = await openOrder(h, { deadlineIn: 3 * DAY });
+    await claim(h, orderId);
+    payDepositOf(h, 'sponsor');
+    await h.run();
+    await payEscrow(h, orderId);
+    const o = h.order(orderId)!;
+    expect(o.state).toBe('escrowed');
+    expect(o.invoice_deadline).toBeGreaterThan(h.sec());
+    expect(o.invoice_deadline).toBeLessThanOrEqual(h.sec() + INVOICE_WINDOW_SEC);
+    expect(Number(tagOf(latestOrderEvent(h.relay.published, orderId), 'invoice-deadline'))).toBe(o.invoice_deadline);
+
+    h.advance(INVOICE_WINDOW_SEC - 120);
+    await h.run();
+    expect(h.order(orderId)!.state).toBe('escrowed');
+
+    h.advance(240);
+    await h.run(6);
+    const closed = h.order(orderId)!;
+    expect(closed.state).toBe('expired');
+    expect(closed.close_reason).toBe('expired:no-invoice');
+    expect(h.node.stateOf(o.escrow_hash!)).toBe('cancelled'); // 고객 환불 — 바로
+    expect(h.node.stateOf(o.sponsor_deposit_hash!)).toBe('settled'); // 몰수
+  });
+
+  it('마감 안에 인보이스를 내면 그대로 이어진다', async () => {
+    const h = await warmHarness();
+    const orderId = await openOrder(h, { deadlineIn: 3 * DAY });
+    await claim(h, orderId);
+    await payEscrow(h, orderId);
+    h.advance(INVOICE_WINDOW_SEC - 600);
+    await submitInvoice(h, orderId);
+    expect(h.order(orderId)!.state).toBe('invoiced');
+    h.advance(1200);
+    await h.run(4);
+    expect(h.order(orderId)!.state).toBe('invoiced'); // invoiced는 인보이스 마감과 무관하다
   });
 
   it('계좌까지 나간 뒤(invoiced) 기한 → expired:no-remit, 양쪽 다 돌려준다', async () => {

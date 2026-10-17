@@ -29,14 +29,14 @@ describe('오더 코덱 왕복', () => {
       orderId: 'o1', state: 'paid', customerPubkey: 'c'.repeat(64), sponsorPubkey: 's'.repeat(64),
       price: 50_000, deadline: NOW + DAY, bolt11: 'lnbc1escrow', payoutSat: 33_333, sponsorInvoice: 'lnbc1pay',
       disbursed: true, depositPaymentHash: 'd'.repeat(64), sponsorDepositPaymentHash: 'e'.repeat(64),
-      closeReason: 'paid',
+      closeReason: 'paid', invoiceDeadline: NOW + 6 * 3600,
     }, 'sajwo-tracker', NOW + 7 * DAY);
     const order = parseLnOrderEvent(sign(tags), APP)!;
     expect(order).toMatchObject({
       orderId: 'o1', state: 'paid', customerPubkey: 'c'.repeat(64), sponsorPubkey: 's'.repeat(64),
       price: 50_000, expiration: NOW + DAY, retainUntil: NOW + 7 * DAY, bolt11: 'lnbc1escrow', payoutSat: 33_333,
       sponsorInvoice: 'lnbc1pay', disbursed: true, depositPaymentHash: 'd'.repeat(64),
-      sponsorDepositPaymentHash: 'e'.repeat(64), closeReason: 'paid',
+      sponsorDepositPaymentHash: 'e'.repeat(64), closeReason: 'paid', invoiceDeadline: NOW + 6 * 3600,
     });
   });
 

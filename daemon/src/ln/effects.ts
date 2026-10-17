@@ -202,6 +202,7 @@ export function buildOrderEvent(ctx: LnContext, order: LnOrderRow, createdAt: nu
     ...(order.sponsor_deposit_hash ? { sponsorDepositPaymentHash: order.sponsor_deposit_hash } : {}),
     ...(sponsorDepositPending(ctx, order) ? { sponsorDepositPending: true } : {}),
     ...(order.close_reason ? { closeReason: order.close_reason } : {}),
+    ...(order.invoice_deadline ? { invoiceDeadline: order.invoice_deadline } : {}),
   }, ctx.tags.ln, lnRetention(order.state, order.deadline, createdAt), ctx.appUrl);
   return finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
 }
@@ -257,6 +258,7 @@ export function buildLnDetail(ctx: LnContext, order: LnOrderRow, blockHeight?: n
     ...(order.close_reason ? { closeReason: order.close_reason } : {}),
     ...(order.claimed_at ? { claimedAt: order.claimed_at } : {}),
     ...(order.account_sent_at ? { accountSentAt: order.account_sent_at } : {}),
+    ...(order.invoice_deadline ? { invoiceDeadline: order.invoice_deadline } : {}),
     ...(order.account_commitment ? { accountCommitment: order.account_commitment } : {}),
     ...(order.remitted_at ? { remittedAt: order.remitted_at } : {}),
     createdAt: order.created_at,

@@ -30,6 +30,7 @@
  * 잠금화면에 그대로 뜰 수도 있다. 그래서 금액·계좌·상대 신원은 넣지 않고
  * "무슨 일이 생겼고 어디로 가면 되는지"만 알린다.
  */
+import { durationText } from '@sajwo-tracker/shared/core';
 
 /**
  * 앱 탭. **두 트랙이 같은 탭 구조를 공유한다** — 온체인과 라이트닝은 동등한
@@ -107,8 +108,8 @@ export const NOTIFY = {
   sponsorShouldPayDeposit: (): Notice =>
     ({ body: '보증금을 결제하면 의뢰가 확정됩니다. 제한 시간 안에 결제해 주세요.', tab: 'fulfill' }),
 
-  sponsorShouldRegisterInvoice: (): Notice =>
-    ({ body: '고객이 결제를 마쳤습니다. BTC 받을 인보이스를 등록해 주세요.', tab: 'fulfill' }),
+  sponsorShouldRegisterInvoice: (withinSec: number): Notice =>
+    ({ body: `고객이 결제를 마쳤습니다. ${durationText(withinSec)} 안에 BTC 받을 인보이스를 등록해 주세요.`, tab: 'fulfill' }),
 
   /** 후원자 인보이스가 확인됐다. 이제 고객이 계좌를 보낼 수 있다. */
   customerShouldSendAccount: (): Notice =>

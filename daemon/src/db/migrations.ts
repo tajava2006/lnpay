@@ -169,4 +169,11 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX oc_candidates_order ON oc_candidates (order_id);
     `,
   },
+  {
+    version: 5,
+    sql: `
+      -- 후원자 인보이스 등록 마감 — escrowed로 바뀔 때 데몬이 찍는다(INVOICE_WINDOW_SEC). 그 전 행은 NULL
+      ALTER TABLE ln_orders ADD COLUMN invoice_deadline INTEGER;
+    `,
+  },
 ];

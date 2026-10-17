@@ -12,7 +12,7 @@
  * 보든 같은 입력이면 같은 카드다.
  */
 import {
-  canSendAccountInfo, isTerminalState, lnOrderDisplay, summarizeProgress,
+  canSendAccountInfo, isTerminalState, lnOrderDisplay, remainingText, summarizeProgress,
   type AccountInfo, type Order, type OrderState, type StateDisplay,
 } from '@sajwo-tracker/shared';
 import type { CustomerOrder } from '../buyer/types';
@@ -140,6 +140,10 @@ export function lnCardView(input: LnCardInput): LnCardView {
     if (local?.depositBolt11 && local.depositStatus) notes.push(`보증금: ${DEPOSIT_STATUS_TEXT[local.depositStatus]}`);
   }
 
+  if (role === 'customer' && state === 'escrowed' && order?.invoiceDeadline) {
+    notes.push(`후원자 인보이스 마감: ${remainingText(order.invoiceDeadline - now, '지남')} — 넘기면 거래가 닫히고 에스크로가 돌아옵니다.`);
+  }
+
   if (role === 'sponsor') {
     const dep = input.sponsorDeposit;
     if (state === 'claimed' && !order?.sponsorDepositPaymentHash) {
@@ -155,6 +159,9 @@ export function lnCardView(input: LnCardInput): LnCardView {
       || ((state === 'paid' || state === 'sponsor_wins') && !order?.disbursed)
     );
     if (state === 'escrowed' || resubmit) actions.push({ kind: 'register-invoice', notice: rejected });
+    if (state === 'escrowed' && order?.invoiceDeadline) {
+      notes.push(`인보이스 등록 마감: ${remainingText(order.invoiceDeadline - now, '지남')} — 넘기면 거래가 닫힙니다(보증금이 있으면 몰수).`);
+    }
 
     if (state === 'invoiced') {
       if (input.receivedAccount) actions.push({ kind: 'remit', account: input.receivedAccount });

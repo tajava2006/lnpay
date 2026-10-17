@@ -25,7 +25,7 @@ import {
 import {
   CUSTOMER_DEPOSIT_MARGIN_SEC, CUSTOMER_DEPOSIT_PAY_SEC, DEADLINE_GRACE_SEC, ESCROW_HOLD_MARGIN_SEC,
   MIN_CLAIM_LEAD_SEC, MIN_ESCROW_PAY_WINDOW_SEC, SPONSOR_DEPOSIT_MARGIN_SEC, SPONSOR_DEPOSIT_PAY_SEC,
-  cltvBlocksFor, escrowPayBy,
+  cltvBlocksFor, escrowPayBy, invoiceDeadlineFor,
 } from './timing';
 
 export const LN_CLOSE_EFFECT = 'ln.close';
@@ -328,7 +328,9 @@ function onEscrowAccepted(ctx: LnContext, inv: HoldRow): void {
   if (order.pending_close || isTerminalState(order.state)) return; // 닫는 효과가 처리한다
   if (order.state !== 'verified') return;
 
-  const escrowed = updateOrder(ctx, order.order_id, { state: 'escrowed' });
+  const escrowed = updateOrder(ctx, order.order_id, {
+    state: 'escrowed', invoice_deadline: invoiceDeadlineFor(nowSec(ctx), order.deadline),
+  });
   notifyLnTransition(ctx, escrowed);
 }
 

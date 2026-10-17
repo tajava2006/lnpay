@@ -156,3 +156,19 @@ describe('오더가 되기 전 (내 기기에만 있는 의뢰)', () => {
     expect(late.side.delete).toBe(true);
   });
 });
+
+/** RISKS R-5 — 에스크로 뒤 후원자 인보이스 마감. 양쪽이 같은 시각을 본다 */
+describe('인보이스 등록 마감', () => {
+  it('후원자에게는 남은 시간과 결과를, 고객에게는 기다리는 시간을', () => {
+    const o = order('escrowed', { invoiceDeadline: NOW + 2 * 3600 });
+    const sponsor = lnCardView({ orderId: 'x', order: { ...o, customerPubkey: OTHER, sponsorPubkey: ME }, local: null, myPubkey: ME, now: NOW });
+    expect(sponsor.notes.some(n => n.startsWith('인보이스 등록 마감: 2시간 0분 남음'))).toBe(true);
+    const customer = view({ order: o });
+    expect(customer.notes.some(n => n.startsWith('후원자 인보이스 마감: 2시간 0분 남음'))).toBe(true);
+  });
+
+  it('마감이 없는 옛 오더나 다른 상태에서는 말하지 않는다', () => {
+    expect(view({ order: order('escrowed') }).notes.some(n => n.includes('마감'))).toBe(false);
+    expect(view({ order: order('invoiced', { invoiceDeadline: NOW + 60 }) }).notes.some(n => n.includes('인보이스 마감'))).toBe(false);
+  });
+});

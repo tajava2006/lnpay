@@ -31,6 +31,8 @@ export interface LnOrderRow {
   account_sent_at: number | null;
   account_commitment: string | null;
   remitted_at: number | null;
+  /** 후원자 인보이스 등록 마감 (unix초) — `escrowed` 진입 때 찍는다. 넘기면 `expired:no-invoice` */
+  invoice_deadline: number | null;
   created_at: number;
   updated_at: number;
   version: number;

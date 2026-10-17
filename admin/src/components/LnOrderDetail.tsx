@@ -92,6 +92,9 @@ function Summary({ order, detail }: { order: Order | undefined; detail: AdminLnO
           {detail.payoutError && <span style={ui.warnText}> · 오류: {detail.payoutError}</span>}
         </dd>
         {detail.escrowSettled && !detail.disbursed && <><dt>에스크로</dt><dd style={ui.warnText}>이미 받음(선제 정산) — 판정이 필요합니다</dd></>}
+        {detail.state === 'escrowed' && detail.invoiceDeadline && (
+          <><dt>인보이스 마감</dt><dd>{dateTimeText(detail.invoiceDeadline)} — 넘기면 `expired:no-invoice`로 닫힌다</dd></>
+        )}
         <dt>계좌 전달</dt>
         <dd>{detail.accountSentAt ? `${dateTimeText(detail.accountSentAt)} · 커밋먼트 ${detail.accountCommitment?.slice(0, 12)}…` : '—'}</dd>
         {detail.remittedAt && <><dt>송금 완료</dt><dd>{dateTimeText(detail.remittedAt)}</dd></>}

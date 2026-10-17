@@ -131,6 +131,7 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 
 ```
 의뢰 ─(고객 보증금 ≤1h)─ 오더 ─ 클레임 ─(후원자 보증금 15m)─ 승인 ─(에스크로 결제 ≤24h, 기한 30분 전까지)─ escrowed
+     escrowed ─(인보이스 마감 6h, 기한 + 1h를 넘지 않게)─ 못 내면 expired:no-invoice
      … invoiced … remitted ─────────────────────────── 기한 ─(유예 1h)─ 기한 만료로 닫힘(remitted 제외)
 에스크로 HTLC:   승인 ────────────────────── max(결제 기한, 기한 + 1h) + 48h
 보증금 HTLC:     요청·클레임 ─────────────── 기한 + 1h + 48h + 24h
@@ -158,6 +159,7 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 | `ESCROW_END_BLOCKS` | 72 | `escrowed`·`invoiced`인데 에스크로가 이만큼 안 남으면 기한 만료 사유로 닫는다 |
 | `SAFETY_SETTLE_BLOCKS` | 36 | `remitted`인데 이만큼 안 남으면 **먼저 settle**한다(비대칭 손실 원칙) |
 | `REMITTED_ALERT_SEC` | 12시간 | `remitted`가 확인 없이 이만큼 머물면 운영자를 부른다 |
+| `INVOICE_WINDOW_SEC` | 6시간 | 에스크로 뒤 후원자 인보이스 등록 마감. 마감 = min(에스크로 + 6h, 기한 + 유예) — 데몬이 `escrowed` 때 오더에 찍는다(`invoice-deadline` 태그). 넘기면 `expired:no-invoice`(부등식 ④-3). 예전엔 기한 + 유예까지라 트롤이 고객 BTC를 최대 7일 묶었다(RISKS R-5) |
 | `LND_DOWN_ALERT_SEC` | 10분 | LND가 이만큼 응답하지 않으면 운영자를 부른다 — 선제 settle 창(노드 자동 취소 전 ~4시간)의 4분의 1 안(부등식 ④-2) |
 | `PAY_BY_SKEW_SEC` | 60초 | 결제 기한 판정 여유(노드·데몬 시계 차) |
 | `CATCHUP_WARMUP_SEC` | 2분 | 재시작 직후엔 기한 만료로 닫지 않는다 — 꺼져 있던 동안 쌓인 요청을 먼저 받는다 |

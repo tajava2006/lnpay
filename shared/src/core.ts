@@ -39,4 +39,5 @@ export { extractOrderId, orderRef } from './order-ref';
 export { orderLink } from './nip69';
 
 export { createPriceTracker, freshPrice } from './price';
+export { durationText } from './time';
 export type { PriceTracker, PriceSnapshot } from './price';

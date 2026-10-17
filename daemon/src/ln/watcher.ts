@@ -152,11 +152,13 @@ export class LnWatcher {
     }
   }
 
-  /** 기한 만료로 닫는 시각 — 원화가 오갈 수 있는 상태만 유예를 준다 */
+  /**
+   * 닫는 시각 — 원화가 오갈 수 있는 상태만 기한 뒤 유예를 준다. `escrowed`는 후원자 인보이스 마감이 먼저 온다
+   * (`invoice_deadline`, 그 전 행은 없어서 기한 + 유예).
+   */
   private closeAt(order: LnOrderRow): number {
-    return order.state === 'escrowed' || order.state === 'invoiced'
-      ? order.deadline + DEADLINE_GRACE_SEC
-      : order.deadline;
+    if (order.state === 'escrowed') return order.invoice_deadline ?? order.deadline + DEADLINE_GRACE_SEC;
+    return order.state === 'invoiced' ? order.deadline + DEADLINE_GRACE_SEC : order.deadline;
   }
 
   private escrowEnding(order: LnOrderRow, height: number | undefined, blocks: number): boolean {

@@ -210,7 +210,7 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
 ## 12. 단계 (커밋 단위 · 순서대로 · 각 단계 끝에 `pnpm verify` + 영향받는 빌드)
 
 - [x] **P0 플랜 문서** — 이 문서를 `docs/PLAN-DESIGNATED-TRADE.md`로 커밋, `CLAUDE.md` 문서 표에 한 줄.
-- [ ] **P1 라이트닝 인보이스 마감(§5.1)** — 독립·작음. 테스트(`daemon/src/__tests__/ln-expiry.test.ts`): 에스크로 6h 뒤 미등록 →
+- [x] **P1 라이트닝 인보이스 마감(§5.1)** — 독립·작음. 테스트(`daemon/src/__tests__/ln-expiry.test.ts`): 에스크로 6h 뒤 미등록 →
   `expired:no-invoice`(에스크로 cancel·후원자 보증금 forfeit), 기한이 더 이르면 기한 + 유예, 태그 왕복, 카운트다운 표시.
 - [ ] **P2 shared 프로토콜(§4·§7)** — `designated.ts`, 태그·가드·action, `PROTOCOL_VERSION=2`. 테스트(`shared/src/__tests__/designated.test.ts`):
   봉인·개봉 왕복, APP 아닌 발행자·망가진 내용·남의 키 거절, 지정이면 NIP-69 태그 없음, `checkCode`·`parsePubkeyInput`, 저장소 모양 확인 통과.

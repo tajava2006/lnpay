@@ -33,7 +33,7 @@ export function notifyLnTransition(ctx: LnContext, order: LnOrderRow): void {
       break;
     // 후원자 차례 — 받을 인보이스. 여기서 고객에게 "계좌를 보내라"고 하면 할 수 없는 일을 시키는 것이다
     case 'escrowed':
-      toSponsor(NOTIFY.sponsorShouldRegisterInvoice());
+      toSponsor(NOTIFY.sponsorShouldRegisterInvoice(Math.max(0, (order.invoice_deadline ?? 0) - nowSec(ctx))));
       break;
     // 고객 차례 — 계좌를 보내야 후원자가 송금할 수 있다
     case 'invoiced':

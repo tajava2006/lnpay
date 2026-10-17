@@ -18,6 +18,8 @@ interface Row {
   amount: string;
   updatedAt: number;
   done: boolean;
+  /** 지정 거래 — 보증금 없이 고객이 고른 상대와(docs/PLAN-DESIGNATED-TRADE.md) */
+  designated: boolean;
 }
 
 export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void }) {
@@ -28,6 +30,7 @@ export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void 
     return {
       orderId: o.orderId, label: d.label, color: d.color, bg: d.bg,
       amount: `${o.price.toLocaleString()}원`, updatedAt: o.updatedAt, done: isTerminalState(o.state),
+      designated: Boolean(o.designatedSponsor),
     };
   });
   return <Table title="라이트닝 오더" rows={rows} onSelect={onSelect} empty={empty} />;
@@ -41,6 +44,7 @@ export function OnchainOrderList({ onSelect }: { onSelect: (orderId: string) => 
     return {
       orderId: o.orderId, label: d.label, color: d.color, bg: d.bg,
       amount: `${o.amountSat.toLocaleString()} sats`, updatedAt: o.updatedAt, done: isOnchainTerminal(o.state),
+      designated: Boolean(o.designatedSponsor),
     };
   });
   return <Table title="온체인 오더" rows={rows} onSelect={onSelect} empty={empty} />;
@@ -78,7 +82,10 @@ function Table({ title, rows, onSelect, note, empty }: {
                   onClick={onSelect ? () => onSelect(r.orderId) : undefined}
                 >
                   <td style={{ ...styles.td, ...styles.mono }}>{r.orderId}</td>
-                  <td style={styles.td}><span style={{ ...styles.badge, color: r.color, background: r.bg }}>{r.label}</span></td>
+                  <td style={styles.td}>
+                    <span style={{ ...styles.badge, color: r.color, background: r.bg }}>{r.label}</span>
+                    {r.designated && <span style={styles.designated}>지정</span>}
+                  </td>
                   <td style={styles.td}>{r.amount}</td>
                   <td style={styles.td}>{dateTimeText(r.updatedAt)}</td>
                 </tr>
@@ -100,6 +107,10 @@ const styles = {
   td: { fontSize: 13, color: '#111827', padding: '10px', borderBottom: '1px solid #F3F4F6' },
   mono: { fontFamily: 'monospace', fontSize: 12 },
   badge: { padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 600 as const },
+  designated: {
+    marginLeft: 6, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600 as const,
+    color: '#6D28D9', background: '#F5F3FF',
+  },
   doneRow: { opacity: 0.55 },
   clickable: { cursor: 'pointer' },
 };

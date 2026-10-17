@@ -235,7 +235,10 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
   **플랜과 다른 점 둘:** ① `ParsedOrdersSection`(유저스크립트 파싱 주문)에는 토글을 안 넣었다 — 지정 의뢰를 손으로 만든 뒤 파싱 주문이
   잡히면 기존 "같은 금액 의뢰에 연결" 제안이 그대로 붙는다(쿠팡 가상계좌는 하루면 죽어서 원래도 이 순서가 맞다). ② `QrScanner`는
   안 고쳤다 — `nostr:` 접두사는 `parsePubkeyInput`이 벗긴다.)
-- [ ] **P6 어드민(§9)** — 피드 스냅샷·배지·0% 경고(`format.test.ts`).
+- [x] **P6 어드민(§9)** — 피드 스냅샷·배지·0% 경고(`format.test.ts`).
+  (구현 메모: `daemon/feed.ts` `onDesignatedEvent` — 오더 구독과 같은 epoch로 열고 닫는다, 벙커 `nip44Decrypt` →
+  `designatedOrderFromPlaintext` → `onOrderEvent`. 경고는 `format.ts` `depositWarnings` — 후원자 0%(찜 트롤)·고객 0%(스팸)를 따로,
+  `ProtocolBanner`가 프로토콜 경고와 같이 띄운다.)
 - [ ] **P7 문서(§10)** — 트랙 문서·PROTOCOL·RISKS·드릴 런북.
 - [ ] **P8 실검증·배포** — §13.
 

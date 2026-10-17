@@ -6,6 +6,10 @@
  * | `MESSAGE_KIND` · `#p`=운영자 · `#t`=어드민 | 명령 결과, 분쟁 채팅 사본 |
  * | `ADMIN_STATE_KIND` · APP · `#p`=운영자 · `#t`=어드민 | 데몬 상태(하트비트·설정·경보), 오더별 상세 |
  * | `ORDER_KIND` · APP · `#t`=라이트닝/온체인 · `since`=데몬 epoch | 공개 오더 (보기 전용) |
+ * | `DESIGNATED_ORDER_KIND` · APP · `#p`=운영자 · `#t`=라이트닝/온체인 · `since`=epoch | 지정 거래 스냅샷 — 열면 공개 오더와 같은 모양 |
+ *
+ * 지정 거래(docs/PLAN-DESIGNATED-TRADE.md)는 공개 오더로 안 나간다 — 데몬이 운영자에게도 암호문 스냅샷을 보낸다.
+ * 이 구독이 없으면 목록에서 통째로 빠진다. 벙커로 열어 **가짜 오더 이벤트**로 바꾼 뒤 공개 오더와 같은 처리기로 넘긴다.
  *
  * **APP이 서명한 것만** 믿는다 — 운영자 앞으로 온 결과를 아무나 흉내 낼 수 있다.
  * 복호화는 NIP-46 벙커를 거친다(운영자 키).
@@ -16,9 +20,9 @@
  */
 import type { Event } from 'nostr-tools/core';
 import {
-  ADMIN_ACTIONS, ADMIN_STATE_KIND, APP_PUBKEY, CLIENT_TAG, CLIENT_TAG_ADMIN, CLIENT_TAG_ONCHAIN,
+  ADMIN_ACTIONS, ADMIN_STATE_KIND, APP_PUBKEY, CLIENT_TAG, CLIENT_TAG_ADMIN, CLIENT_TAG_ONCHAIN, DESIGNATED_ORDER_KIND,
   MESSAGE_KIND, ORDER_KIND, adminOrderDTagPrefix, adminStateDTag, createSubscriptionGuard,
-  createSubscriptionPool, getReadRelays, storage,
+  createSubscriptionPool, designatedOrderFromPlaintext, getReadRelays, storage,
   type AdminChatCopy, type AdminCommandResult, type AdminLnOrderDetail, type AdminOcOrderDetail, type AdminState, nowSec,
 } from '@sajwo-tracker/shared';
 import { parseOnchainOrder } from '@sajwo-tracker/shared/onchain';
@@ -58,18 +62,29 @@ export function startDaemonFeed(operatorPubkey: string): Promise<void> {
       },
     );
     let orders: { close(): void } | null = null;
+    let designated: { close(): void } | null = null;
     let ordersSince: number | null = null;
     const syncOrders = () => {
       const epoch = daemonEpoch();
       if (epoch === ordersSince) return;
       orders?.close();
+      designated?.close();
       orders = null;
+      designated = null;
       ordersSince = epoch;
       if (epoch === null) return;
       orders = pool.subscribeMany(
         relays,
         { kinds: [ORDER_KIND], authors: [APP_PUBKEY], '#t': [CLIENT_TAG, CLIENT_TAG_ONCHAIN], since: epoch },
         { onevent: onOrderEvent },
+      );
+      designated = pool.subscribeMany(
+        relays,
+        {
+          kinds: [DESIGNATED_ORDER_KIND], authors: [APP_PUBKEY], '#p': [operatorPubkey],
+          '#t': [CLIENT_TAG, CLIENT_TAG_ONCHAIN], since: epoch,
+        },
+        { onevent: (event: Event) => void onDesignatedEvent(event) },
       );
     };
     // 상태가 올 때마다(하트비트 1분) 캐시를 치우고 epoch에 맞춰 구독을 맞춘다
@@ -85,6 +100,7 @@ export function startDaemonFeed(operatorPubkey: string): Promise<void> {
       inbox.close();
       state.close();
       orders?.close();
+      designated?.close();
       pool.destroy();
     };
   });
@@ -171,6 +187,20 @@ async function onOcDetailEvent(event: Event): Promise<void> {
     });
   } catch (e) {
     console.warn('[데몬피드] 온체인 상세를 못 열었다', e);
+  }
+}
+
+/** 지정 거래 스냅샷 — 벙커로 열어 공개 오더와 같은 처리기로 */
+async function onDesignatedEvent(event: Event): Promise<void> {
+  if (event.pubkey !== APP_PUBKEY) return;
+  const signer = getSigner();
+  if (!signer) return;
+  try {
+    const opened = designatedOrderFromPlaintext(event, await signer.nip44Decrypt(APP_PUBKEY, event.content));
+    if (opened) onOrderEvent(opened);
+    else console.warn('[데몬피드] 지정 거래 스냅샷 모양이 아니다', event.id.slice(0, 8));
+  } catch (e) {
+    console.warn('[데몬피드] 지정 거래 스냅샷을 못 열었다', e);
   }
 }
 

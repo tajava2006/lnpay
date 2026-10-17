@@ -64,6 +64,9 @@ export function OnchainOrderDetail({ orderId, onBack }: { orderId: string; onBac
           {order.reserveKrw && <><dt>최저가</dt><dd>{order.reserveKrw.toLocaleString()}원</dd></>}
           <dt>고객</dt><dd style={styles.mono}>{shortNpub(order.customerPubkey)}</dd>
           <dt>후원자</dt><dd style={styles.mono}>{shortNpub(order.sponsorPubkey)}</dd>
+          {order.designatedSponsor && (
+            <><dt>지정 거래</dt><dd><span style={styles.mono}>{shortNpub(order.designatedSponsor)}</span> 만 맡을 수 있음 · 보증금 없음(O-015 없음)</dd></>
+          )}
           {deadline && <><dt>{deadline.label}</dt><dd>{dateTimeText(deadline.at)}{deadline.penalty ? <span style={ui.note}> · {deadline.penalty}</span> : null}</dd></>}
           {order.escrowAddress && <><dt>에스크로</dt><dd style={styles.mono}><Explore href={explorerAddressUrl(order.network, order.escrowAddress)} text={order.escrowAddress} /></dd></>}
           {order.fundingOutpoint && <><dt>펀딩</dt><dd style={styles.mono}><Explore href={explorerTxUrl(order.network, order.fundingOutpoint)} text={order.fundingOutpoint} /> ({order.fundingConfs}컨펌)</dd></>}

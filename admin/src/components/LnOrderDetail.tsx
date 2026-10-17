@@ -83,6 +83,9 @@ function Summary({ order, detail }: { order: Order | undefined; detail: AdminLnO
       <dt>쿠팡 기한</dt><dd>{dateTimeText(deadline)}</dd>
       <dt>고객</dt><dd style={styles.mono}>{shortNpub(detail?.customer ?? order?.customerPubkey)}</dd>
       <dt>후원자</dt><dd style={styles.mono}>{shortNpub(detail?.sponsor ?? order?.sponsorPubkey)}</dd>
+      {(detail?.designatedSponsor ?? order?.designatedSponsor) && (
+        <><dt>지정 거래</dt><dd><span style={styles.mono}>{shortNpub(detail?.designatedSponsor ?? order?.designatedSponsor)}</span> 만 맡을 수 있음 · 보증금 없음</dd></>
+      )}
       {detail && <>
         <dt>버전</dt><dd>{detail.version} <span style={ui.note}>· 갱신 {dateTimeText(detail.updatedAt)}</span></dd>
         {detail.closeReason && <><dt>종결 사유</dt><dd>{reasonLabel(detail.closeReason)}</dd></>}

@@ -33,11 +33,10 @@ afterEach(() => {
   host.remove();
 });
 
-/** React가 알아듣게 값을 넣는다 (네이티브 setter + input 이벤트) */
+/** React가 알아듣게 값을 넣는다 — 프로토타입의 네이티브 setter를 `this = input`으로 부르고 input 이벤트 */
 function type(input: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
   act(() => {
-    setter.call(input, value);
+    Reflect.set(HTMLInputElement.prototype, 'value', value, input);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }

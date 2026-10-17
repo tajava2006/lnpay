@@ -212,7 +212,7 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
 - [x] **P0 플랜 문서** — 이 문서를 `docs/PLAN-DESIGNATED-TRADE.md`로 커밋, `CLAUDE.md` 문서 표에 한 줄.
 - [x] **P1 라이트닝 인보이스 마감(§5.1)** — 독립·작음. 테스트(`daemon/src/__tests__/ln-expiry.test.ts`): 에스크로 6h 뒤 미등록 →
   `expired:no-invoice`(에스크로 cancel·후원자 보증금 forfeit), 기한이 더 이르면 기한 + 유예, 태그 왕복, 카운트다운 표시.
-- [ ] **P2 shared 프로토콜(§4·§7)** — `designated.ts`, 태그·가드·action, `PROTOCOL_VERSION=2`. 테스트(`shared/src/__tests__/designated.test.ts`):
+- [x] **P2 shared 프로토콜(§4·§7)** — `designated.ts`, 태그·가드·action, `PROTOCOL_VERSION=2`. 테스트(`shared/src/__tests__/designated.test.ts`):
   봉인·개봉 왕복, APP 아닌 발행자·망가진 내용·남의 키 거절, 지정이면 NIP-69 태그 없음, `checkCode`·`parsePubkeyInput`, 저장소 모양 확인 통과.
 - [ ] **P3 데몬 라이트닝 지정(§5)** — 테스트(`ln-designated.test.ts`, `createLnHarness` 사용): 보증금 % 와 무관하게 초안 없이 바로 오더,
   지정 외 클레임 무시, 지정 클레임 → `autoApprove` 꺼져 있어도 승인·보증금 없음, **공개 `ORDER_KIND`가 하나도 안 나간다**,

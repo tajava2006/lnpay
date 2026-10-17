@@ -30,8 +30,9 @@ export const MESSAGE_KIND = 3838;
  * ⚠️ kind를 바꾸는 변경은 옛 앱이 새 이벤트를 **아예 못 보므로** 여기서 못 잡는다 — 그건 배포 순서로 맞춘다.
  *
  * 1 = 2026-09-26 kind 전환(38383·3838·33838) 이후.
+ * 2 = 2026-10-17 지정 거래(스냅샷 kind 33839 · 지정 의뢰 action 2개 · `designated-sponsor`·`invoice-deadline` 태그).
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** 이벤트에 실린 프로토콜 버전. 없거나 못 읽으면 null(버전을 싣기 전 데몬) */
 export function protocolOf(tags: readonly string[][]): number | null {
@@ -108,6 +109,11 @@ export const NOSTR_SINCE: number | undefined =
 /** 요청·통지 이벤트(`MESSAGE_KIND`)의 action 태그 값 */
 export const REQUEST_ACTIONS = {
   ORDER_REQUEST: 'order-request',
+  /**
+   * 고객 → APP: 지정 거래 의뢰(라이트닝). 금액·기한·지정 후원자는 **암호문**이다(`LnDesignatedOrderPayload`) —
+   * 지정 거래는 지정된 사람 말고는 볼 수 없어야 한다(docs/PLAN-DESIGNATED-TRADE.md)
+   */
+  DESIGNATED_ORDER_REQUEST: 'designated-order-request',
   CLAIM: 'claim',
   PAYMENT_CONFIRM: 'payment-confirm',
   CANCEL_REQUEST: 'cancel-request',
@@ -133,6 +139,8 @@ export const REQUEST_ACTIONS = {
   // 라이트닝과 같은 kind·같은 배관을 쓰고 action 값만 다르다.
   /** 고객 → Admin: 온체인 의뢰 등록 */
   ONCHAIN_ORDER_REQUEST: 'onchain-order-request',
+  /** 고객 → APP: 온체인 지정 거래 의뢰. 내용 전부 암호문(`OnchainDesignatedOrderPayload`) */
+  ONCHAIN_DESIGNATED_ORDER_REQUEST: 'onchain-designated-order-request',
   /** 후원자 → Admin: 클레임 (받을 주소·feerate는 암호문) */
   ONCHAIN_CLAIM: 'onchain-claim',
   /** 후원자 → Admin: 사전서명된 릴리스 PSBT (암호문) */

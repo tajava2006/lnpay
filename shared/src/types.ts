@@ -34,6 +34,8 @@ export interface Order {
   payoutSat?: number;
   /** 후원자 인보이스 등록 마감 (unix초, `escrowed`부터). 넘기면 거래가 닫힌다 */
   invoiceDeadline?: number;
+  /** 지정 거래의 후원자 — 이 사람만 맡을 수 있고, 보증금이 없다 */
+  designatedSponsor?: string;
   /** 검증을 통과한 후원자 인보이스 (invoiced 이후 존재). 지급 대상 */
   sponsorInvoice?: string;
   /** Sponsor에게 BTC 송금 완료 여부 */

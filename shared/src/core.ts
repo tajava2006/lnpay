@@ -36,6 +36,11 @@ export type {
 } from './admin-protocol';
 export type { DisputeMessagePayload, AccountInfo } from './types';
 export { extractOrderId, orderRef } from './order-ref';
+export {
+  DESIGNATED_ORDER_KIND, designatedOrderD, designatedOrderFromPlaintext, designatedOrderTemplate,
+  isLnDesignatedOrderPayload, isOnchainDesignatedOrderPayload, isPubkeyHex,
+} from './designated';
+export type { LnDesignatedOrderPayload, OnchainDesignatedOrderPayload } from './designated';
 export { orderLink } from './nip69';
 
 export { createPriceTracker, freshPrice } from './price';

@@ -7,6 +7,7 @@ export const styles = {
   chevron: { color: '#9CA3AF', fontSize: 18, lineHeight: 1 },
   badge: { fontSize: 12, fontWeight: 600 as const, padding: '3px 8px', borderRadius: 6 },
   role: { fontSize: 11, color: '#6B7280', background: '#F3F4F6', padding: '2px 6px', borderRadius: 4 },
+  designated: { fontSize: 11, fontWeight: 600 as const, color: '#6D28D9', background: '#F5F3FF', padding: '2px 6px', borderRadius: 4 },
   amount: { marginLeft: 'auto', fontSize: 16, color: '#111827' },
   price: { margin: 0, fontSize: 14, color: '#374151' },
   sub: { color: '#6B7280', fontSize: 13 },

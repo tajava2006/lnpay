@@ -113,7 +113,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
       case 'publish':
         return (
           <button className="btn btn-publish" disabled={busy !== null} onClick={() => void publish()}>
-            {busy === 'publish' ? '올리는 중...' : '오더북에 올리기'}
+            {busy === 'publish' ? '보내는 중...' : action.designated ? '지정한 상대에게 보내기' : '오더북에 올리기'}
           </button>
         );
       case 'pay':
@@ -168,7 +168,14 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
           ? <span style={styles.turnMine}>지금 내 차례</span>
           : view.waitingFor && !view.terminal && <span style={styles.turnOther}>{view.waitingFor} 차례</span>}
         {roleLabel && <span style={styles.role}>{roleLabel}</span>}
+        {view.designated && <span style={styles.designated}>지정 거래</span>}
       </div>
+
+      {view.designated?.counterpartyCode && (
+        <p style={styles.note}>
+          {view.role === 'sponsor' ? '고객' : '상대'} 확인 코드 <b>{view.designated.counterpartyCode}</b> · 보증금 없음
+        </p>
+      )}
 
       {/* 얼마에 거래했는지 — 금액만으로는 단가가 안 보인다(2026-09-25). 승인 때 시세로 정한 지급액이 기준이다 */}
       {order?.payoutSat && view.price > 0 && (
@@ -273,6 +280,7 @@ const styles = {
     fontSize: 11, fontWeight: 600 as const, color: '#6B7280', background: '#F3F4F6', borderRadius: 999, padding: '2px 8px',
   },
   role: { fontSize: 11, fontWeight: 600 as const, color: '#4338CA', background: '#EEF2FF', borderRadius: 6, padding: '2px 8px' },
+  designated: { fontSize: 11, fontWeight: 600 as const, color: '#6D28D9', background: '#F5F3FF', borderRadius: 6, padding: '2px 8px' },
   localInfo: { display: 'flex', flexWrap: 'wrap' as const, gap: 8, fontSize: 12, color: '#6B7280' },
   note: { margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.5 },
   actions: { display: 'flex', flexDirection: 'column' as const, gap: 8 },

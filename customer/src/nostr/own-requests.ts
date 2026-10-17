@@ -8,6 +8,7 @@
  * | 요청 | 되살리는 것 |
  * |---|---|
  * | `order-request` | 고객 의뢰 기록 — 이게 있어야 계좌 전달 버튼이 열린다 |
+ * | `designated-order-request` | 같은 기록 + 지정 상대 (조건이 APP에게 암호화돼 있다) |
  * | `account-info` | 보낸 계좌 — 두 번 보내지 않게 |
  *
  * **이미 있는 기록은 덮지 않는다.** 원래 기기에서는 로컬이 진실이고, 여기는 비어 있을 때만 채운다.
@@ -15,8 +16,10 @@
  */
 import type { Event } from 'nostr-tools/core';
 import {
-  APP_PUBKEY, REQUEST_ACTIONS, extractOrderId, nip44Decrypt, parseAccountInfoEnvelope, type AccountInfo,
+  APP_PUBKEY, REQUEST_ACTIONS, extractOrderId, isLnDesignatedOrderPayload, nip44Decrypt, parseAccountInfoEnvelope,
+  type AccountInfo,
 } from '@sajwo-tracker/shared';
+import type { CustomerOrder } from '../buyer/types';
 import { addOrder, getSnapshot as getLocalOrders, setAccountInfo } from '../buyer/order-store';
 import { handleAdminOrder } from '../buyer/nostr/service';
 import { getSnapshot as getPublicOrders } from '../sponsor/order-store';
@@ -35,6 +38,9 @@ export function handleOwnLnRequest(event: Event, sk: Uint8Array, myPubkey: strin
     case REQUEST_ACTIONS.ORDER_REQUEST:
       restoreOrderRequest(event, orderId, myPubkey);
       return;
+    case REQUEST_ACTIONS.DESIGNATED_ORDER_REQUEST:
+      restoreDesignatedOrderRequest(event, orderId, sk, myPubkey);
+      return;
     case REQUEST_ACTIONS.ACCOUNT_INFO:
       restoreSentAccount(event, orderId, sk);
       return;
@@ -47,8 +53,28 @@ function restoreOrderRequest(event: Event, orderId: string, myPubkey: string): v
   // `expiration`은 보존이다 — 기한으로 읽지 않는다(DM-009, 데몬과 같다)
   const deadline = Number(tag(event, 'deadline'));
   if (!Number.isInteger(price) || price <= 0 || !Number.isInteger(deadline)) return;
+  restore({ orderId, price, memo: '', createdAt: event.created_at, expiration: deadline, raw: JSON.stringify(event) }, myPubkey);
+}
 
-  addOrder({ orderId, price, memo: '', createdAt: event.created_at, expiration: deadline, raw: JSON.stringify(event) });
+/** 지정 거래 의뢰 — 조건이 APP에게 암호화돼 있다. 보낸 사람(나)도 같은 대화 키로 푼다 */
+function restoreDesignatedOrderRequest(event: Event, orderId: string, sk: Uint8Array, myPubkey: string): void {
+  if (getLocalOrders()[orderId]) return;
+  let payload: unknown;
+  try {
+    payload = JSON.parse(nip44Decrypt(event.content, sk, APP_PUBKEY));
+  } catch {
+    return;
+  }
+  if (!isLnDesignatedOrderPayload(payload)) return;
+  restore({
+    orderId, price: payload.price, memo: '', createdAt: event.created_at, expiration: payload.deadline,
+    raw: JSON.stringify(event), designatedSponsor: payload.designatedSponsor,
+  }, myPubkey);
+}
+
+function restore(order: CustomerOrder, myPubkey: string): void {
+  const { orderId } = order;
+  addOrder(order);
 
   // 공개 오더가 먼저 와 있었으면 그 상태를 지금 입힌다 — 기다리면 다음 발행까지 상태가 빈다
   const published = getPublicOrders()[orderId];

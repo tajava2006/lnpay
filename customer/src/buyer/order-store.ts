@@ -29,6 +29,7 @@ const store = createStore<OrderMap>({}, {
     expiration: isNum,
     adminState: optional(oneOf(Object.values(ORDER_STATES))),
     raw: optional(isStr),
+    designatedSponsor: optional(isStr),
     fixedAccountInfo: optional(isAccountInfo),
     accountInfo: optional(isAccountInfo),
   })),

@@ -4,6 +4,7 @@
  * 카드(`components/OnchainOrderCard.tsx`)는 이걸 그리기만 한다. 판단을 여기 모아 표로 테스트한다 — 이 트랙에선
  * 버튼 하나가 엉뚱한 때 열리는 게 곧 돈 문제다(늦은 계좌·늦은 송금은 어드민도 안 받아 원화만 헛되이 나간다).
  */
+import { checkCode } from '@sajwo-tracker/shared';
 import {
   accountDeadlineOf, canActOnSignRequest, isPast, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
@@ -29,6 +30,8 @@ export interface OnchainCardView {
   account: 'form' | 'late' | null;
   /** 후원자: 원화 송금 */
   remit: boolean;
+  /** 지정 거래면 상대의 확인 코드 — 고객에겐 지정 후원자의, 후원자에겐 고객의(보증금 없음). 공개 거래는 null */
+  designated: { counterpartyCode: string } | null;
 }
 
 /** `now`는 초 */
@@ -49,5 +52,8 @@ export function onchainCardView(
     presignStatus: sponsor && state === 'funded' && !order.settlementKind,
     account: owesAccount ? (isPast(accountDeadlineOf(order), now) ? 'late' : 'form') : null,
     remit: sponsor && state === 'presigned',
+    designated: order.designatedSponsor
+      ? { counterpartyCode: checkCode(customer ? order.designatedSponsor : order.customerPubkey) }
+      : null,
   };
 }

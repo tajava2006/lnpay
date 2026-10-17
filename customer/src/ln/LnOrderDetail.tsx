@@ -15,6 +15,7 @@ import {
 } from '@sajwo-tracker/shared';
 import { isClaimableLn } from '@sajwo-tracker/shared/ln';
 import { prepareDisputeMessage } from '../nostr/dispute-message';
+import { DesignatedOfferCard } from '../sponsor/components/DesignatedOfferCard';
 import { OrderCard } from '../sponsor/components/OrderCard';
 import { ui } from '../ui';
 import { LnOrderCard } from './LnOrderCard';
@@ -64,6 +65,9 @@ export function LnOrderDetail({ orderId, onBack, tracker }: Props) {
 
       {order && relation === 'open' && !isClaimableLn(order, now) ? (
         <p style={ui.empty}>기한이 얼마 안 남아 지금은 맡을 수 없는 의뢰입니다.</p>
+      ) : order && relation === 'open' && order.designatedSponsor ? (
+        // 나를 지정한 거래 — 알림을 누르면 여기로 온다. 공개 클레임 카드가 아니라 확인 코드·고지를 거치는 수락 카드
+        <DesignatedOfferCard order={order} now={now} />
       ) : order && (relation === 'open' || relation === 'taken') ? (
         <OrderCard order={order} now={now} myPubkey={myPubkey} />
       ) : (

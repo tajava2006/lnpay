@@ -41,6 +41,12 @@ export interface CustomerOrder {
   /** 파싱 시 확정된 계좌정보 (parsed 전용, 발송 전 보관) */
   fixedAccountInfo?: AccountInfo;
 
+  /**
+   * 지정 거래의 상대(후원자) pubkey — 있으면 공개 의뢰가 아니라 **지정 거래**로 보낸다(보증금 없음, 그 사람만 맡는다).
+   * docs/PLAN-DESIGNATED-TRADE.md
+   */
+  designatedSponsor?: string;
+
   // ── Nostr 발행 상태 ──
 
   /** 발행된 order-request 서명 이벤트 JSON. 없으면 미발행. */

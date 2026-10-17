@@ -12,7 +12,7 @@ import type { EventTemplate } from 'nostr-tools/core';
 import {
   APP_PUBKEY, CLIENT_TAG_ONCHAIN, REQUEST_ACTIONS, MESSAGE_KIND, ORDER_KIND,
   computeAccountCommitment, generateCommitmentSalt, getReadRelays, getSecretKey, nip44Encrypt, storage,
-  type AccountInfo, nowSec,
+  type AccountInfo, type OnchainDesignatedOrderPayload, nowSec,
 } from '@sajwo-tracker/shared';
 import { onchainMessageExpiration, type SignPurpose } from '@sajwo-tracker/shared/onchain';
 
@@ -90,6 +90,33 @@ export async function publishOnchainOrderRequest(params: {
     tags,
     content: await encryptToAdmin({ refundAddress: params.refundAddress.trim() }),
   });
+}
+
+/**
+ * 고객: 지정 거래 의뢰 (docs/PLAN-DESIGNATED-TRADE.md) — 보증금 없이 바로 의뢰가 생기고 지정한 상대만 맡는다.
+ *
+ * 공개 의뢰의 태그(수량·키·최저가)도 **암호문 안으로** 들어간다 — 바깥에는 "누가 언제 지정 요청을 보냈다"만 보인다.
+ * `expiration`은 공개 의뢰처럼 의뢰 만료다.
+ */
+export async function publishOnchainDesignatedOrderRequest(params: {
+  orderId: string;
+  amountSat: number;
+  reserveKrw?: number;
+  customerXonly: string;
+  expiration: number;
+  refundAddress: string;
+  designatedSponsor: string;
+}): Promise<PublishResult> {
+  const tags = baseTags(params.orderId, REQUEST_ACTIONS.ONCHAIN_DESIGNATED_ORDER_REQUEST)
+    .map(t => (t[0] === 'expiration' ? ['expiration', String(params.expiration)] : t));
+  const payload: OnchainDesignatedOrderPayload = {
+    amountSat: params.amountSat,
+    customerXonly: params.customerXonly,
+    ...(params.reserveKrw !== undefined ? { reserveKrw: params.reserveKrw } : {}),
+    refundAddress: params.refundAddress.trim(),
+    designatedSponsor: params.designatedSponsor,
+  };
+  return publish({ kind: MESSAGE_KIND, created_at: nowSec(), tags, content: await encryptToAdmin(payload) });
 }
 
 /**

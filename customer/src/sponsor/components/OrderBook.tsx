@@ -4,6 +4,9 @@ import { isTerminalState, sponsorRelation, useNow, type Order, type PriceTracker
 import { isClaimableLn } from '@sajwo-tracker/shared/ln';
 import { useMyPubkey } from '../../hooks';
 import { LnOrderCard } from '../../ln/LnOrderCard';
+import { DesignatedHeader } from '../../designated/components';
+import { designatedLnOffers, isOnLnBook } from '../../designated/view';
+import { DesignatedOfferCard } from './DesignatedOfferCard';
 import { OrderCard } from './OrderCard';
 
 interface Props {
@@ -11,7 +14,29 @@ interface Props {
   onSelectOrder: (orderId: string) => void;
 }
 
+/** 사주기 탭 — 지정 거래(머리 · 나를 지정한 거래) 아래 공개 오더북 */
 export function OrderBook({ tracker, onSelectOrder }: Props) {
+  const orders = useSyncExternalStore(subscribe, getSnapshot);
+  const myPubkey = useMyPubkey();
+  const now = useNow();
+  const offers = designatedLnOffers(Object.values(orders), myPubkey, now);
+  return (
+    <div>
+      <DesignatedHeader track="ln" />
+      {offers.length > 0 && (
+        <>
+          <h2 className="section-title">나를 지정한 거래</h2>
+          <div style={{ ...styles.list, marginBottom: 24 }}>
+            {offers.map(o => <DesignatedOfferCard key={o.orderId} order={o} now={now} />)}
+          </div>
+        </>
+      )}
+      <PublicBook tracker={tracker} onSelectOrder={onSelectOrder} />
+    </div>
+  );
+}
+
+function PublicBook({ tracker, onSelectOrder }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
   const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
 
@@ -25,7 +50,10 @@ export function OrderBook({ tracker, onSelectOrder }: Props) {
   // 의뢰(requested)는 **클레임할 틈이 있는 것만** — 기한 1시간 안쪽은 데몬이 클레임을 받지 않는다.
   // 진행 중인 내 거래는 기한이 지나도 남긴다 — 기한 직후의 송금 완료·판정이 제일 중요한 순간이다
   // 남의 진행 중 거래는 기한까지만.
+  //
+  // 지정 거래는 오더북이 아니다 — 내가 맡은 건 "내가 사주는 중", 나를 지정한 건 위 칸, 내가 지정한 건 의뢰하기 탭
   const activeOrders = Object.values(orders)
+    .filter((o: Order) => sponsorRelation(o, myPubkey) === 'mine' || isOnLnBook(o))
     .filter((o: Order) => {
       if (isTerminalState(o.state)) return false;
       if (o.state === 'requested') return isClaimableLn(o, now);

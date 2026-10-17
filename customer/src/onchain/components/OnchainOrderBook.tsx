@@ -8,14 +8,20 @@
  * "먼저 낸 쪽"이라고 쓰지 않는 이유: 어드민은 30초마다 인보이스 상태를 훑고,
  * 한 틱 안에 둘 다 결제돼 있으면 **발행 순서**로 갈린다. 초 단위 순서를
  * 약속할 수 없으니 약속하지 않는다. 진 쪽은 취소되어 아무것도 잃지 않는다.
+ *
+ * **지정 거래**(docs/PLAN-DESIGNATED-TRADE.md)는 오더북이 아니라 맨 위 "나를 지정한 거래"에 뜬다. 같은 카드·같은
+ * 클레임 폼을 쓰되 보증금이 없다 — 고객 확인 코드 대조와 위험 고지를 체크하고 수락하면 바로 내가 맡는다.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { InvoicePayBlock, freshPrice, guarded, type PriceTracker } from '@sajwo-tracker/shared';
+import { InvoicePayBlock, checkCode, freshPrice, guarded, type PriceTracker } from '@sajwo-tracker/shared';
 import {
   FUNDING_WINDOW_SEC, MempoolChainAdapter, PRESIGN_WINDOW_SEC, RESERVE_MIN_GAP_PERCENT, TYPICAL_SETTLEMENT_VSIZE,
   addressProblem, durationText, releaseFeerateProblem, type FeeEstimates, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
-import { getOnchainOrdersSnapshot, listedOrders, subscribeOnchainOrders } from '../store';
+import { designatedToMe, getOnchainOrdersSnapshot, listedOrders, subscribeOnchainOrders } from '../store';
+import {
+  DesignatedConsent, DesignatedHeader, NO_CONSENT, consentGiven, type Consent,
+} from '../../designated/components';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices, type DepositInvoice } from '../deposit-store';
 import { myOrderXonly } from '../keys';
 import { forgetMyClaim, getMyClaim, pendingClaim, rememberMyClaim, type MyClaim } from '../claim-store';
@@ -46,17 +52,32 @@ export function OnchainOrderBook({ myPubkey, tracker }: Props) {
   const price = useBookPrice(tracker);
   const invoices = useSyncExternalStore(subscribeDepositInvoices, getDepositInvoicesSnapshot);
   const orders = myPubkey ? listedOrders(myPubkey) : [];
+  const offers = myPubkey ? designatedToMe(myPubkey) : [];
 
   if (!myPubkey) return <p style={ui.empty}>키를 준비하는 중…</p>;
-  if (orders.length === 0) {
-    return <p style={ui.empty}>지금은 올라온 의뢰가 없습니다.</p>;
-  }
 
   return (
-    <div style={styles.list}>
-      {orders.map(order => (
-        <OnchainBookCard key={order.orderId} order={order} invoice={invoices[order.orderId]} price={price} />
-      ))}
+    <div>
+      <DesignatedHeader track="onchain" />
+      {offers.length > 0 && (
+        <>
+          <h2 className="section-title">나를 지정한 거래</h2>
+          <div style={{ ...styles.list, marginBottom: 24 }}>
+            {offers.map(order => (
+              <OnchainBookCard key={order.orderId} order={order} invoice={invoices[order.orderId]} price={price} />
+            ))}
+          </div>
+        </>
+      )}
+      {orders.length === 0 ? (
+        <p style={ui.empty}>지금은 올라온 의뢰가 없습니다.</p>
+      ) : (
+        <div style={styles.list}>
+          {orders.map(order => (
+            <OnchainBookCard key={order.orderId} order={order} invoice={invoices[order.orderId]} price={price} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -70,11 +91,16 @@ function OnchainBookCardBody({ order, invoice, price }: {
   order: OnchainOrder; invoice: DepositInvoice | undefined; price: number | null;
 }) {
   return (
-    <div style={styles.card}>
+    <div style={order.designatedSponsor ? { ...styles.card, ...styles.cardDesignated } : styles.card}>
       <div style={styles.row}>
         <strong style={styles.amount}>{order.amountSat.toLocaleString()} sats</strong>
-        <span style={styles.network}>{order.network}</span>
+        <span style={styles.network}>{order.designatedSponsor ? '지정 거래 · ' : ''}{order.network}</span>
       </div>
+      {order.designatedSponsor && (
+        <p style={styles.hint}>
+          고객이 나를 상대로 지정한 의뢰입니다. 수락하면 보증금 없이 바로 내가 맡습니다.
+        </p>
+      )}
       {order.reserveKrw !== undefined && <ReserveLine order={order} price={price} />}
 
       {invoice && !invoice.done ? (
@@ -124,6 +150,9 @@ const SLOW_MS = 45_000;
 
 function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositInvoice | undefined }) {
   const orderId = order.orderId;
+  // 지정 거래 — 보증금 인보이스가 없다. 답은 오더가 `bonded`로 바뀌는 것(이 카드가 내 거래로 옮겨 간다)
+  const designated = Boolean(order.designatedSponsor);
+  const [consent, setConsent] = useState<Consent>(NO_CONSENT);
   const notice = useSyncExternalStore(subscribeNotices, getNoticesSnapshot)[orderId];
   const pending = pendingClaim(orderId, invoice?.receivedAt, notice?.receivedAt);
   const [, rerender] = useState(0);
@@ -179,7 +208,9 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
     const slow = Date.now() - (pending.requestedAt ?? 0) > SLOW_MS;
     return (
       <div style={styles.waiting}>
-        <p style={styles.waitingLine}><span className="spinner" /> 보증금 인보이스를 받는 중…</p>
+        <p style={styles.waitingLine}>
+          <span className="spinner" /> {designated ? '수락을 확인하는 중…' : '보증금 인보이스를 받는 중…'}
+        </p>
         {slow && (
           <>
             <p style={styles.hint}>응답이 늦습니다. 이 화면을 열어 두면 도착하는 대로 뜹니다.</p>
@@ -194,7 +225,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
 
   if (!open && !rejected) {
     return (
-      <button style={styles.claim} onClick={() => setOpen(true)}>사줄게</button>
+      <button style={styles.claim} onClick={() => setOpen(true)}>{designated ? '수락하기' : '사줄게'}</button>
     );
   }
 
@@ -202,6 +233,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
     e.preventDefault();
     setError(null);
     const rate = Number(feerate);
+    if (designated && !consentGiven(consent)) return setError('고객 확인 코드 대조와 위험 고지를 체크해 주세요.');
     const addrProblem = addressProblem(address, order.network);
     if (addrProblem) return setError(addrProblem);
     if (!Number.isFinite(rate) || rate <= 0) return setError('수수료율을 숫자로 입력하세요.');
@@ -229,7 +261,12 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
   return (
     <form onSubmit={e => void submit(e)} style={styles.form}>
       {rejected && notice && (
-        <p style={styles.error}>보증금 인보이스를 받지 못했습니다 — {notice.reason}</p>
+        <p style={styles.error}>{designated ? '수락하지 못했습니다' : '보증금 인보이스를 받지 못했습니다'} — {notice.reason}</p>
+      )}
+      {designated && (
+        <DesignatedConsent
+          track="onchain" code={checkCode(order.customerPubkey)} who="고객" value={consent} onChange={setConsent}
+        />
       )}
       <label style={styles.label}>
         비트코인 받을 주소
@@ -257,13 +294,14 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
       </label>
 
       <div style={styles.warn}>
-        결제하면 <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 상대방이 입금을 컨펌시키고, 그 뒤
-        <strong> {durationText(PRESIGN_WINDOW_SEC)} 안에 앱이 서명</strong>합니다. 앱을 열어둘 수 있을 때 결제하세요.
+        {designated ? '수락하면' : '결제하면'} <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 상대방이 입금을
+        컨펌시키고, 그 뒤 <strong> {durationText(PRESIGN_WINDOW_SEC)} 안에 앱이 서명</strong>합니다. 앱을 열어둘 수 있을 때
+        {designated ? ' 수락하세요.' : ' 결제하세요.'}
       </div>
 
       {error && <p style={styles.error}>{error}</p>}
-      <button type="submit" style={styles.claim} disabled={busy}>
-        {busy ? '보내는 중…' : '보증금 인보이스 받기'}
+      <button type="submit" style={styles.claim} disabled={busy || (designated && !consentGiven(consent))}>
+        {busy ? '보내는 중…' : designated ? '수락' : '보증금 인보이스 받기'}
       </button>
     </form>
   );
@@ -278,6 +316,7 @@ const styles = {
   },
   list: { display: 'flex', flexDirection: 'column' as const, gap: 12 },
   card: { border: '1px solid #E5E7EB', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 10 },
+  cardDesignated: { borderColor: '#DDD6FE', background: '#FDFCFF' },
   row: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   amount: { fontSize: 18, color: '#111827' },
   network: { fontSize: 11, color: '#6B7280', background: '#F3F4F6', padding: '2px 8px', borderRadius: 4 },

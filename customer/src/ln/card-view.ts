@@ -12,7 +12,7 @@
  * 보든 같은 입력이면 같은 카드다.
  */
 import {
-  canSendAccountInfo, isTerminalState, lnOrderDisplay, remainingText, summarizeProgress,
+  canSendAccountInfo, checkCode, isTerminalState, lnOrderDisplay, remainingText, summarizeProgress,
   type AccountInfo, type Order, type OrderState, type StateDisplay,
 } from '@sajwo-tracker/shared';
 import type { CustomerOrder } from '../buyer/types';
@@ -41,7 +41,8 @@ export interface LnCardInput {
 export type PayPurpose = 'customer-deposit' | 'escrow' | 'sponsor-deposit';
 
 export type LnAction =
-  | { kind: 'publish' }
+  /** `designated`면 공개 오더북이 아니라 지정한 상대에게 간다 — 버튼 말이 다르다 */
+  | { kind: 'publish'; designated: boolean }
   | { kind: 'pay'; purpose: PayPurpose; bolt11: string }
   | { kind: 'send-account' }
   | { kind: 'confirm-paid' }
@@ -81,6 +82,19 @@ export interface LnCardView {
   notes: string[];
   /** 진행도 문맥 — 상세의 사다리가 같은 값으로 그린다 */
   progress: { accountInfoSent: boolean; sponsorDepositPending: boolean };
+  /**
+   * 지정 거래면 상대의 확인 코드 — 고객에겐 지정 후원자의, 후원자에겐 고객의(docs/PLAN-DESIGNATED-TRADE.md).
+   * 공개 거래는 null
+   */
+  designated: { counterpartyCode: string } | null;
+}
+
+/** 지정 거래면 상대 확인 코드. 내 역할을 모르면(풀린 클레임 등) 지정 사실만 */
+function designatedOf(order: Order | null, local: CustomerOrder | null, role: LnRole | null): LnCardView['designated'] {
+  const sponsor = order?.designatedSponsor ?? local?.designatedSponsor;
+  if (!sponsor) return null;
+  const counterparty = role === 'sponsor' ? order?.customerPubkey : sponsor;
+  return { counterpartyCode: counterparty ? checkCode(counterparty) : '' };
 }
 
 const ACTOR_LABEL: Record<string, string> = { customer: '고객', sponsor: '후원자', admin: '에스크로' };
@@ -184,6 +198,7 @@ export function lnCardView(input: LnCardInput): LnCardView {
     ...(order?.closeReason ?? local?.closeReason ? { closeReason: order?.closeReason ?? local?.closeReason } : {}),
     disbursed: !!order?.disbursed,
     actions, side, notes, progress,
+    designated: designatedOf(order, local, role),
   };
 }
 
@@ -194,6 +209,7 @@ function draftView(input: LnCardInput): LnCardView {
     role: 'customer' as const, draft: true, state: null, terminal: false,
     price: local?.price ?? 0, deadline: local?.expiration ?? 0, disbursed: false,
     progress: { accountInfoSent: false, sponsorDepositPending: false },
+    designated: designatedOf(null, local, 'customer'),
   };
   if (!local) {
     return {
@@ -207,7 +223,7 @@ function draftView(input: LnCardInput): LnCardView {
   if (!local.raw) {
     return {
       ...base, badge: DRAFT_BADGE.unpublished, title: '의뢰 올리기 전', isMyTurn: !expired, waitingFor: null,
-      actions: expired ? [] : [{ kind: 'publish' }], side,
+      actions: expired ? [] : [{ kind: 'publish', designated: !!local.designatedSponsor }], side,
       notes: expired ? ['기한이 지나 올릴 수 없습니다.'] : [],
     };
   }

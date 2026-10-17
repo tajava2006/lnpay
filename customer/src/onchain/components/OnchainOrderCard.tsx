@@ -82,9 +82,16 @@ function OnchainOrderCardBody({ order, role, myPubkey, invoiceBolt11, signReques
           {badge.label}
         </span>
         <span style={styles.role}>{role === 'customer' ? '판매' : '구매'}</span>
+        {view.designated && <span style={styles.designated}>지정 거래</span>}
         <strong style={styles.amount}>{order.amountSat.toLocaleString()} sats</strong>
         {onSelect && <span style={styles.chevron}>›</span>}
       </div>
+
+      {view.designated && (
+        <p style={{ ...styles.meta, margin: 0 }}>
+          {role === 'customer' ? '상대' : '고객'} 확인 코드 <b>{view.designated.counterpartyCode}</b> · 보증금 없음
+        </p>
+      )}
 
       {order.priceKrw !== undefined && (
         <p style={styles.price}>

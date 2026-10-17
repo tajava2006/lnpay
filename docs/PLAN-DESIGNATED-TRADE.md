@@ -225,8 +225,16 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
   (구현 메모: `listOc`·`bondOc`(bonds.ts)가 공개·지정 공통 몸통, `bond?` 없으면 지정. 공개 의뢰 검사는 `orderGate`·`orderTermsProblem`
   (handlers.ts)으로 뽑아 순서 그대로 공유. 지정 클레임은 주소·수수료율 검사 뒤 바로 `bondOc`. 최소액 `designatedMinTradeSat`(deposit.ts).
   알림 `ONCHAIN_TIMER_NOTICES.designatedArrived` → `notifyOcDesignatedArrived`, 키 `oc:<id>:designated`. `OcPatch`는 `designatedSponsor`를 못 바꾼다.)
-- [ ] **P5 유저 앱(§8)** — 구독·발행·되살리기·저장소·화면. 테스트(`customer/src/tests/designated.test.ts`): 스냅샷 → 저장소(LN·온체인),
+- [x] **P5 유저 앱(§8)** — 구독·발행·되살리기·저장소·화면. 테스트(`customer/src/tests/designated.test.ts`): 스냅샷 → 저장소(LN·온체인),
   오더북에서 빠지고 "나를 지정한 거래"에만, 되살리기(새 action), card-view 플래그, `CounterpartyInput` 자기 주소 거절.
+  (구현 메모: 공용 부품은 `customer/src/designated/` — `view.ts`(순수 판단: `readCounterparty`·`designatedLnOffers`·`isOnLnBook`),
+  `components.tsx`(`DesignatedHeader`·`MyAddressPanel`·`TradeModeToggle`·`CounterpartyInput`·`DesignatedConsent`). 구독은
+  `nostr/subscribe.ts` `subscribeDesignatedOrders`를 두 트랙이 `t`만 바꿔 쓴다. LN 수락 카드 `sponsor/components/DesignatedOfferCard.tsx`
+  (상세 화면에서도), 온체인은 `OnchainBookCard`/`ClaimForm`이 `order.designatedSponsor`로 갈린다. LN 발행은 `publishOrderRequest`가
+  `designatedSponsor`를 보고 고른다.
+  **플랜과 다른 점 둘:** ① `ParsedOrdersSection`(유저스크립트 파싱 주문)에는 토글을 안 넣었다 — 지정 의뢰를 손으로 만든 뒤 파싱 주문이
+  잡히면 기존 "같은 금액 의뢰에 연결" 제안이 그대로 붙는다(쿠팡 가상계좌는 하루면 죽어서 원래도 이 순서가 맞다). ② `QrScanner`는
+  안 고쳤다 — `nostr:` 접두사는 `parsePubkeyInput`이 벗긴다.)
 - [ ] **P6 어드민(§9)** — 피드 스냅샷·배지·0% 경고(`format.test.ts`).
 - [ ] **P7 문서(§10)** — 트랙 문서·PROTOCOL·RISKS·드릴 런북.
 - [ ] **P8 실검증·배포** — §13.

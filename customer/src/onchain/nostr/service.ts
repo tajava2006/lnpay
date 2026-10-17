@@ -33,6 +33,7 @@ import { forgetPendingRequest, getPendingRequestsSnapshot, markRequestRejected }
 import { putOnchainAccount } from '../account-store';
 import { putNotice } from '../notice-store';
 import { handleOwnOnchainRequest } from './own-requests';
+import { subscribeDesignatedOrders } from '../../nostr/subscribe';
 
 const guard = createSubscriptionGuard('온체인구독');
 
@@ -93,12 +94,17 @@ export function startOnchainSubscriptions(): Promise<void> {
       { onevent: (event: Event) => handleOwnOnchainRequest(event, sk, myPubkey) },
     );
 
+    // 지정 거래 — 열면 공개 오더와 같은 이벤트라 같은 처리기로 간다(docs/PLAN-DESIGNATED-TRADE.md)
+    const stopDesignated = subscribeDesignatedOrders(relays, myPubkey, sk, CLIENT_TAG_ONCHAIN,
+      event => void handleOrderEvent(event, myPubkey));
+
     console.log('[온체인] 구독 시작 —', relays.length, '릴레이');
 
     return () => {
       orderSub.close();
       inboxSub.close();
       ownSub.close();
+      stopDesignated();
       pool.destroy();
       console.log('[온체인] 구독 종료');
     };

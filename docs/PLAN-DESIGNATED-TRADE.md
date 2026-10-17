@@ -242,7 +242,14 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
 - [x] **P7 문서(§10)** — 트랙 문서·PROTOCOL·RISKS·드릴 런북.
   (구현 메모: LN-TRACK §7 · ONCHAIN-TRACK §10 · PROTOCOL §2 "지정 거래 스냅샷" · RISKS R-16 · ARCHITECTURE §2·§3·§4 ·
   드릴 런북 ⑥. **코드 주석의 참조도 이미 트랙 문서로 바꿨다** — 이 문서를 지울 때 고칠 곳은 `CLAUDE.md` 문서 표 한 줄뿐.)
-- [ ] **P8 실검증·배포** — §13.
+- [ ] **P8 실검증·배포** — §13. **여기부터는 운영 PC·브라우저가 필요하다**(개발 맥은 docker를 안 띄운다).
+  현재(2026-10-17): 코드 P0~P7 + 렌더 테스트까지 브랜치 `feat/designated-trade`에 푸시, `pnpm verify`·빌드 4종 통과(CI는 푸시로 돈다).
+  순서: ① 운영 PC에서 lnpay 클론을 이 브랜치로 → signet 데몬만 다시 빌드·기동 → `ONCHAIN-SIGNET-DRILL.md` ⑥(LN 지갑 없이) ·
+  ② 라이트닝 mainnet 소액 드릴 — 운영 데몬을 이 브랜치로 재빌드하는 순간 배포된 앱(프로토콜 1)은 새로고침 배너·어드민 경고가 뜬다
+  (공개 거래는 그대로 된다). 드릴은 `pnpm preview:customer` 두 브라우저 + 제3 브라우저(안 보이는지) · ③ 통과하면 master 머지 →
+  §14 배포(데몬 재빌드 + `pnpm ship` 같이) → 운영 설정에서 라이트닝 공개 보증금 켜기 · ④ 이 문서와 `CLAUDE.md` 문서 표 한 줄 삭제.
+  되돌리기: 마이그레이션 v5·v6은 칼럼 추가뿐이라 옛 이미지로 내려도 돈다(새 칼럼을 안 읽을 뿐 — 진행 중 지정 거래는 공개 거래처럼
+  보증금 판단을 받게 되니 그런 거래가 없을 때 내린다).
 
 ## 13. 검증
 1. 자동: `pnpm verify`(타입·린트·테스트), `pnpm build:customer · build:admin · build:daemon · build:userscript`, CI(도커 이미지 포함).

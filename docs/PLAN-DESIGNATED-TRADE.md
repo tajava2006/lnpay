@@ -243,7 +243,7 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
   (구현 메모: LN-TRACK §7 · ONCHAIN-TRACK §10 · PROTOCOL §2 "지정 거래 스냅샷" · RISKS R-16 · ARCHITECTURE §2·§3·§4 ·
   드릴 런북 ⑥. **코드 주석의 참조도 이미 트랙 문서로 바꿨다** — 이 문서를 지울 때 고칠 곳은 `CLAUDE.md` 문서 표 한 줄뿐.)
 - [ ] **P8 실검증·배포** — §13. **여기부터는 운영 PC·브라우저가 필요하다**(개발 맥은 docker를 안 띄운다).
-  현재(2026-10-17): 코드 P0~P7 + 렌더 테스트까지 브랜치 `feat/designated-trade`에 푸시, `pnpm verify`·빌드 4종 통과(CI는 푸시로 돈다).
+  현재(2026-10-17): 코드 P0~P7 + 렌더 테스트까지 브랜치 `feat/designated-trade`에 푸시, `pnpm verify`·빌드 4종 통과. CI(도커 이미지 포함)는 master 푸시·PR에서만 돈다 — 브랜치 푸시로는 안 돌았다. 머지 전에 PR을 열면 돈다.
   순서: ① 운영 PC에서 lnpay 클론을 이 브랜치로 → signet 데몬만 다시 빌드·기동 → `ONCHAIN-SIGNET-DRILL.md` ⑥(LN 지갑 없이) ·
   ② 라이트닝 mainnet 소액 드릴 — 운영 데몬을 이 브랜치로 재빌드하는 순간 배포된 앱(프로토콜 1)은 새로고침 배너·어드민 경고가 뜬다
   (공개 거래는 그대로 된다). 드릴은 `pnpm preview:customer` 두 브라우저 + 제3 브라우저(안 보이는지) · ③ 통과하면 master 머지 →

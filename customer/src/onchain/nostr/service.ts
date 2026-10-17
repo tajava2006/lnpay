@@ -94,7 +94,7 @@ export function startOnchainSubscriptions(): Promise<void> {
       { onevent: (event: Event) => handleOwnOnchainRequest(event, sk, myPubkey) },
     );
 
-    // 지정 거래 — 열면 공개 오더와 같은 이벤트라 같은 처리기로 간다(docs/PLAN-DESIGNATED-TRADE.md)
+    // 지정 거래 — 열면 공개 오더와 같은 이벤트라 같은 처리기로 간다(docs/ONCHAIN-TRACK.md §10)
     const stopDesignated = subscribeDesignatedOrders(relays, myPubkey, sk, CLIENT_TAG_ONCHAIN,
       event => void handleOrderEvent(event, myPubkey));
 

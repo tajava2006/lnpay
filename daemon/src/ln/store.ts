@@ -33,7 +33,7 @@ export interface LnOrderRow {
   remitted_at: number | null;
   /** 후원자 인보이스 등록 마감 (unix초) — `escrowed` 진입 때 찍는다. 넘기면 `expired:no-invoice` */
   invoice_deadline: number | null;
-  /** 지정 거래의 후원자 — 이 pubkey만 맡을 수 있고 보증금이 없다(docs/PLAN-DESIGNATED-TRADE.md). 공개 거래는 null */
+  /** 지정 거래의 후원자 — 이 pubkey만 맡을 수 있고 보증금이 없다(docs/LN-TRACK.md §7). 공개 거래는 null */
   designated_sponsor: string | null;
   created_at: number;
   updated_at: number;

@@ -93,7 +93,7 @@ export async function publishOnchainOrderRequest(params: {
 }
 
 /**
- * 고객: 지정 거래 의뢰 (docs/PLAN-DESIGNATED-TRADE.md) — 보증금 없이 바로 의뢰가 생기고 지정한 상대만 맡는다.
+ * 고객: 지정 거래 의뢰 (docs/ONCHAIN-TRACK.md §10) — 보증금 없이 바로 의뢰가 생기고 지정한 상대만 맡는다.
  *
  * 공개 의뢰의 태그(수량·키·최저가)도 **암호문 안으로** 들어간다 — 바깥에는 "누가 언제 지정 요청을 보냈다"만 보인다.
  * `expiration`은 공개 의뢰처럼 의뢰 만료다.

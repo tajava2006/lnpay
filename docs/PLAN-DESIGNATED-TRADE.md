@@ -239,7 +239,9 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
   (구현 메모: `daemon/feed.ts` `onDesignatedEvent` — 오더 구독과 같은 epoch로 열고 닫는다, 벙커 `nip44Decrypt` →
   `designatedOrderFromPlaintext` → `onOrderEvent`. 경고는 `format.ts` `depositWarnings` — 후원자 0%(찜 트롤)·고객 0%(스팸)를 따로,
   `ProtocolBanner`가 프로토콜 경고와 같이 띄운다.)
-- [ ] **P7 문서(§10)** — 트랙 문서·PROTOCOL·RISKS·드릴 런북.
+- [x] **P7 문서(§10)** — 트랙 문서·PROTOCOL·RISKS·드릴 런북.
+  (구현 메모: LN-TRACK §7 · ONCHAIN-TRACK §10 · PROTOCOL §2 "지정 거래 스냅샷" · RISKS R-16 · ARCHITECTURE §2·§3·§4 ·
+  드릴 런북 ⑥. **코드 주석의 참조도 이미 트랙 문서로 바꿨다** — 이 문서를 지울 때 고칠 곳은 `CLAUDE.md` 문서 표 한 줄뿐.)
 - [ ] **P8 실검증·배포** — §13.
 
 ## 13. 검증

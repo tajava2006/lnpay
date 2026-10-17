@@ -1,5 +1,5 @@
 /**
- * 지정 거래 — 상대(후원자)를 pubkey로 묶은, 보증금 없는 1:1 거래 (docs/PLAN-DESIGNATED-TRADE.md)
+ * 지정 거래 — 상대(후원자)를 pubkey로 묶은, 보증금 없는 1:1 거래 (docs/PROTOCOL.md §2)
  *
  * ── 왜
  *

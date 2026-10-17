@@ -10,7 +10,7 @@
  * | `ln.order.publish` · `ln.detail` | 발행하는 순간의 DB로 만든다(주소형 이벤트라 최신 한 장만 남는다) |
  *
  * 지정 거래는 공개 오더 대신 **수신자별 암호문 스냅샷**(`DESIGNATED_ORDER_KIND`)으로 낸다 — 고객 · 지정 후원자 · 운영자에게만
- * 보인다(docs/PLAN-DESIGNATED-TRADE.md). 이것도 주소형이라 다시 내면 같은 자리를 덮는다.
+ * 보인다(docs/LN-TRACK.md §7). 이것도 주소형이라 다시 내면 같은 자리를 덮는다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import type { Event } from 'nostr-tools/core';

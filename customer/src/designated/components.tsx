@@ -1,5 +1,5 @@
 /**
- * 지정 거래 화면 부품 — 두 트랙이 같이 쓴다 (docs/PLAN-DESIGNATED-TRADE.md §8)
+ * 지정 거래 화면 부품 — 두 트랙이 같이 쓴다 (docs/LN-TRACK.md §7 · ONCHAIN-TRACK.md §10)
  *
  * - `DesignatedHeader` — 사주기 탭 맨 위. 지정 거래가 뭔지 한 줄 + [내 주소 보기]
  * - `MyAddressPanel` — 내 주소(npub) · QR · 확인 코드. **공유해도 되는 값**이라 🔑(비밀키) 화면과 분리한다

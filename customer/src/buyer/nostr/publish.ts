@@ -52,7 +52,7 @@ function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
 }
 
 /**
- * 지정 거래 의뢰 빌드 (docs/PLAN-DESIGNATED-TRADE.md). 금액·기한·상대는 **암호문**이다 — 바깥에는 "누가 언제 지정
+ * 지정 거래 의뢰 빌드 (docs/LN-TRACK.md §7). 금액·기한·상대는 **암호문**이다 — 바깥에는 "누가 언제 지정
  * 요청을 보냈다"만 보인다. 보존(`expiration`)은 공개 의뢰와 같다.
  */
 function buildDesignatedOrderRequestEvent(

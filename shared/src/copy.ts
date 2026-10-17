@@ -23,7 +23,7 @@ export const STEP_TEXT = {
 } as const;
 
 /**
- * 지정 거래 위험 고지 — 만들 때(고객)와 맡을 때(후원자) 같은 말을 한다(docs/PLAN-DESIGNATED-TRADE.md §8).
+ * 지정 거래 위험 고지 — 만들 때(고객)와 맡을 때(후원자) 같은 말을 한다(docs/LN-TRACK.md §7 · ONCHAIN-TRACK.md §10).
  * 보증금이 없어서 생기는 일만 말한다. 트랙마다 묶이는 것이 다르다.
  */
 export const DESIGNATED_NOTICE = {

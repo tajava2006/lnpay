@@ -147,7 +147,7 @@ export function ocOrderRequest(ctx: OcContext, event: InboxEvent): HandlerResult
 }
 
 /**
- * 지정 의뢰 — 상대(후원자)를 pubkey로 묶은 의뢰(docs/PLAN-DESIGNATED-TRADE.md). 조건은 내용(NIP-44)에 있다. **고객
+ * 지정 의뢰 — 상대(후원자)를 pubkey로 묶은 의뢰(docs/ONCHAIN-TRACK.md §10). 조건은 내용(NIP-44)에 있다. **고객
  * 보증금이 없다**(후보를 거치지 않고 바로 `listed`) — LN 지갑 없이 온체인만 쓰는 사람의 첫 경로다. 만료는 공개
  * 의뢰처럼 이벤트의 `expiration`이다.
  */

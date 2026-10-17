@@ -279,7 +279,7 @@ export type ApproveError =
 
 /**
  * 이 클레임에 후원자 보증금이 필요한가 — 공개 거래만, 그리고 운영 설정이 켜져 있을 때만. **지정 거래는 보증금이 없다**
- * (상대를 고객이 골랐다 — docs/PLAN-DESIGNATED-TRADE.md). 같은 판단이 클레임·워처·승인·발행 네 곳에 있어 여기 한 벌로.
+ * (상대를 고객이 골랐다 — docs/LN-TRACK.md §7). 같은 판단이 클레임·워처·승인·발행 네 곳에 있어 여기 한 벌로.
  */
 export function sponsorDepositRequired(ctx: Pick<LnContext, 'db'>, order: Pick<LnOrderRow, 'designated_sponsor'>): boolean {
   return !order.designated_sponsor && loadSettings(ctx.db).ln.sponsorDepositPct > 0;

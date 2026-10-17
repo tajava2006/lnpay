@@ -18,7 +18,7 @@ interface Row {
   amount: string;
   updatedAt: number;
   done: boolean;
-  /** 지정 거래 — 보증금 없이 고객이 고른 상대와(docs/PLAN-DESIGNATED-TRADE.md) */
+  /** 지정 거래 — 보증금 없이 고객이 고른 상대와(docs/LN-TRACK.md §7 · ONCHAIN-TRACK.md §10) */
   designated: boolean;
 }
 

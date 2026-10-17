@@ -43,7 +43,7 @@ export interface CustomerOrder {
 
   /**
    * 지정 거래의 상대(후원자) pubkey — 있으면 공개 의뢰가 아니라 **지정 거래**로 보낸다(보증금 없음, 그 사람만 맡는다).
-   * docs/PLAN-DESIGNATED-TRADE.md
+   * docs/LN-TRACK.md §7
    */
   designatedSponsor?: string;
 

@@ -1,5 +1,5 @@
 /**
- * 지정 거래 — 유저 앱 (docs/PLAN-DESIGNATED-TRADE.md §8)
+ * 지정 거래 — 유저 앱 (docs/LN-TRACK.md §7 · ONCHAIN-TRACK.md §10)
  *
  * 암호는 진짜 NIP-44다. 데몬이 APP 키로 봉한 스냅샷은 NIP-44 대화 키가 양쪽 공통이라 **수신자 키로도 같은 것을 만들
  * 수 있다** — 그래서 APP 비밀키 없이도 "APP이 나에게 보낸 스냅샷"을 진짜 암호문으로 만든다.

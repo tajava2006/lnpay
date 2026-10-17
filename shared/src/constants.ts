@@ -111,7 +111,7 @@ export const REQUEST_ACTIONS = {
   ORDER_REQUEST: 'order-request',
   /**
    * 고객 → APP: 지정 거래 의뢰(라이트닝). 금액·기한·지정 후원자는 **암호문**이다(`LnDesignatedOrderPayload`) —
-   * 지정 거래는 지정된 사람 말고는 볼 수 없어야 한다(docs/PLAN-DESIGNATED-TRADE.md)
+   * 지정 거래는 지정된 사람 말고는 볼 수 없어야 한다(docs/PROTOCOL.md §2)
    */
   DESIGNATED_ORDER_REQUEST: 'designated-order-request',
   CLAIM: 'claim',

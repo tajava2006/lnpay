@@ -5,7 +5,7 @@
  * 같은 바이트를 다시 뿌린다(노드가 이미 알면 "already"를 돌려준다 — 성공으로 친다).
  *
  * 지정 거래는 공개 오더 대신 **수신자별 암호문 스냅샷**(`DESIGNATED_ORDER_KIND`)으로 낸다 — 고객 · 지정 후원자 · 운영자에게만
- * 보인다(docs/PLAN-DESIGNATED-TRADE.md). 라이트닝(`../ln/effects.ts`)과 같은 방식이다.
+ * 보인다(docs/ONCHAIN-TRACK.md §10). 라이트닝(`../ln/effects.ts`)과 같은 방식이다.
  */
 import type { Event } from 'nostr-tools/core';
 import { finalizeEvent } from 'nostr-tools/pure';

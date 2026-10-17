@@ -37,7 +37,7 @@ export function satsText(n: number | undefined): string {
 }
 
 /**
- * 라이트닝 공개 보증금이 꺼져 있나 — 꺼져 있으면 공개 오더북이 무담보다(docs/PLAN-DESIGNATED-TRADE.md D9). 코드로
+ * 라이트닝 공개 보증금이 꺼져 있나 — 꺼져 있으면 공개 오더북이 무담보다(docs/RISKS.md R-5). 코드로
  * 막지는 않는다(운영 설정). 보증금 없이 거래하고 싶은 사람은 지정 거래로 가면 된다. 상태를 모르면 말하지 않는다.
  */
 export function depositWarnings(state: Pick<AdminState, 'settings'> | null): string[] {

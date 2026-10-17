@@ -27,7 +27,7 @@ export function OrderForm() {
   const [price, setPrice] = useState('');
   const [memo, setMemo] = useState('');
   const [expiryHours, setExpiryHours] = useState(String(DEFAULT_EXPIRY_HOURS));
-  // 지정 거래 — 상대를 묶고 보증금 없이(docs/PLAN-DESIGNATED-TRADE.md). 상대는 확인 코드·고지까지 체크돼야 값이 온다
+  // 지정 거래 — 상대를 묶고 보증금 없이(docs/LN-TRACK.md §7). 상대는 확인 코드·고지까지 체크돼야 값이 온다
   const [mode, setMode] = useState<TradeMode>('public');
   const [counterparty, setCounterparty] = useState<string | null>(null);
   // 폼을 비울 때 상대 칸도 새로 그린다(안쪽 상태를 버린다)

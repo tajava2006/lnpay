@@ -7,6 +7,7 @@
 
 ```
 유저 ──[3838 요청, p=APP]──→ 릴레이 ──→ 데몬 ──[38383 오더]──→ 릴레이 ──→ 유저 앱 (표시)
+                                     └──[33839 지정 거래 스냅샷, p=당사자·운영자]──→ 그 사람 앱만 (§2)
                                      └──[3838 통지, p=유저]──→ 릴레이 ──→ 유저 앱
                                      └──[1059 DM]──→ 운영자 nostr 앱 (사람이 알아야 할 일만, §7)
 ```
@@ -17,6 +18,7 @@
 | 오더 `ORDER_KIND` | **38383** — NIP-69 P2P 오더 (주소형, `d` = 오더 id) |
 | 요청·통지 `MESSAGE_KIND` | **3838** — 우리 전용 일반 kind (NIP 없음) |
 | 운영자 상태·상세 `ADMIN_STATE_KIND` | **33838** — 우리 전용 주소형 kind |
+| 지정 거래 스냅샷 `DESIGNATED_ORDER_KIND` | **33839** — 우리 전용 주소형 kind. APP → 수신자 하나(`d` = `<오더 id>:<수신자>`) |
 | 운영자 DM | 1059 (NIP-17 gift wrap) |
 | 웹 푸시 구독 | 3838 `push-subscription` (암호문) |
 | 프로토콜 버전 `PROTOCOL_VERSION` | 오더 이벤트 `protocol` 태그 · 운영자 상태 `protocol`. **데몬·앱이 같이 배포돼야 하는 변경이면 올린다** — 어드민은 다르면 맨 위에 경고, 유저 앱은 더 새 값을 보면 새로고침 배너. kind를 바꾸는 변경은 옛 앱이 새 이벤트를 못 봐서 여기로 못 잡는다(배포 순서로) |
@@ -87,6 +89,8 @@ DM으로 간다**(§7). 옛 kind의 이벤트는 새 앱·데몬이 아예 보�
 | `customer-deposit-payment-hash` · `sponsor-deposit-payment-hash` | 받은 보증금 |
 | `sponsor-deposit` = `pending` | 클레임됐지만 후원자 보증금 대기 — 양쪽 화면이 "후원자 찾는 중"으로 그린다 |
 | `close-reason` | 종결 사유(`LnCloseReason`) |
+| `invoice-deadline` | 후원자 인보이스 등록 마감 — `escrowed`에서 찍는다(에스크로 수신 + 6h, 기한 + 유예를 넘지 않게). 넘기면 `expired:no-invoice` |
+| `designated-sponsor` | 지정 거래의 후원자 — **스냅샷 안에만** 있다(아래). 있으면 NIP-69 태그·`source`를 싣지 않는다 |
 
 `deadline`이 없으면 지난 기한으로 읽는다(보존을 기한으로 믿지 않는다). 파싱 결과의 `Order.expiration`은 **기한**이고
 보존은 `retainUntil`이다.
@@ -102,10 +106,33 @@ DM으로 간다**(§7). 옛 kind의 이벤트는 새 앱·데몬이 아예 보�
 | `funding-outpoint` · `funding-confs` · `funded-at` · `price-krw` · `payout-sat` · `release-fee-sat` | T0 가격 고정 |
 | `presigned-at` · `account-sent-at` · `remitted-at` · `account-disputed-at` · `disputed-at` | 시각 |
 | `settlement-kind` · `settlement-fee-sat` · `decided-at` · `settlement-txid` · `settling-at` | 종결 결정 |
-| `customer-deposit-payment-hash` · `sponsor-deposit-payment-hash` | 보증금 |
+| `customer-deposit-payment-hash` · `sponsor-deposit-payment-hash` | 보증금 (지정 거래엔 없다) |
+| `designated-sponsor` | 지정 거래의 후원자 — 스냅샷 안에만. 있으면 NIP-69 태그 대신 우리 `network`만 싣는다 |
 | `expiration` | `listed` 동안은 **의뢰 만료**(오더북에서 저절로 사라진다), 그 뒤엔 보존(진행 중 지금 + 70일, 종결 유예 7일) |
 
 후원자의 받을 주소는 공개하지 않는다(요청 암호문 안에만 있다).
+
+### 지정 거래 스냅샷 (33839, APP → 수신자)
+
+지정 거래(상대를 pubkey로 묶은, 보증금 없는 1:1 거래)는 공개 오더(38383)로 **내지 않는다**. 데몬이 수신자마다 — 고객 ·
+지정 후원자 · 운영자 전원(중복 제거) — 이벤트를 하나씩 낸다(`shared/src/designated.ts`).
+
+| 바깥 태그 | 값 |
+|---|---|
+| `d` | `<오더 id>:<수신자 pubkey>` |
+| `p` · `t` | 수신자 · 트랙 태그 |
+| `expiration` | 공개 오더와 같은 보존 |
+
+내용 = NIP-44(APP → 수신자)로 봉한 **공개 오더와 같은 태그 배열**(JSON, 위 트랙 표 그대로 + `designated-sponsor`).
+받는 쪽은 열어서 `{kind: 38383, pubkey: APP, tags, …}` **가짜 오더 이벤트**로 바꿔 공개 오더 처리기에 그대로 넘긴다 —
+파서·저장소·보관·되살리기가 손대지 않고 돈다. `created_at`은 공개 오더처럼 단조 증가, 하나라도 못 내면 다시 낸다.
+
+| 숨는 것 (암호문) | 보이는 것 (메타데이터) |
+|---|---|
+| 금액·기한·상대 지정·상태 전부 | 지정 요청을 보낸 pubkey와 시각 · APP이 어떤 pubkey들에게 스냅샷을 보냈는지(`p`)와 시각 |
+| | 이후 요청(클레임·계좌·송금…)의 존재·오더 id·보낸 pubkey — 공개 거래와 같다 |
+
+pubkey는 브라우저마다 만든 앱 키라 실명과 무관하지만, "두 pubkey가 같은 때 스냅샷을 받았다"로 짝은 추정할 수 있다 — 수용.
 
 ## 3. 요청 (3838, 유저 → APP)
 
@@ -116,7 +143,8 @@ DM으로 간다**(§7). 옛 kind의 이벤트는 새 앱·데몬이 아예 보�
 | action | 보내는 사람 | 추가 태그 / 내용 | 받는 상태 |
 |---|---|---|---|
 | `order-request` | 고객 | `price`, `deadline` | — |
-| `claim` | 후원자 | | `requested` |
+| `designated-order-request` | 고객 | 내용 = `{price, deadline, designatedSponsor}` (APP에게 암호화). 고객 보증금 없이 바로 오더 | — |
+| `claim` | 후원자 | 지정 거래면 지정 후원자만(`not-designated`) — 보증금 없이 자동 승인 | `requested` |
 | `sponsor-invoice` | 후원자 | `bolt11` | `escrowed`·`invoiced`·`remitted`, 지급 전 `paid`·`sponsor_wins` |
 | `account-info` | 고객 | `p`=후원자 추가, `commitment`. 내용 = 후원자에게 암호화한 `{accountInfo, salt}` | `invoiced`·`remitted` |
 | `remit-request` | 후원자 | | `invoiced` (요청 시각 ≤ 기한 + 1h) |
@@ -131,7 +159,8 @@ DM으로 간다**(§7). 옛 kind의 이벤트는 새 앱·데몬이 아예 보�
 | action | 보내는 사람 | 추가 태그 / 내용 | 받는 상태 |
 |---|---|---|---|
 | `onchain-order-request` | 고객 | `amount-sat`, `customer-xonly`, `reserve-krw`?, `expiration`=의뢰 만료. 내용 = `{refundAddress}` | — |
-| `onchain-claim` | 후원자 | `sponsor-xonly`. 내용 = `{payoutAddress, feerateSatPerVb}` | `listed` |
+| `onchain-designated-order-request` | 고객 | `expiration`=의뢰 만료. 내용 = `{amountSat, customerXonly, reserveKrw?, refundAddress, designatedSponsor}`. 보증금 없이 바로 `listed`, 최소액 = 종결 수수료 × 20 | — |
+| `onchain-claim` | 후원자 | `sponsor-xonly`. 내용 = `{payoutAddress, feerateSatPerVb}`. 지정 거래면 지정 후원자만 — 보증금 없이 바로 `bonded` | `listed` |
 | `onchain-presig` | 후원자 | 내용 = `{psbt}` (릴리스, 후원자 서명) | `funded` |
 | `account-info` | 고객 | 라이트닝과 같은 모양 | `presigned` |
 | `remit-request` | 후원자 | | `presigned`(계좌 받음, 송금 마감 전) |
@@ -164,8 +193,9 @@ DM으로 간다**(§7). 옛 kind의 이벤트는 새 앱·데몬이 아예 보�
 | 유저 앱 — 오더 | `kinds:[38383] authors:[APP] #t:[트랙 태그] since:VITE_NOSTR_SINCE` (트랙마다 하나) |
 | 유저 앱 — 수신함 | `kinds:[3838] #p:[내 pubkey] #t:[트랙 태그] since:…` (역할 공용, 받은 뒤 action으로 분기) |
 | 유저 앱 — 내가 보낸 요청 | `kinds:[3838] authors:[내 pubkey] #t:[트랙 태그] since:…` — 로컬 기록 되살리기 |
+| 유저 앱 — 지정 거래 | `kinds:[33839] authors:[APP] #p:[내 pubkey] #t:[트랙 태그] since:…` — 열어서 오더 처리기로 |
 | 데몬 | `kinds:[3838] #p:[APP] since:커서−6h` — 5분마다 새로 연다 |
-| 어드민 앱 | [ARCHITECTURE.md](ARCHITECTURE.md) §2 |
+| 어드민 앱 | [ARCHITECTURE.md](ARCHITECTURE.md) §2 (지정 거래 스냅샷도 `#p`=운영자로 받아 벙커로 연다) |
 
 ## 6. 이벤트 예시
 
@@ -211,7 +241,7 @@ NIP-17 DM으로 따로 보낸다(`daemon/src/admin/notify.ts`, 데몬 릴레이�
 |---|---|
 | **경보** — 분쟁 진입, 계좌 이의, 송금 뒤 무응답, 정산·지급 실패, 체인 이상 등 (`raiseAlert`) | 사유(`dedup`)마다 한 번. 어드민 앱 경보 목록에도 남는다 |
 | **유저의 분쟁 채팅** — 앞 80자, 계좌 공개는 "계좌를 공개했습니다" | 오더마다 `CHAT_DM_QUIET_SEC`(10분)에 한 번 — 전문은 어드민 앱 |
-| **새 의뢰** — 라이트닝 오더 생성·온체인 등록 | 오더마다 한 번 |
+| **새 의뢰** — 라이트닝 오더 생성·온체인 등록 (지정 거래면 "새 지정 거래") | 오더마다 한 번 |
 | **LND 불통** — 10분 넘게 응답 없음 / 복구 | 불통 한 번마다 한 번 · 복구 한 번 |
 | **데몬 멈춤**(바깥 감시 — VPS cron, **감시용 키**가 보낸다) / 복구 | 멈춘 동안 6시간마다 · 복구 한 번 |
 

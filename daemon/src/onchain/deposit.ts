@@ -81,7 +81,7 @@ export function minTradeSat(floorSat: number): number {
 }
 
 /**
- * 지정 거래(보증금 없음 — docs/PLAN-DESIGNATED-TRADE.md)의 최소 거래액 = 종결 수수료 × 20, 즉 **수수료가 거래액의
+ * 지정 거래(보증금 없음 — docs/ONCHAIN-TRACK.md §10)의 최소 거래액 = 종결 수수료 × 20, 즉 **수수료가 거래액의
  * 5%를 넘지 않는 선**. 공개 의뢰의 최소액(보증금 3% 근거, ≈ ×133)은 보증금이 없는 지정 거래엔 근거가 없다 —
  * 남는 건 "수수료에 다 먹히는 거래는 하지 말자" 하나다.
  */

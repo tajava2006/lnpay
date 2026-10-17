@@ -100,7 +100,7 @@ function orderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
 }
 
 /**
- * 지정 의뢰 — 상대(후원자)를 pubkey로 묶은 의뢰(docs/PLAN-DESIGNATED-TRADE.md). 조건은 내용(NIP-44)에 있다 — 금액·기한·
+ * 지정 의뢰 — 상대(후원자)를 pubkey로 묶은 의뢰(docs/LN-TRACK.md §7). 조건은 내용(NIP-44)에 있다 — 금액·기한·
  * 상대가 바깥에 보이지 않게. **고객 보증금이 없다**(초안을 거치지 않고 바로 오더) — 트롤은 지정된 상대가 아니면 손댈 수 없다.
  */
 function designatedOrderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {

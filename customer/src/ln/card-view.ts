@@ -83,7 +83,7 @@ export interface LnCardView {
   /** 진행도 문맥 — 상세의 사다리가 같은 값으로 그린다 */
   progress: { accountInfoSent: boolean; sponsorDepositPending: boolean };
   /**
-   * 지정 거래면 상대의 확인 코드 — 고객에겐 지정 후원자의, 후원자에겐 고객의(docs/PLAN-DESIGNATED-TRADE.md).
+   * 지정 거래면 상대의 확인 코드 — 고객에겐 지정 후원자의, 후원자에겐 고객의(docs/LN-TRACK.md §7).
    * 공개 거래는 null
    */
   designated: { counterpartyCode: string } | null;

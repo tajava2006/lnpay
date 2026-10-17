@@ -207,6 +207,9 @@ export const ONCHAIN_TRANSITION_NOTICES: Record<OnchainState, StateNotices | nul
  * 부르는 곳이 없어서 한 번도 안 나갔다.)
  */
 export const ONCHAIN_TIMER_NOTICES = {
+  /** 고객이 나를 상대로 지정 거래를 만들었다 — 오더북에 안 뜨니 알림이 유일한 신호다 */
+  designatedArrived: (): Notice =>
+    ({ body: '회원님을 상대로 지정한 온체인 거래가 도착했습니다. 확인하고 수락해 주세요.', tab: 'fulfill', track: 'onchain' }),
   accountInfoArrived: (): Notice => ONCHAIN_NOTIFY.sponsorShouldRemit(),
   disputeSoon: (): Notice => ONCHAIN_NOTIFY.customerDisputeSoon(),
   rulingSignatureNeeded: (): Notice => ONCHAIN_NOTIFY.winnerShouldSign(),

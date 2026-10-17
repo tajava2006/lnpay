@@ -180,8 +180,10 @@ function decideBonded(order: OnchainOrder, ctx: OnchainWatchContext): OnchainAct
     }
 
     case 'funded': {
-      // O-015 — 보증금이 죽었으면 **무담보 옵션 창을 열지 않고 접는다.**
-      if (ctx.sponsorBondAlive === false) {
+      // O-015 — 보증금이 죽었으면 **무담보 옵션 창을 열지 않고 접는다.** 지정 거래는 애초에 보증금이 없다 —
+      // 무담보 옵션은 그 거래가 받아들인 위험이다(고객이 상대를 골랐다, docs/PLAN-DESIGNATED-TRADE.md §11).
+      // ⚠️ 건너뛰지 않으면 생존이 늘 "모름"이라 **영원히 hold**한다
+      if (!order.designatedSponsor && ctx.sponsorBondAlive === false) {
         return {
           kind: 'fold',
           outpoint: verdict.outpoint,
@@ -189,7 +191,7 @@ function decideBonded(order: OnchainOrder, ctx: OnchainWatchContext): OnchainAct
           settlementKind: 'refund:bond-expired',
         };
       }
-      if (ctx.sponsorBondAlive === undefined) {
+      if (!order.designatedSponsor && ctx.sponsorBondAlive === undefined) {
         return { kind: 'hold', why: '후원자 보증금 생존을 모른다 (O-015)' };
       }
       if (ctx.btcPriceKrw === undefined || !(ctx.btcPriceKrw > 0)) {

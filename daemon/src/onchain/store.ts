@@ -68,7 +68,8 @@ export interface OcRow {
 }
 
 /** `updateOc`가 바꿀 수 있는 칸. **`undefined`는 지운다**(리오그로 가격 고정을 폐기할 때) */
-export type OcPatch = Partial<Omit<OnchainOrder, 'orderId' | 'raw' | 'createdAt' | 'updatedAt' | 'status'>>;
+export type OcPatch = Partial<Omit<OnchainOrder,
+  'orderId' | 'raw' | 'createdAt' | 'updatedAt' | 'status' | 'designatedSponsor'>>;
 
 interface RawRow {
   order_id: string;
@@ -108,7 +109,8 @@ export function insertOc(ctx: OcContext, order: OnchainOrder, meta: OcMeta): voi
   );
   requestProjection(ctx, order.orderId);
   // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다
-  notifyOperators(ctx, `새 의뢰 — 온체인 ${order.amountSat.toLocaleString('ko-KR')} sats (${order.orderId})`);
+  const kind = order.designatedSponsor ? '새 지정 거래' : '새 의뢰';
+  notifyOperators(ctx, `${kind} — 온체인 ${order.amountSat.toLocaleString('ko-KR')} sats (${order.orderId})`);
 }
 
 /**
@@ -158,20 +160,28 @@ function requestProjection(ctx: OcContext, orderId: string): void {
 
 // ── 보증금 대기 (의뢰·클레임 후보) ──────────────────────────
 
-export interface CustomerCandidateInfo {
+/** 의뢰를 세울 때 고객이 정한 것 */
+export interface CustomerListInfo {
   amountSat: number;
   reserveKrw?: number;
   /** 의뢰 만료 */
   expiration: number;
   customerXonly: string;
   refundAddress: string;
+}
+
+export interface CustomerCandidateInfo extends CustomerListInfo {
   cltvBlocks: number;
 }
 
-export interface SponsorCandidateInfo {
+/** 클레임 때 후원자가 정한 것 */
+export interface SponsorClaimInfo {
   sponsorXonly: string;
   payoutAddress: string;
   feerateSatPerVb: number;
+}
+
+export interface SponsorCandidateInfo extends SponsorClaimInfo {
   cltvBlocks: number;
 }
 

@@ -3,10 +3,14 @@
  *
  * 전부 멱등하다: 오더·상세는 발행하는 순간의 DB로 만들고(주소형이라 최신 한 장만 남는다), 브로드캐스트는
  * 같은 바이트를 다시 뿌린다(노드가 이미 알면 "already"를 돌려준다 — 성공으로 친다).
+ *
+ * 지정 거래는 공개 오더 대신 **수신자별 암호문 스냅샷**(`DESIGNATED_ORDER_KIND`)으로 낸다 — 고객 · 지정 후원자 · 운영자에게만
+ * 보인다(docs/PLAN-DESIGNATED-TRADE.md). 라이트닝(`../ln/effects.ts`)과 같은 방식이다.
  */
+import type { Event } from 'nostr-tools/core';
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
-  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, nip44Encrypt, type AdminOcOrderDetail,
+  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, designatedOrderTemplate, nip44Encrypt, type AdminOcOrderDetail,
 } from '@sajwo-tracker/shared/core';
 import {
   isOnchainTerminal, onchainOrderEventExpiration, onchainOrderIssues, onchainOrderTags,
@@ -47,10 +51,22 @@ export function createOcPublishExecutor(ctx: OcContext, transport: RelayTranspor
       }
       const tags = onchainOrderTags(order, ctx.tags.onchain, ctx.appUrl)
         .map(t => (t[0] === 'expiration' ? ['expiration', String(expiration)] : t));
-      const event = finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
-      const report = await transport.publish(event);
-      if (report.accepted.length === 0) {
-        return { status: 'retry', error: report.rejected.map(r => r.reason).join('; ') || '릴레이 없음' };
+      let events: Event[];
+      if (!order.designatedSponsor) {
+        events = [finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey)];
+      } else {
+        const recipients = new Set([order.customerPubkey, order.designatedSponsor, ...ctx.operators]);
+        events = [...recipients].map(recipient => finalizeEvent(designatedOrderTemplate({
+          orderId, recipient, trackTag: ctx.tags.onchain, tags, retainUntil: expiration, createdAt,
+          appSecretKey: ctx.appKey.secretKey,
+        }), ctx.appKey.secretKey));
+      }
+      // 지정 거래는 한 장이라도 못 내면 다시 — 그 수신자는 거래를 못 본다(주소형이라 다시 내도 같은 자리를 덮는다)
+      const reports = await Promise.all(events.map(e => transport.publish(e)));
+      const failed = reports.filter(r => r.accepted.length === 0);
+      if (failed.length > 0) {
+        const reasons = failed.flatMap(r => r.rejected.map(x => x.reason));
+        return { status: 'retry', error: reasons.join('; ') || '릴레이 없음' };
       }
       return { status: 'done', result: { createdAt } };
     },

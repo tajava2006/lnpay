@@ -219,9 +219,12 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
   스냅샷이 고객·후원자·운영자에게 하나씩·복호화하면 `designated-sponsor`, 정상 흐름으로 `paid`까지, 고객 취소, 자기 지정 거절.
   (구현 메모: 발행은 `effects.ts` `buildOrderEvents` — 공개면 한 장, 지정이면 수신자별. 지정 후원자 푸시는 `notify.ts`
   `notifyDesignatedArrived`, 키 `ln:<id>:designated`. `openDesignatedOrder`는 데몬 테스트도 쓰므로 `core`에서도 export.)
-- [ ] **P4 데몬 온체인 지정(§6)** — `bonds.ts` 리팩터 먼저(기존 `oc-*` 테스트 그대로 통과 확인) → 지정 경로. 테스트(`oc-designated.test.ts`, `createOcHarness`):
+- [x] **P4 데몬 온체인 지정(§6)** — `bonds.ts` 리팩터 먼저(기존 `oc-*` 테스트 그대로 통과 확인) → 지정 경로. 테스트(`oc-designated.test.ts`, `createOcHarness`):
   보증금 후보 없이 `listed`, 지정 외 클레임 거절, 지정 클레임 → `bonded`·에스크로 주소, **펀딩 컨펌 → `funded`(hold 아님)**,
   릴리스까지 e2e, 환불·취소에서 몰수 경보 없음, 최소액 ×20 경계.
+  (구현 메모: `listOc`·`bondOc`(bonds.ts)가 공개·지정 공통 몸통, `bond?` 없으면 지정. 공개 의뢰 검사는 `orderGate`·`orderTermsProblem`
+  (handlers.ts)으로 뽑아 순서 그대로 공유. 지정 클레임은 주소·수수료율 검사 뒤 바로 `bondOc`. 최소액 `designatedMinTradeSat`(deposit.ts).
+  알림 `ONCHAIN_TIMER_NOTICES.designatedArrived` → `notifyOcDesignatedArrived`, 키 `oc:<id>:designated`. `OcPatch`는 `designatedSponsor`를 못 바꾼다.)
 - [ ] **P5 유저 앱(§8)** — 구독·발행·되살리기·저장소·화면. 테스트(`customer/src/tests/designated.test.ts`): 스냅샷 → 저장소(LN·온체인),
   오더북에서 빠지고 "나를 지정한 거래"에만, 되살리기(새 action), card-view 플래그, `CounterpartyInput` 자기 주소 거절.
 - [ ] **P6 어드민(§9)** — 피드 스냅샷·배지·0% 경고(`format.test.ts`).

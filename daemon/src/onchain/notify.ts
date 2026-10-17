@@ -48,6 +48,12 @@ export function notifyOcRuling(ctx: OcContext, order: OnchainOrder): void {
   deliver(ctx, loser, ONCHAIN_TIMER_NOTICES.rulingDecided(), order.orderId, `${key}:loser`);
 }
 
+/** 지정 의뢰가 생겼다 — `listed`는 알림이 없는 상태지만 지정 후원자에겐 할 일이 생긴 순간이다 */
+export function notifyOcDesignatedArrived(ctx: OcContext, order: OnchainOrder): void {
+  deliver(ctx, order.designatedSponsor, ONCHAIN_TIMER_NOTICES.designatedArrived(), order.orderId,
+    `oc:${order.orderId}:designated`);
+}
+
 /** 계좌 도착 — 상태가 안 바뀌는데 **후원자가 원화를 보낼 수 있게 되는 순간**이다 */
 export function notifyOcAccountArrived(ctx: OcContext, order: OnchainOrder): void {
   deliver(ctx, order.sponsorPubkey, ONCHAIN_TIMER_NOTICES.accountInfoArrived(), order.orderId,

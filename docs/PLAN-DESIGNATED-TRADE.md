@@ -112,7 +112,7 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
 
 - **DB(마이그레이션 v5·v6, `daemon/src/db/migrations.ts`):** `ln_orders`에 `invoice_deadline INTEGER`(P1), `designated_sponsor TEXT`(P3).
   `LnOrderRow`·`insertOrder()`(`store.ts`) 확장. 지정 의뢰는 `ln_drafts`(고객 보증금 대기)를 거치지 않는다.
-- **보증금 필요 여부 한 곳에:** `sponsorDepositRequired(settings, order)` = `!order.designated_sponsor && settings.sponsorDepositPct > 0`.
+- **보증금 필요 여부 한 곳에:** `sponsorDepositRequired(ctx, order)`(`flow.ts`) = `!order.designated_sponsor && 설정.sponsorDepositPct > 0`.
   지금 같은 판단이 4곳에 흩어져 있다 → 전부 이걸로: `handlers.ts` claim(106행), `watcher.ts` claimed 루프(104행),
   `flow.ts` `approveBlocker`(285행), `effects.ts` `sponsorDepositPending`(185행).
 - **`handlers.ts`:** `designatedOrderRequest` 추가 — 내용 복호화(`nip44Decrypt`) → 가격·기한 검사는 `orderRequest`와 **같은 함수로 뽑아**
@@ -214,9 +214,11 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
   `expired:no-invoice`(에스크로 cancel·후원자 보증금 forfeit), 기한이 더 이르면 기한 + 유예, 태그 왕복, 카운트다운 표시.
 - [x] **P2 shared 프로토콜(§4·§7)** — `designated.ts`, 태그·가드·action, `PROTOCOL_VERSION=2`. 테스트(`shared/src/__tests__/designated.test.ts`):
   봉인·개봉 왕복, APP 아닌 발행자·망가진 내용·남의 키 거절, 지정이면 NIP-69 태그 없음, `checkCode`·`parsePubkeyInput`, 저장소 모양 확인 통과.
-- [ ] **P3 데몬 라이트닝 지정(§5)** — 테스트(`ln-designated.test.ts`, `createLnHarness` 사용): 보증금 % 와 무관하게 초안 없이 바로 오더,
+- [x] **P3 데몬 라이트닝 지정(§5)** — 테스트(`ln-designated.test.ts`, `createLnHarness` 사용): 보증금 % 와 무관하게 초안 없이 바로 오더,
   지정 외 클레임 무시, 지정 클레임 → `autoApprove` 꺼져 있어도 승인·보증금 없음, **공개 `ORDER_KIND`가 하나도 안 나간다**,
   스냅샷이 고객·후원자·운영자에게 하나씩·복호화하면 `designated-sponsor`, 정상 흐름으로 `paid`까지, 고객 취소, 자기 지정 거절.
+  (구현 메모: 발행은 `effects.ts` `buildOrderEvents` — 공개면 한 장, 지정이면 수신자별. 지정 후원자 푸시는 `notify.ts`
+  `notifyDesignatedArrived`, 키 `ln:<id>:designated`. `openDesignatedOrder`는 데몬 테스트도 쓰므로 `core`에서도 export.)
 - [ ] **P4 데몬 온체인 지정(§6)** — `bonds.ts` 리팩터 먼저(기존 `oc-*` 테스트 그대로 통과 확인) → 지정 경로. 테스트(`oc-designated.test.ts`, `createOcHarness`):
   보증금 후보 없이 `listed`, 지정 외 클레임 거절, 지정 클레임 → `bonded`·에스크로 주소, **펀딩 컨펌 → `funded`(hold 아님)**,
   릴리스까지 e2e, 환불·취소에서 몰수 경보 없음, 최소액 ×20 경계.

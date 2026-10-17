@@ -73,6 +73,12 @@ export function notifyLnTransition(ctx: LnContext, order: LnOrderRow): void {
   }
 }
 
+/** 지정 의뢰가 생겼다 — 전이가 아니라(`requested`는 알림이 없다) 위 표에 없지만, 지정 후원자에겐 할 일이 생긴 순간이다 */
+export function notifyDesignatedArrived(ctx: LnContext, order: LnOrderRow): void {
+  if (!order.designated_sponsor) return;
+  deliver(ctx, order.designated_sponsor, NOTIFY.designatedArrived(), order.order_id, `ln:${order.order_id}:designated`);
+}
+
 /**
  * 계좌가 도착했다 — 전이가 아니라 위 표에 없지만, 후원자가 원화를 보낼 수 있게 되는 순간이다.
  * 계좌가 바뀌면(커밋먼트가 다르면) 다시 알린다.

@@ -231,6 +231,8 @@ export interface AdminLnOrderDetail {
   accountSentAt?: number;
   /** 후원자 인보이스 등록 마감 (`escrowed`부터) */
   invoiceDeadline?: number;
+  /** 지정 거래의 후원자 — 이 사람만 맡을 수 있고 보증금이 없다 */
+  designatedSponsor?: string;
   /** 고객이 보낸 계좌의 커밋먼트 — 후원자가 공개한 계좌와 대조한다 */
   accountCommitment?: string;
   remittedAt?: number;

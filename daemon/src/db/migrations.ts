@@ -176,4 +176,11 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE ln_orders ADD COLUMN invoice_deadline INTEGER;
     `,
   },
+  {
+    version: 6,
+    sql: `
+      -- 지정 거래의 후원자 — 이 pubkey만 맡을 수 있고 보증금이 없다. 공개 거래는 NULL
+      ALTER TABLE ln_orders ADD COLUMN designated_sponsor TEXT;
+    `,
+  },
 ];

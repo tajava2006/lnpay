@@ -10,7 +10,8 @@
  *   고객:   verified    — 결제해야 거래가 시작된다
  *           invoiced    — 계좌를 보내야 후원자가 송금할 수 있다
  *           remitted    — **후원자가 이미 돈을 보내놓고 기다린다.** 가장 급하다
- *   후원자: escrowed    — 받을 인보이스를 등록해야 거래가 진행된다
+ *   후원자: 지정 의뢰 도착 — 나를 지정한 거래다. 수락해야 시작된다(오더북에 안 뜨므로 알림이 유일한 신호)
+ *           escrowed    — 받을 인보이스를 등록해야 거래가 진행된다
  *           account-info 도착 — 이제 원화를 보낼 수 있다
  *
  * 상태를 추가하면 이 표도 같이 봐야 한다. `invoiced`를 넣으면서 한 번
@@ -97,6 +98,10 @@ export const PUSH_WELCOME = {
 } as const;
 
 export const NOTIFY = {
+  /** 고객이 나를 상대로 지정 거래를 만들었다. 오더북에 안 뜨니 알림이 유일한 신호다 */
+  designatedArrived: (): Notice =>
+    ({ body: '회원님을 상대로 지정한 거래가 도착했습니다. 확인하고 수락해 주세요.', tab: 'fulfill' }),
+
   /** 후원자가 붙고 검증도 끝났다. 고객이 결제해야 거래가 시작된다. */
   customerShouldPay: (): Notice =>
     ({ body: '후원자가 확정되었습니다. 결제하시면 거래가 시작됩니다.', tab: 'request' }),

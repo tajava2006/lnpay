@@ -277,12 +277,20 @@ export function revertClaim(ctx: LnContext, order: LnOrderRow): LnOrderRow {
 export type ApproveError =
   | 'not-claimed' | 'closing' | 'in-progress' | 'deposit-unpaid' | 'too-late' | 'no-price';
 
+/**
+ * 이 클레임에 후원자 보증금이 필요한가 — 공개 거래만, 그리고 운영 설정이 켜져 있을 때만. **지정 거래는 보증금이 없다**
+ * (상대를 고객이 골랐다 — docs/PLAN-DESIGNATED-TRADE.md). 같은 판단이 클레임·워처·승인·발행 네 곳에 있어 여기 한 벌로.
+ */
+export function sponsorDepositRequired(ctx: Pick<LnContext, 'db'>, order: Pick<LnOrderRow, 'designated_sponsor'>): boolean {
+  return !order.designated_sponsor && loadSettings(ctx.db).ln.sponsorDepositPct > 0;
+}
+
 /** 지금 승인할 수 있는가 (시세 빼고) */
 export function approveBlocker(ctx: LnContext, order: LnOrderRow): ApproveError | null {
   if (order.state !== 'claimed' || !order.sponsor) return 'not-claimed';
   if (order.pending_close) return 'closing';
   if (order.escrow_hash) return 'in-progress';
-  if (loadSettings(ctx.db).ln.sponsorDepositPct > 0 && !order.sponsor_deposit_hash) return 'deposit-unpaid';
+  if (sponsorDepositRequired(ctx, order) && !order.sponsor_deposit_hash) return 'deposit-unpaid';
   const now = nowSec(ctx);
   if (escrowPayBy(order.deadline, now) - now < MIN_ESCROW_PAY_WINDOW_SEC) return 'too-late';
   return null;

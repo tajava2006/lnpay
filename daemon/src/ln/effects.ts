@@ -8,22 +8,26 @@
  * | `ln.close` | 인보이스마다 먼저 조회: 이미 settled/cancelled면 그 결과를 적는다 (`hold.settleOrCancel`) |
  * | `ln.payout` | 먼저 결제를 추적: 이미 나갔으면 끝, 진행 중이면 기다린다 |
  * | `ln.order.publish` · `ln.detail` | 발행하는 순간의 DB로 만든다(주소형 이벤트라 최신 한 장만 남는다) |
+ *
+ * 지정 거래는 공개 오더 대신 **수신자별 암호문 스냅샷**(`DESIGNATED_ORDER_KIND`)으로 낸다 — 고객 · 지정 후원자 · 운영자에게만
+ * 보인다(docs/PLAN-DESIGNATED-TRADE.md). 이것도 주소형이라 다시 내면 같은 자리를 덮는다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
+import type { Event } from 'nostr-tools/core';
 import {
-  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, nip44Encrypt,
+  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, designatedOrderTemplate, nip44Encrypt,
   type AdminLnInvoice, type AdminLnOrderDetail,
 } from '@sajwo-tracker/shared/core';
 import { CLOSE_RULES, isPayoutAmountExact, lnOrderTags, lnRetention, type LnCloseReason } from '@sajwo-tracker/shared/ln';
 import { nowSec } from '../admin/context';
-import { loadSettings } from '../admin/settings';
 import type { EffectExecutor } from '../effects';
 import { isLiveHold } from '../hold';
 import type { RelayTransport } from '../nostr/transport';
 import { readBolt11 } from './bolt11';
 import type { LnContext } from './context';
 import {
-  LN_HOLD_PURPOSES, abandonClose, finishClose, type LnHoldPurpose, type OrderPayload, type ProbePayload,
+  LN_HOLD_PURPOSES, abandonClose, finishClose, sponsorDepositRequired, type LnHoldPurpose, type OrderPayload,
+  type ProbePayload,
 } from './flow';
 import { sendInvoiceRejected } from './messages';
 import { getOrder, updateOrder, type LnOrderRow } from './store';
@@ -182,10 +186,15 @@ function sponsorDepositPending(ctx: LnContext, order: LnOrderRow): boolean {
   if (order.state !== 'claimed' || !order.sponsor || order.sponsor_deposit_hash) return false;
   const dep = ctx.holds.current('ln-sponsor-deposit', order.order_id, order.sponsor);
   if (dep && isLiveHold(dep)) return true;
-  return loadSettings(ctx.db).ln.sponsorDepositPct > 0;
+  return sponsorDepositRequired(ctx, order);
 }
 
-export function buildOrderEvent(ctx: LnContext, order: LnOrderRow, createdAt: number) {
+/**
+ * 오더 이벤트 — 공개 거래는 한 장, 지정 거래는 수신자(고객 · 지정 후원자 · 운영자)마다 한 장. 태그 배열은 같다 —
+ * 받는 쪽이 스냅샷을 열면 공개 오더와 똑같은 이벤트가 나온다.
+ */
+export function buildOrderEvents(ctx: LnContext, order: LnOrderRow, createdAt: number): Event[] {
+  const retainUntil = lnRetention(order.state, order.deadline, createdAt);
   const tags = lnOrderTags({
     orderId: order.order_id,
     state: order.state,
@@ -203,8 +212,16 @@ export function buildOrderEvent(ctx: LnContext, order: LnOrderRow, createdAt: nu
     ...(sponsorDepositPending(ctx, order) ? { sponsorDepositPending: true } : {}),
     ...(order.close_reason ? { closeReason: order.close_reason } : {}),
     ...(order.invoice_deadline ? { invoiceDeadline: order.invoice_deadline } : {}),
-  }, ctx.tags.ln, lnRetention(order.state, order.deadline, createdAt), ctx.appUrl);
-  return finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
+    ...(order.designated_sponsor ? { designatedSponsor: order.designated_sponsor } : {}),
+  }, ctx.tags.ln, retainUntil, ctx.appUrl);
+  if (!order.designated_sponsor) {
+    return [finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey)];
+  }
+  const recipients = new Set([order.customer, order.designated_sponsor, ...ctx.operators]);
+  return [...recipients].map(recipient => finalizeEvent(designatedOrderTemplate({
+    orderId: order.order_id, recipient, trackTag: ctx.tags.ln, tags, retainUntil, createdAt,
+    appSecretKey: ctx.appKey.secretKey,
+  }), ctx.appKey.secretKey));
 }
 
 export function createOrderPublishExecutor(ctx: LnContext, transport: RelayTransport): EffectExecutor<OrderPayload> {
@@ -218,9 +235,12 @@ export function createOrderPublishExecutor(ctx: LnContext, transport: RelayTrans
         // 기한이 지난 의뢰 — 릴레이가 받지 않는다. 곧 워처가 닫고 종결을 다시 낸다
         return { status: 'done', result: {} };
       }
-      const report = await transport.publish(buildOrderEvent(ctx, order, createdAt));
-      if (report.accepted.length === 0) {
-        return { status: 'retry', error: report.rejected.map(r => r.reason).join('; ') || '릴레이 없음' };
+      // 지정 거래는 한 장이라도 못 내면 다시 — 그 수신자는 거래를 못 본다(주소형이라 다시 내도 같은 자리를 덮는다)
+      const reports = await Promise.all(buildOrderEvents(ctx, order, createdAt).map(e => transport.publish(e)));
+      const failed = reports.filter(r => r.accepted.length === 0);
+      if (failed.length > 0) {
+        const reasons = failed.flatMap(r => r.rejected.map(x => x.reason));
+        return { status: 'retry', error: reasons.join('; ') || '릴레이 없음' };
       }
       return { status: 'done', result: { createdAt } };
     },
@@ -259,6 +279,7 @@ export function buildLnDetail(ctx: LnContext, order: LnOrderRow, blockHeight?: n
     ...(order.claimed_at ? { claimedAt: order.claimed_at } : {}),
     ...(order.account_sent_at ? { accountSentAt: order.account_sent_at } : {}),
     ...(order.invoice_deadline ? { invoiceDeadline: order.invoice_deadline } : {}),
+    ...(order.designated_sponsor ? { designatedSponsor: order.designated_sponsor } : {}),
     ...(order.account_commitment ? { accountCommitment: order.account_commitment } : {}),
     ...(order.remitted_at ? { remittedAt: order.remitted_at } : {}),
     createdAt: order.created_at,

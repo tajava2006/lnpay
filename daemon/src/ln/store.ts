@@ -33,6 +33,8 @@ export interface LnOrderRow {
   remitted_at: number | null;
   /** 후원자 인보이스 등록 마감 (unix초) — `escrowed` 진입 때 찍는다. 넘기면 `expired:no-invoice` */
   invoice_deadline: number | null;
+  /** 지정 거래의 후원자 — 이 pubkey만 맡을 수 있고 보증금이 없다(docs/PLAN-DESIGNATED-TRADE.md). 공개 거래는 null */
+  designated_sponsor: string | null;
   created_at: number;
   updated_at: number;
   version: number;
@@ -41,7 +43,7 @@ export interface LnOrderRow {
 
 /** `updateOrder`가 바꿀 수 있는 칸 — 키·버전·시각은 저장소가 관리한다 */
 export type LnOrderPatch = Partial<Omit<LnOrderRow, 'order_id' | 'customer' | 'price' | 'deadline'
-  | 'created_at' | 'updated_at' | 'version' | 'published_at'>>;
+  | 'designated_sponsor' | 'created_at' | 'updated_at' | 'version' | 'published_at'>>;
 
 export interface LnDraftRow {
   order_id: string;
@@ -67,17 +69,22 @@ export function ordersInStates(ctx: Pick<LnContext, 'db'>, states: readonly Orde
 
 export function insertOrder(
   ctx: LnContext,
-  o: { orderId: string; customer: string; price: number; deadline: number; customerDepositHash?: string },
+  o: {
+    orderId: string; customer: string; price: number; deadline: number; customerDepositHash?: string;
+    designatedSponsor?: string;
+  },
 ): void {
   const now = nowSec(ctx);
   ctx.db.run(
-    `INSERT INTO ln_orders (order_id, state, customer, price, deadline, customer_deposit_hash, created_at, updated_at)
-     VALUES (?, 'requested', ?, ?, ?, ?, ?, ?)`,
-    o.orderId, o.customer, o.price, o.deadline, o.customerDepositHash ?? null, now, now,
+    `INSERT INTO ln_orders
+       (order_id, state, customer, price, deadline, customer_deposit_hash, designated_sponsor, created_at, updated_at)
+     VALUES (?, 'requested', ?, ?, ?, ?, ?, ?, ?)`,
+    o.orderId, o.customer, o.price, o.deadline, o.customerDepositHash ?? null, o.designatedSponsor ?? null, now, now,
   );
   requestProjection(ctx, o.orderId);
   // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다
-  notifyOperators(ctx, `새 의뢰 — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
+  const kind = o.designatedSponsor ? '새 지정 거래' : '새 의뢰';
+  notifyOperators(ctx, `${kind} — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
 }
 
 /**

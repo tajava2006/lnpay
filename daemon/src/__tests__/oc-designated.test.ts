@@ -9,11 +9,14 @@
 import { unwrapEvent } from 'nostr-tools/nip17';
 import { describe, expect, it } from 'vitest';
 import {
-  DESIGNATED_ORDER_KIND, ORDER_KIND, REQUEST_ACTIONS, designatedOrderD, nip44Encrypt, openDesignatedOrder,
+  DESIGNATED_ORDER_KIND, MAX_OPEN_DESIGNATED_PER_CUSTOMER, ORDER_KIND, REQUEST_ACTIONS, designatedOrderD, nip44Encrypt,
+  openDesignatedOrder,
 } from '@sajwo-tracker/shared/core';
 import { FUNDING_WINDOW_SEC, PRESIGN_WINDOW_SEC, parseOnchainOrder, TYPICAL_SETTLEMENT_VSIZE } from '@sajwo-tracker/shared/onchain';
 import { openAlerts } from '../admin/alerts';
-import { candidatesOf } from '../onchain/store';
+import { listOc } from '../onchain/bonds';
+import { OC_ORDER_PUBLISH_EFFECT, candidatesOf } from '../onchain/store';
+import { PUSH_EFFECT } from '../push/send';
 import { TEST_TAGS, newKey, type TestKey } from './fakes';
 import {
   AMOUNT, REFUND, SK_C, XC, claimOc, confirmSettlementOc, cosignOc, createOcHarness, fundOc, ocMessagesTo, ocRequest,
@@ -116,7 +119,8 @@ describe('지정 의뢰 — 만들기', () => {
     const ev = ocRequest(h.customer, h.app.pubkey, 'brokenx1', REQUEST_ACTIONS.ONCHAIN_DESIGNATED_ORDER_REQUEST, h.sec(), [],
       'garbage', h.sec() + 86_400);
     await h.send(ev);
-    expect(h.ln.db.get<{ outcome: string }>('SELECT outcome FROM inbox WHERE id = ?', ev.id)!.outcome).toBe('ignored:bad-payload');
+    // 못 여는 것은 두 트랙 다 `undecryptable`, 열었는데 모양이 틀리면 `bad-payload`(`decryptRequest`)
+    expect(h.ln.db.get<{ outcome: string }>('SELECT outcome FROM inbox WHERE id = ?', ev.id)!.outcome).toBe('ignored:undecryptable');
   });
 });
 
@@ -211,5 +215,57 @@ describe('공개 거래는 그대로', () => {
     await h.run();
     expect(state(h, orderId)).toBe('cancelled');
     expect(forfeitAlerts(h, orderId)).toHaveLength(1);
+  });
+});
+
+const OFF_CURVE = '11'.repeat(32);
+
+/** 이 사람에게 쌓인 웹 푸시 본문 — 보내기 전 평문이 효과 대기열에 있다 */
+const pushBodiesTo = (h: OcHarness, pubkey: string) =>
+  h.ln.db.all<{ payload: string }>('SELECT payload FROM effects WHERE kind = ?', PUSH_EFFECT)
+    .map(r => JSON.parse(r.payload) as { pubkey: string; message: { body: string } })
+    .filter(p => p.pubkey === pubkey)
+    .map(p => p.message.body);
+
+describe('곡선 밖 pubkey (2026-10-18 리뷰)', () => {
+  it('곡선 밖 키를 지정한 요청은 받지 않는다', async () => {
+    const h = await createOcHarness();
+    const orderId = await openDesignatedOc(h, { sponsor: OFF_CURVE });
+    expect(h.row(orderId)).toBeUndefined();
+  });
+
+  it('봉하지 못하는 수신자가 있어도 발행이 재시도에 갇히지 않는다 — 그 사람만 빼고 경보', async () => {
+    const h = await createOcHarness();
+    h.ln.db.tx(() => listOc(h.oc, {
+      orderId: 'legacyoc', customer: h.customer.pubkey, designatedSponsor: OFF_CURVE,
+      info: { amountSat: AMOUNT, expiration: h.sec() + 86_400, customerXonly: XC, refundAddress: REFUND },
+    }));
+    await h.run(4);
+    expect(h.ln.effects.pendingCount(OC_ORDER_PUBLISH_EFFECT)).toBe(0);
+    expect(snapshotFor(h, 'legacyoc', h.customer)?.state).toBe('listed');
+    expect(openAlerts(h.ln).filter(a => a.orderId === 'legacyoc' && /봉하지 못해/.test(a.message))).toHaveLength(1);
+  });
+});
+
+describe('스팸 억제 · 문구 (RISKS R-16)', () => {
+  it(`고객 키 하나가 수락 대기 지정 의뢰를 ${MAX_OPEN_DESIGNATED_PER_CUSTOMER}개까지 — 넘으면 이유와 함께 거절`, async () => {
+    const h = await createOcHarness();
+    for (let i = 0; i < MAX_OPEN_DESIGNATED_PER_CUSTOMER; i++) expect(state(h, await openDesignatedOc(h))).toBe('listed');
+    const over = await openDesignatedOc(h);
+    expect(h.row(over)).toBeUndefined();
+    expect(rejectionsTo(h, h.customer.pubkey).at(-1)).toMatch(/수락을 기다리는 지정 거래가 이미/);
+    expect(state(h, await openDesignatedOc(h, { customer: newKey() }))).toBe('listed');
+  });
+
+  it('맡겨진 뒤 고객에게 가는 "입금하세요" 알림이 몰수를 말하지 않는다 — 공개 거래는 그대로 말한다', async () => {
+    const h = await createOcHarness();
+    await claimOc(h, await openDesignatedOc(h));
+    const designated = pushBodiesTo(h, h.customer.pubkey).filter(b => /사는 사람이 정해졌습니다/.test(b));
+    expect(designated).toHaveLength(1);
+    expect(designated[0]).not.toMatch(/보증금|몰수/);
+
+    const pub = await createOcHarness();
+    await claimOc(pub, await openOc(pub));
+    expect(pushBodiesTo(pub, pub.customer.pubkey).filter(b => /사는 사람이 정해졌습니다/.test(b))[0]).toMatch(/몰수/);
   });
 });

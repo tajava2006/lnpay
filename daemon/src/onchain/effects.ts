@@ -7,10 +7,9 @@
  * 지정 거래는 공개 오더 대신 **수신자별 암호문 스냅샷**(`DESIGNATED_ORDER_KIND`)으로 낸다 — 고객 · 지정 후원자 · 운영자에게만
  * 보인다(docs/ONCHAIN-TRACK.md §10). 라이트닝(`../ln/effects.ts`)과 같은 방식이다.
  */
-import type { Event } from 'nostr-tools/core';
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
-  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, designatedOrderTemplate, nip44Encrypt, type AdminOcOrderDetail,
+  ADMIN_STATE_KIND, adminOrderDTag, nip44Encrypt, type AdminOcOrderDetail,
 } from '@sajwo-tracker/shared/core';
 import {
   isOnchainTerminal, onchainOrderEventExpiration, onchainOrderIssues, onchainOrderTags,
@@ -19,6 +18,7 @@ import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import type { EffectExecutor } from '../effects';
 import type { RelayTransport } from '../nostr/transport';
+import { alertSkippedRecipients, orderEvents, publishAll } from '../orders/publish';
 import { OC_BOND_PURPOSES } from './bonds';
 import type { OcContext } from './context';
 import type { BroadcastPayload } from './flow';
@@ -51,28 +51,19 @@ export function createOcPublishExecutor(ctx: OcContext, transport: RelayTranspor
       }
       const tags = onchainOrderTags(order, ctx.tags.onchain, ctx.appUrl)
         .map(t => (t[0] === 'expiration' ? ['expiration', String(expiration)] : t));
-      let events: Event[];
-      if (!order.designatedSponsor) {
-        events = [finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey)];
-      } else {
-        const recipients = new Set([order.customerPubkey, order.designatedSponsor, ...ctx.operators]);
-        events = [...recipients].map(recipient => finalizeEvent(designatedOrderTemplate({
-          orderId, recipient, trackTag: ctx.tags.onchain, tags, retainUntil: expiration, createdAt,
-          appSecretKey: ctx.appKey.secretKey,
-        }), ctx.appKey.secretKey));
-      }
-      // 지정 거래는 한 장이라도 못 내면 다시 — 그 수신자는 거래를 못 본다(주소형이라 다시 내도 같은 자리를 덮는다)
-      const reports = await Promise.all(events.map(e => transport.publish(e)));
-      const failed = reports.filter(r => r.accepted.length === 0);
-      if (failed.length > 0) {
-        const reasons = failed.flatMap(r => r.rejected.map(x => x.reason));
-        return { status: 'retry', error: reasons.join('; ') || '릴레이 없음' };
-      }
-      return { status: 'done', result: { createdAt } };
+      // 공개 거래는 한 장, 지정 거래는 수신자마다 한 장(`../orders/publish`)
+      const { events, skipped } = orderEvents(ctx, {
+        orderId, customer: order.customerPubkey, designatedSponsor: order.designatedSponsor,
+        trackTag: ctx.tags.onchain, tags, retainUntil: expiration, createdAt,
+      });
+      const error = await publishAll(transport, events);
+      if (error) return { status: 'retry', error };
+      return { status: 'done', result: { createdAt, skipped } };
     },
     onDone({ orderId }, result) {
-      const createdAt = (result as { createdAt?: number }).createdAt;
+      const { createdAt, skipped } = result as { createdAt?: number; skipped?: string[] };
       if (createdAt) ctx.db.run('UPDATE oc_orders SET published_at = ? WHERE order_id = ?', createdAt, orderId);
+      if (skipped) alertSkippedRecipients(ctx, 'onchain', orderId, skipped);
     },
   };
 }

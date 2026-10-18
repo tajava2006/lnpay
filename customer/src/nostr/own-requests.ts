@@ -29,6 +29,17 @@ const accountBeforeOrder = new Map<string, AccountInfo>();
 
 const tag = (event: Event, name: string) => event.tags.find(t => t[0] === name)?.[1];
 
+/**
+ * 내가 APP에게 보낸 요청 내용을 내 키로 연다(NIP-44 대화 키는 양쪽 공통). 못 열면 `undefined` — 두 트랙의 되살리기가 같이 쓴다
+ */
+export function decryptOwnRequest(event: Pick<Event, 'content'>, sk: Uint8Array): unknown {
+  try {
+    return JSON.parse(nip44Decrypt(event.content, sk, APP_PUBKEY)) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 export function handleOwnLnRequest(event: Event, sk: Uint8Array, myPubkey: string): void {
   if (event.pubkey !== myPubkey) return;
   const orderId = extractOrderId(event.tags);
@@ -59,12 +70,7 @@ function restoreOrderRequest(event: Event, orderId: string, myPubkey: string): v
 /** 지정 거래 의뢰 — 조건이 APP에게 암호화돼 있다. 보낸 사람(나)도 같은 대화 키로 푼다 */
 function restoreDesignatedOrderRequest(event: Event, orderId: string, sk: Uint8Array, myPubkey: string): void {
   if (getLocalOrders()[orderId]) return;
-  let payload: unknown;
-  try {
-    payload = JSON.parse(nip44Decrypt(event.content, sk, APP_PUBKEY));
-  } catch {
-    return;
-  }
+  const payload = decryptOwnRequest(event, sk);
   if (!isLnDesignatedOrderPayload(payload)) return;
   restore({
     orderId, price: payload.price, memo: '', createdAt: event.created_at, expiration: payload.deadline,

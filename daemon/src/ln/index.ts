@@ -7,6 +7,7 @@ import type { Db } from '../db';
 import type { Handler } from '../dispatch';
 import type { RelayTransport } from '../nostr/transport';
 import type { OrderDirectory } from '../orders/directory';
+import { operatorsChanged } from '../orders/designated';
 import type { Holds } from '../hold';
 import type { PushConfig } from '../push/send';
 import { registerLnCommands } from './commands';
@@ -19,7 +20,7 @@ import {
 } from './flow';
 import { createLnHandlers, knownHeight } from './handlers';
 import type { LnNode } from './lnd';
-import { LN_DETAIL_EFFECT, LN_ORDER_PUBLISH_EFFECT } from './store';
+import { LN_DETAIL_EFFECT, LN_ORDER_PUBLISH_EFFECT, designatedOrderIds, requestProjection } from './store';
 import { LnWatcher } from './watcher';
 
 export interface LnDeps {
@@ -68,6 +69,10 @@ export function installLnTrack(
   effects.register(LN_DETAIL_EFFECT, createDetailExecutor(ctx, transport, () => knownHeight(ctx)));
 
   registerLnCommands(registry, ctx);
+  // 운영자가 바뀌었으면 지정 거래 스냅샷을 다시 낸다 — 새 운영자도 보게(보존이 끝난 건 발행기가 건너뛴다)
+  ctx.db.tx(() => {
+    if (operatorsChanged(ctx, 'ln')) for (const orderId of designatedOrderIds(ctx)) requestProjection(ctx, orderId);
+  });
   return { ctx, watcher: new LnWatcher(ctx), handlers: createLnHandlers(ctx) };
 }
 

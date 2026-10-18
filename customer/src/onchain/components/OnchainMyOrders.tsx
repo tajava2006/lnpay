@@ -71,8 +71,10 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
             <p style={styles.dangerText}>{req.rejectedReason}</p>
           ) : (
             <p style={styles.warnText}>
-              운영자가 보증금 인보이스를 보내기를 기다리는 중입니다.
-              몇 분이 지나도 안 오면 운영자에게 문의하세요.
+              {req.designated
+                ? '지정 거래가 등록되기를 기다리는 중입니다(보증금 없음).'
+                : '운영자가 보증금 인보이스를 보내기를 기다리는 중입니다.'}
+              {' '}몇 분이 지나도 안 오면 운영자에게 문의하세요.
             </p>
           )}
           <button style={styles.ghost} onClick={() => forgetPendingRequest(req.orderId)}>

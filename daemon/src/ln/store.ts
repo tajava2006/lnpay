@@ -7,6 +7,7 @@
 import type { OrderState } from '@sajwo-tracker/shared/core';
 import { nowSec } from '../admin/context';
 import { notifyOperators } from '../admin/notify';
+import { designatedQuietOver } from '../orders/designated';
 import type { LnContext } from './context';
 
 export interface LnOrderRow {
@@ -82,9 +83,27 @@ export function insertOrder(
     o.orderId, o.customer, o.price, o.deadline, o.customerDepositHash ?? null, o.designatedSponsor ?? null, now, now,
   );
   requestProjection(ctx, o.orderId);
-  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다
-  const kind = o.designatedSponsor ? '새 지정 거래' : '새 의뢰';
-  notifyOperators(ctx, `${kind} — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
+  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다. 지정 거래는 공짜라 몰아 오면 폰만 울린다 — 조용한 창에 한 번
+  if (!o.designatedSponsor) {
+    notifyOperators(ctx, `새 의뢰 — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
+  } else if (designatedQuietOver(ctx, 'dm:ln')) {
+    notifyOperators(ctx, `새 지정 거래 — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
+  }
+}
+
+/** 지정 거래 오더 전부 (운영자가 바뀌어 스냅샷을 다시 낼 때) */
+export function designatedOrderIds(ctx: Pick<LnContext, 'db'>): string[] {
+  return ctx.db.all<{ order_id: string }>('SELECT order_id FROM ln_orders WHERE designated_sponsor IS NOT NULL')
+    .map(r => r.order_id);
+}
+
+/** 이 고객이 띄운, 아직 아무도 수락하지 않은 지정 의뢰 수 — 스팸 상한(`MAX_OPEN_DESIGNATED_PER_CUSTOMER`) */
+export function openDesignatedCount(ctx: Pick<LnContext, 'db'>, customer: string): number {
+  const r = ctx.db.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM ln_orders WHERE customer = ? AND designated_sponsor IS NOT NULL AND state = 'requested'`,
+    customer,
+  );
+  return Number(r?.n ?? 0);
 }
 
 /**

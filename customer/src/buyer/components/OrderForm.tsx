@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { addOrder } from '../order-store';
+import { addOrder, getSnapshot } from '../order-store';
 import { newOrderId } from '../order-id';
 import type { CustomerOrder } from '../types';
-import { nowSec } from '@sajwo-tracker/shared';
+import { DESIGNATED_COPY, MAX_OPEN_DESIGNATED_PER_CUSTOMER, nowSec } from '@sajwo-tracker/shared';
 import { CounterpartyInput, TradeModeToggle, type TradeMode } from '../../designated/components';
+import { openDesignatedLnCount } from '../../designated/view';
 
 const DEFAULT_EXPIRY_HOURS = 24;
 
@@ -42,7 +43,11 @@ export function OrderForm() {
       return;
     }
     if (designated && !counterparty) {
-      alert('상대 주소를 넣고 확인 코드 대조와 위험 고지를 체크해 주세요.');
+      alert(DESIGNATED_COPY.incomplete);
+      return;
+    }
+    if (designated && openDesignatedLnCount(Object.values(getSnapshot()), nowSec()) >= MAX_OPEN_DESIGNATED_PER_CUSTOMER) {
+      alert(`수락을 기다리는 지정 거래가 이미 ${MAX_OPEN_DESIGNATED_PER_CUSTOMER}건입니다. 상대가 수락하거나 내린 뒤 다시 만들어 주세요.`);
       return;
     }
 
@@ -131,7 +136,7 @@ export function OrderForm() {
           </p>
         )}
         <button type="submit" style={styles.submitBtn} disabled={designated && !counterparty}>
-          {designated ? '지정 거래 만들기' : '의뢰 등록'}
+          {designated ? DESIGNATED_COPY.create : '의뢰 등록'}
         </button>
       </form>
     </div>

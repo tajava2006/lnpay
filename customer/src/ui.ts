@@ -53,4 +53,8 @@ export const ui = {
   price: { fontSize: 20, fontWeight: 600 as const, color: '#4F46E5' },
   timeLeft: { fontSize: 13, fontWeight: 500 as const },
   statusRow: { display: 'flex', flexWrap: 'wrap' as const, alignItems: 'center', gap: 6 },
+  /** "지정 거래" 배지 — 두 트랙 카드가 같은 모양으로 */
+  designatedBadge: {
+    fontSize: 11, fontWeight: 600 as const, color: '#6D28D9', background: '#F5F3FF', borderRadius: 6, padding: '2px 8px',
+  },
 };

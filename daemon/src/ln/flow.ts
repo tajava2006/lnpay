@@ -336,6 +336,9 @@ function onEscrowAccepted(ctx: LnContext, inv: HoldRow): void {
   if (order.pending_close || isTerminalState(order.state)) return; // 닫는 효과가 처리한다
   if (order.state !== 'verified') return;
 
+  // 인보이스 마감은 **데몬이 에스크로를 본 시각**부터 센다(HTLC가 실제로 잡힌 시각이 아니다). 후원자는 데몬이 `escrowed`를
+  // 발행해야 자기 차례를 안다 — 데몬이 꺼져 있던 동안은 후원자가 낼 수 없었으니 그 시간을 후원자 몫에서 빼지 않는다.
+  // 상한(기한 + 유예)은 그대로다
   const escrowed = updateOrder(ctx, order.order_id, {
     state: 'escrowed', invoice_deadline: invoiceDeadlineFor(nowSec(ctx), order.deadline),
   });

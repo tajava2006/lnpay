@@ -7,8 +7,12 @@
 import { describe, expect, it } from 'vitest';
 import { unwrapEvent } from 'nostr-tools/nip17';
 import {
-  DESIGNATED_ORDER_KIND, ORDER_KIND, REQUEST_ACTIONS, designatedOrderD, nip44Encrypt, openDesignatedOrder,
+  DESIGNATED_ORDER_KIND, MAX_OPEN_DESIGNATED_PER_CUSTOMER, ORDER_KIND, REQUEST_ACTIONS, designatedOrderD, nip44Encrypt,
+  openDesignatedOrder,
 } from '@sajwo-tracker/shared/core';
+import { openAlerts } from '../admin/alerts';
+import { LN_ORDER_PUBLISH_EFFECT, insertOrder } from '../ln/store';
+import { DESIGNATED_QUIET_SEC, operatorsChanged } from '../orders/designated';
 import { parseLnOrderEvent } from '@sajwo-tracker/shared/ln';
 import { newKey, type TestKey } from './fakes';
 import { createLnHarness, lnRequest, type LnHarness } from './ln-fakes';
@@ -200,5 +204,89 @@ describe('알림', () => {
     expect(h.push.sent).toHaveLength(2);
     await h.run(4);
     expect(h.push.sent).toHaveLength(2);
+  });
+});
+
+/** 곡선 밖 x — 64자 hex지만 pubkey가 아니다. 무작위 64-hex의 절반쯤이 이렇다(txid·이벤트 id를 붙여넣은 경우) */
+const OFF_CURVE = '11'.repeat(32);
+
+const dmsTo = (h: LnHarness, pattern: RegExp) => h.relay.published
+  .filter(e => e.kind === 1059)
+  .map(e => unwrapEvent(e, h.operator.secretKey).content)
+  .filter(text => pattern.test(text));
+
+describe('곡선 밖 pubkey (2026-10-18 리뷰)', () => {
+  it('곡선 밖 키를 지정한 요청은 받지 않는다 — 행이 안 생긴다', async () => {
+    const h = await createLnHarness();
+    const ev = lnRequest(h.customer, h.app.pubkey, 'offcrv1', REQUEST_ACTIONS.DESIGNATED_ORDER_REQUEST, h.sec(), [],
+      nip44Encrypt(JSON.stringify({ price: 1000, deadline: h.sec() + 2 * DAY, designatedSponsor: OFF_CURVE }),
+        h.customer.secretKey, h.app.pubkey));
+    await h.send(ev);
+    expect(outcomeOf(h, ev.id)).toBe('ignored:bad-payload');
+    expect(h.order('offcrv1')).toBeUndefined();
+  });
+
+  it('봉하지 못하는 수신자가 있어도 발행이 재시도에 갇히지 않는다 — 그 사람만 빼고 경보', async () => {
+    const h = await createLnHarness();
+    // 검사가 조여지기 전에 들어온 행을 흉내 낸다
+    h.ln.db.tx(() => insertOrder(h.ln, {
+      orderId: 'legacy1', customer: h.customer.pubkey, price: 1000, deadline: h.sec() + 2 * DAY, designatedSponsor: OFF_CURVE,
+    }));
+    await h.run(4);
+    expect(h.ln.effects.pendingCount(LN_ORDER_PUBLISH_EFFECT)).toBe(0);
+    expect(snapshotFor(h, 'legacy1', h.customer)?.state).toBe('requested');
+    expect(snapshotFor(h, 'legacy1', h.operator)?.state).toBe('requested');
+    expect(openAlerts(h.ln).filter(a => a.orderId === 'legacy1' && /봉하지 못해/.test(a.message))).toHaveLength(1);
+  });
+});
+
+describe('스팸 억제 — 보증금이 없어 공짜다 (RISKS R-16)', () => {
+  it(`고객 키 하나가 수락 대기 지정 의뢰를 ${MAX_OPEN_DESIGNATED_PER_CUSTOMER}개까지 — 수락되거나 내리면 다시 된다`, async () => {
+    const h = await createLnHarness();
+    const ids: string[] = [];
+    for (let i = 0; i < MAX_OPEN_DESIGNATED_PER_CUSTOMER; i++) ids.push(await openDesignated(h));
+    expect(ids.every(id => h.order(id)?.state === 'requested')).toBe(true);
+    const over = await openDesignated(h);
+    expect(h.order(over)).toBeUndefined();
+    expect(h.ln.db.all<{ outcome: string }>('SELECT outcome FROM inbox ORDER BY created_at').at(-1)!.outcome)
+      .toBe('ignored:too-many-designated');
+
+    await claim(h, ids[0]!); // 수락되면 더 이상 "대기"가 아니다
+    expect(h.order(await openDesignated(h))?.state).toBe('requested');
+    // 다른 고객 키는 따로 센다
+    expect(h.order(await openDesignated(h, { customer: newKey() }))?.state).toBe('requested');
+  });
+
+  it('지정 대상에게 가는 도착 푸시와 운영자 DM은 조용한 창에 한 번 — 놓친 건 목록에 있다', async () => {
+    const h = await createLnHarness();
+    const sub = {
+      endpoint: 'https://push.example/sponsor',
+      p256dh: 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',
+      auth: 'BTBZMqHH6r4Tts7J_aSIgg',
+    };
+    await h.send(lnRequest(h.sponsor, h.app.pubkey, null, REQUEST_ACTIONS.PUSH_SUBSCRIPTION, h.sec(), [],
+      nip44Encrypt(JSON.stringify(sub), h.sponsor.secretKey, h.app.pubkey)));
+    const before = h.push.sent.length;
+    // 키를 바꿔 가며 쏟아부어도
+    for (let i = 0; i < 3; i++) await openDesignated(h, { customer: newKey() });
+    expect(h.push.sent.length - before).toBe(1);
+    expect(dmsTo(h, /새 지정 거래/)).toHaveLength(1);
+
+    h.advance(DESIGNATED_QUIET_SEC);
+    await openDesignated(h, { customer: newKey() });
+    expect(h.push.sent.length - before).toBe(2);
+    expect(dmsTo(h, /새 지정 거래/)).toHaveLength(2);
+  });
+});
+
+describe('운영자가 바뀌면 (2026-10-18 리뷰)', () => {
+  /** 스냅샷은 발행할 때의 운영자에게만 간다 — 부팅 때 목록이 바뀌었으면 트랙이 지정 거래 스냅샷을 다시 낸다 */
+  it('부팅 때 운영자 목록이 지난번과 다르면 한 번만 참', async () => {
+    const h = await createLnHarness();
+    expect(operatorsChanged(h.ln, 'ln')).toBe(false); // 이번 부팅에 이미 적었다
+    const more = { db: h.ln.db, operators: [...h.ln.operators, newKey().pubkey] };
+    expect(operatorsChanged(more, 'ln')).toBe(true);
+    expect(operatorsChanged(more, 'ln')).toBe(false);
+    expect(operatorsChanged({ db: h.ln.db, operators: [...more.operators].reverse() }, 'ln')).toBe(false); // 순서는 무관
   });
 });

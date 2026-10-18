@@ -16,6 +16,7 @@ export function OnchainProgressBar({ order, role, accountInfoSent }: Props) {
   const progress = resolveOnchainProgress(role, order.state, {
     accountInfoSent,
     settlementKind: order.settlementKind,
+    designated: Boolean(order.designatedSponsor),
   });
 
   return (

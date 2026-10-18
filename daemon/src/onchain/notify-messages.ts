@@ -31,10 +31,13 @@ import { NOTIFY, type Notice } from '../ln/notify-messages';
 export const ONCHAIN_NOTIFY = {
   // ── 고객 차례 ──
 
-  /** 후원자 보증금이 잡혔다 = 클레임 성립. 고객이 `FUNDING_WINDOW_SEC` 안에 펀딩해야 한다. */
-  customerShouldFund: (): Notice => ({
+  /**
+   * 클레임 성립(공개 거래는 후원자 보증금이 잡혔다). 고객이 `FUNDING_WINDOW_SEC` 안에 펀딩해야 한다. 지정 거래는
+   * 보증금이 없어 몰수를 말하지 않는다(ONCHAIN-TRACK §10).
+   */
+  customerShouldFund: (designated = false): Notice => ({
     body: `사는 사람이 정해졌습니다. ${durationText(FUNDING_WINDOW_SEC)} 안에 에스크로 주소로 보내고 컨펌까지 `
-      + '마쳐주세요. 늦으면 보증금이 몰수됩니다.',
+      + (designated ? '마쳐주세요. 늦으면 거래가 취소됩니다.' : '마쳐주세요. 늦으면 보증금이 몰수됩니다.'),
     tab: 'history', track: 'onchain',
   }),
 
@@ -192,6 +195,11 @@ export const ONCHAIN_TRANSITION_NOTICES: Record<OnchainState, StateNotices | nul
     sponsor: ONCHAIN_NOTIFY.cancelled(),
   },
   swept: null,
+};
+
+/** 지정 거래(보증금 없음)에서 위 표 대신 쓰는 것 — 보증금을 말하는 알림만 여기 있다 */
+export const ONCHAIN_DESIGNATED_NOTICES: Partial<Record<OnchainState, StateNotices>> = {
+  bonded: { customer: ONCHAIN_NOTIFY.customerShouldFund(true) },
 };
 
 /**

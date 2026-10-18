@@ -16,19 +16,43 @@
  * 보이는 것: 지정 요청을 보낸 pubkey와 시각, APP이 어느 pubkey들에게 스냅샷을 보냈는지(`p`)와 시각. 숨는 것: 금액·
  * 기한·상대 지정·상태 전부.
  */
+import { schnorr } from '@noble/curves/secp256k1.js';
 import type { Event, EventTemplate } from 'nostr-tools/core';
 import { decode, npubEncode } from 'nostr-tools/nip19';
 import { APP_PUBKEY, ORDER_KIND } from './constants';
 import { nip44Decrypt, nip44Encrypt } from './crypto';
+import { isXonlyHex } from './onchain/hex';
 import { arrayOf, isNum, isStr, optional, shape } from './shape';
 
 /** 지정 오더 스냅샷 — 주소형, 우리 전용 kind (APP → 수신자 하나) */
 export const DESIGNATED_ORDER_KIND = 33839;
 
-const HEX64 = /^[0-9a-f]{64}$/;
+/**
+ * 고객 키 하나가 **수락을 기다리는** 지정 의뢰를 트랙마다 몇 개까지 띄울 수 있나. 지정 의뢰는 보증금이 없어 공짜라
+ * 키 하나로 특정 후원자·운영자에게 의뢰를 쏟아붓는 걸 여기서 끊는다(RISKS R-16). 합의 거래는 보통 한 번에 하나다.
+ */
+export const MAX_OPEN_DESIGNATED_PER_CUSTOMER = 3;
 
+/**
+ * nostr pubkey인가 — x-only 형식(`isXonlyHex`) **이고 secp256k1 곡선 위의 점**이다.
+ *
+ * 형식만 보면 txid·이벤트 id·payment hash도 통과하는데 그 절반쯤은 곡선 밖이다 — NIP-44 대화 키가 `bad point`로 터진다.
+ * 64자 검사만 하던 때 그런 값을 지정한 오더는 발행이 영원히 재시도에 갇혔다(2026-10-18 리뷰). 온체인 에스크로 키
+ * 검사(`isXonlyHex`)는 서명 경로라 여기서 같이 조이지 않는다.
+ */
 export function isPubkeyHex(v: unknown): v is string {
-  return typeof v === 'string' && HEX64.test(v);
+  return typeof v === 'string' && isPubkey(v);
+}
+
+/** 가드가 아닌 판정 — 이미 string인 값에 가드를 쓰면 거짓 쪽이 `never`로 좁혀진다 */
+function isPubkey(hex: string): boolean {
+  if (!isXonlyHex(hex)) return false;
+  try {
+    schnorr.utils.lift_x(BigInt(`0x${hex}`));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** 스냅샷의 `d` — 오더 하나에 수신자마다 하나 */
@@ -136,19 +160,24 @@ export function checkCode(pubkey: string): string {
 }
 
 /**
- * 붙여넣은 주소 → pubkey hex. npub · nprofile · hex 64자 · `nostr:` 접두사를 받는다. 못 읽으면 null.
+ * 붙여넣은 주소 → pubkey hex. npub · nprofile · hex 64자 · `nostr:` 접두사를 받는다. 못 읽거나 **곡선 밖의 키**면 null.
  * nsec는 **받지 않는다** — 비밀키를 주소 칸에 붙여넣는 실수를 여기서 끊는다.
+ *
+ * bech32는 대문자도 맞는 표기다(QR 영숫자 모드가 대문자로 만든다) — 대소문자를 **섞은** 것만 틀렸다.
  */
 export function parsePubkeyInput(text: string): string | null {
   const t = text.trim().replace(/^nostr:/i, '');
-  if (HEX64.test(t.toLowerCase())) return t.toLowerCase();
-  if (!/^(npub1|nprofile1)/.test(t)) return null;
+  if (t !== t.toLowerCase() && t !== t.toUpperCase()) return null;
+  const lower = t.toLowerCase();
+  if (isPubkey(lower)) return lower;
+  if (!/^(npub1|nprofile1)/.test(lower)) return null;
+  let pubkey: string | undefined;
   try {
-    const d = decode(t);
-    if (d.type === 'npub') return d.data;
-    if (d.type === 'nprofile') return d.data.pubkey;
+    const d = decode(lower);
+    if (d.type === 'npub') pubkey = d.data;
+    else if (d.type === 'nprofile') pubkey = d.data.pubkey;
   } catch {
     return null;
   }
-  return null;
+  return pubkey !== undefined && isPubkey(pubkey) ? pubkey : null;
 }

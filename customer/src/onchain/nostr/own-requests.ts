@@ -10,20 +10,12 @@
  * 의뢰 요청은 의뢰 만료까지만 릴레이에 남는다 — 그 뒤라면 환불 서명 화면이 주소를 다시 묻는다.
  */
 import type { Event } from 'nostr-tools/core';
-import {
-  APP_PUBKEY, REQUEST_ACTIONS, extractOrderId, isOnchainDesignatedOrderPayload, nip44Decrypt,
-} from '@sajwo-tracker/shared';
+import { REQUEST_ACTIONS, extractOrderId, isOnchainDesignatedOrderPayload } from '@sajwo-tracker/shared';
 import { isOnchainClaimPayload, isOnchainOrderRequestPayload } from '@sajwo-tracker/shared/onchain';
+import { decryptOwnRequest } from '../../nostr/own-requests';
 import { getMyClaim, rememberMyClaim } from '../claim-store';
 import { getRefundAddress, rememberRefundAddress } from '../refund-address-store';
 
-function decryptToApp(event: Event, sk: Uint8Array): unknown {
-  try {
-    return JSON.parse(nip44Decrypt(event.content, sk, APP_PUBKEY)) as unknown;
-  } catch {
-    return undefined;
-  }
-}
 
 export function handleOwnOnchainRequest(event: Event, sk: Uint8Array, myPubkey: string): void {
   if (event.pubkey !== myPubkey) return;
@@ -33,7 +25,7 @@ export function handleOwnOnchainRequest(event: Event, sk: Uint8Array, myPubkey: 
 
   if (action === REQUEST_ACTIONS.ONCHAIN_ORDER_REQUEST || action === REQUEST_ACTIONS.ONCHAIN_DESIGNATED_ORDER_REQUEST) {
     if (getRefundAddress(orderId)) return;
-    const payload = decryptToApp(event, sk);
+    const payload = decryptOwnRequest(event, sk);
     if (isOnchainOrderRequestPayload(payload) || isOnchainDesignatedOrderPayload(payload)) {
       rememberRefundAddress(orderId, payload.refundAddress.trim());
     }
@@ -45,7 +37,7 @@ export function handleOwnOnchainRequest(event: Event, sk: Uint8Array, myPubkey: 
     const sentAtMs = event.created_at * 1000;
     const known = getMyClaim(orderId);
     if (known && (known.requestedAt ?? 0) >= sentAtMs) return;
-    const payload = decryptToApp(event, sk);
+    const payload = decryptOwnRequest(event, sk);
     if (!isOnchainClaimPayload(payload)) return;
     rememberMyClaim({
       orderId, payoutAddress: payload.payoutAddress, feerateSatPerVb: payload.feerateSatPerVb, requestedAt: sentAtMs,

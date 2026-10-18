@@ -190,16 +190,36 @@ async function onOcDetailEvent(event: Event): Promise<void> {
   }
 }
 
-/** 지정 거래 스냅샷 — 벙커로 열어 공개 오더와 같은 처리기로 */
-async function onDesignatedEvent(event: Event): Promise<void> {
+/** 이번 세션에 벙커로 연(또는 여는 중인) 지정 스냅샷 `d` → `created_at` */
+const openedDesignated = new Map<string, number>();
+
+/**
+ * 지정 거래 스냅샷 — 벙커로 열어 공개 오더와 같은 처리기로.
+ *
+ * **열 필요가 없으면 벙커에 묻지 않는다.** 구독은 `since: epoch`라 다시 열 때마다(탭 전환 등) 보존 중인 스냅샷이 전부
+ * 다시 오고, 복호화는 원격 서명기 왕복이다 — N개면 승인 창이 N개 뜰 수 있다(2026-10-18 리뷰). 만료됐거나, 이미 같은·더
+ * 새 것을 갖고 있거나(파서가 `updatedAt`을 이벤트 시각으로 둔다), 이번 세션에 이미 열었으면 건너뛴다. 기다리기 전에
+ * 적어 두므로 여러 릴레이가 같은 걸 동시에 줘도 한 번만 묻는다.
+ */
+export async function onDesignatedEvent(event: Event): Promise<void> {
   if (event.pubkey !== APP_PUBKEY) return;
+  const retainUntil = retainUntilOf(event);
+  if (retainUntil !== undefined && retainUntil <= nowSec()) return;
+  const d = event.tags.find(t => t[0] === 'd')?.[1] ?? '';
+  const t = event.tags.find(tag => tag[0] === 't')?.[1];
+  const orderId = d.slice(0, d.lastIndexOf(':'));
+  const known = t === CLIENT_TAG ? lnOrders.get()[orderId] : t === CLIENT_TAG_ONCHAIN ? onchainOrders.get()[orderId] : undefined;
+  if (known && known.updatedAt >= event.created_at) return;
+  if ((openedDesignated.get(d) ?? -1) >= event.created_at) return;
   const signer = getSigner();
   if (!signer) return;
+  openedDesignated.set(d, event.created_at);
   try {
     const opened = designatedOrderFromPlaintext(event, await signer.nip44Decrypt(APP_PUBKEY, event.content));
     if (opened) onOrderEvent(opened);
     else console.warn('[데몬피드] 지정 거래 스냅샷 모양이 아니다', event.id.slice(0, 8));
   } catch (e) {
+    openedDesignated.delete(d); // 다음 재생에 다시 묻는다
     console.warn('[데몬피드] 지정 거래 스냅샷을 못 열었다', e);
   }
 }

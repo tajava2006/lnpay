@@ -161,7 +161,7 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 | `ESCROW_END_BLOCKS` | 72 | `escrowed`·`invoiced`인데 에스크로가 이만큼 안 남으면 기한 만료 사유로 닫는다 |
 | `SAFETY_SETTLE_BLOCKS` | 36 | `remitted`인데 이만큼 안 남으면 **먼저 settle**한다(비대칭 손실 원칙) |
 | `REMITTED_ALERT_SEC` | 12시간 | `remitted`가 확인 없이 이만큼 머물면 운영자를 부른다 |
-| `INVOICE_WINDOW_SEC` | 6시간 | 에스크로 뒤 후원자 인보이스 등록 마감. 마감 = min(에스크로 + 6h, 기한 + 유예) — 데몬이 `escrowed` 때 오더에 찍는다(`invoice-deadline` 태그). 넘기면 `expired:no-invoice`(부등식 ④-3). 예전엔 기한 + 유예까지라 트롤이 고객 BTC를 최대 7일 묶었다(RISKS R-5) |
+| `INVOICE_WINDOW_SEC` | 6시간 | 에스크로 뒤 후원자 인보이스 등록 마감. 마감 = min(에스크로 + 6h, 기한 + 유예) — 데몬이 `escrowed` 때 오더에 찍는다(`invoice-deadline` 태그). "에스크로"는 **데몬이 본 시각**이다(데몬이 꺼져 있던 동안은 후원자가 차례를 몰랐다). 넘기면 `expired:no-invoice`(부등식 ④-3) — 핸들러도 마감 뒤(요청 시각 기준) 첫 인보이스를 받지 않는다(워처가 닫기 전 틈). 예전엔 기한 + 유예까지라 트롤이 고객 BTC를 최대 7일 묶었다(RISKS R-5) |
 | `LND_DOWN_ALERT_SEC` | 10분 | LND가 이만큼 응답하지 않으면 운영자를 부른다 — 선제 settle 창(노드 자동 취소 전 ~4시간)의 4분의 1 안(부등식 ④-2) |
 | `PAY_BY_SKEW_SEC` | 60초 | 결제 기한 판정 여유(노드·데몬 시계 차) |
 | `CATCHUP_WARMUP_SEC` | 2분 | 재시작 직후엔 기한 만료로 닫지 않는다 — 꺼져 있던 동안 쌓인 요청을 먼저 받는다 |
@@ -227,4 +227,9 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 - 그 뒤는 공개 거래와 같다(에스크로 → 인보이스 마감 6h → 계좌 → 송금 → 확인 · 분쟁). 닫기 사유·돈 처리도 같고, 보증금
   칸은 "없음"으로 흘러간다.
 - 보증금 필요 여부는 `flow.ts` `sponsorDepositRequired` 한 곳이 정한다(클레임·워처·승인·발행이 같이 쓴다).
+- 지정 상대는 **곡선 위의 pubkey**여야 한다(`isPubkeyHex`) — 64자 hex만 보면 txid 같은 값이 통과해 스냅샷을 봉하지 못한다.
+  발행기(`daemon/src/orders/publish.ts`)도 봉하지 못하는 수신자는 빼고 나머지에게 내고 경보를 올린다(무한 재시도 없음).
+- **스팸 억제**(RISKS R-16 ⑥): 고객 키 하나당 수락 대기 지정 의뢰 `MAX_OPEN_DESIGNATED_PER_CUSTOMER`개(넘으면
+  `ignored:too-many-designated` — 라이트닝은 거절 통지가 없어 폼이 미리 막는다), 도착 푸시(대상마다)·운영자 DM은 10분에 한 번.
+- 운영자를 더하면 부팅 때 지정 거래 스냅샷을 다시 낸다(스냅샷은 발행할 때의 운영자에게만 간다).
 - 거절 버튼은 없다 — 말로 알리고 고객이 취소하거나 기한으로 닫힌다.

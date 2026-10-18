@@ -9,10 +9,13 @@
  *   데몬이 서명해 직접 뿌린다 — 고객 손에 완성 가능한 환불이 들리지 않는다. (릴리스는 어드민 키가 없다.)
  * - **누가 보냈는지 본다**(O-020). 받지 않는 요청은 `ignored:<사유>`로 inbox에 남는다.
  */
-import { REQUEST_ACTIONS, extractOrderId, isOnchainDesignatedOrderPayload, nip44Decrypt } from '@sajwo-tracker/shared/core';
+import {
+  MAX_OPEN_DESIGNATED_PER_CUSTOMER, REQUEST_ACTIONS, extractOrderId, isOnchainDesignatedOrderPayload,
+} from '@sajwo-tracker/shared/core';
 import {
   TYPICAL_SETTLEMENT_VSIZE, accountDeadlineFrom, accountDeadlineOf, addTapScriptSig, addressProblem,
-  awaitingSignerFor, buildSettlementTx, bytesToHex, canActOnSignRequest, deriveEscrowAddress, dustThresholdFor,
+  awaitingSignerFor, buildSettlementTx, bytesToHex, canActOnSignRequest, deriveEscrowAddress, designatedMinTradeSat,
+  dustThresholdFor,
   finalizeSettlement, fromPsbtBase64, isOnchainClaimPayload, isOnchainOrderRequestPayload, isOnchainPsbtPayload,
   isOrderExpiryAllowed, cosignDeadlineFrom, isPast, isXonlyHex, krwDeadlineFrom, krwDeadlineOf, presignDeadlineOf,
   isSignPurpose, releaseFeerateProblem, reserveProblem, settlementFeeSat, signPurposeFor, signSettlement,
@@ -21,20 +24,21 @@ import {
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import { loadSettings } from '../admin/settings';
-import { tagValue, type HandlerResult, type InboxEvent } from '../dispatch';
+import { decryptRequest, tagValue, type HandlerResult, type InboxEvent } from '../dispatch';
 import { CLTV_MAX_BLOCKS } from '../ln/timing';
 import { isOrderId } from '../orders/id';
 import { applyOutcome, bondOc, dropSponsorCandidates, listOc } from './bonds';
 import type { OcContext } from './context';
 import {
-  CUSTOMER_DEPOSIT_PERCENT, SPONSOR_DEPOSIT_PERCENT, depositCltvBlocks, depositFloorSat, depositSat,
-  designatedMinTradeSat, minTradeSat,
+  CUSTOMER_DEPOSIT_PERCENT, SPONSOR_DEPOSIT_PERCENT, depositCltvBlocks, depositFloorSat, depositSat, minTradeSat,
 } from './deposit';
 import { adminKeyOf, escrowDescriptorFor, settlementParamsFor } from './escrow';
 import { currentFees } from './fees';
 import { sendOcRejected, sendOcSignRequest } from './messages';
 import { notifyOcAccountArrived, notifyOcDesignatedArrived, notifyOcTransition } from './notify';
-import { candidatesOf, deleteCandidate, getOc, putCandidate, updateOc, updateOcMeta, type OcRow } from './store';
+import {
+  candidatesOf, deleteCandidate, getOc, openDesignatedCount, putCandidate, updateOc, updateOcMeta, type OcRow,
+} from './store';
 import { anomaly, enterSettling, isPinnedOfLiveTrade, requestBroadcast, rescueKeyOf } from './flow';
 
 /**
@@ -55,13 +59,7 @@ function reject(ctx: OcContext, orderId: string, event: InboxEvent, reason: stri
   return ignored('rejected');
 }
 
-function decrypt(ctx: OcContext, event: InboxEvent): unknown {
-  try {
-    return JSON.parse(nip44Decrypt(event.content, ctx.appKey.secretKey, event.pubkey)) as unknown;
-  } catch {
-    return undefined;
-  }
-}
+const decrypt = (ctx: OcContext, event: InboxEvent): unknown => decryptRequest(event, ctx.appKey.secretKey);
 
 /**
  * 마감을 볼 때의 "요청 시각". **요청이 만들어진 시각**을 쓴다(미래로는 못 간다) — 데몬이 잠깐 꺼져 있던 사이
@@ -73,14 +71,11 @@ function requestAt(ctx: OcContext, event: InboxEvent): number {
 
 // ── ① 의뢰 등록 ───────────────────────────────────────────────────
 
-/** 의뢰 모양·중복·접수 여부 — 공개·지정 의뢰가 같이 쓴다. 받을 수 있으면 null */
+/** 의뢰 모양·중복·접수 여부 — 공개·지정 의뢰가 같이 쓴다. 고객 키 형식은 부르는 쪽이 먼저 봤다. 받을 수 있으면 null */
 function orderGate(
-  ctx: OcContext, orderId: string, event: InboxEvent,
-  t: { amountSat: number; customerXonly: string | undefined; reserveKrw: number | undefined },
+  ctx: OcContext, orderId: string, event: InboxEvent, t: { amountSat: number; reserveKrw: number | undefined },
 ): HandlerResult | null {
-  if (!Number.isInteger(t.amountSat) || t.amountSat <= 0 || !t.customerXonly || !isXonlyHex(t.customerXonly)) {
-    return ignored('bad-request');
-  }
+  if (!Number.isInteger(t.amountSat) || t.amountSat <= 0) return ignored('bad-request');
   if (t.reserveKrw !== undefined && !(Number.isFinite(t.reserveKrw) && t.reserveKrw > 0)) return ignored('bad-reserve');
   if (getOc(ctx, orderId) || candidatesOf(ctx, orderId).length > 0) return ignored('duplicate');
   if (!loadSettings(ctx.db).onchain.acceptNewOrders) return reject(ctx, orderId, event, '지금은 온체인 의뢰를 받지 않습니다');
@@ -113,7 +108,8 @@ export function ocOrderRequest(ctx: OcContext, event: InboxEvent): HandlerResult
   const reserveRaw = tagValue(event, 'reserve-krw');
   const reserveKrw = reserveRaw === undefined ? undefined : Number(reserveRaw);
   const expiration = Number(tagValue(event, 'expiration'));
-  const gate = orderGate(ctx, orderId, event, { amountSat, customerXonly, reserveKrw });
+  if (!customerXonly || !isXonlyHex(customerXonly)) return ignored('bad-request');
+  const gate = orderGate(ctx, orderId, event, { amountSat, reserveKrw });
   if (gate) return gate;
 
   // 환불 받을 주소 — 없으면 환불이 앱만 쓸 수 있는 주소로 간다. 받지 않는다
@@ -141,7 +137,7 @@ export function ocOrderRequest(ctx: OcContext, event: InboxEvent): HandlerResult
   });
   putCandidate(ctx, {
     paymentHash: inv.payment_hash, orderId, type: 'customer', party: event.pubkey, createdAt: now,
-    info: { amountSat, ...(reserveKrw !== undefined ? { reserveKrw } : {}), expiration, customerXonly: customerXonly!, refundAddress, cltvBlocks },
+    info: { amountSat, ...(reserveKrw !== undefined ? { reserveKrw } : {}), expiration, customerXonly, refundAddress, cltvBlocks },
   });
   return ok;
 }
@@ -157,13 +153,20 @@ export function ocDesignatedOrderRequest(ctx: OcContext, event: InboxEvent): Han
   const r = (reason: string) => reject(ctx, orderId, event, reason);
 
   const payload = decrypt(ctx, event);
+  if (payload === undefined) return ignored('undecryptable');
+  // 지정 상대는 곡선 위의 pubkey여야 한다 — 아니면 스냅샷을 봉할 수 없다(`isPubkeyHex`)
   if (!isOnchainDesignatedOrderPayload(payload)) return ignored('bad-payload');
   const { amountSat, customerXonly, reserveKrw, designatedSponsor } = payload;
   const expiration = Number(tagValue(event, 'expiration'));
-  const gate = orderGate(ctx, orderId, event, { amountSat, customerXonly, reserveKrw });
+  if (!isXonlyHex(customerXonly)) return ignored('bad-request');
+  const gate = orderGate(ctx, orderId, event, { amountSat, reserveKrw });
   if (gate) return gate;
   // 자기 지정은 자기 클레임과 같다
   if (designatedSponsor === event.pubkey) return r('자기 자신을 상대로 지정할 수 없습니다');
+  // 보증금이 없어 공짜다 — 키 하나로 특정 후원자·운영자에게 쏟아붓지 못하게(RISKS R-16)
+  if (openDesignatedCount(ctx, event.pubkey) >= MAX_OPEN_DESIGNATED_PER_CUSTOMER) {
+    return r(`수락을 기다리는 지정 거래가 이미 ${MAX_OPEN_DESIGNATED_PER_CUSTOMER}건입니다. 상대가 수락하거나 내린 뒤 다시 등록해 주세요`);
+  }
 
   const refundAddress = payload.refundAddress.trim();
   const now = nowSec(ctx);
@@ -174,7 +177,7 @@ export function ocDesignatedOrderRequest(ctx: OcContext, event: InboxEvent): Han
   if (!fees) return r('네트워크 수수료를 조회하지 못했습니다. 잠시 후 다시 시도해 주세요');
   const minTrade = designatedMinTradeSat(Math.ceil(TYPICAL_SETTLEMENT_VSIZE * fees.halfHour));
   if (amountSat < minTrade) {
-    // 이 아래로는 종결 수수료가 거래액의 5%를 넘는다
+    // 이 아래로는 종결 수수료가 거래액의 `100 / DESIGNATED_MIN_FEE_MULTIPLE`%를 넘는다
     return r(`지금 수수료 기준 지정 거래 최소액은 ${minTrade.toLocaleString()} sats입니다 (요청: ${amountSat.toLocaleString()} sats)`);
   }
 

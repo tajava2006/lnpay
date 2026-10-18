@@ -291,4 +291,8 @@ settling ──24시간────────────────→ 경�
   `onchain-claim`. 검사(주소·수수료율)는 같고, 통과하면 **바로 `bonded`**(`bondOc`, 보증금 없음).
 - **O-015를 건너뛴다.** 안 건너뛰면 보증금 해시가 없어 생존이 늘 "모름"이고 `decideBonded`가 **영원히 hold**한다.
 - 몰수 경보는 **몰수할 보증금이 실제로 있을 때만**(`applyOutcome`) — 지정 거래가 닫힐 때마다 헛경보가 뜨지 않게.
+- 진행 문구·푸시도 몰수를 말하지 않는다 — `OnchainProgressContext.designated`로 보증금을 말하는 줄을 바꾸고(`progress.ts`의
+  `designated` 문구), 푸시는 `ONCHAIN_DESIGNATED_NOTICES`.
+- 곡선 밖 지정 상대 거절 · 봉하지 못하는 수신자 빼기 · 스팸 억제(고객 키당 수락 대기 `MAX_OPEN_DESIGNATED_PER_CUSTOMER`개, 넘으면
+  거절 사유 통지 · 도착 푸시와 운영자 DM 10분에 한 번) · 운영자 변경 시 재발행은 라이트닝과 같다(LN-TRACK §7).
 - 그 뒤는 공개 거래와 같다(펀딩 → 가격 고정 → 사전서명 → 계좌 → 송금 → 릴리스 · 환불 · 분쟁). 사유별 보증금 처리는 "없음".

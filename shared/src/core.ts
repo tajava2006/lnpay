@@ -37,7 +37,7 @@ export type {
 export type { DisputeMessagePayload, AccountInfo } from './types';
 export { extractOrderId, orderRef } from './order-ref';
 export {
-  DESIGNATED_ORDER_KIND, designatedOrderD, designatedOrderFromPlaintext, designatedOrderTemplate,
+  DESIGNATED_ORDER_KIND, MAX_OPEN_DESIGNATED_PER_CUSTOMER, designatedOrderD, designatedOrderFromPlaintext, designatedOrderTemplate,
   isLnDesignatedOrderPayload, isOnchainDesignatedOrderPayload, isPubkeyHex, openDesignatedOrder,
 } from './designated';
 export type { LnDesignatedOrderPayload, OnchainDesignatedOrderPayload } from './designated';

@@ -87,7 +87,17 @@ describe('지정 태그', () => {
   });
 });
 
+/** 곡선 밖 x — 64자 hex지만 pubkey가 아니다(NIP-44 대화 키가 `bad point`로 터진다) */
+const OFF_CURVE = '11'.repeat(32);
+
 describe('요청 내용', () => {
+  it('곡선 밖 키를 지정하면 두 트랙 다 받지 않는다 — 발행이 영원히 재시도에 갇히던 자리', () => {
+    expect(isLnDesignatedOrderPayload({ price: 1, deadline: NOW, designatedSponsor: OFF_CURVE })).toBe(false);
+    expect(isOnchainDesignatedOrderPayload({
+      amountSat: 1, customerXonly: 'x', refundAddress: 'a', designatedSponsor: OFF_CURVE,
+    })).toBe(false);
+  });
+
   it('지정 후원자는 hex 64자여야 한다', () => {
     expect(isLnDesignatedOrderPayload({ price: 1, deadline: NOW, designatedSponsor: SPONSOR })).toBe(true);
     expect(isLnDesignatedOrderPayload({ price: 1, deadline: NOW, designatedSponsor: nip19.npubEncode(SPONSOR) })).toBe(false);
@@ -105,6 +115,18 @@ describe('주소 · 확인 코드', () => {
     expect(parsePubkeyInput(` nostr:${npub} `)).toBe(SPONSOR);
     expect(parsePubkeyInput(nip19.nprofileEncode({ pubkey: SPONSOR, relays: [] }))).toBe(SPONSOR);
     expect(parsePubkeyInput(SPONSOR.toUpperCase())).toBe(SPONSOR);
+  });
+
+  it('QR이 만든 대문자 NPUB도 읽는다 — 대소문자를 섞은 것만 틀렸다', () => {
+    const npub = nip19.npubEncode(SPONSOR);
+    expect(parsePubkeyInput(npub.toUpperCase())).toBe(SPONSOR);
+    expect(parsePubkeyInput(`NOSTR:${npub.toUpperCase()}`)).toBe(SPONSOR);
+    expect(parsePubkeyInput(`${npub.slice(0, 10).toUpperCase()}${npub.slice(10)}`)).toBeNull();
+  });
+
+  it('곡선 밖 키는 hex로도 npub로도 받지 않는다 — txid·이벤트 id를 잘못 붙여넣은 경우', () => {
+    expect(parsePubkeyInput(OFF_CURVE)).toBeNull();
+    expect(parsePubkeyInput(nip19.npubEncode(OFF_CURVE))).toBeNull();
   });
 
   it('nsec·쓰레기는 받지 않는다 — 비밀키를 주소 칸에 붙여넣는 실수를 끊는다', () => {

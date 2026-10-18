@@ -17,9 +17,10 @@
  * 그 사람만 맡는다 — **LN 지갑 없이 온체인만으로 끝까지 간다.** 보증금 인보이스가 안 오는 대신 위험 고지를 받는다.
  */
 import { useState, useSyncExternalStore } from 'react';
-import { freshPrice, type PriceTracker, nowSec } from '@sajwo-tracker/shared';
+import { DESIGNATED_COPY, freshPrice, type PriceTracker, nowSec } from '@sajwo-tracker/shared';
 import {
-  FUNDING_WINDOW_SEC, MAX_ORDER_EXPIRY_SEC, RESERVE_MIN_GAP_PERCENT, addressProblem, durationText, reserveProblem,
+  DESIGNATED_MIN_FEE_MULTIPLE, FUNDING_WINDOW_SEC, MAX_ORDER_EXPIRY_SEC, RESERVE_MIN_GAP_PERCENT, addressProblem,
+  durationText, reserveProblem,
 } from '@sajwo-tracker/shared/onchain';
 import { myOrderXonly } from '../keys';
 import { publishOnchainDesignatedOrderRequest, publishOnchainOrderRequest } from '../nostr/publish';
@@ -77,7 +78,7 @@ export function OnchainOrderForm({ onDone, tracker }: {
     }
     const addrProblem = refundAddressProblem(refundAddress);
     if (addrProblem) return setError(addrProblem);
-    if (designated && !counterparty) return setError('상대 주소를 넣고 확인 코드 대조와 위험 고지를 체크해 주세요.');
+    if (designated && !counterparty) return setError(DESIGNATED_COPY.incomplete);
 
     setBusy(true);
     try {
@@ -100,7 +101,7 @@ export function OnchainOrderForm({ onDone, tracker }: {
       // 어드민이 거절하거나 실패하면 유저 쪽에 흔적이 하나도 안 남는다.
       rememberPendingRequest({
         orderId, amountSat: sats, reserveKrw: reserve, expiration,
-        submittedAt: nowSec(),
+        submittedAt: nowSec(), ...(designated ? { designated: true } : {}),
       });
       setAmountSat('');
       setReserveKrw('');
@@ -176,7 +177,8 @@ export function OnchainOrderForm({ onDone, tracker }: {
         <div style={styles.notice}>
           <strong>보증금 없이 바로 의뢰가 생기고, 지정한 상대만 맡습니다.</strong> 오더북에는 올라가지 않고 상대 앱의
           사기 탭에 바로 뜹니다. 상대가 맡은 뒤 <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 에스크로 주소로
-          입금을 컨펌시키세요. 지정 거래는 수수료 대비 금액이 너무 작으면(수수료가 5%를 넘으면) 받지 않습니다.
+          입금을 컨펌시키세요. 지정 거래는 수수료 대비 금액이 너무 작으면(수수료가 {100 / DESIGNATED_MIN_FEE_MULTIPLE}%를
+          넘으면) 받지 않습니다.
         </div>
       ) : (
         <div style={styles.notice}>
@@ -189,7 +191,7 @@ export function OnchainOrderForm({ onDone, tracker }: {
       {error && <p style={styles.error}>{error}</p>}
 
       <button type="submit" style={styles.submit} disabled={busy || (designated && !counterparty)}>
-        {busy ? '등록 중…' : designated ? '지정 거래 만들기' : '의뢰 등록'}
+        {busy ? '등록 중…' : designated ? DESIGNATED_COPY.create : '의뢰 등록'}
       </button>
     </form>
   );

@@ -6,6 +6,7 @@
  */
 import { checkCode, parsePubkeyInput, type Order } from '@sajwo-tracker/shared';
 import { isClaimableLn } from '@sajwo-tracker/shared/ln';
+import type { CustomerOrder } from '../buyer/types';
 
 export type CounterpartyRead =
   | { kind: 'empty' }
@@ -37,4 +38,14 @@ export function designatedLnOffers(orders: readonly Order[], myPubkey: string | 
 /** 라이트닝 오더북에 뜨는가 — 지정 거래는 오더북이 아니다(내가 맡은 건 "내가 사주는 중"에 따로 뜬다) */
 export function isOnLnBook(order: Pick<Order, 'designatedSponsor'>): boolean {
   return !order.designatedSponsor;
+}
+
+/**
+ * 이 기기의, 아직 아무도 수락하지 않은 라이트닝 지정 의뢰 수(보내기 전 초안 포함). 데몬은
+ * `MAX_OPEN_DESIGNATED_PER_CUSTOMER`를 넘으면 말없이 무시한다(라이트닝 의뢰 요청엔 거절 통지가 없다) — 그래서 폼이
+ * 만들 때 미리 막는다. 초안도 세는 건 초안을 여럿 만들어 두고 보내면 넘친 것이 "등록 확인 중"에 영영 머물기 때문이다
+ */
+export function openDesignatedLnCount(orders: readonly CustomerOrder[], now: number): number {
+  return orders.filter(o => o.designatedSponsor && o.expiration > now
+    && (o.adminState === undefined || o.adminState === 'requested')).length;
 }

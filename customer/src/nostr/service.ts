@@ -15,6 +15,7 @@
 import type { Event } from 'nostr-tools/core';
 import {
   CLIENT_TAG,
+  createSubscriptionPool,
   getReadRelays,
   getUserPubkey,
   getSecretKey,
@@ -47,6 +48,8 @@ export function startSubscriptions(): Promise<void> {
     void migratePushSubscriptionIfKeyChanged(publishPushSubscription);
 
     let ordersEosed = false;
+    // 소켓은 이 한 벌 — 네 구독이 같이 쓴다
+    const pool = createSubscriptionPool();
 
     const onOrder = (event: Event) => {
       noteOrderProtocol(event.tags); // 파싱보다 먼저 — 새 데몬의 이벤트는 못 읽을 수도 있다
@@ -54,7 +57,7 @@ export function startSubscriptions(): Promise<void> {
       sponsor.handleAdminOrder(event, myPubkey);
     };
 
-    const stopOrders = subscribeOrders(relays, {
+    const stopOrders = subscribeOrders(pool, relays, {
       onOrder,
       onEose: () => {
         if (ordersEosed) return;
@@ -64,7 +67,7 @@ export function startSubscriptions(): Promise<void> {
       },
     });
 
-    const stopInbox = subscribeInbox(relays, myPubkey, {
+    const stopInbox = subscribeInbox(pool, relays, myPubkey, {
       onEvent: (event) => {
         if (buyer.handleInboxEvent(event, sk)) return;
         sponsor.handleInboxEvent(event);
@@ -74,16 +77,18 @@ export function startSubscriptions(): Promise<void> {
       },
     });
 
-    const stopOwn = subscribeOwnRequests(relays, myPubkey, event => handleOwnLnRequest(event, sk, myPubkey));
+    const stopOwn = subscribeOwnRequests(pool, relays, myPubkey, event => handleOwnLnRequest(event, sk, myPubkey));
 
     // 지정 거래 — 열면 공개 오더와 같은 이벤트라 같은 처리기로 간다
-    const stopDesignated = subscribeDesignatedOrders(relays, myPubkey, sk, CLIENT_TAG, onOrder);
+    const stopDesignated = subscribeDesignatedOrders(pool, relays, myPubkey, sk, CLIENT_TAG, onOrder);
 
     return () => {
       stopOrders();
       stopInbox();
       stopOwn();
       stopDesignated();
+      pool.destroy();
+      console.log('[Nostr] 구독 종료');
     };
   });
 }

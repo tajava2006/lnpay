@@ -160,7 +160,7 @@ describe('카드', () => {
   it('라이트닝 — 지정 초안은 "지정한 상대에게 보내기", 양쪽에 상대 확인 코드', () => {
     const local = { orderId: 'd1', price: 1000, memo: '', createdAt: NOW, expiration: NOW + 86_400, designatedSponsor: SPONSOR };
     const draft = lnCardView({ orderId: 'd1', order: null, local, myPubkey: CUSTOMER, now: NOW });
-    expect(draft.actions).toEqual([{ kind: 'publish', designated: true }]);
+    expect(draft.actions).toEqual([{ kind: 'publish' }]);
     expect(draft.designated).toEqual({ counterpartyCode: checkCode(SPONSOR) });
 
     const order = {
@@ -172,7 +172,34 @@ describe('카드', () => {
     // 공개 의뢰는 지정 표시가 없다
     const pub = lnCardView({ orderId: 'p1', order: null, local: { ...local, designatedSponsor: undefined }, myPubkey: CUSTOMER, now: NOW });
     expect(pub.designated).toBeNull();
-    expect(pub.actions).toEqual([{ kind: 'publish', designated: false }]);
+    expect(pub.actions).toEqual([{ kind: 'publish' }]);
+  });
+
+  /** 2026-10-18 리뷰 — 역할을 모르면 지정 후원자 본인 코드가 "상대 확인 코드"로 떴다(풀린 클레임의 IDB 사본) */
+  it('라이트닝 — 역할을 모르면 지정 사실만, 코드는 비운다', () => {
+    const order = {
+      orderId: 'd1', state: 'requested' as const, customerPubkey: CUSTOMER, price: 1000,
+      createdAt: NOW, updatedAt: NOW, expiration: NOW + 86_400, designatedSponsor: SPONSOR, raw: {},
+    };
+    const v = lnCardView({ orderId: 'd1', order, local: null, myPubkey: getPublicKey(generateSecretKey()), now: NOW });
+    expect(v.role).toBeNull();
+    expect(v.designated).toEqual({ counterpartyCode: '' });
+  });
+
+  /** 데몬이 클레임에서 막지만 앱도 대조한다(T-107의 정신) — 지정한 상대가 아닌 사람에게 에스크로를 내지 않는다 */
+  it('라이트닝 — 맡은 사람이 내가 지정한 상대가 아니면 결제·계좌를 열지 않고 알린다(취소는 된다)', () => {
+    const local = { orderId: 'd1', price: 1000, memo: '', createdAt: NOW, expiration: NOW + 86_400, designatedSponsor: SPONSOR, raw: '{}' };
+    const order = {
+      orderId: 'd1', state: 'verified' as const, customerPubkey: CUSTOMER, sponsorPubkey: getPublicKey(generateSecretKey()),
+      price: 1000, createdAt: NOW, updatedAt: NOW, expiration: NOW + 86_400, designatedSponsor: SPONSOR, bolt11: 'lnbc1x', raw: {},
+    };
+    const v = lnCardView({ orderId: 'd1', order, local, myPubkey: CUSTOMER, now: NOW });
+    expect(v.actions.some(a => a.kind === 'pay')).toBe(false);
+    expect(v.notes.some(n => /지정한 상대가 아닌 사람/.test(n))).toBe(true);
+    expect(v.side.cancel).toBe(true);
+    // 맞는 상대면 그대로 결제
+    const ok = lnCardView({ orderId: 'd1', order: { ...order, sponsorPubkey: SPONSOR }, local, myPubkey: CUSTOMER, now: NOW });
+    expect(ok.actions.some(a => a.kind === 'pay')).toBe(true);
   });
 
   it('온체인 — 고객에겐 지정 후원자의, 후원자에겐 고객의 확인 코드', () => {
@@ -180,5 +207,20 @@ describe('카드', () => {
     expect(onchainCardView(ocOrder({ state: 'bonded', sponsorPubkey: SPONSOR }), 'sponsor', NOW, []).designated)
       .toEqual({ counterpartyCode: checkCode(CUSTOMER) });
     expect(onchainCardView(ocOrder({ designatedSponsor: undefined }), 'customer', NOW, []).designated).toBeNull();
+  });
+});
+
+describe('라이트닝 지정 의뢰 개수 — 폼이 미리 막는다(데몬은 넘치면 말없이 무시한다)', () => {
+  it('수락 대기(초안·보냄·requested)만 센다 — 맡겨졌거나 기한이 지난 것은 안 센다', async () => {
+    const { openDesignatedLnCount } = await import('../designated/view');
+    const base = { price: 1000, memo: '', createdAt: NOW, expiration: NOW + 86_400, designatedSponsor: SPONSOR };
+    expect(openDesignatedLnCount([
+      { ...base, orderId: 'a' },
+      { ...base, orderId: 'b', raw: '{}' },
+      { ...base, orderId: 'c', raw: '{}', adminState: 'requested' },
+      { ...base, orderId: 'd', raw: '{}', adminState: 'verified' },
+      { ...base, orderId: 'e', expiration: NOW - 1 },
+      { ...base, orderId: 'f', designatedSponsor: undefined },
+    ], NOW)).toBe(3);
   });
 });

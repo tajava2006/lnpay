@@ -7,6 +7,7 @@
  * - 핸들러가 던지면 그 쓰기를 되돌리고 이벤트는 `error`로 닫는다. 판단에 네트워크가 없으니 던진다는 건
  *   버그나 이상한 입력이다 — 다시 돌려도 같은 결과라 무한 재시도하지 않는다.
  */
+import { nip44Decrypt } from '@sajwo-tracker/shared/core';
 import type { Db } from './db';
 import type { Logger } from './log';
 
@@ -27,6 +28,19 @@ export type Router = (event: InboxEvent) => Handler | null;
 
 export function tagValue(event: Pick<InboxEvent, 'tags'>, name: string): string | undefined {
   return event.tags.find(t => t[0] === name)?.[1];
+}
+
+/**
+ * 요청 내용(NIP-44, 보낸 사람 → APP)을 열어 JSON으로. 못 열면(암호문이 아니거나 JSON이 아니면) `undefined` —
+ * JSON은 `undefined`를 만들지 못하니 헷갈리지 않는다. 핸들러는 이걸 `ignored:undecryptable`로, 열었는데 모양이 틀리면
+ * `ignored:bad-payload`로 닫는다(두 트랙 같다).
+ */
+export function decryptRequest(event: Pick<InboxEvent, 'content' | 'pubkey'>, appSecretKey: Uint8Array): unknown {
+  try {
+    return JSON.parse(nip44Decrypt(event.content, appSecretKey, event.pubkey)) as unknown;
+  } catch {
+    return undefined;
+  }
 }
 
 export class Dispatcher {

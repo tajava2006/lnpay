@@ -36,3 +36,13 @@ export const DESIGNATED_NOTICE = {
   checkCodeHint: '상대 화면의 확인 코드와 같은지 확인하세요. 다르면 다른 사람의 주소입니다.',
 } as const;
 
+/** 지정 거래 화면 문구 — 두 트랙의 폼·카드가 같이 쓴다 */
+export const DESIGNATED_COPY = {
+  badge: '지정 거래',
+  noDeposit: '보증금 없음',
+  create: '지정 거래 만들기',
+  publish: '지정한 상대에게 보내기',
+  incomplete: '상대 주소를 넣고 확인 코드 대조와 위험 고지를 체크해 주세요.',
+  /** 카드의 "상대(고객) 확인 코드 … · 보증금 없음" 줄. 코드를 모르면(역할 모름) 보증금 없음만 */
+  counterpartyLine: (who: string, code: string): string => (code ? `${who} 확인 코드 ${code} · 보증금 없음` : '보증금 없음'),
+} as const;

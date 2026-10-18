@@ -17,6 +17,7 @@ import type { SettlementKind } from '../onchain/state-machine';
 import {
   ONCHAIN_PROGRESS_STEPS, onchainStepActor, resolveOnchainProgress, settlementSummary,
 } from '../onchain/progress';
+import { OUTCOME_RULES } from '../onchain/state-machine';
 
 const ALL = Object.values(ONCHAIN_STATES);
 
@@ -258,5 +259,40 @@ describe('settlementSummary', () => {
     expect(settlementSummary('sponsor', 'sponsor_win')).toBe('분쟁 판정(송금 인정) — 비트코인이 나에게 옵니다');
     expect(settlementSummary('customer', 'customer_win')).toMatch(/송금 불인정.*나에게 돌아옵니다/);
     expect(settlementSummary('sponsor', 'refund:customer-late')).toMatch(/^환불 — .*상대방에게/);
+  });
+});
+
+/**
+ * 지정 거래는 보증금이 없다(ONCHAIN-TRACK §10). 없는 보증금의 몰수를 고지하면 생성·수락 화면의 위험 고지
+ * ("보증금이 없습니다")와 정면으로 어긋난다(2026-10-18 리뷰).
+ */
+describe('지정 거래 — 보증금·몰수를 말하지 않는다', () => {
+  const KINDS = Object.keys(OUTCOME_RULES) as SettlementKind[];
+  const texts = (designated: boolean) => ALL.flatMap(state => (['customer', 'sponsor'] as const).flatMap(role =>
+    (state === 'refunding' ? KINDS : [undefined]).flatMap(settlementKind => {
+      const p = resolveOnchainProgress(role, state, { designated, ...(settlementKind ? { settlementKind } : {}) });
+      return [
+        ...p.steps.flatMap(st => st.actions.map(a => a.text)),
+        p.terminal?.description ?? '', p.refunding?.description ?? '',
+      ].map(text => ({ state, role, settlementKind, text }));
+    })));
+
+  it('모든 상태 · 역할 · 환불 사유에서 — "보증금 없이"만 말한다', () => {
+    const bad = texts(true).filter(t => /몰수|보증금(?! 없이)/.test(t.text));
+    expect(bad).toEqual([]);
+  });
+
+  it('공개 거래 문구는 그대로 몰수를 고지한다', () => {
+    expect(texts(false).some(t => /몰수/.test(t.text))).toBe(true);
+    const funding = resolveOnchainProgress('customer', 'bonded').steps[1]!.actions.map(a => a.text);
+    expect(funding.some(t => t.includes('보증금이 몰수됩니다'))).toBe(true);
+  });
+
+  it('지정 거래에서 빼는 줄은 빠지고, 바꾸는 줄은 바뀐다', () => {
+    const listed = (designated: boolean) =>
+      resolveOnchainProgress('sponsor', 'listed', { designated }).steps[0]!.actions.map(a => a.text);
+    expect(listed(false).some(t => t.includes('결제한 분이 가져갑니다'))).toBe(true);
+    expect(listed(true).some(t => t.includes('결제한 분이 가져갑니다'))).toBe(false);
+    expect(listed(true)[0]).toMatch(/보증금 없이 바로 내가 맡습니다/);
   });
 });

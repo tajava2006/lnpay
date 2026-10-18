@@ -13,6 +13,7 @@ import {
 } from '@sajwo-tracker/shared/onchain';
 import { nowSec } from '../admin/context';
 import { notifyOperators } from '../admin/notify';
+import { designatedQuietOver } from '../orders/designated';
 import type { OcContext } from './context';
 
 export const OC_ORDER_PUBLISH_EFFECT = 'oc.order.publish';
@@ -108,9 +109,20 @@ export function insertOc(ctx: OcContext, order: OnchainOrder, meta: OcMeta): voi
     order.orderId, order.state, toData(order), JSON.stringify(meta),
   );
   requestProjection(ctx, order.orderId);
-  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다
-  const kind = order.designatedSponsor ? '새 지정 거래' : '새 의뢰';
-  notifyOperators(ctx, `${kind} — 온체인 ${order.amountSat.toLocaleString('ko-KR')} sats (${order.orderId})`);
+  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다. 지정 거래는 공짜라 몰아 오면 폰만 울린다 — 조용한 창에 한 번
+  const text = `${order.amountSat.toLocaleString('ko-KR')} sats (${order.orderId})`;
+  if (!order.designatedSponsor) notifyOperators(ctx, `새 의뢰 — 온체인 ${text}`);
+  else if (designatedQuietOver(ctx, 'dm:onchain')) notifyOperators(ctx, `새 지정 거래 — 온체인 ${text}`);
+}
+
+/** 이 고객이 띄운, 아직 아무도 수락하지 않은 지정 의뢰 수 — 스팸 상한(`MAX_OPEN_DESIGNATED_PER_CUSTOMER`) */
+export function openDesignatedCount(ctx: Pick<OcContext, 'db'>, customer: string): number {
+  const r = ctx.db.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM oc_orders WHERE state = 'listed'
+       AND json_extract(data, '$.customerPubkey') = ? AND json_extract(data, '$.designatedSponsor') IS NOT NULL`,
+    customer,
+  );
+  return Number(r?.n ?? 0);
 }
 
 /**
@@ -151,6 +163,18 @@ export function updateOcMeta(ctx: OcContext, orderId: string, metaPatch: Partial
 
 export function requestOcDetail(ctx: OcContext, orderId: string): void {
   ctx.effects.enqueue(OC_DETAIL_EFFECT, { orderId }, { dedup: `oc.detail:${orderId}` });
+}
+
+/** 공개 오더(지정 거래면 스냅샷)와 운영자 상세를 다시 낸다 */
+export function requestOcProjection(ctx: OcContext, orderId: string): void {
+  requestProjection(ctx, orderId);
+}
+
+/** 지정 거래 오더 전부 (운영자가 바뀌어 스냅샷을 다시 낼 때) */
+export function designatedOcIds(ctx: Pick<OcContext, 'db'>): string[] {
+  return ctx.db.all<{ order_id: string }>(
+    `SELECT order_id FROM oc_orders WHERE json_extract(data, '$.designatedSponsor') IS NOT NULL`,
+  ).map(r => r.order_id);
 }
 
 function requestProjection(ctx: OcContext, orderId: string): void {

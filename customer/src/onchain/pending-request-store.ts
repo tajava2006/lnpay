@@ -13,7 +13,7 @@
  * → 보낸 요청을 로컬에 적어두고, **인보이스나 오더가 도착하면 지운다.**
  *   남아 있으면 그게 곧 "아직 답이 없다"는 뜻이다.
  */
-import { createStore, isNum, isStr, optional, recordOf, shape } from '@sajwo-tracker/shared';
+import { createStore, isBool, isNum, isStr, optional, recordOf, shape } from '@sajwo-tracker/shared';
 
 export interface PendingOrderRequest {
   orderId: string;
@@ -21,6 +21,8 @@ export interface PendingOrderRequest {
   reserveKrw?: number;
   expiration: number;
   submittedAt: number;
+  /** 지정 거래 — 보증금 인보이스가 없다. 답은 오더(스냅샷)가 생기는 것이다 */
+  designated?: boolean;
   /** 어드민이 거절한 사유 (오면 채워진다) */
   rejectedReason?: string;
 }
@@ -31,7 +33,7 @@ const store = createStore<RequestMap>({}, {
   key: 'onchain:pending-requests',
   parse: recordOf(shape<PendingOrderRequest>({
     orderId: isStr, amountSat: isNum, reserveKrw: optional(isNum), expiration: isNum, submittedAt: isNum,
-    rejectedReason: optional(isStr),
+    designated: optional(isBool), rejectedReason: optional(isStr),
   })),
 });
 

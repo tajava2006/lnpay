@@ -13,7 +13,7 @@
  *      받지 않는다 — 화면이 열어두면 원화만 헛되이 나간다
  */
 import { useSyncExternalStore } from 'react';
-import { ErrorBoundary, InvoicePayBlock, useNow } from '@sajwo-tracker/shared';
+import { DESIGNATED_COPY, ErrorBoundary, InvoicePayBlock, useNow } from '@sajwo-tracker/shared';
 import { onchainStateDisplay, settlementSummary, type OnchainOrder } from '@sajwo-tracker/shared/onchain';
 import { onchainCardView } from '../card-view';
 import type { SignRequest } from '../sign-request-store';
@@ -25,6 +25,7 @@ import { OnchainProgressBar } from './OnchainProgressBar';
 import { OnchainChat } from './OnchainChat';
 import { RecoveryPanel } from './RecoveryPanel';
 import { styles } from './card-styles';
+import { ui } from '../../ui';
 import { CancelOrderPanel } from './CancelOrderPanel';
 import { PresignStatus } from './PresignStatus';
 import { AccountInfoForm } from './AccountInfoForm';
@@ -82,14 +83,14 @@ function OnchainOrderCardBody({ order, role, myPubkey, invoiceBolt11, signReques
           {badge.label}
         </span>
         <span style={styles.role}>{role === 'customer' ? '판매' : '구매'}</span>
-        {view.designated && <span style={styles.designated}>지정 거래</span>}
+        {view.designated && <span style={ui.designatedBadge}>{DESIGNATED_COPY.badge}</span>}
         <strong style={styles.amount}>{order.amountSat.toLocaleString()} sats</strong>
         {onSelect && <span style={styles.chevron}>›</span>}
       </div>
 
       {view.designated && (
         <p style={{ ...styles.meta, margin: 0 }}>
-          {role === 'customer' ? '상대' : '고객'} 확인 코드 <b>{view.designated.counterpartyCode}</b> · 보증금 없음
+          {DESIGNATED_COPY.counterpartyLine(role === 'customer' ? '상대' : '고객', view.designated.counterpartyCode)}
         </p>
       )}
 

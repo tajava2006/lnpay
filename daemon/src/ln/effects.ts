@@ -13,10 +13,8 @@
  * 보인다(docs/LN-TRACK.md §7). 이것도 주소형이라 다시 내면 같은 자리를 덮는다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
-import type { Event } from 'nostr-tools/core';
 import {
-  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, designatedOrderTemplate, nip44Encrypt,
-  type AdminLnInvoice, type AdminLnOrderDetail,
+  ADMIN_STATE_KIND, adminOrderDTag, nip44Encrypt, type AdminLnInvoice, type AdminLnOrderDetail,
 } from '@sajwo-tracker/shared/core';
 import { CLOSE_RULES, isPayoutAmountExact, lnOrderTags, lnRetention, type LnCloseReason } from '@sajwo-tracker/shared/ln';
 import { nowSec } from '../admin/context';
@@ -31,6 +29,7 @@ import {
 } from './flow';
 import { sendInvoiceRejected } from './messages';
 import { getOrder, updateOrder, type LnOrderRow } from './store';
+import { alertSkippedRecipients, orderEvents, publishAll, type OrderEvents } from '../orders/publish';
 
 /** 지급 한 번에 기다리는 시간 */
 const PAY_TIMEOUT_SEC = 60;
@@ -189,11 +188,8 @@ function sponsorDepositPending(ctx: LnContext, order: LnOrderRow): boolean {
   return sponsorDepositRequired(ctx, order);
 }
 
-/**
- * 오더 이벤트 — 공개 거래는 한 장, 지정 거래는 수신자(고객 · 지정 후원자 · 운영자)마다 한 장. 태그 배열은 같다 —
- * 받는 쪽이 스냅샷을 열면 공개 오더와 똑같은 이벤트가 나온다.
- */
-export function buildOrderEvents(ctx: LnContext, order: LnOrderRow, createdAt: number): Event[] {
+/** 오더 이벤트 — 공개 거래는 한 장, 지정 거래는 수신자마다 한 장(`../orders/publish`) */
+export function buildOrderEvents(ctx: LnContext, order: LnOrderRow, createdAt: number): OrderEvents {
   const retainUntil = lnRetention(order.state, order.deadline, createdAt);
   const tags = lnOrderTags({
     orderId: order.order_id,
@@ -214,14 +210,10 @@ export function buildOrderEvents(ctx: LnContext, order: LnOrderRow, createdAt: n
     ...(order.invoice_deadline ? { invoiceDeadline: order.invoice_deadline } : {}),
     ...(order.designated_sponsor ? { designatedSponsor: order.designated_sponsor } : {}),
   }, ctx.tags.ln, retainUntil, ctx.appUrl);
-  if (!order.designated_sponsor) {
-    return [finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey)];
-  }
-  const recipients = new Set([order.customer, order.designated_sponsor, ...ctx.operators]);
-  return [...recipients].map(recipient => finalizeEvent(designatedOrderTemplate({
-    orderId: order.order_id, recipient, trackTag: ctx.tags.ln, tags, retainUntil, createdAt,
-    appSecretKey: ctx.appKey.secretKey,
-  }), ctx.appKey.secretKey));
+  return orderEvents(ctx, {
+    orderId: order.order_id, customer: order.customer, designatedSponsor: order.designated_sponsor,
+    trackTag: ctx.tags.ln, tags, retainUntil, createdAt,
+  });
 }
 
 export function createOrderPublishExecutor(ctx: LnContext, transport: RelayTransport): EffectExecutor<OrderPayload> {
@@ -235,18 +227,15 @@ export function createOrderPublishExecutor(ctx: LnContext, transport: RelayTrans
         // 기한이 지난 의뢰 — 릴레이가 받지 않는다. 곧 워처가 닫고 종결을 다시 낸다
         return { status: 'done', result: {} };
       }
-      // 지정 거래는 한 장이라도 못 내면 다시 — 그 수신자는 거래를 못 본다(주소형이라 다시 내도 같은 자리를 덮는다)
-      const reports = await Promise.all(buildOrderEvents(ctx, order, createdAt).map(e => transport.publish(e)));
-      const failed = reports.filter(r => r.accepted.length === 0);
-      if (failed.length > 0) {
-        const reasons = failed.flatMap(r => r.rejected.map(x => x.reason));
-        return { status: 'retry', error: reasons.join('; ') || '릴레이 없음' };
-      }
-      return { status: 'done', result: { createdAt } };
+      const { events, skipped } = buildOrderEvents(ctx, order, createdAt);
+      const error = await publishAll(transport, events);
+      if (error) return { status: 'retry', error };
+      return { status: 'done', result: { createdAt, skipped } };
     },
     onDone({ orderId }, result) {
-      const createdAt = (result as { createdAt?: number }).createdAt;
+      const { createdAt, skipped } = result as { createdAt?: number; skipped?: string[] };
       if (createdAt) ctx.db.run('UPDATE ln_orders SET published_at = ? WHERE order_id = ?', createdAt, orderId);
+      if (skipped) alertSkippedRecipients(ctx, 'ln', orderId, skipped);
     },
   };
 }

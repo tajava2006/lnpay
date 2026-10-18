@@ -97,6 +97,42 @@ describe('라이트닝 의뢰 폼 — 지정 거래', () => {
   });
 });
 
+describe('라이트닝 의뢰 폼 — 지정 의뢰 개수 상한', () => {
+  /** 상한보다 하나 적게 깔아 두고 폼으로 하나 더 만든다 → 됐는지 */
+  async function createWith(open: number): Promise<{ created: boolean; alerted: boolean }> {
+    const { OrderForm } = await import('../buyer/components/OrderForm');
+    const store = await import('../buyer/order-store');
+    store.clearDeletableOrders(() => true); // 저장소는 테스트 사이에 메모리로 이어진다
+    const now = Math.floor(Date.now() / 1000);
+    for (let i = 0; i < open; i++) {
+      store.addOrder({ orderId: `d${i}`, price: 1000, memo: '', createdAt: now, expiration: now + 86_400, designatedSponsor: OTHER });
+    }
+    const alerts = vi.fn();
+    vi.stubGlobal('alert', alerts);
+    act(() => root.render(<OrderForm />));
+    act(() => button('지정 거래').click());
+    type(host.querySelector<HTMLInputElement>('input[placeholder^="npub1"]')!, nip19.npubEncode(OTHER));
+    for (const c of checkboxes()) act(() => c.click());
+    type(host.querySelector<HTMLInputElement>('input[type="number"]')!, '32900');
+    act(() => button('지정 거래 만들기').click());
+    vi.unstubAllGlobals();
+    return {
+      created: Object.keys(store.getSnapshot()).length === open + 1,
+      alerted: alerts.mock.calls.some(c => /수락을 기다리는 지정 거래가 이미/.test(String(c[0]))),
+    };
+  }
+
+  it('수락 대기 지정 의뢰가 상한이면 만들지 않고 알린다 — 라이트닝은 데몬 거절이 유저에게 안 닿는다', async () => {
+    const { MAX_OPEN_DESIGNATED_PER_CUSTOMER } = await import('@sajwo-tracker/shared');
+    expect(await createWith(MAX_OPEN_DESIGNATED_PER_CUSTOMER)).toEqual({ created: false, alerted: true });
+  });
+
+  it('상한보다 적으면 만든다', async () => {
+    const { MAX_OPEN_DESIGNATED_PER_CUSTOMER } = await import('@sajwo-tracker/shared');
+    expect(await createWith(MAX_OPEN_DESIGNATED_PER_CUSTOMER - 1)).toEqual({ created: true, alerted: false });
+  });
+});
+
 describe('나를 지정한 거래 — 수락 카드', () => {
   it('고객 확인 코드를 보여 주고, 두 체크가 다 돼야 수락이 열린다', async () => {
     const { DesignatedOfferCard } = await import('../sponsor/components/DesignatedOfferCard');

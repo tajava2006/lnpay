@@ -24,10 +24,14 @@
  *
  * **몰수금의 행방은 고지하지 않는다.** 보증금은 "트롤하면 이걸 가져간다"는 뜻이고,
  * 몰수됐다는 건 트롤을 했다는 뜻이다.
+ *
+ * **지정 거래는 보증금이 없다**(ONCHAIN-TRACK §10). 보증금을 말하는 줄은 `designated`에 지정 거래용 문구를 따로
+ * 두고(`null`이면 빼고), 문맥(`designated`)이 켜져 있으면 그걸 쓴다 — 없는 보증금의 몰수를 고지하지 않는다.
  */
 import type { OnchainState, SettlementKind } from './state-machine';
 import {
-  ACCOUNT_WINDOW_SEC, COSIGN_WINDOW_SEC, FUNDING_WINDOW_SEC, KRW_WINDOW_SEC, PRESIGN_WINDOW_SEC, durationText,
+  ACCOUNT_WINDOW_SEC, COSIGN_WINDOW_SEC, FUNDING_WINDOW_SEC, KRW_WINDOW_SEC, MAX_ORDER_EXPIRY_SEC, PRESIGN_WINDOW_SEC,
+  durationText,
 } from './timing';
 import { BUTTON, STEP_TEXT } from '../copy';
 
@@ -46,6 +50,8 @@ export interface StepAction {
    * 사는 쪽, 환불·송금 불인정이면 파는 쪽이 받는다(`receiverOf`). 종결 사유를 모르면 조건부로 둔다.
    */
   receiverOnly?: boolean;
+  /** 지정 거래(보증금 없음)에서 대신 쓸 문구 — `null`이면 지정 거래에선 뺀다. 없으면 같은 문구 */
+  designated?: string | null;
 }
 
 export interface OnchainProgressStep {
@@ -62,6 +68,8 @@ export interface OnchainProgressContext {
   accountInfoSent?: boolean;
   /** `settling`·`refunding`에서 어느 종결인지 — 문구를 고르는 데 쓴다 */
   settlementKind?: SettlementKind;
+  /** 지정 거래 — 보증금이 없다. 보증금을 말하는 줄을 지정 거래용으로 바꾼다 */
+  designated?: boolean;
 }
 
 const FUNDING = durationText(FUNDING_WINDOW_SEC);
@@ -69,6 +77,7 @@ const PRESIGN = durationText(PRESIGN_WINDOW_SEC);
 const ACCOUNT = durationText(ACCOUNT_WINDOW_SEC);
 const KRW = durationText(KRW_WINDOW_SEC);
 const COSIGN = durationText(COSIGN_WINDOW_SEC);
+const LISTING = durationText(MAX_ORDER_EXPIRY_SEC);
 
 /**
  * 문구는 **나·상대방**으로 적는다 — 각 목록이 이미 한 역할에게만 보인다. 고객·후원자는 쿠팡 대리구매 시절의
@@ -82,12 +91,18 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     actor: 'sponsor',
     customer: [
       { text: '사는 사람이 나타날 때까지 기다립니다. 알림을 켜두면 붙는 즉시 알려드립니다.' },
-      { text: '의뢰는 최대 7일간 오더북에 떠 있습니다. 그 안에 아무도 안 붙으면 취소되고 보증금은 돌려받습니다.' },
+      {
+        text: `의뢰는 최대 ${LISTING}간 오더북에 떠 있습니다. 그 안에 아무도 안 붙으면 취소되고 보증금은 돌려받습니다.`,
+        designated: `의뢰는 최대 ${LISTING}간 지정한 상대에게만 보입니다. 그 안에 상대가 수락하지 않으면 취소됩니다.`,
+      },
       { text: '최저가를 걸어두면 그보다 낮은 시세에서는 체결되지 않습니다.', optional: true },
     ],
     sponsor: [
-      { text: '사기로 하면 보증금 인보이스가 발행됩니다.' },
-      { text: '**결제한 분이 가져갑니다.** 여러 명이 동시에 시도해도 되고, 결제 전에는 아무도 이 의뢰를 붙잡지 않습니다.' },
+      { text: '사기로 하면 보증금 인보이스가 발행됩니다.', designated: '나를 지정한 의뢰입니다. 수락하면 보증금 없이 바로 내가 맡습니다.' },
+      {
+        text: '**결제한 분이 가져갑니다.** 여러 명이 동시에 시도해도 되고, 결제 전에는 아무도 이 의뢰를 붙잡지 않습니다.',
+        designated: null,
+      },
       { text: '받을 비트코인 주소와 희망 수수료율을 이때 함께 등록합니다.' },
     ],
   },
@@ -99,7 +114,10 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
       { text: '화면의 에스크로 주소로 **정확한 수량**을 보냅니다. 금액이 다르면 처리되지 않습니다.' },
       { text: '앱이 그 주소를 내 키로 직접 다시 만들어 대조합니다. **경고가 뜨면 절대 보내지 마세요.**' },
       { text: `**${FUNDING} 안에 컨펌까지** 끝나야 합니다. 보내는 것만으로는 부족하니 수수료를 넉넉히 잡으세요.` },
-      { text: '늦으면 거래가 취소되고 **내 보증금이 몰수됩니다.** 안 잡히면 RBF·CPFP로 수수료를 올릴 수 있습니다.' },
+      {
+        text: '늦으면 거래가 취소되고 **내 보증금이 몰수됩니다.** 안 잡히면 RBF·CPFP로 수수료를 올릴 수 있습니다.',
+        designated: '늦으면 거래가 취소됩니다. 안 잡히면 RBF·CPFP로 수수료를 올릴 수 있습니다.',
+      },
       { text: '입금 트랜잭션 수수료는 내 지갑이 정하고 내가 냅니다.' },
     ],
     sponsor: [
@@ -117,7 +135,10 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     ],
     sponsor: [
       { text: '앱이 입금을 확인하고 **자동으로 사전서명**합니다. 고민할 것은 없습니다.' },
-      { text: `**${PRESIGN} 안에** 앱이 깨어나야 합니다. 넘기면 거래가 환불되고 **내 보증금이 몰수됩니다.**` },
+      {
+        text: `**${PRESIGN} 안에** 앱이 깨어나야 합니다. 넘기면 거래가 환불되고 **내 보증금이 몰수됩니다.**`,
+        designated: `**${PRESIGN} 안에** 앱이 깨어나야 합니다. 넘기면 거래가 환불됩니다.`,
+      },
       { text: '받을 sats = 판매 수량 − 네트워크 수수료입니다. 수수료율은 내가 정했고 내가 부담합니다.' },
     ],
   },
@@ -127,7 +148,10 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     actor: 'customer',
     customer: [
       { text: STEP_TEXT.sendAccount },
-      { text: `**${ACCOUNT} 안에** 보내야 합니다. 넘기면 거래가 취소되고 **내 보증금이 몰수됩니다.**` },
+      {
+        text: `**${ACCOUNT} 안에** 보내야 합니다. 넘기면 거래가 취소되고 **내 보증금이 몰수됩니다.**`,
+        designated: `**${ACCOUNT} 안에** 보내야 합니다. 넘기면 거래가 환불됩니다.`,
+      },
       { text: `상대방이 원화를 보낼 때까지 기다립니다(계좌 전달 후 ${KRW}).` },
     ],
     sponsor: [
@@ -188,7 +212,9 @@ export interface OnchainTerminalInfo {
 }
 
 /** 종결 안내 — 보는 사람 입장에서(나·상대방). 배지 이름은 `display.ts`와 같다 */
-function terminalInfo(state: OnchainTerminalInfo['state'], role: OnchainRole): Omit<OnchainTerminalInfo, 'state'> {
+function terminalInfo(
+  state: OnchainTerminalInfo['state'], role: OnchainRole, designated: boolean,
+): Omit<OnchainTerminalInfo, 'state'> {
   const seller = role === 'customer';
   switch (state) {
     case 'cancelled':
@@ -221,7 +247,7 @@ function terminalInfo(state: OnchainTerminalInfo['state'], role: OnchainRole): O
         description: (seller
           ? '운영자가 응답하지 않아 타임락으로 직접 회수했습니다. '
           : '운영자가 응답하지 않아 상대방이 타임락으로 회수했습니다. ')
-          + '양쪽 보증금은 자체 만료로 환불됩니다.',
+          + (designated ? '' : '양쪽 보증금은 자체 만료로 환불됩니다.'),
       };
   }
 }
@@ -281,9 +307,9 @@ export interface OnchainRefundingInfo {
  * 환불 사유별 안내. **몰수의 조건은 반드시 고지한다** — 그런데 몰수금의
  * 행방과 보상은 약속하지 않는다.
  */
-function refundingInfo(role: OnchainRole, kind: SettlementKind | undefined): OnchainRefundingInfo {
+function refundingInfo(role: OnchainRole, kind: SettlementKind | undefined, designated: boolean): OnchainRefundingInfo {
   const seller = role === 'customer';
-  const why: Partial<Record<SettlementKind, string>> = {
+  const why: Partial<Record<SettlementKind, string>> = designated ? designatedRefundWhy(seller) : {
     'refund:reserve': '입금 컨펌 시점 시세가 최저가보다 낮아 거래가 성립하지 않았습니다. 양쪽 보증금은 돌려받습니다.',
     'refund:bond-expired': seller
       ? '상대방 보증금이 먼저 만료돼 거래를 이어갈 수 없었습니다.'
@@ -299,6 +325,26 @@ function refundingInfo(role: OnchainRole, kind: SettlementKind | undefined): Onc
       : '계좌 이의를 냈습니다. 누구 과실인지 운영자가 판정하고, 그때 보증금이 처리됩니다.',
   };
   const reason = (kind && why[kind]) ?? '마감을 넘겨 거래가 환불로 넘어갔습니다.';
+  return refundingText(seller, reason);
+}
+
+/** 지정 거래(보증금 없음)의 환불 사유 — 같은 사실에서 보증금 문장만 없다. `bond-expired`는 지정 거래에서 안 난다 */
+function designatedRefundWhy(seller: boolean): Partial<Record<SettlementKind, string>> {
+  return {
+    'refund:reserve': '입금 컨펌 시점 시세가 최저가보다 낮아 거래가 성립하지 않았습니다.',
+    'refund:sponsor-timeout': seller
+      ? '상대방이 마감 안에 서명이나 원화 송금을 마치지 않았습니다.'
+      : '마감 안에 서명이나 원화 송금을 마치지 못했습니다.',
+    'refund:customer-late': seller
+      ? '마감 안에 계좌를 보내지 않았습니다.'
+      : '상대방이 마감 안에 계좌를 보내지 않았습니다.',
+    'refund:account-disputed': seller
+      ? '상대방이 계좌를 쓸 수 없다고 이의를 냈습니다. 누구 과실인지 운영자가 판정합니다.'
+      : '계좌 이의를 냈습니다. 누구 과실인지 운영자가 판정합니다.',
+  };
+}
+
+function refundingText(seller: boolean, reason: string): OnchainRefundingInfo {
   return {
     label: '환불 진행 중',
     description: seller
@@ -326,12 +372,13 @@ export function resolveOnchainProgress(
   state: OnchainState,
   ctx: OnchainProgressContext = {},
 ): OnchainProgress {
+  const designated = ctx.designated === true;
   const terminal: OnchainTerminalInfo | null = isTerminalWithInfo(state)
-    ? { state, ...terminalInfo(state, role) }
+    ? { state, ...terminalInfo(state, role, designated) }
     : null;
 
   const disputed = state === 'disputed';
-  const refunding = state === 'refunding' ? refundingInfo(role, ctx.settlementKind) : null;
+  const refunding = state === 'refunding' ? refundingInfo(role, ctx.settlementKind, designated) : null;
 
   // 환불은 에스크로를 소모하므로 펀딩 컨펌까지는 확실하다(`bonded`에서 접은 경우 포함).
   const doneThrough = terminal
@@ -364,6 +411,8 @@ export function resolveOnchainProgress(
       isMyTurn: status === 'current' && actor === role,
       actions: (role === 'customer' ? step.customer : step.sponsor)
         .filter(a => !a.receiverOnly || receiver === null || receiver === role)
+        .filter(a => !(designated && a.designated === null))
+        .map(a => (designated && typeof a.designated === 'string' ? { ...a, text: a.designated } : a))
         .map(a => (a.receiverOnly && receiver === null ? { ...a, optional: true } : a)),
     };
   });

@@ -148,11 +148,29 @@ function ReserveLine({ order, price }: { order: OnchainOrder; price: number | nu
 /** 이만큼 답이 없으면 늦는다고 말하고 같은 값으로 다시 보낼 수 있게 한다 */
 const SLOW_MS = 45_000;
 
+/**
+ * 클레임 폼 문구 — 공개 의뢰(보증금 인보이스를 받는다) / 지정 거래(보증금 없이 바로 수락). 갈래를 한 곳에 둔다 —
+ * 문장마다 삼항을 두면 한 문장이 두 조각으로 따로 골라져 붙는다
+ */
+const CLAIM_TEXT = {
+  public: {
+    open: '사줄게', waiting: '보증금 인보이스를 받는 중…', failed: '보증금 인보이스를 받지 못했습니다',
+    act: '결제하면', when: '결제하세요', submit: '보증금 인보이스 받기',
+  },
+  designated: {
+    open: '수락하기', waiting: '수락을 확인하는 중…', failed: '수락하지 못했습니다',
+    act: '수락하면', when: '수락하세요', submit: '수락',
+  },
+} as const;
+
 function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositInvoice | undefined }) {
   const orderId = order.orderId;
   // 지정 거래 — 보증금 인보이스가 없다. 답은 오더가 `bonded`로 바뀌는 것(이 카드가 내 거래로 옮겨 간다)
   const designated = Boolean(order.designatedSponsor);
+  const text = CLAIM_TEXT[designated ? 'designated' : 'public'];
   const [consent, setConsent] = useState<Consent>(NO_CONSENT);
+  /** 지정 거래는 고객 확인 코드 대조 · 위험 고지를 다 체크해야 보낼 수 있다 */
+  const blocked = designated && !consentGiven(consent);
   const notice = useSyncExternalStore(subscribeNotices, getNoticesSnapshot)[orderId];
   const pending = pendingClaim(orderId, invoice?.receivedAt, notice?.receivedAt);
   const [, rerender] = useState(0);
@@ -209,7 +227,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
     return (
       <div style={styles.waiting}>
         <p style={styles.waitingLine}>
-          <span className="spinner" /> {designated ? '수락을 확인하는 중…' : '보증금 인보이스를 받는 중…'}
+          <span className="spinner" /> {text.waiting}
         </p>
         {slow && (
           <>
@@ -225,7 +243,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
 
   if (!open && !rejected) {
     return (
-      <button style={styles.claim} onClick={() => setOpen(true)}>{designated ? '수락하기' : '사줄게'}</button>
+      <button style={styles.claim} onClick={() => setOpen(true)}>{text.open}</button>
     );
   }
 
@@ -233,7 +251,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
     e.preventDefault();
     setError(null);
     const rate = Number(feerate);
-    if (designated && !consentGiven(consent)) return setError('고객 확인 코드 대조와 위험 고지를 체크해 주세요.');
+    if (blocked) return setError('고객 확인 코드 대조와 위험 고지를 체크해 주세요.');
     const addrProblem = addressProblem(address, order.network);
     if (addrProblem) return setError(addrProblem);
     if (!Number.isFinite(rate) || rate <= 0) return setError('수수료율을 숫자로 입력하세요.');
@@ -261,7 +279,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
   return (
     <form onSubmit={e => void submit(e)} style={styles.form}>
       {rejected && notice && (
-        <p style={styles.error}>{designated ? '수락하지 못했습니다' : '보증금 인보이스를 받지 못했습니다'} — {notice.reason}</p>
+        <p style={styles.error}>{text.failed} — {notice.reason}</p>
       )}
       {designated && (
         <DesignatedConsent
@@ -294,14 +312,13 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
       </label>
 
       <div style={styles.warn}>
-        {designated ? '수락하면' : '결제하면'} <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 상대방이 입금을
-        컨펌시키고, 그 뒤 <strong> {durationText(PRESIGN_WINDOW_SEC)} 안에 앱이 서명</strong>합니다. 앱을 열어둘 수 있을 때
-        {designated ? ' 수락하세요.' : ' 결제하세요.'}
+        {text.act} <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 상대방이 입금을 컨펌시키고, 그 뒤
+        <strong> {durationText(PRESIGN_WINDOW_SEC)} 안에 앱이 서명</strong>합니다. 앱을 열어둘 수 있을 때 {text.when}.
       </div>
 
       {error && <p style={styles.error}>{error}</p>}
-      <button type="submit" style={styles.claim} disabled={busy || (designated && !consentGiven(consent))}>
-        {busy ? '보내는 중…' : designated ? '수락' : '보증금 인보이스 받기'}
+      <button type="submit" style={styles.claim} disabled={busy || blocked}>
+        {busy ? '보내는 중…' : text.submit}
       </button>
     </form>
   );

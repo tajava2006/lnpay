@@ -11,6 +11,7 @@ import type { Handler } from '../dispatch';
 import type { Holds } from '../hold';
 import type { RelayTransport } from '../nostr/transport';
 import type { OrderDirectory } from '../orders/directory';
+import { operatorsChanged } from '../orders/designated';
 import type { PushConfig } from '../push/send';
 import { OC_BOND_PURPOSES, createOcBondHooks } from './bonds';
 import { registerOcCommands } from './commands';
@@ -18,7 +19,7 @@ import type { OcContext } from './context';
 import { createBroadcastExecutor, createOcDetailExecutor, createOcPublishExecutor } from './effects';
 import { OC_BROADCAST_EFFECT } from './flow';
 import { createOcHandlers } from './handlers';
-import { OC_DETAIL_EFFECT, OC_ORDER_PUBLISH_EFFECT } from './store';
+import { OC_DETAIL_EFFECT, OC_ORDER_PUBLISH_EFFECT, designatedOcIds, requestOcProjection } from './store';
 import { OcWatcher } from './watcher';
 
 export interface OcDeps {
@@ -61,5 +62,9 @@ export function installOcTrack(
   ctx.effects.register(OC_DETAIL_EFFECT, createOcDetailExecutor(ctx, transport));
   ctx.effects.register(OC_BROADCAST_EFFECT, createBroadcastExecutor(ctx));
   registerOcCommands(registry, ctx);
+  // 운영자가 바뀌었으면 지정 거래 스냅샷을 다시 낸다 — 새 운영자도 보게(보존이 끝난 건 발행기가 건너뛴다)
+  ctx.db.tx(() => {
+    if (operatorsChanged(ctx, 'onchain')) for (const orderId of designatedOcIds(ctx)) requestOcProjection(ctx, orderId);
+  });
   return { ctx, watcher: new OcWatcher(ctx, deps.pollMs), handlers: createOcHandlers(ctx) };
 }

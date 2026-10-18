@@ -41,8 +41,8 @@ export interface LnCardInput {
 export type PayPurpose = 'customer-deposit' | 'escrow' | 'sponsor-deposit';
 
 export type LnAction =
-  /** `designated`면 공개 오더북이 아니라 지정한 상대에게 간다 — 버튼 말이 다르다 */
-  | { kind: 'publish'; designated: boolean }
+  /** 지정 거래면(`view.designated`) 공개 오더북이 아니라 지정한 상대에게 간다 — 버튼 말이 다르다 */
+  | { kind: 'publish' }
   | { kind: 'pay'; purpose: PayPurpose; bolt11: string }
   | { kind: 'send-account' }
   | { kind: 'confirm-paid' }
@@ -89,11 +89,19 @@ export interface LnCardView {
   designated: { counterpartyCode: string } | null;
 }
 
-/** 지정 거래면 상대 확인 코드. 내 역할을 모르면(풀린 클레임 등) 지정 사실만 */
+/** 지정 상대 — 고객은 **자기 기록**을 먼저 믿는다(데몬 값은 그다음). T-107처럼 앱이 스스로 대조할 근거다 */
+function designatedSponsorOf(order: Order | null, local: CustomerOrder | null): string | undefined {
+  return local?.designatedSponsor ?? order?.designatedSponsor;
+}
+
+/**
+ * 지정 거래면 상대 확인 코드. 내 역할을 모르면(풀린 클레임 등) 지정 사실만(빈 코드) — 모르는데 지정 후원자를 상대로
+ * 치면 지정 후원자 본인의 코드가 "상대 확인 코드"로 뜬다
+ */
 function designatedOf(order: Order | null, local: CustomerOrder | null, role: LnRole | null): LnCardView['designated'] {
-  const sponsor = order?.designatedSponsor ?? local?.designatedSponsor;
+  const sponsor = designatedSponsorOf(order, local);
   if (!sponsor) return null;
-  const counterparty = role === 'sponsor' ? order?.customerPubkey : sponsor;
+  const counterparty = role === 'sponsor' ? order?.customerPubkey : role === 'customer' ? sponsor : undefined;
   return { counterpartyCode: counterparty ? checkCode(counterparty) : '' };
 }
 
@@ -136,11 +144,17 @@ export function lnCardView(input: LnCardInput): LnCardView {
   const notes: string[] = [];
   const side: LnSideActions = { cancel: false, delete: false };
 
+  // 지정 거래인데 맡은 사람이 지정한 상대가 아니다 — 데몬이 클레임에서 막지만 앱도 대조한다(T-107의 정신).
+  // 결제·계좌를 열지 않는다
+  const designatedTo = designatedSponsorOf(order, local);
+  const wrongSponsor = role === 'customer' && !!designatedTo && !!sponsorPubkey && sponsorPubkey !== designatedTo;
+  if (wrongSponsor) notes.push('지정한 상대가 아닌 사람이 맡은 것으로 보입니다. 결제하지 말고 에스크로 채팅으로 알려 주세요.');
+
   if (role === 'customer') {
     const bolt11 = order?.bolt11 ?? local?.bolt11;
-    if (state === 'verified' && bolt11 && !pastDeadline) actions.push({ kind: 'pay', purpose: 'escrow', bolt11 });
+    if (state === 'verified' && bolt11 && !pastDeadline && !wrongSponsor) actions.push({ kind: 'pay', purpose: 'escrow', bolt11 });
 
-    if (canSendAccountInfo(state) && sponsorPubkey) {
+    if (canSendAccountInfo(state) && sponsorPubkey && !wrongSponsor) {
       if (local?.accountInfo) notes.push('계좌 정보를 보냈습니다.');
       else if (local?.fixedAccountInfo) notes.push('계좌 정보를 자동으로 보내는 중…');
       // 보낸 기록이 이 기기에 없으면 버튼을 열지 않는다 — 다른 기기에서 이미 보냈다면 두 번째 계좌가 나간다
@@ -174,7 +188,8 @@ export function lnCardView(input: LnCardInput): LnCardView {
     );
     if (state === 'escrowed' || resubmit) actions.push({ kind: 'register-invoice', notice: rejected });
     if (state === 'escrowed' && order?.invoiceDeadline) {
-      notes.push(`인보이스 등록 마감: ${remainingText(order.invoiceDeadline - now, '지남')} — 넘기면 거래가 닫힙니다(보증금이 있으면 몰수).`);
+      const forfeit = designatedTo ? '' : '(보증금이 있으면 몰수)';
+      notes.push(`인보이스 등록 마감: ${remainingText(order.invoiceDeadline - now, '지남')} — 넘기면 거래가 닫힙니다${forfeit}.`);
     }
 
     if (state === 'invoiced') {
@@ -223,7 +238,7 @@ function draftView(input: LnCardInput): LnCardView {
   if (!local.raw) {
     return {
       ...base, badge: DRAFT_BADGE.unpublished, title: '의뢰 올리기 전', isMyTurn: !expired, waitingFor: null,
-      actions: expired ? [] : [{ kind: 'publish', designated: !!local.designatedSponsor }], side,
+      actions: expired ? [] : [{ kind: 'publish' }], side,
       notes: expired ? ['기한이 지나 올릴 수 없습니다.'] : [],
     };
   }

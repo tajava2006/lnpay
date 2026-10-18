@@ -14,9 +14,15 @@ interface Props {
   onSelectOrder: (orderId: string) => void;
 }
 
-/** 사주기 탭 — 지정 거래(머리 · 나를 지정한 거래) 아래 공개 오더북 */
+/**
+ * 사주기 탭 — 지정 거래(머리 · 나를 지정한 거래) 아래 공개 오더북. 저장소·내 키·지금은 여기서 한 번만 읽어 내린다 —
+ * 두 목록이 서로 다른 `now`로 클레임 가능 여부를 보면 같은 의뢰가 한쪽에서만 사라진다
+ */
 export function OrderBook({ tracker, onSelectOrder }: Props) {
   const orders = useSyncExternalStore(subscribe, getSnapshot);
+  const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
+  // 내 pubkey — 남의 거래인지 판정하는 데 쓴다. 로딩 전엔 null로 두어
+  // '다른 후원자가 진행 중'이 깜빡였다 바뀌는 일이 없게 한다.
   const myPubkey = useMyPubkey();
   const now = useNow();
   const offers = designatedLnOffers(Object.values(orders), myPubkey, now);
@@ -31,19 +37,16 @@ export function OrderBook({ tracker, onSelectOrder }: Props) {
           </div>
         </>
       )}
-      <PublicBook tracker={tracker} onSelectOrder={onSelectOrder} />
+      <PublicBook
+        tracker={tracker} onSelectOrder={onSelectOrder} orders={orders} synced={synced} myPubkey={myPubkey} now={now}
+      />
     </div>
   );
 }
 
-function PublicBook({ tracker, onSelectOrder }: Props) {
-  const orders = useSyncExternalStore(subscribe, getSnapshot);
-  const synced = useSyncExternalStore(subscribe, getSyncedSnapshot);
-
-  // 내 pubkey — 남의 거래인지 판정하는 데 쓴다. 로딩 전엔 null로 두어
-  // '다른 후원자가 진행 중'이 깜빡였다 바뀌는 일이 없게 한다.
-  const myPubkey = useMyPubkey();
-  const now = useNow();
+function PublicBook({ tracker, onSelectOrder, orders, synced, myPubkey, now }: Props & {
+  orders: Readonly<Record<string, Order>>; synced: boolean; myPubkey: string | null; now: number;
+}) {
 
   // 비종료 오더만, 기한 임박순.
   //

@@ -8,13 +8,13 @@
  * 남의 거래를 취소하거나, 남 대신 입금 확인을 누르는 걸 여기서 막는다.
  */
 import {
-  REQUEST_ACTIONS, extractOrderId, isLnDesignatedOrderPayload, isTerminalState, nip44Decrypt,
+  MAX_OPEN_DESIGNATED_PER_CUSTOMER, REQUEST_ACTIONS, extractOrderId, isLnDesignatedOrderPayload, isTerminalState,
 } from '@sajwo-tracker/shared/core';
 import { canTransition, isPayoutAmountExact } from '@sajwo-tracker/shared/ln';
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import { loadSettings } from '../admin/settings';
-import { tagValue, type Handler, type HandlerResult, type InboxEvent } from '../dispatch';
+import { decryptRequest, tagValue, type Handler, type HandlerResult, type InboxEvent } from '../dispatch';
 import { isOrderId } from '../orders/id';
 import { PUSH_WELCOME } from './notify-messages';
 import { isPushSubscriptionPayload, queuePush, saveSubscription } from '../push/send';
@@ -26,7 +26,7 @@ import {
 } from './flow';
 import { sendInvoiceRejected } from './messages';
 import { notifyAccountArrived, notifyDesignatedArrived, notifyLnTransition } from './notify';
-import { deleteDraft, getDraft, getOrder, insertOrder, updateOrder, type LnOrderRow } from './store';
+import { deleteDraft, getDraft, getOrder, insertOrder, openDesignatedCount, updateOrder, type LnOrderRow } from './store';
 import {
   DEADLINE_GRACE_SEC, INVOICE_ESCROW_MIN_BLOCKS, MAX_DEADLINE_LEAD_SEC, MIN_CLAIM_LEAD_SEC,
   MIN_SPONSOR_INVOICE_LIFETIME_SEC,
@@ -106,17 +106,16 @@ function orderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
 function designatedOrderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
   const orderId = extractOrderId(event.tags);
   if (!isOrderId(orderId)) return ignored('bad-order-id');
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(nip44Decrypt(event.content, ctx.appKey.secretKey, event.pubkey));
-  } catch {
-    return ignored('undecryptable');
-  }
+  const parsed = decryptRequest(event, ctx.appKey.secretKey);
+  if (parsed === undefined) return ignored('undecryptable');
+  // 지정 상대는 곡선 위의 pubkey여야 한다 — 아니면 스냅샷을 봉할 수 없다(`isPubkeyHex`)
   if (!isLnDesignatedOrderPayload(parsed)) return ignored('bad-payload');
   // 자기 지정은 자기 클레임과 같다 — 내역의 역할 유도가 깨진다
   if (parsed.designatedSponsor === event.pubkey) return ignored('self-designated');
   const blocker = orderTermsBlocker(ctx, orderId, parsed.price, parsed.deadline);
   if (blocker) return ignored(blocker);
+  // 보증금이 없어 공짜다 — 키 하나로 쏟아붓지 못하게(RISKS R-16). 앱이 미리 막으니 여기까진 잘 안 온다
+  if (openDesignatedCount(ctx, event.pubkey) >= MAX_OPEN_DESIGNATED_PER_CUSTOMER) return ignored('too-many-designated');
   insertOrder(ctx, {
     orderId, customer: event.pubkey, price: parsed.price, deadline: parsed.deadline,
     designatedSponsor: parsed.designatedSponsor,
@@ -154,6 +153,13 @@ const sponsorInvoice: OrderHandler = (ctx, event, order) => {
   const payoutPending = (order.state === 'paid' || order.state === 'sponsor_wins') && !order.disbursed;
   const accepts = order.state === 'escrowed' || order.state === 'invoiced' || order.state === 'remitted' || payoutPending;
   if (!accepts) return ignored('bad-state');
+  // 등록 마감(에스크로 + 6h)을 넘긴 첫 인보이스는 받지 않는다 — 워처가 닫기 전 한 틱 사이(재시작 뒤 워밍업이면 2분)에
+  // 들어오면 `invoiced`가 돼 고객 BTC가 다시 기한 + 유예까지 묶였다. 요청 시각으로 본다(미래로는 못 간다) — 데몬이
+  // 꺼져 있던 사이 마감 안에 낸 인보이스는 받는다
+  const requestedAt = Math.min(event.created_at, nowSec(ctx));
+  if (order.state === 'escrowed' && order.invoice_deadline !== null && requestedAt > order.invoice_deadline) {
+    return ignored('after-invoice-deadline');
+  }
   if (order.sponsor_invoice === bolt11) return ignored('same-invoice');
 
   const payout = order.payout_sat ?? 0;
@@ -276,12 +282,8 @@ function cancelRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
 // ── 웹 푸시 구독 (계정 단위) ────────────────────────────────
 
 function pushSubscription(ctx: LnContext, event: InboxEvent): HandlerResult {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(nip44Decrypt(event.content, ctx.appKey.secretKey, event.pubkey));
-  } catch {
-    return ignored('undecryptable');
-  }
+  const parsed = decryptRequest(event, ctx.appKey.secretKey);
+  if (parsed === undefined) return ignored('undecryptable');
   if (!isPushSubscriptionPayload(parsed)) return ignored('bad-payload');
   // 새 기기일 때만, 그 기기에만 등록 확인 — 다른 기기까지 울리지 않게
   if (saveSubscription(ctx, event.pubkey, parsed)) {

@@ -7,6 +7,7 @@
 import type { OrderState } from '@sajwo-tracker/shared/core';
 import { nowSec } from '../admin/context';
 import { notifyOperators } from '../admin/notify';
+import { designatedQuietOver } from '../orders/designated';
 import type { LnContext } from './context';
 
 export interface LnOrderRow {
@@ -31,6 +32,10 @@ export interface LnOrderRow {
   account_sent_at: number | null;
   account_commitment: string | null;
   remitted_at: number | null;
+  /** 후원자 인보이스 등록 마감 (unix초) — `escrowed` 진입 때 찍는다. 넘기면 `expired:no-invoice` */
+  invoice_deadline: number | null;
+  /** 지정 거래의 후원자 — 이 pubkey만 맡을 수 있고 보증금이 없다(docs/LN-TRACK.md §7). 공개 거래는 null */
+  designated_sponsor: string | null;
   created_at: number;
   updated_at: number;
   version: number;
@@ -39,7 +44,7 @@ export interface LnOrderRow {
 
 /** `updateOrder`가 바꿀 수 있는 칸 — 키·버전·시각은 저장소가 관리한다 */
 export type LnOrderPatch = Partial<Omit<LnOrderRow, 'order_id' | 'customer' | 'price' | 'deadline'
-  | 'created_at' | 'updated_at' | 'version' | 'published_at'>>;
+  | 'designated_sponsor' | 'created_at' | 'updated_at' | 'version' | 'published_at'>>;
 
 export interface LnDraftRow {
   order_id: string;
@@ -65,17 +70,40 @@ export function ordersInStates(ctx: Pick<LnContext, 'db'>, states: readonly Orde
 
 export function insertOrder(
   ctx: LnContext,
-  o: { orderId: string; customer: string; price: number; deadline: number; customerDepositHash?: string },
+  o: {
+    orderId: string; customer: string; price: number; deadline: number; customerDepositHash?: string;
+    designatedSponsor?: string;
+  },
 ): void {
   const now = nowSec(ctx);
   ctx.db.run(
-    `INSERT INTO ln_orders (order_id, state, customer, price, deadline, customer_deposit_hash, created_at, updated_at)
-     VALUES (?, 'requested', ?, ?, ?, ?, ?, ?)`,
-    o.orderId, o.customer, o.price, o.deadline, o.customerDepositHash ?? null, now, now,
+    `INSERT INTO ln_orders
+       (order_id, state, customer, price, deadline, customer_deposit_hash, designated_sponsor, created_at, updated_at)
+     VALUES (?, 'requested', ?, ?, ?, ?, ?, ?, ?)`,
+    o.orderId, o.customer, o.price, o.deadline, o.customerDepositHash ?? null, o.designatedSponsor ?? null, now, now,
   );
   requestProjection(ctx, o.orderId);
-  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다
-  notifyOperators(ctx, `새 의뢰 — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
+  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다. 지정 거래는 공짜라 몰아 오면 폰만 울린다 — 조용한 창에 한 번
+  if (!o.designatedSponsor) {
+    notifyOperators(ctx, `새 의뢰 — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
+  } else if (designatedQuietOver(ctx, 'dm:ln')) {
+    notifyOperators(ctx, `새 지정 거래 — 라이트닝 ${o.price.toLocaleString('ko-KR')}원 (${o.orderId})`);
+  }
+}
+
+/** 지정 거래 오더 전부 (운영자가 바뀌어 스냅샷을 다시 낼 때) */
+export function designatedOrderIds(ctx: Pick<LnContext, 'db'>): string[] {
+  return ctx.db.all<{ order_id: string }>('SELECT order_id FROM ln_orders WHERE designated_sponsor IS NOT NULL')
+    .map(r => r.order_id);
+}
+
+/** 이 고객이 띄운, 아직 아무도 수락하지 않은 지정 의뢰 수 — 스팸 상한(`MAX_OPEN_DESIGNATED_PER_CUSTOMER`) */
+export function openDesignatedCount(ctx: Pick<LnContext, 'db'>, customer: string): number {
+  const r = ctx.db.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM ln_orders WHERE customer = ? AND designated_sponsor IS NOT NULL AND state = 'requested'`,
+    customer,
+  );
+  return Number(r?.n ?? 0);
 }
 
 /**

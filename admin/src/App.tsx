@@ -16,7 +16,7 @@ import { OnchainOrderDetail } from './components/OnchainOrderDetail';
 import { LnOrderList, OnchainOrderList } from './components/OrderLists';
 import { startDaemonFeed, stopDaemonFeed } from './daemon/feed';
 import { clearStores, daemonState } from './daemon/stores';
-import { protocolWarning } from './format';
+import { depositWarnings, protocolWarning } from './format';
 import { parseRoute, urlFor, type Route, type Tab } from './routing';
 
 /** 저장된 세션을 되살린다. 운영자 pubkey가 없는 옛 세션(APP 키 로그인 시절)은 버린다 */
@@ -107,11 +107,11 @@ export function App() {
   );
 }
 
-/** 데몬과 이 앱을 한쪽만 배포했다 — 어느 탭에서든 보인다 */
+/** 데몬과 이 앱을 한쪽만 배포했다 · 공개 보증금이 꺼져 있다 — 어느 탭에서든 보인다 */
 function ProtocolBanner() {
   const { state } = useSyncExternalStore(daemonState.subscribe, daemonState.get);
-  const text = protocolWarning(state);
-  return text ? <p role="alert" style={styles.protocolBanner}>⚠️ {text}</p> : null;
+  const texts = [protocolWarning(state), ...depositWarnings(state)].filter((t): t is string => t !== null);
+  return <>{texts.map(t => <p key={t} role="alert" style={styles.protocolBanner}>⚠️ {t}</p>)}</>;
 }
 
 const styles = {

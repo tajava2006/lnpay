@@ -81,9 +81,14 @@ describe('종결은 양쪽에 알린다', () => {
 });
 
 describe('마감이 부르는 알림', () => {
-  it('넷이 전이표 밖에 있다', () => {
+  it('다섯이 전이표 밖에 있다', () => {
     expect(Object.keys(ONCHAIN_TIMER_NOTICES).sort())
-      .toEqual(['accountInfoArrived', 'disputeSoon', 'rulingDecided', 'rulingSignatureNeeded']);
+      .toEqual(['accountInfoArrived', 'designatedArrived', 'disputeSoon', 'rulingDecided', 'rulingSignatureNeeded']);
+  });
+
+  /** 지정 의뢰는 오더북에 안 뜬다 — 지정 후원자에겐 이 알림이 유일한 신호다. 사주기 탭(온체인)으로 보낸다 */
+  it('지정 거래 도착 알림은 사주기 탭의 온체인으로', () => {
+    expect(ONCHAIN_TIMER_NOTICES.designatedArrived()).toMatchObject({ tab: 'fulfill', track: 'onchain' });
   });
 
   /** 계좌 도착은 상태가 안 바뀐다 — 그런데 후원자가 움직일 수 있게 되는 순간이다. */

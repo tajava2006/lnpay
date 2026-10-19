@@ -29,10 +29,17 @@ export function upsertOnchainOrder(order: OnchainOrder): boolean {
   return true;
 }
 
-/** 오더북 — 아직 안 팔린 남의 의뢰 */
+/** 오더북 — 아직 안 팔린 남의 **공개** 의뢰. 지정 거래는 오더북이 아니다(`designatedToMe`) */
 export function listedOrders(myPubkey: string): OnchainOrder[] {
   return Object.values(store.get())
-    .filter(o => o.state === 'listed' && o.customerPubkey !== myPubkey)
+    .filter(o => o.state === 'listed' && o.customerPubkey !== myPubkey && !o.designatedSponsor)
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** 나를 상대로 지정한, 아직 맡지 않은 의뢰 — 사기 탭 맨 위 */
+export function designatedToMe(myPubkey: string): OnchainOrder[] {
+  return Object.values(store.get())
+    .filter(o => o.state === 'listed' && o.designatedSponsor === myPubkey && o.customerPubkey !== myPubkey)
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 

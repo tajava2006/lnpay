@@ -13,6 +13,7 @@ import {
 } from '@sajwo-tracker/shared/onchain';
 import { nowSec } from '../admin/context';
 import { notifyOperators } from '../admin/notify';
+import { designatedQuietOver } from '../orders/designated';
 import type { OcContext } from './context';
 
 export const OC_ORDER_PUBLISH_EFFECT = 'oc.order.publish';
@@ -68,7 +69,8 @@ export interface OcRow {
 }
 
 /** `updateOc`가 바꿀 수 있는 칸. **`undefined`는 지운다**(리오그로 가격 고정을 폐기할 때) */
-export type OcPatch = Partial<Omit<OnchainOrder, 'orderId' | 'raw' | 'createdAt' | 'updatedAt' | 'status'>>;
+export type OcPatch = Partial<Omit<OnchainOrder,
+  'orderId' | 'raw' | 'createdAt' | 'updatedAt' | 'status' | 'designatedSponsor'>>;
 
 interface RawRow {
   order_id: string;
@@ -107,8 +109,20 @@ export function insertOc(ctx: OcContext, order: OnchainOrder, meta: OcMeta): voi
     order.orderId, order.state, toData(order), JSON.stringify(meta),
   );
   requestProjection(ctx, order.orderId);
-  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다
-  notifyOperators(ctx, `새 의뢰 — 온체인 ${order.amountSat.toLocaleString('ko-KR')} sats (${order.orderId})`);
+  // 사람이 할 일은 없지만 가게에 손님이 왔다는 신호다. 지정 거래는 공짜라 몰아 오면 폰만 울린다 — 조용한 창에 한 번
+  const text = `${order.amountSat.toLocaleString('ko-KR')} sats (${order.orderId})`;
+  if (!order.designatedSponsor) notifyOperators(ctx, `새 의뢰 — 온체인 ${text}`);
+  else if (designatedQuietOver(ctx, 'dm:onchain')) notifyOperators(ctx, `새 지정 거래 — 온체인 ${text}`);
+}
+
+/** 이 고객이 띄운, 아직 아무도 수락하지 않은 지정 의뢰 수 — 스팸 상한(`MAX_OPEN_DESIGNATED_PER_CUSTOMER`) */
+export function openDesignatedCount(ctx: Pick<OcContext, 'db'>, customer: string): number {
+  const r = ctx.db.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM oc_orders WHERE state = 'listed'
+       AND json_extract(data, '$.customerPubkey') = ? AND json_extract(data, '$.designatedSponsor') IS NOT NULL`,
+    customer,
+  );
+  return Number(r?.n ?? 0);
 }
 
 /**
@@ -151,6 +165,18 @@ export function requestOcDetail(ctx: OcContext, orderId: string): void {
   ctx.effects.enqueue(OC_DETAIL_EFFECT, { orderId }, { dedup: `oc.detail:${orderId}` });
 }
 
+/** 공개 오더(지정 거래면 스냅샷)와 운영자 상세를 다시 낸다 */
+export function requestOcProjection(ctx: OcContext, orderId: string): void {
+  requestProjection(ctx, orderId);
+}
+
+/** 지정 거래 오더 전부 (운영자가 바뀌어 스냅샷을 다시 낼 때) */
+export function designatedOcIds(ctx: Pick<OcContext, 'db'>): string[] {
+  return ctx.db.all<{ order_id: string }>(
+    `SELECT order_id FROM oc_orders WHERE json_extract(data, '$.designatedSponsor') IS NOT NULL`,
+  ).map(r => r.order_id);
+}
+
 function requestProjection(ctx: OcContext, orderId: string): void {
   ctx.effects.enqueue(OC_ORDER_PUBLISH_EFFECT, { orderId }, { dedup: `oc.order:${orderId}` });
   requestOcDetail(ctx, orderId);
@@ -158,20 +184,28 @@ function requestProjection(ctx: OcContext, orderId: string): void {
 
 // ── 보증금 대기 (의뢰·클레임 후보) ──────────────────────────
 
-export interface CustomerCandidateInfo {
+/** 의뢰를 세울 때 고객이 정한 것 */
+export interface CustomerListInfo {
   amountSat: number;
   reserveKrw?: number;
   /** 의뢰 만료 */
   expiration: number;
   customerXonly: string;
   refundAddress: string;
+}
+
+export interface CustomerCandidateInfo extends CustomerListInfo {
   cltvBlocks: number;
 }
 
-export interface SponsorCandidateInfo {
+/** 클레임 때 후원자가 정한 것 */
+export interface SponsorClaimInfo {
   sponsorXonly: string;
   payoutAddress: string;
   feerateSatPerVb: number;
+}
+
+export interface SponsorCandidateInfo extends SponsorClaimInfo {
   cltvBlocks: number;
 }
 

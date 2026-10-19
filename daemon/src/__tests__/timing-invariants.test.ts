@@ -14,7 +14,8 @@ import {
 import {
   BLOCK_SEC, CATCHUP_WARMUP_SEC, CLTV_MAX_BLOCKS, CUSTOMER_DEPOSIT_MARGIN_SEC, DEADLINE_GRACE_SEC, ESCROW_END_BLOCKS,
   ESCROW_HOLD_MARGIN_SEC, ESCROW_PAY_LEAD_SEC, INVOICE_ESCROW_MIN_BLOCKS, MIN_ESCROW_PAY_WINDOW_SEC,
-  LND_DOWN_ALERT_SEC, SAFETY_SETTLE_BLOCKS, SPONSOR_DEPOSIT_MARGIN_SEC, SPONSOR_DEPOSIT_PAY_SEC, cltvBlocksFor,
+  INVOICE_WINDOW_SEC, LND_DOWN_ALERT_SEC, SAFETY_SETTLE_BLOCKS, SPONSOR_DEPOSIT_MARGIN_SEC, SPONSOR_DEPOSIT_PAY_SEC,
+  cltvBlocksFor, invoiceDeadlineFor,
 } from '../ln/timing';
 import { depositCltvBlocks } from '../onchain/deposit';
 import { FEES_MAX_AGE_SEC, FEES_REFRESH_SEC } from '../onchain/fees';
@@ -45,6 +46,18 @@ describe('라이트닝 (LN-TRACK §5)', () => {
     expect(INVOICE_ESCROW_MIN_BLOCKS).toBeGreaterThan(ESCROW_END_BLOCKS);
     expect(ESCROW_END_BLOCKS).toBeGreaterThan(SAFETY_SETTLE_BLOCKS);
     expect(SAFETY_SETTLE_BLOCKS).toBeGreaterThan(LND_HOLD_EXPIRY_DELTA);
+  });
+
+  /** 인보이스 마감은 기한 + 유예를 넘지 않는다 — 넘으면 에스크로가 기한 처리보다 오래 묶인다(예전 R-5로 돌아간다) */
+  it('④-3 인보이스 마감 = min(에스크로 + 창, 기한 + 유예), 창은 에스크로 HTLC 여유 안', () => {
+    const escrowedAt = 1_800_000_000;
+    for (const lead of [30 * 60, 3 * 3600, 2 * 86_400, 7 * 86_400]) {
+      const deadline = escrowedAt + lead;
+      const due = invoiceDeadlineFor(escrowedAt, deadline);
+      expect(due).toBeLessThanOrEqual(deadline + DEADLINE_GRACE_SEC);
+      expect(due).toBeLessThanOrEqual(escrowedAt + INVOICE_WINDOW_SEC);
+    }
+    expect(INVOICE_WINDOW_SEC).toBeLessThan(ESCROW_HOLD_MARGIN_SEC);
   });
 
   /** 선제 settle이 필요한 순간 LND가 죽으면, 노드가 홀드를 스스로 취소하기 전에 고쳐야 한다 */

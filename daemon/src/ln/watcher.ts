@@ -17,6 +17,7 @@ import { loadSettings } from '../admin/settings';
 import type { LnContext } from './context';
 import {
   approve, approveBlocker, beginClose, planCustomerDeposit, planSponsorDeposit, revertClaim, sponsorDepositOf,
+  sponsorDepositRequired,
 } from './flow';
 import { allDrafts, deleteDraft, insertOrder, ordersInStates, type LnOrderRow } from './store';
 import {
@@ -101,7 +102,7 @@ export class LnWatcher {
     // ── 클레임: 후원자 보증금, 자동 승인
     for (const order of ordersInStates(ctx, ['claimed'])) {
       if (order.pending_close) continue;
-      if (settings.sponsorDepositPct > 0 && !order.sponsor_deposit_hash) {
+      if (sponsorDepositRequired(ctx, order) && !order.sponsor_deposit_hash) {
         const dep = sponsorDepositOf(ctx, order);
         if (!dep) {
           planSponsorDeposit(ctx, order, settings.sponsorDepositPct);
@@ -113,7 +114,9 @@ export class LnWatcher {
           continue;
         }
       }
-      if (settings.autoApprove && approveBlocker(ctx, order) === null) approve(ctx, order);
+      // 지정 거래는 운영자가 볼 게 없다 — 상대를 고객이 골랐다. 자동 승인 설정과 무관하게 바로
+      const auto = settings.autoApprove || order.designated_sponsor !== null;
+      if (auto && approveBlocker(ctx, order) === null) approve(ctx, order);
     }
 
     // ── 에스크로 미납
@@ -152,11 +155,13 @@ export class LnWatcher {
     }
   }
 
-  /** 기한 만료로 닫는 시각 — 원화가 오갈 수 있는 상태만 유예를 준다 */
+  /**
+   * 닫는 시각 — 원화가 오갈 수 있는 상태만 기한 뒤 유예를 준다. `escrowed`는 후원자 인보이스 마감이 먼저 온다
+   * (`invoice_deadline`, 그 전 행은 없어서 기한 + 유예).
+   */
   private closeAt(order: LnOrderRow): number {
-    return order.state === 'escrowed' || order.state === 'invoiced'
-      ? order.deadline + DEADLINE_GRACE_SEC
-      : order.deadline;
+    if (order.state === 'escrowed') return order.invoice_deadline ?? order.deadline + DEADLINE_GRACE_SEC;
+    return order.state === 'invoiced' ? order.deadline + DEADLINE_GRACE_SEC : order.deadline;
   }
 
   private escrowEnding(order: LnOrderRow, height: number | undefined, blocks: number): boolean {

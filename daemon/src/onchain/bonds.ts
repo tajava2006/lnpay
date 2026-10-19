@@ -22,6 +22,9 @@
  * 고객 보증금이 잡히면 **의뢰가 생기고**(`listed`), 후원자 보증금이 잡히면 **클레임이 성립한다**(`bonded`,
  * 세 키 확정 → 에스크로 주소). 후원자는 여럿이 동시에 인보이스를 받을 수 있고 **먼저 결제한 쪽**이 가져간다
  * 진 쪽은 취소(HTLC 실패라 수수료 0).
+ *
+ * 그 두 순간의 몸통은 `listOc`·`bondOc`다 — **지정 거래**(docs/ONCHAIN-TRACK.md §10)는 보증금 없이 같은 걸 바로
+ * 부른다(`bond` 없이). 그래서 지정 거래 오더엔 보증금 해시가 없다.
  */
 import {
   OUTCOME_RULES, forfeitUse, fundingDeadlineFrom,
@@ -35,7 +38,8 @@ import { adminXonlyOf, escrowDescriptorFor } from './escrow';
 import { sendOcDepositRequired, sendOcDepositStatus, sendOcRejected } from './messages';
 import { notifyOcTransition } from './notify';
 import {
-  candidatesOf, deleteCandidate, getCandidate, getOc, insertOc, requestOcDetail, updateOc, type OcCandidate,
+  candidatesOf, deleteCandidate, getCandidate, getOc, insertOc, requestOcDetail, updateOc,
+  type CustomerListInfo, type OcCandidate, type OcRow, type SponsorClaimInfo,
 } from './store';
 import { COMPENSATION_SHARE } from './deposit';
 
@@ -49,9 +53,12 @@ export function applyOutcome(ctx: OcContext, order: OnchainOrder, outcome: Oncha
   applyBond(ctx, order.customerDepositHash, rule.customerBond);
   applyBond(ctx, order.sponsorDepositHash, rule.sponsorBond);
 
-  // 몰수금의 쓰임은 운영자가 손으로 한다 — 자동화하면 "인보이스 발행 대기"라는 상태가 하나 더 생긴다
+  // 몰수금의 쓰임은 운영자가 손으로 한다 — 자동화하면 "인보이스 발행 대기"라는 상태가 하나 더 생긴다.
+  // **몰수할 보증금이 실제로 있을 때만** 부른다 — 지정 거래(보증금 없음)가 닫힐 때마다 헛경보가 뜨지 않게
+  const forfeits = (rule.customerBond === 'forfeit' && order.customerDepositHash !== undefined)
+    || (rule.sponsorBond === 'forfeit' && order.sponsorDepositHash !== undefined);
   const use = forfeitUse(outcome);
-  if (use) {
+  if (use && forfeits) {
     raiseAlert(ctx, {
       dedup: `oc:${order.orderId}:forfeit:${outcome}`, level: 'warn', track: 'onchain', orderId: order.orderId,
       message: `보증금 몰수(${OUTCOME_RULES[outcome].label}) — ${use === 'arbitration-fee' ? '중재료' : `${COMPENSATION_SHARE * 100}% 피해자 충당(재량)`} 처리가 필요하다`,
@@ -136,18 +143,37 @@ export function createOcBondHooks(ctx: OcContext): HoldHooks {
   };
 }
 
+/** 잡힌 보증금 — 지정 거래는 없다 */
+interface Bond {
+  paymentHash: string;
+  cltvBlocks: number;
+}
+
 /** 고객 보증금이 잡혔다 → 의뢰가 생긴다 */
 function onCustomerBond(ctx: OcContext, inv: HoldRow, cand: Extract<OcCandidate, { type: 'customer' }>): void {
   if (getOc(ctx, inv.order_id)) {
     ctx.holds.dispose(inv.payment_hash, 'cancel');
     return;
   }
+  listOc(ctx, {
+    orderId: inv.order_id, customer: inv.party, info: cand.info,
+    bond: { paymentHash: inv.payment_hash, cltvBlocks: cand.info.cltvBlocks },
+  });
+}
+
+/**
+ * 의뢰가 생긴다 (`listed`). 공개 의뢰는 고객 보증금이 잡혔을 때(`bond`), 지정 의뢰는 바로(`designatedSponsor`).
+ * 이미 있는지는 부르는 쪽이 봤다.
+ */
+export function listOc(ctx: OcContext, p: {
+  orderId: string; customer: string; info: CustomerListInfo; bond?: Bond; designatedSponsor?: string;
+}): void {
   const now = nowSec(ctx);
-  const { info } = cand;
+  const { info, bond } = p;
   insertOc(ctx, {
-    orderId: inv.order_id,
+    orderId: p.orderId,
     state: 'listed',
-    customerPubkey: inv.party,
+    customerPubkey: p.customer,
     amountSat: info.amountSat,
     ...(info.reserveKrw !== undefined ? { reserveKrw: info.reserveKrw } : {}),
     createdAt: now,
@@ -155,15 +181,18 @@ function onCustomerBond(ctx: OcContext, inv: HoldRow, cand: Extract<OcCandidate,
     expiration: info.expiration,
     network: ctx.network,
     customerXonly: info.customerXonly,
-    customerDepositHash: inv.payment_hash,
+    ...(bond ? { customerDepositHash: bond.paymentHash } : {}),
+    ...(p.designatedSponsor ? { designatedSponsor: p.designatedSponsor } : {}),
     raw: {},
   }, {
     refundAddress: info.refundAddress,
-    customerBondExpiresAt: now + info.cltvBlocks * BLOCK_SEC,
+    ...(bond ? { customerBondExpiresAt: now + bond.cltvBlocks * BLOCK_SEC } : {}),
   });
-  deleteCandidate(ctx, inv.payment_hash);
-  sendOcDepositStatus(ctx, inv.order_id, inv.party, 'accepted', inv.payment_hash);
-  ctx.log.info('온체인 의뢰 등록', { orderId: inv.order_id });
+  if (bond) {
+    deleteCandidate(ctx, bond.paymentHash);
+    sendOcDepositStatus(ctx, p.orderId, p.customer, 'accepted', bond.paymentHash);
+  }
+  ctx.log.info('온체인 의뢰 등록', { orderId: p.orderId, designated: p.designatedSponsor !== undefined });
 }
 
 /** 후원자 보증금이 잡혔다 → **클레임 성립**. 세 키가 확정되고 에스크로 주소가 나간다 */
@@ -174,34 +203,51 @@ function onSponsorBond(ctx: OcContext, inv: HoldRow, cand: Extract<OcCandidate, 
     ctx.holds.dispose(inv.payment_hash, 'cancel');
     return;
   }
-  const { info } = cand;
-  const adminXonly = adminXonlyOf(ctx, inv.order_id);
-  const descriptor = escrowDescriptorFor({ ...row.order, sponsorXonly: info.sponsorXonly, adminXonly });
-  if (!descriptor) {
+  const bonded = bondOc(ctx, row, {
+    sponsor: inv.party, info: cand.info, bond: { paymentHash: inv.payment_hash, cltvBlocks: cand.info.cltvBlocks },
+  });
+  if (!bonded) {
     // 키가 겹치거나 형식이 틀렸다 — 이 후보로는 영영 안 된다. 돌려준다
     ctx.log.error('에스크로 주소를 만들지 못했다 — 이 보증금을 돌려준다', { orderId: inv.order_id });
     ctx.holds.dispose(inv.payment_hash, 'cancel');
-    return;
   }
+}
+
+/**
+ * **클레임 성립** (`listed → bonded`) — 세 키가 확정되고 에스크로 주소가 나간다. 공개 의뢰는 후원자 보증금이
+ * 잡혔을 때(`bond`), 지정 의뢰는 지정 후원자의 클레임에서 바로. 에스크로 주소를 못 만들면(키가 겹치거나 형식이
+ * 틀렸다) 아무것도 안 바꾸고 null. `listed`인지는 부르는 쪽이 봤다.
+ */
+export function bondOc(
+  ctx: OcContext, row: OcRow, p: { sponsor: string; info: SponsorClaimInfo; bond?: Bond },
+): OnchainOrder | null {
+  const orderId = row.order.orderId;
+  const { info, bond } = p;
+  const adminXonly = adminXonlyOf(ctx, orderId);
+  const descriptor = escrowDescriptorFor({ ...row.order, sponsorXonly: info.sponsorXonly, adminXonly });
+  if (!descriptor) return null;
 
   const now = nowSec(ctx);
-  const bonded = updateOc(ctx, inv.order_id, {
+  const bonded = updateOc(ctx, orderId, {
     state: 'bonded',
-    sponsorPubkey: inv.party,
+    sponsorPubkey: p.sponsor,
     sponsorXonly: info.sponsorXonly,
     adminXonly,
     escrowAddress: descriptor.address,
     timelockBlocks: descriptor.timelockBlocks,
     fundingDeadline: fundingDeadlineFrom(now),
-    sponsorDepositHash: inv.payment_hash,
+    ...(bond ? { sponsorDepositHash: bond.paymentHash } : {}),
   }, {
     payoutAddress: info.payoutAddress,
     feerateSatPerVb: info.feerateSatPerVb,
-    sponsorBondExpiresAt: now + info.cltvBlocks * BLOCK_SEC,
+    ...(bond ? { sponsorBondExpiresAt: now + bond.cltvBlocks * BLOCK_SEC } : {}),
   });
-  deleteCandidate(ctx, inv.payment_hash);
-  sendOcDepositStatus(ctx, inv.order_id, inv.party, 'accepted', inv.payment_hash);
-  notifyOcTransition(ctx, bonded, getOc(ctx, inv.order_id)!.version);
-  dropSponsorCandidates(ctx, inv.order_id);
-  ctx.log.info('온체인 클레임 성립', { orderId: inv.order_id, address: descriptor.address });
+  if (bond) {
+    deleteCandidate(ctx, bond.paymentHash);
+    sendOcDepositStatus(ctx, orderId, p.sponsor, 'accepted', bond.paymentHash);
+  }
+  notifyOcTransition(ctx, bonded, getOc(ctx, orderId)!.version);
+  dropSponsorCandidates(ctx, orderId);
+  ctx.log.info('온체인 클레임 성립', { orderId, address: descriptor.address });
+  return bonded;
 }

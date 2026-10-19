@@ -3,6 +3,7 @@
  *
  * Customer가 Admin에게 보내는 요청 이벤트를 빌드, 서명, 발행한다.
  * - order-request: 의뢰 등록
+ * - designated-order-request: 지정 거래 의뢰 (조건·상대는 NIP-44 암호문)
  * - payment-confirm: 입금 완료 통보
  * - cancel-request: 주문 취소 요청
  * - account-info: 계좌정보 전달 (NIP-44 암호화)
@@ -11,9 +12,9 @@ import { finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import type { EventTemplate } from 'nostr-tools/core';
 import {
-  ORDER_KIND, MESSAGE_KIND, APP_PUBKEY, CLIENT_TAG, getSecretKey, getReadRelays, nip44Encrypt,
+  ORDER_KIND, MESSAGE_KIND, APP_PUBKEY, CLIENT_TAG, REQUEST_ACTIONS, getSecretKey, getReadRelays, nip44Encrypt,
   generateCommitmentSalt, computeAccountCommitment, type RequestAction, type AccountInfo, type AccountInfoEnvelope,
-  storage, nowSec,
+  type LnDesignatedOrderPayload, storage, nowSec,
 } from '@sajwo-tracker/shared';
 import { lnRequestExpiration } from '@sajwo-tracker/shared/ln';
 import type { CustomerOrder } from '../types';
@@ -47,6 +48,31 @@ function buildOrderRequestEvent(order: CustomerOrder): EventTemplate {
       ['expiration', String(lnRequestExpiration(now))],
     ],
     content: '',
+  };
+}
+
+/**
+ * 지정 거래 의뢰 빌드 (docs/LN-TRACK.md §7). 금액·기한·상대는 **암호문**이다 — 바깥에는 "누가 언제 지정
+ * 요청을 보냈다"만 보인다. 보존(`expiration`)은 공개 의뢰와 같다.
+ */
+function buildDesignatedOrderRequestEvent(
+  order: CustomerOrder & { designatedSponsor: string }, sk: Uint8Array,
+): EventTemplate {
+  const now = nowSec();
+  const payload: LnDesignatedOrderPayload = {
+    price: order.price, deadline: order.expiration, designatedSponsor: order.designatedSponsor,
+  };
+  return {
+    kind: MESSAGE_KIND,
+    created_at: now,
+    tags: [
+      ['a', `${ORDER_KIND}:${APP_PUBKEY}:${order.orderId}`],
+      ['action', REQUEST_ACTIONS.DESIGNATED_ORDER_REQUEST],
+      ['t', CLIENT_TAG],
+      ['p', APP_PUBKEY],
+      ['expiration', String(lnRequestExpiration(now))],
+    ],
+    content: nip44Encrypt(JSON.stringify(payload), sk, APP_PUBKEY),
   };
 }
 
@@ -107,16 +133,20 @@ async function signAndPublish(template: EventTemplate): Promise<PublishResult> {
   };
 }
 
-/** 의뢰를 릴레이에 발행한다. */
+/** 의뢰를 릴레이에 발행한다 — 지정 상대가 있으면 지정 거래 의뢰로 */
 export async function publishOrderRequest(order: CustomerOrder): Promise<PublishResult> {
-  const template = buildOrderRequestEvent(order);
-  return signAndPublish(template);
+  const { designatedSponsor } = order;
+  if (designatedSponsor) {
+    const sk = await getSecretKey(storage);
+    return signAndPublish(buildDesignatedOrderRequestEvent({ ...order, designatedSponsor }, sk));
+  }
+  return signAndPublish(buildOrderRequestEvent(order));
 }
 
 /** 상태 통보를 릴레이에 발행한다 (payment-confirm, cancel-request). */
 export async function publishNotification(
   order: Pick<CustomerOrder, 'orderId'>,
-  action: Exclude<RequestAction, 'order-request' | 'claim' | 'account-info' | 'remit-request'>,
+  action: Exclude<RequestAction, 'order-request' | 'designated-order-request' | 'claim' | 'account-info' | 'remit-request'>,
 ): Promise<PublishResult> {
   const template = buildNotificationEvent(order, action);
   return signAndPublish(template);

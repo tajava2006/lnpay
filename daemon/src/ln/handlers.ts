@@ -8,24 +8,25 @@
  * 남의 거래를 취소하거나, 남 대신 입금 확인을 누르는 걸 여기서 막는다.
  */
 import {
-  REQUEST_ACTIONS, extractOrderId, isTerminalState, nip44Decrypt,
+  MAX_OPEN_DESIGNATED_PER_CUSTOMER, REQUEST_ACTIONS, extractOrderId, isLnDesignatedOrderPayload, isTerminalState,
 } from '@sajwo-tracker/shared/core';
 import { canTransition, isPayoutAmountExact } from '@sajwo-tracker/shared/ln';
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import { loadSettings } from '../admin/settings';
-import { tagValue, type Handler, type HandlerResult, type InboxEvent } from '../dispatch';
+import { decryptRequest, tagValue, type Handler, type HandlerResult, type InboxEvent } from '../dispatch';
 import { isOrderId } from '../orders/id';
 import { PUSH_WELCOME } from './notify-messages';
 import { isPushSubscriptionPayload, queuePush, saveSubscription } from '../push/send';
 import { readBolt11 } from './bolt11';
 import type { LnContext } from './context';
 import {
-  LN_PROBE_EFFECT, beginClose, planCustomerDeposit, planSponsorDeposit, requestPayout, type ProbePayload,
+  LN_PROBE_EFFECT, beginClose, planCustomerDeposit, planSponsorDeposit, requestPayout, sponsorDepositRequired,
+  type ProbePayload,
 } from './flow';
 import { sendInvoiceRejected } from './messages';
-import { notifyAccountArrived, notifyLnTransition } from './notify';
-import { deleteDraft, getDraft, getOrder, insertOrder, updateOrder, type LnOrderRow } from './store';
+import { notifyAccountArrived, notifyDesignatedArrived, notifyLnTransition } from './notify';
+import { deleteDraft, getDraft, getOrder, insertOrder, openDesignatedCount, updateOrder, type LnOrderRow } from './store';
 import {
   DEADLINE_GRACE_SEC, INVOICE_ESCROW_MIN_BLOCKS, MAX_DEADLINE_LEAD_SEC, MIN_CLAIM_LEAD_SEC,
   MIN_SPONSOR_INVOICE_LIFETIME_SEC,
@@ -63,20 +64,26 @@ function withOrder(ctx: LnContext, handler: OrderHandler): Handler {
 
 // ── 의뢰 ────────────────────────────────────────────────────
 
+/** 의뢰 조건 검사 — 공개·지정 의뢰가 같이 쓴다. 받을 수 없으면 무시 사유 */
+function orderTermsBlocker(ctx: LnContext, orderId: string, price: number, deadline: number): string | null {
+  if (!Number.isInteger(price) || price <= 0 || price > MAX_PRICE_KRW) return 'bad-price';
+  if (!Number.isInteger(deadline)) return 'bad-deadline';
+  const now = nowSec(ctx);
+  if (deadline - now < MIN_CLAIM_LEAD_SEC) return 'deadline-too-close';
+  if (deadline - now > MAX_DEADLINE_LEAD_SEC) return 'deadline-too-far';
+  if (getOrder(ctx, orderId) || getDraft(ctx, orderId)) return 'duplicate';
+  return null;
+}
+
 function orderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
   const orderId = extractOrderId(event.tags);
   if (!isOrderId(orderId)) return ignored('bad-order-id');
   const price = Number(tagValue(event, 'price'));
-  if (!Number.isInteger(price) || price <= 0 || price > MAX_PRICE_KRW) return ignored('bad-price');
-
   // 쿠팡 기한은 `deadline`이다 — `expiration`은 이벤트 보존이라 기한으로 읽지 않는다(DM-009)
   const deadline = Number(tagValue(event, 'deadline'));
-  if (!Number.isInteger(deadline)) return ignored('bad-deadline');
+  const blocker = orderTermsBlocker(ctx, orderId, price, deadline);
+  if (blocker) return ignored(blocker);
   const now = nowSec(ctx);
-  if (deadline - now < MIN_CLAIM_LEAD_SEC) return ignored('deadline-too-close');
-  if (deadline - now > MAX_DEADLINE_LEAD_SEC) return ignored('deadline-too-far');
-
-  if (getOrder(ctx, orderId) || getDraft(ctx, orderId)) return ignored('duplicate');
 
   const pct = loadSettings(ctx.db).ln.customerDepositPct;
   if (pct === 0) {
@@ -92,6 +99,31 @@ function orderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
   return ok;
 }
 
+/**
+ * 지정 의뢰 — 상대(후원자)를 pubkey로 묶은 의뢰(docs/LN-TRACK.md §7). 조건은 내용(NIP-44)에 있다 — 금액·기한·
+ * 상대가 바깥에 보이지 않게. **고객 보증금이 없다**(초안을 거치지 않고 바로 오더) — 트롤은 지정된 상대가 아니면 손댈 수 없다.
+ */
+function designatedOrderRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
+  const orderId = extractOrderId(event.tags);
+  if (!isOrderId(orderId)) return ignored('bad-order-id');
+  const parsed = decryptRequest(event, ctx.appKey.secretKey);
+  if (parsed === undefined) return ignored('undecryptable');
+  // 지정 상대는 곡선 위의 pubkey여야 한다 — 아니면 스냅샷을 봉할 수 없다(`isPubkeyHex`)
+  if (!isLnDesignatedOrderPayload(parsed)) return ignored('bad-payload');
+  // 자기 지정은 자기 클레임과 같다 — 내역의 역할 유도가 깨진다
+  if (parsed.designatedSponsor === event.pubkey) return ignored('self-designated');
+  const blocker = orderTermsBlocker(ctx, orderId, parsed.price, parsed.deadline);
+  if (blocker) return ignored(blocker);
+  // 보증금이 없어 공짜다 — 키 하나로 쏟아붓지 못하게(RISKS R-16). 앱이 미리 막으니 여기까진 잘 안 온다
+  if (openDesignatedCount(ctx, event.pubkey) >= MAX_OPEN_DESIGNATED_PER_CUSTOMER) return ignored('too-many-designated');
+  insertOrder(ctx, {
+    orderId, customer: event.pubkey, price: parsed.price, deadline: parsed.deadline,
+    designatedSponsor: parsed.designatedSponsor,
+  });
+  notifyDesignatedArrived(ctx, getOrder(ctx, orderId)!);
+  return ok;
+}
+
 // ── 클레임 ──────────────────────────────────────────────────
 
 const claim: OrderHandler = (ctx, event, order) => {
@@ -99,12 +131,14 @@ const claim: OrderHandler = (ctx, event, order) => {
   if (!canTransition(order.state, 'claimed')) return ignored('bad-state');
   // 자기 주문 자기 클레임 — 한 앱·한 키라 UI도 막지만 진짜 방어는 여기다(내역의 역할 유도가 깨진다)
   if (event.pubkey === order.customer) return ignored('self-claim');
+  // 지정 거래는 고객이 고른 그 사람만 — 보증금이 없는 대신 상대를 묶는다
+  if (order.designated_sponsor && event.pubkey !== order.designated_sponsor) return ignored('not-designated');
   // 기한이 코앞이면 결제·인보이스·계좌·송금이 들어갈 틈이 없다 — 받아봐야 후원자 시간만 쓴다
   if (order.deadline - nowSec(ctx) < MIN_CLAIM_LEAD_SEC) return ignored('deadline-too-close');
 
   const claimed = updateOrder(ctx, order.order_id, { state: 'claimed', sponsor: event.pubkey, claimed_at: nowSec(ctx) });
-  const pct = loadSettings(ctx.db).ln.sponsorDepositPct;
-  if (pct > 0) planSponsorDeposit(ctx, claimed, pct); // 시세가 없으면 워처가 다시
+  // 시세가 없으면 워처가 다시
+  if (sponsorDepositRequired(ctx, claimed)) planSponsorDeposit(ctx, claimed, loadSettings(ctx.db).ln.sponsorDepositPct);
   return ok;
 };
 
@@ -119,6 +153,13 @@ const sponsorInvoice: OrderHandler = (ctx, event, order) => {
   const payoutPending = (order.state === 'paid' || order.state === 'sponsor_wins') && !order.disbursed;
   const accepts = order.state === 'escrowed' || order.state === 'invoiced' || order.state === 'remitted' || payoutPending;
   if (!accepts) return ignored('bad-state');
+  // 등록 마감(에스크로 + 6h)을 넘긴 첫 인보이스는 받지 않는다 — 워처가 닫기 전 한 틱 사이(재시작 뒤 워밍업이면 2분)에
+  // 들어오면 `invoiced`가 돼 고객 BTC가 다시 기한 + 유예까지 묶였다. 요청 시각으로 본다(미래로는 못 간다) — 데몬이
+  // 꺼져 있던 사이 마감 안에 낸 인보이스는 받는다
+  const requestedAt = Math.min(event.created_at, nowSec(ctx));
+  if (order.state === 'escrowed' && order.invoice_deadline !== null && requestedAt > order.invoice_deadline) {
+    return ignored('after-invoice-deadline');
+  }
   if (order.sponsor_invoice === bolt11) return ignored('same-invoice');
 
   const payout = order.payout_sat ?? 0;
@@ -241,12 +282,8 @@ function cancelRequest(ctx: LnContext, event: InboxEvent): HandlerResult {
 // ── 웹 푸시 구독 (계정 단위) ────────────────────────────────
 
 function pushSubscription(ctx: LnContext, event: InboxEvent): HandlerResult {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(nip44Decrypt(event.content, ctx.appKey.secretKey, event.pubkey));
-  } catch {
-    return ignored('undecryptable');
-  }
+  const parsed = decryptRequest(event, ctx.appKey.secretKey);
+  if (parsed === undefined) return ignored('undecryptable');
   if (!isPushSubscriptionPayload(parsed)) return ignored('bad-payload');
   // 새 기기일 때만, 그 기기에만 등록 확인 — 다른 기기까지 울리지 않게
   if (saveSubscription(ctx, event.pubkey, parsed)) {
@@ -259,6 +296,7 @@ function pushSubscription(ctx: LnContext, event: InboxEvent): HandlerResult {
 export function createLnHandlers(ctx: LnContext): ReadonlyMap<string, Handler> {
   return new Map<string, Handler>([
     [REQUEST_ACTIONS.ORDER_REQUEST, event => orderRequest(ctx, event)],
+    [REQUEST_ACTIONS.DESIGNATED_ORDER_REQUEST, event => designatedOrderRequest(ctx, event)],
     [REQUEST_ACTIONS.CLAIM, withOrder(ctx, claim)],
     [REQUEST_ACTIONS.SPONSOR_INVOICE, withOrder(ctx, sponsorInvoice)],
     [REQUEST_ACTIONS.ACCOUNT_INFO, withOrder(ctx, accountInfo)],

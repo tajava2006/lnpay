@@ -10,15 +10,19 @@
  *   후원자 핸들러는 오더북을 위해 전부 취한다. 한 이벤트가 양쪽에 갈 수 있다.
  * - 요청·통지 이벤트: 고객 핸들러가 먼저 보고, 소화 못 하면 후원자 핸들러로 넘긴다.
  * - 내가 보낸 요청·통지 이벤트: 로컬 기록을 되살린다(`own-requests.ts`) — 키만 있으면 다른 기기에서도 거래가 이어진다.
+ * - 지정 거래 스냅샷: 열면 공개 오더와 같은 모양이라 오더 이벤트와 같은 길로 간다.
  */
+import type { Event } from 'nostr-tools/core';
 import {
+  CLIENT_TAG,
+  createSubscriptionPool,
   getReadRelays,
   getUserPubkey,
   getSecretKey,
   createSubscriptionGuard,
   storage,
 } from '@sajwo-tracker/shared';
-import { subscribeOrders, subscribeInbox, subscribeOwnRequests } from './subscribe';
+import { subscribeDesignatedOrders, subscribeOrders, subscribeInbox, subscribeOwnRequests } from './subscribe';
 import { handleOwnLnRequest } from './own-requests';
 import { migratePushSubscriptionIfKeyChanged } from '../push/subscribe';
 import { publishPushSubscription } from '../push/publish';
@@ -44,13 +48,17 @@ export function startSubscriptions(): Promise<void> {
     void migratePushSubscriptionIfKeyChanged(publishPushSubscription);
 
     let ordersEosed = false;
+    // 소켓은 이 한 벌 — 네 구독이 같이 쓴다
+    const pool = createSubscriptionPool();
 
-    const stopOrders = subscribeOrders(relays, {
-      onOrder: (event) => {
-        noteOrderProtocol(event.tags); // 파싱보다 먼저 — 새 데몬의 이벤트는 못 읽을 수도 있다
-        buyer.handleAdminOrder(event, myPubkey);
-        sponsor.handleAdminOrder(event, myPubkey);
-      },
+    const onOrder = (event: Event) => {
+      noteOrderProtocol(event.tags); // 파싱보다 먼저 — 새 데몬의 이벤트는 못 읽을 수도 있다
+      buyer.handleAdminOrder(event, myPubkey);
+      sponsor.handleAdminOrder(event, myPubkey);
+    };
+
+    const stopOrders = subscribeOrders(pool, relays, {
+      onOrder,
       onEose: () => {
         if (ordersEosed) return;
         ordersEosed = true;
@@ -59,7 +67,7 @@ export function startSubscriptions(): Promise<void> {
       },
     });
 
-    const stopInbox = subscribeInbox(relays, myPubkey, {
+    const stopInbox = subscribeInbox(pool, relays, myPubkey, {
       onEvent: (event) => {
         if (buyer.handleInboxEvent(event, sk)) return;
         sponsor.handleInboxEvent(event);
@@ -69,12 +77,18 @@ export function startSubscriptions(): Promise<void> {
       },
     });
 
-    const stopOwn = subscribeOwnRequests(relays, myPubkey, event => handleOwnLnRequest(event, sk, myPubkey));
+    const stopOwn = subscribeOwnRequests(pool, relays, myPubkey, event => handleOwnLnRequest(event, sk, myPubkey));
+
+    // 지정 거래 — 열면 공개 오더와 같은 이벤트라 같은 처리기로 간다
+    const stopDesignated = subscribeDesignatedOrders(pool, relays, myPubkey, sk, CLIENT_TAG, onOrder);
 
     return () => {
       stopOrders();
       stopInbox();
       stopOwn();
+      stopDesignated();
+      pool.destroy();
+      console.log('[Nostr] 구독 종료');
     };
   });
 }

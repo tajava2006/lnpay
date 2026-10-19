@@ -86,6 +86,19 @@ export const ESCROW_END_BLOCKS = 72;
 /** 후원자 인보이스를 받으려면 에스크로가 이만큼은 더 살아야 한다 (송금·확인이 들어갈 틈) */
 export const INVOICE_ESCROW_MIN_BLOCKS = ESCROW_END_BLOCKS + 36;
 
+/**
+ * 에스크로가 들어온 뒤 후원자가 받을 인보이스를 낼 시간(2026-10-17). 예전엔 쿠팡 기한 + 유예까지 기다려서,
+ * 클레임하고 잠수탄 후원자가 고객 BTC를 **최대 7일** 묶을 수 있었다(RISKS R-5). 넘기면 `expired:no-invoice`
+ * (에스크로 환불 · 후원자 보증금 몰수). 고객이 에스크로를 늦게 낸 사이 자고 있던 정직한 후원자도 놓치지 않게
+ * 잠자는 시간을 덮는 길이다. 기한 + 유예보다 늦어지지는 않는다(`invoiceDeadlineFor`).
+ */
+export const INVOICE_WINDOW_SEC = 6 * HOUR;
+
+/** 인보이스 등록 마감 — 에스크로를 받은 시각에서 창만큼, 단 기한 + 유예를 넘지 않게 */
+export function invoiceDeadlineFor(escrowedAt: number, deadline: number): number {
+  return Math.min(escrowedAt + INVOICE_WINDOW_SEC, deadline + DEADLINE_GRACE_SEC);
+}
+
 /** `remitted`가 이만큼 고객 확인 없이 머물면 사람을 부른다 */
 export const REMITTED_ALERT_SEC = 12 * HOUR;
 

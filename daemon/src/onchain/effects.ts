@@ -3,10 +3,13 @@
  *
  * 전부 멱등하다: 오더·상세는 발행하는 순간의 DB로 만들고(주소형이라 최신 한 장만 남는다), 브로드캐스트는
  * 같은 바이트를 다시 뿌린다(노드가 이미 알면 "already"를 돌려준다 — 성공으로 친다).
+ *
+ * 지정 거래는 공개 오더 대신 **수신자별 암호문 스냅샷**(`DESIGNATED_ORDER_KIND`)으로 낸다 — 고객 · 지정 후원자 · 운영자에게만
+ * 보인다(docs/ONCHAIN-TRACK.md §10). 라이트닝(`../ln/effects.ts`)과 같은 방식이다.
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
-  ADMIN_STATE_KIND, ORDER_KIND, adminOrderDTag, nip44Encrypt, type AdminOcOrderDetail,
+  ADMIN_STATE_KIND, adminOrderDTag, nip44Encrypt, type AdminOcOrderDetail,
 } from '@sajwo-tracker/shared/core';
 import {
   isOnchainTerminal, onchainOrderEventExpiration, onchainOrderIssues, onchainOrderTags,
@@ -15,6 +18,7 @@ import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import type { EffectExecutor } from '../effects';
 import type { RelayTransport } from '../nostr/transport';
+import { alertSkippedRecipients, orderEvents, publishAll } from '../orders/publish';
 import { OC_BOND_PURPOSES } from './bonds';
 import type { OcContext } from './context';
 import type { BroadcastPayload } from './flow';
@@ -47,16 +51,19 @@ export function createOcPublishExecutor(ctx: OcContext, transport: RelayTranspor
       }
       const tags = onchainOrderTags(order, ctx.tags.onchain, ctx.appUrl)
         .map(t => (t[0] === 'expiration' ? ['expiration', String(expiration)] : t));
-      const event = finalizeEvent({ kind: ORDER_KIND, created_at: createdAt, tags, content: '' }, ctx.appKey.secretKey);
-      const report = await transport.publish(event);
-      if (report.accepted.length === 0) {
-        return { status: 'retry', error: report.rejected.map(r => r.reason).join('; ') || '릴레이 없음' };
-      }
-      return { status: 'done', result: { createdAt } };
+      // 공개 거래는 한 장, 지정 거래는 수신자마다 한 장(`../orders/publish`)
+      const { events, skipped } = orderEvents(ctx, {
+        orderId, customer: order.customerPubkey, designatedSponsor: order.designatedSponsor,
+        trackTag: ctx.tags.onchain, tags, retainUntil: expiration, createdAt,
+      });
+      const error = await publishAll(transport, events);
+      if (error) return { status: 'retry', error };
+      return { status: 'done', result: { createdAt, skipped } };
     },
     onDone({ orderId }, result) {
-      const createdAt = (result as { createdAt?: number }).createdAt;
+      const { createdAt, skipped } = result as { createdAt?: number; skipped?: string[] };
       if (createdAt) ctx.db.run('UPDATE oc_orders SET published_at = ? WHERE order_id = ?', createdAt, orderId);
+      if (skipped) alertSkippedRecipients(ctx, 'onchain', orderId, skipped);
     },
   };
 }

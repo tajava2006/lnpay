@@ -9,8 +9,8 @@ import { styles } from './card-styles';
  *
  * 사전서명은 앱이 자동으로 한다. 다만 **클레임 때 낸 받을 주소·수수료율이 이 기기에
  * 없으면**(다른 기기에서 클레임했거나 저장소가 지워졌을 때) 서명을 못 만들어 마감을
- * 넘기고 보증금을 잃는다. 그 자리에서 다시 입력받는다 — 어드민은 클레임 때 값과
- * 바이트까지 같은 tx만 받으므로 틀리게 넣으면 거절 사유가 돌아온다.
+ * 넘기고 거래가 환불된다(공개 거래면 보증금도 잃는다). 그 자리에서 다시 입력받는다 — 어드민은
+ * 클레임 때 값과 바이트까지 같은 tx만 받으므로 틀리게 넣으면 거절 사유가 돌아온다.
  */
 export function PresignStatus({ order, now }: { order: OnchainOrder; now: number }) {
   const claim = getMyClaim(order.orderId);
@@ -29,7 +29,7 @@ export function PresignStatus({ order, now }: { order: OnchainOrder; now: number
       <p style={styles.sectionTitle}>받을 주소를 다시 입력하세요</p>
       <p style={styles.warnText}>
         이 기기에는 클레임 때 낸 받을 주소·수수료율 기록이 없습니다. <strong>그때와 똑같이</strong>
-        입력하면 앱이 바로 사전서명합니다. 마감을 넘기면 보증금을 잃습니다.
+        입력하면 앱이 바로 사전서명합니다. 마감을 넘기면 {order.designatedSponsor ? '거래가 환불됩니다' : '보증금을 잃습니다'}.
       </p>
       <input style={styles.input} placeholder="받을 주소" value={address} onChange={e => setAddress(e.target.value)} />
       <input

@@ -9,6 +9,8 @@ interface Props {
   accountInfoSent?: boolean;
   /** 후원자 보증금 대기 — 사다리가 "후원자 찾는 중"에 선다 */
   sponsorDepositPending?: boolean;
+  /** 지정 거래 — 보증금·"먼저 누른 분" 안내를 지정 거래용으로 */
+  designated?: boolean;
 }
 
 const ACTOR_LABEL: Record<string, string> = {
@@ -23,8 +25,8 @@ const ACTOR_LABEL: Record<string, string> = {
  * 각 단계의 할 일을 늘 펼쳐두어 사용설명서 역할을 겸한다 —
  * 처음 쓰는 사람이 다음에 뭘 해야 하는지 따로 찾아보지 않아도 되게.
  */
-export function OrderProgress({ role, state, accountInfoSent, sponsorDepositPending }: Props) {
-  const { steps, terminal, total } = resolveProgress(role, state, { accountInfoSent, sponsorDepositPending });
+export function OrderProgress({ role, state, accountInfoSent, sponsorDepositPending, designated }: Props) {
+  const { steps, terminal, total } = resolveProgress(role, state, { accountInfoSent, sponsorDepositPending, designated });
 
   return (
     <div style={styles.container}>

@@ -21,3 +21,28 @@ export const STEP_TEXT = {
   pressRemitted: `송금을 마쳤으면 '${BUTTON.remitted}'를 누릅니다.`,
   checkDeposit: '내 계좌에 원화가 들어왔는지 확인합니다.',
 } as const;
+
+/**
+ * 지정 거래 위험 고지 — 만들 때(고객)와 맡을 때(후원자) 같은 말을 한다(docs/LN-TRACK.md §7 · ONCHAIN-TRACK.md §10).
+ * 보증금이 없어서 생기는 일만 말한다. 트랙마다 묶이는 것이 다르다.
+ */
+export const DESIGNATED_NOTICE = {
+  title: '지정 거래는 보증금이 없습니다',
+  common: '상대가 중간에 사라져도 제재할 방법이 없고, 가격이 정해진 뒤 시세가 불리하면 상대가 빠질 수 있습니다. '
+    + '믿을 수 있는 상대와만 하세요.',
+  ln: '라이트닝: 상대가 사라지면 에스크로가 마감까지 묶였다가 돌아옵니다.',
+  onchain: '온체인: 상대가 사라지면 환불 수수료는 고객이 냅니다.',
+  /** 확인 코드 대조 — 잘못 붙여넣은 주소로 남에게 무담보 의뢰가 가지 않게 */
+  checkCodeHint: '상대 화면의 확인 코드와 같은지 확인하세요. 다르면 다른 사람의 주소입니다.',
+} as const;
+
+/** 지정 거래 화면 문구 — 두 트랙의 폼·카드가 같이 쓴다 */
+export const DESIGNATED_COPY = {
+  badge: '지정 거래',
+  noDeposit: '보증금 없음',
+  create: '지정 거래 만들기',
+  publish: '지정한 상대에게 보내기',
+  incomplete: '상대 주소를 넣고 확인 코드 대조와 위험 고지를 체크해 주세요.',
+  /** 카드의 "상대(고객) 확인 코드 … · 보증금 없음" 줄. 코드를 모르면(역할 모름) 보증금 없음만 */
+  counterpartyLine: (who: string, code: string): string => (code ? `${who} 확인 코드 ${code} · 보증금 없음` : '보증금 없음'),
+} as const;

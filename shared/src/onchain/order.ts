@@ -31,6 +31,8 @@ export interface OnchainOrder {
   customerPubkey: string;
   /** 후원자의 앱 키. `bonded` 이후 */
   sponsorPubkey?: string;
+  /** 지정 거래의 후원자 — 이 pubkey만 맡을 수 있고 보증금이 없다. 있으면 수신자별 스냅샷으로만 나간다 */
+  designatedSponsor?: string;
   /** 고객이 파는 수량 */
   amountSat: number;
   /** 최저 수용 KRW (선택). 없으면 시장가 */
@@ -207,6 +209,10 @@ export function onchainOrderTags(order: OnchainOrder, clientTag: string, appUrl?
   str(tags, 'customer-deposit-payment-hash', order.customerDepositHash);
   str(tags, 'sponsor-deposit-payment-hash', order.sponsorDepositHash);
 
+  // 지정 거래는 공개되지 않는다 — NIP-69 태그 대신 우리 `network`만 싣는다(파서가 읽는다)
+  if (order.designatedSponsor) {
+    return [...tags, ['designated-sponsor', order.designatedSponsor], ['network', order.network]];
+  }
   // `network`는 NIP-69와 뜻이 같아 거기서 한 번만 싣는다(파서는 그걸 읽는다)
   return [...tags, ...nip69Tags({
     status: ONCHAIN_NIP69_STATUS[order.state],
@@ -283,6 +289,7 @@ export function parseOnchainOrder(
     state: state as OnchainState,
     customerPubkey,
     sponsorPubkey: tagValue(tags, 'sponsor'),
+    designatedSponsor: tagValue(tags, 'designated-sponsor'),
     amountSat,
     reserveKrw: readNum(tags, 'reserve-krw'),
     createdAt: event.created_at,
@@ -409,6 +416,7 @@ export const isStoredOnchainOrder = shape<OnchainOrder>({
   state: oneOf(KNOWN_STATES),
   customerPubkey: isStr,
   sponsorPubkey: optional(isStr),
+  designatedSponsor: optional(isStr),
   amountSat: isNum,
   createdAt: isNum,
   updatedAt: isNum,

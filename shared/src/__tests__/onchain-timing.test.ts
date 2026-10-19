@@ -213,3 +213,30 @@ describe('currentOnchainDeadline — 보는 사람', () => {
     expect(durationText(90 * 60)).toBe('1시간 30분');
   });
 });
+
+/** 지정 거래는 보증금이 없다(ONCHAIN-TRACK §10) — 마감 경고가 없는 보증금의 몰수를 말하면 생성·수락 때의 고지와 어긋난다 */
+describe('currentOnchainDeadline — 지정 거래', () => {
+  const T = 1_700_000_000;
+  const orders = [
+    { state: 'bonded', fundingDeadline: T + 100 },
+    { state: 'funded', fundedAt: T, presignDeadline: T + 900 },
+    { state: 'presigned', presignedAt: T, accountDeadline: T + 3600 },
+    { state: 'presigned', presignedAt: T, accountSentAt: T + 60, krwDeadline: T + 1860 },
+    { state: 'remitted', remittedAt: T, cosignDeadline: T + 86_400 },
+  ];
+  const viewers = [undefined, 'customer', 'sponsor'] as const;
+
+  it('어느 마감 · 보는 사람에서도 보증금·몰수를 말하지 않는다 — 공개 거래는 그대로 말한다', async () => {
+    const { currentOnchainDeadline } = await import('../onchain/timing');
+    for (const o of orders) {
+      for (const viewer of viewers) {
+        const base = { expiration: T + 86_400, updatedAt: T, ...o };
+        const designated = currentOnchainDeadline({ ...base, designatedSponsor: 'd'.repeat(64) }, viewer);
+        expect(designated?.penalty, `${o.state} ${viewer}`).not.toMatch(/보증금|몰수/);
+        expect(designated?.at).toBe(currentOnchainDeadline(base, viewer)?.at);
+      }
+    }
+    const pub = currentOnchainDeadline({ expiration: T + 86_400, updatedAt: T, state: 'funded', fundedAt: T, presignDeadline: T + 900 }, 'sponsor');
+    expect(pub?.penalty).toMatch(/내 보증금이 몰수됩니다/);
+  });
+});

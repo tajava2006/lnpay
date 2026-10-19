@@ -11,9 +11,10 @@ import { awaitingSignerFor, type OnchainOrder } from '@sajwo-tracker/shared/onch
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import { asPush, type Notice } from '../ln/notify-messages';
+import { designatedQuietOver } from '../orders/designated';
 import { queuePush } from '../push/send';
 import type { OcContext } from './context';
-import { ONCHAIN_TIMER_NOTICES, ONCHAIN_TRANSITION_NOTICES } from './notify-messages';
+import { ONCHAIN_DESIGNATED_NOTICES, ONCHAIN_TIMER_NOTICES, ONCHAIN_TRANSITION_NOTICES } from './notify-messages';
 
 function deliver(ctx: OcContext, pubkey: string | undefined, notice: Notice, orderId: string, key: string): void {
   if (!pubkey) return;
@@ -24,7 +25,8 @@ function deliver(ctx: OcContext, pubkey: string | undefined, notice: Notice, ord
 
 /** 상태에 **진입했을 때** 보낸다. 알림이 없는 상태는 표에 `null`로 명시돼 있다 */
 export function notifyOcTransition(ctx: OcContext, order: OnchainOrder, version: number): void {
-  const notices = ONCHAIN_TRANSITION_NOTICES[order.state];
+  // 지정 거래는 보증금이 없다 — 몰수를 말하는 알림은 지정 거래용으로
+  const notices = (order.designatedSponsor && ONCHAIN_DESIGNATED_NOTICES[order.state]) || ONCHAIN_TRANSITION_NOTICES[order.state];
   const key = (role: string) => `oc:${order.orderId}:v${version}:${order.state}:${role}`;
   if (notices?.customer) deliver(ctx, order.customerPubkey, notices.customer, order.orderId, key('customer'));
   if (notices?.sponsor) deliver(ctx, order.sponsorPubkey, notices.sponsor, order.orderId, key('sponsor'));
@@ -46,6 +48,16 @@ export function notifyOcRuling(ctx: OcContext, order: OnchainOrder): void {
   const key = `oc:${order.orderId}:ruling:${order.settlementKind}`;
   deliver(ctx, winner, ONCHAIN_TIMER_NOTICES.rulingSignatureNeeded(), order.orderId, `${key}:winner`);
   deliver(ctx, loser, ONCHAIN_TIMER_NOTICES.rulingDecided(), order.orderId, `${key}:loser`);
+}
+
+/**
+ * 지정 의뢰가 생겼다 — `listed`는 알림이 없는 상태지만 지정 후원자에겐 할 일이 생긴 순간이다. 지정 대상마다 조용한 창에
+ * 한 번(`../orders/designated`) — 공짜 의뢰로 남의 폰을 울리지 못하게. 놓친 건 앱 목록에 다 있다.
+ */
+export function notifyOcDesignatedArrived(ctx: OcContext, order: OnchainOrder): void {
+  if (!order.designatedSponsor || !designatedQuietOver(ctx, `push:onchain:${order.designatedSponsor}`)) return;
+  deliver(ctx, order.designatedSponsor, ONCHAIN_TIMER_NOTICES.designatedArrived(), order.orderId,
+    `oc:${order.orderId}:designated`);
 }
 
 /** 계좌 도착 — 상태가 안 바뀌는데 **후원자가 원화를 보낼 수 있게 되는 순간**이다 */

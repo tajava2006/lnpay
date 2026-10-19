@@ -89,6 +89,10 @@ export interface LnOrderFields {
   sponsorDepositPending?: boolean;
   /** 종결 사유 (`LnCloseReason`) — 화면이 "왜 끝났는지"를 말하게 */
   closeReason?: string;
+  /** 후원자 인보이스 등록 마감 (unix초) — `escrowed`에서 데몬이 찍는다. 넘기면 거래가 닫힌다 */
+  invoiceDeadline?: number;
+  /** 지정 거래의 후원자 — 이 pubkey만 맡을 수 있다. 있으면 공개 오더가 아니라 수신자별 스냅샷으로만 나간다 */
+  designatedSponsor?: string;
 }
 
 /**
@@ -131,6 +135,9 @@ export function lnOrderTags(order: LnOrderFields, clientTag: string, retainUntil
   if (order.sponsorDepositPaymentHash) tags.push(['sponsor-deposit-payment-hash', order.sponsorDepositPaymentHash]);
   if (order.sponsorDepositPending) tags.push(['sponsor-deposit', 'pending']);
   if (order.closeReason) tags.push(['close-reason', order.closeReason]);
+  if (order.invoiceDeadline) tags.push(['invoice-deadline', String(order.invoiceDeadline)]);
+  // 지정 거래는 공개되지 않는다 — 다른 오더 모음에 알릴 NIP-69 태그도 싣지 않는다
+  if (order.designatedSponsor) return [...tags, ['designated-sponsor', order.designatedSponsor]];
   // 라이트닝은 늘 mainnet이다 — dev 데몬도 운영 LND를 같이 쓴다
   return [...tags, ...nip69Tags({
     status: LN_NIP69_STATUS[order.state],
@@ -163,6 +170,8 @@ export function parseLnOrderEvent(event: Event, appPubkey: string): Order | null
   const depositPaymentHash = tag(event, 'customer-deposit-payment-hash');
   const sponsorDepositPaymentHash = tag(event, 'sponsor-deposit-payment-hash');
   const closeReason = tag(event, 'close-reason');
+  const invoiceDeadline = Number(tag(event, 'invoice-deadline') ?? 0);
+  const designatedSponsor = tag(event, 'designated-sponsor');
 
   return {
     orderId,
@@ -177,6 +186,8 @@ export function parseLnOrderEvent(event: Event, appPubkey: string): Order | null
     ...(payoutSat > 0 ? { payoutSat } : {}),
     ...(sponsorInvoice ? { sponsorInvoice } : {}),
     ...(closeReason ? { closeReason } : {}),
+    ...(Number.isInteger(invoiceDeadline) && invoiceDeadline > 0 ? { invoiceDeadline } : {}),
+    ...(designatedSponsor ? { designatedSponsor } : {}),
     price: Number(tag(event, 'price') ?? 0),
     createdAt: event.created_at,
     updatedAt: event.created_at,
@@ -201,4 +212,6 @@ export const isStoredLnOrder = shape<Order>({
   expiration: isNum,
   sponsorPubkey: optional(isStr),
   retainUntil: optional(isNum),
+  invoiceDeadline: optional(isNum),
+  designatedSponsor: optional(isStr),
 });

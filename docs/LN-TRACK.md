@@ -13,6 +13,7 @@
 | 닫기 사유 → 돈 처리 | `shared/src/ln/outcomes.ts` (`CLOSE_RULES`) |
 | 시간 값 | `daemon/src/ln/timing.ts`, `shared/src/ln/order.ts` |
 | 요청 처리 | `daemon/src/ln/handlers.ts` |
+| 지정 거래 규약(스냅샷·확인 코드) | `shared/src/designated.ts` |
 | 시계(기한·만기·자동 승인) | `daemon/src/ln/watcher.ts` |
 | 돈이 움직이는 순서 | `daemon/src/ln/flow.ts`, `daemon/src/ln/effects.ts`, `daemon/src/hold/` |
 
@@ -53,9 +54,10 @@ admin_closed  ← escrowed · invoiced                                    (운�
 | 전이 | 방아쇠 | 조건 |
 |---|---|---|
 | (없음) → `requested` | 고객 `order-request` | 기한이 1시간 ~ 7일 뒤. 보증금이 켜져 있으면 **보증금이 잡힌 뒤에** 오더가 생긴다(그 전엔 초안) |
-| `requested → claimed` | 후원자 `claim` | 자기 의뢰가 아님, 기한까지 1시간 이상 |
+| (없음) → `requested` | 고객 `designated-order-request` (§7) | 같은 기한 조건, 자기 지정 아님. **보증금 없이 바로** 오더 |
+| `requested → claimed` | 후원자 `claim` | 자기 의뢰가 아님, 기한까지 1시간 이상. 지정 거래면 지정 후원자만 |
 | `claimed → requested` | 워처 / 운영자 `ln.revert-claim` | 후원자 보증금을 15분 안에 안 냄, 보증금 인보이스를 노드가 못 만듦 |
-| `claimed → verified` | 자동 승인(설정) 또는 운영자 `ln.approve` | 후원자 보증금 받음(켜져 있으면), 시세 있음, 에스크로 결제창 ≥ 10분. **에스크로 인보이스가 노드에 생긴 뒤** 전이 |
+| `claimed → verified` | 자동 승인(설정 — 지정 거래는 설정과 무관하게) 또는 운영자 `ln.approve` | 후원자 보증금 받음(켜져 있고 공개 거래면), 시세 있음, 에스크로 결제창 ≥ 10분. **에스크로 인보이스가 노드에 생긴 뒤** 전이 |
 | `verified → escrowed` | 고객이 에스크로 결제 (HTLC accepted) | |
 | `escrowed → invoiced` | 후원자 `sponsor-invoice` | 금액 **정확 일치**(I-011), 수명 ≥ 6시간, 에스크로 HTLC 잔여 ≥ 108블록, 우리 인보이스가 아님 |
 | `invoiced → remitted` | 후원자 `remit-request` | 요청 시각 ≤ 기한 + 1시간 |
@@ -131,6 +133,7 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 
 ```
 의뢰 ─(고객 보증금 ≤1h)─ 오더 ─ 클레임 ─(후원자 보증금 15m)─ 승인 ─(에스크로 결제 ≤24h, 기한 30분 전까지)─ escrowed
+     escrowed ─(인보이스 마감 6h, 기한 + 1h를 넘지 않게)─ 못 내면 expired:no-invoice
      … invoiced … remitted ─────────────────────────── 기한 ─(유예 1h)─ 기한 만료로 닫힘(remitted 제외)
 에스크로 HTLC:   승인 ────────────────────── max(결제 기한, 기한 + 1h) + 48h
 보증금 HTLC:     요청·클레임 ─────────────── 기한 + 1h + 48h + 24h
@@ -158,6 +161,7 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 | `ESCROW_END_BLOCKS` | 72 | `escrowed`·`invoiced`인데 에스크로가 이만큼 안 남으면 기한 만료 사유로 닫는다 |
 | `SAFETY_SETTLE_BLOCKS` | 36 | `remitted`인데 이만큼 안 남으면 **먼저 settle**한다(비대칭 손실 원칙) |
 | `REMITTED_ALERT_SEC` | 12시간 | `remitted`가 확인 없이 이만큼 머물면 운영자를 부른다 |
+| `INVOICE_WINDOW_SEC` | 6시간 | 에스크로 뒤 후원자 인보이스 등록 마감. 마감 = min(에스크로 + 6h, 기한 + 유예) — 데몬이 `escrowed` 때 오더에 찍는다(`invoice-deadline` 태그). "에스크로"는 **데몬이 본 시각**이다(데몬이 꺼져 있던 동안은 후원자가 차례를 몰랐다). 넘기면 `expired:no-invoice`(부등식 ④-3) — 핸들러도 마감 뒤(요청 시각 기준) 첫 인보이스를 받지 않는다(워처가 닫기 전 틈). 예전엔 기한 + 유예까지라 트롤이 고객 BTC를 최대 7일 묶었다(RISKS R-5) |
 | `LND_DOWN_ALERT_SEC` | 10분 | LND가 이만큼 응답하지 않으면 운영자를 부른다 — 선제 settle 창(노드 자동 취소 전 ~4시간)의 4분의 1 안(부등식 ④-2) |
 | `PAY_BY_SKEW_SEC` | 60초 | 결제 기한 판정 여유(노드·데몬 시계 차) |
 | `CATCHUP_WARMUP_SEC` | 2분 | 재시작 직후엔 기한 만료로 닫지 않는다 — 꺼져 있던 동안 쌓인 요청을 먼저 받는다 |
@@ -207,3 +211,25 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
   분쟁도 아닌데 계좌가 운영자에게 흘러간다.
 - 판정이 늦으면 선제 settle(§5)이 먼저 BTC를 받아 둔다 — settle된 에스크로는 어느 쪽으로든 판정할 수 있지만
   (후원자 승 → 지급, 고객 승 → 수동 환불), HTLC가 만료되면 되돌릴 수 없다.
+
+## 7. 지정 거래 — 보증금 없는 1:1
+
+**상대(후원자)를 pubkey로 묶은 의뢰**다. 신원 없는 공개 오더북에서 트롤을 막는 건 보증금뿐인데, 보증금(홀드 인보이스)은
+지갑을 가린다. 다른 곳에서 이미 합의한 두 사람은 그게 필요 없다 — 상대를 묶으면 트롤은 손을 댈 수 없고, 남는 위험은
+"내가 고른 상대가 째는 것" 하나다(RISKS R-16).
+
+- 후원자가 자기 주소(npub)를 카톡 등으로 고객에게 준다 → 고객이 의뢰 폼 "지정 거래"에 붙여넣고 **확인 코드**(npub 앞 6 ·
+  뒤 6)를 상대 화면과 대조 ☑ + 위험 고지 ☑ → `designated-order-request`. 조건·상대는 APP에게 암호문이다.
+- 데몬은 **초안·고객 보증금 없이** 바로 오더를 만들고(`designated_sponsor` 칼럼), 공개 오더 대신 고객 · 지정 후원자 · 운영자에게
+  암호문 스냅샷(33839)을 낸다 — 오더북에는 안 뜬다(PROTOCOL §2). 지정 후원자에게 웹 푸시 "지정한 거래가 도착".
+- 후원자 앱 사주기 탭 "나를 지정한 거래" → 고객 확인 코드 대조 ☑ + 고지 ☑ → [수락] = 보통 `claim`. 데몬은 지정 pubkey가
+  아니면 무시하고(`not-designated`), 맞으면 **후원자 보증금 없이** 자동 승인 설정과 무관하게 승인한다.
+- 그 뒤는 공개 거래와 같다(에스크로 → 인보이스 마감 6h → 계좌 → 송금 → 확인 · 분쟁). 닫기 사유·돈 처리도 같고, 보증금
+  칸은 "없음"으로 흘러간다.
+- 보증금 필요 여부는 `flow.ts` `sponsorDepositRequired` 한 곳이 정한다(클레임·워처·승인·발행이 같이 쓴다).
+- 지정 상대는 **곡선 위의 pubkey**여야 한다(`isPubkeyHex`) — 64자 hex만 보면 txid 같은 값이 통과해 스냅샷을 봉하지 못한다.
+  발행기(`daemon/src/orders/publish.ts`)도 봉하지 못하는 수신자는 빼고 나머지에게 내고 경보를 올린다(무한 재시도 없음).
+- **스팸 억제**(RISKS R-16 ⑥): 고객 키 하나당 수락 대기 지정 의뢰 `MAX_OPEN_DESIGNATED_PER_CUSTOMER`개(넘으면
+  `ignored:too-many-designated` — 라이트닝은 거절 통지가 없어 폼이 미리 막는다), 도착 푸시(대상마다)·운영자 DM은 10분에 한 번.
+- 운영자를 더하면 부팅 때 지정 거래 스냅샷을 다시 낸다(스냅샷은 발행할 때의 운영자에게만 간다).
+- 거절 버튼은 없다 — 말로 알리고 고객이 취소하거나 기한으로 닫힌다.

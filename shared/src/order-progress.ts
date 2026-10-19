@@ -15,6 +15,9 @@
  * **후원자 보증금을 기다리는 `claimed`는 아직 "후원자 찾는 중"이다** (2026-09-24 mainnet 드릴).
  * 상태는 claimed지만 보증금을 안 내면 클레임이 풀려 다른 후원자에게 간다 — 확정이 아니다.
  * 그래서 오더의 `sponsorDepositPending`이 있으면 사다리를 한 칸 앞에 세운다.
+ *
+ * **지정 거래는 보증금이 없고 지정된 사람만 맡는다**(LN-TRACK §7). 보증금·"먼저 누른 분" 줄은 `designated`에 지정
+ * 거래용 문구를 두고(`null`이면 뺀다), 문맥(`designated`)이 켜져 있으면 그걸 쓴다 — 온체인 `progress.ts`와 같은 방식.
  */
 import type { OrderState } from './constants';
 import { BUTTON, STEP_TEXT } from './copy';
@@ -34,6 +37,8 @@ export interface StepAction {
   optional?: boolean;
   /** 후원자 보증금 안내 — 보증금이 실제로 걸려 있으면(`sponsorDepositPending`) 조건부 표시를 뗀다 */
   sponsorDeposit?: boolean;
+  /** 지정 거래에서 대신 쓸 문구 — `null`이면 지정 거래에선 뺀다. 없으면 같은 문구 */
+  designated?: string | null;
 }
 
 export interface ProgressStep {
@@ -51,6 +56,8 @@ export interface ProgressContext {
   accountInfoSent?: boolean;
   /** claimed인데 후원자 보증금이 아직이다 — 사다리는 "후원자 찾는 중"에 선다 */
   sponsorDepositPending?: boolean;
+  /** 지정 거래 — 보증금이 없고 지정된 사람만 맡는다 */
+  designated?: boolean;
 }
 
 export const PROGRESS_STEPS: readonly ProgressStep[] = [
@@ -59,18 +66,21 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     title: '후원자 찾는 중',
     actor: 'sponsor',
     customer: [
-      { text: '후원자가 의뢰를 가져갈 때까지 기다립니다.' },
+      { text: '후원자가 의뢰를 가져갈 때까지 기다립니다.', designated: '지정한 상대가 수락할 때까지 기다립니다.' },
       {
         text: '후원자가 보증금을 내야 확정됩니다. 제한 시간 안에 안 내면 다른 후원자를 다시 기다립니다.',
-        optional: true, sponsorDeposit: true,
+        optional: true, sponsorDeposit: true, designated: null,
       },
     ],
     sponsor: [
-      { text: "'사줄게'를 누르면 이 의뢰를 맡게 됩니다. 먼저 누른 분에게 배정됩니다." },
+      {
+        text: "'사줄게'를 누르면 이 의뢰를 맡게 됩니다. 먼저 누른 분에게 배정됩니다.",
+        designated: "'수락'을 누르면 이 의뢰를 맡게 됩니다. 나를 지정한 의뢰라 다른 사람은 맡을 수 없습니다.",
+      },
       {
         text: '보증금 인보이스가 오면 결제해야 배정이 확정됩니다. 제한 시간 안에 안 내면 다른 후원자에게 넘어갑니다. '
           + '인보이스를 등록하지 않고 떠나거나 분쟁에서 지면 몰수되고, 그 밖에는 돌려받습니다.',
-        optional: true, sponsorDeposit: true,
+        optional: true, sponsorDeposit: true, designated: null,
       },
       { text: 'BTC 받을 인보이스는 지금이 아니라, 고객이 결제를 마친 뒤에 등록합니다.' },
     ],
@@ -265,7 +275,9 @@ export function resolveProgress(
       : 'upcoming';
 
     const actor = stepActor(step.state, ctx);
-    const actions = role === 'customer' ? step.customer : step.sponsor;
+    const actions = (role === 'customer' ? step.customer : step.sponsor)
+      .filter(a => !(ctx.designated && a.designated === null))
+      .map(a => (ctx.designated && typeof a.designated === 'string' ? { ...a, text: a.designated } : a));
 
     return {
       index,

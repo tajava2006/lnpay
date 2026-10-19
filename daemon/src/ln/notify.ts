@@ -8,6 +8,7 @@
  * 알림은 부가 기능이다 — 효과 대기열로 보내고 실패해도 거래를 막지 않는다.
  */
 import { nowSec } from '../admin/context';
+import { designatedQuietOver } from '../orders/designated';
 import { queuePush } from '../push/send';
 import type { LnContext } from './context';
 import { NOTIFY, asPush, type Notice } from './notify-messages';
@@ -33,7 +34,7 @@ export function notifyLnTransition(ctx: LnContext, order: LnOrderRow): void {
       break;
     // 후원자 차례 — 받을 인보이스. 여기서 고객에게 "계좌를 보내라"고 하면 할 수 없는 일을 시키는 것이다
     case 'escrowed':
-      toSponsor(NOTIFY.sponsorShouldRegisterInvoice());
+      toSponsor(NOTIFY.sponsorShouldRegisterInvoice(Math.max(0, (order.invoice_deadline ?? 0) - nowSec(ctx))));
       break;
     // 고객 차례 — 계좌를 보내야 후원자가 송금할 수 있다
     case 'invoiced':
@@ -71,6 +72,16 @@ export function notifyLnTransition(ctx: LnContext, order: LnOrderRow): void {
     case 'claimed':
       break;
   }
+}
+
+/**
+ * 지정 의뢰가 생겼다 — 전이가 아니라(`requested`는 알림이 없다) 위 표에 없지만, 지정 후원자에겐 할 일이 생긴 순간이다.
+ * 지정 대상마다 조용한 창에 한 번 — 공짜 의뢰로 남의 폰을 울리는 걸 막는다(`../orders/designated`). 놓친 건 앱 목록에 다 있다.
+ */
+export function notifyDesignatedArrived(ctx: LnContext, order: LnOrderRow): void {
+  if (!order.designated_sponsor) return;
+  if (!designatedQuietOver(ctx, `push:ln:${order.designated_sponsor}`)) return;
+  deliver(ctx, order.designated_sponsor, NOTIFY.designatedArrived(), order.order_id, `ln:${order.order_id}:designated`);
 }
 
 /**

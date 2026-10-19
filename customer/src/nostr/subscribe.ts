@@ -9,15 +9,20 @@
  * 다 필요하고, `customer`/`sponsor`는 다중 문자 태그라 릴레이 인덱싱이
  * 보장되지 않는다. 그래서 원래부터 전부 받아 클라이언트에서 갈랐다.
  * 합치면 소켓 구독이 두 벌에서 한 벌로 줄고, 갈라내는 위치만 한 군데가 된다.
+ *
+ * **풀(소켓)은 부르는 쪽이 하나 만들어 넘긴다** — 구독마다 풀을 따로 열면 릴레이마다 소켓이 구독 수만큼 생긴다
+ * (2026-10-18 리뷰). 여기 함수들은 구독만 열고 닫는다. 풀을 닫는 건 만든 쪽이다.
  */
 import type { Event } from 'nostr-tools/core';
+import type { SimplePool } from 'nostr-tools/pool';
 import {
-  createSubscriptionPool,
   ORDER_KIND,
   MESSAGE_KIND,
   CLIENT_TAG,
   APP_PUBKEY,
   NOSTR_SINCE,
+  DESIGNATED_ORDER_KIND,
+  openDesignatedOrder,
 } from '@sajwo-tracker/shared';
 
 export interface OrderSubscriptionCallbacks {
@@ -34,11 +39,10 @@ export interface InboxSubscriptionCallbacks {
 
 /** Admin 발행 오더를 구독한다. 역할 구분 없이 전부 받는다. */
 export function subscribeOrders(
+  pool: SimplePool,
   relays: string[],
   callbacks: OrderSubscriptionCallbacks,
 ): () => void {
-  const pool = createSubscriptionPool();
-
   const sub = pool.subscribeMany(
     relays,
     {
@@ -49,24 +53,17 @@ export function subscribeOrders(
     },
     { onevent: callbacks.onOrder, oneose: callbacks.onEose },
   );
-
   console.log('[Nostr] 오더 구독 시작 —', relays.length, '릴레이');
-
-  return () => {
-    sub.close();
-    pool.destroy();
-    console.log('[Nostr] 오더 구독 종료');
-  };
+  return () => sub.close();
 }
 
 /** 나에게 향하는 요청 이벤트를 구독한다. action 분기는 호출자가 한다. */
 export function subscribeInbox(
+  pool: SimplePool,
   relays: string[],
   myPubkey: string,
   callbacks: InboxSubscriptionCallbacks,
 ): () => void {
-  const pool = createSubscriptionPool();
-
   const sub = pool.subscribeMany(
     relays,
     {
@@ -77,14 +74,41 @@ export function subscribeInbox(
     },
     { onevent: callbacks.onEvent, oneose: callbacks.onEose },
   );
-
   console.log('[Nostr] 수신함 구독 시작 —', myPubkey.slice(0, 8), '/', relays.length, '릴레이');
+  return () => sub.close();
+}
 
-  return () => {
-    sub.close();
-    pool.destroy();
-    console.log('[Nostr] 수신함 구독 종료');
-  };
+/**
+ * 나를 수신자로 한 지정 거래 스냅샷을 구독한다 (docs/PROTOCOL.md §2) — 지정 오더는 공개 오더로 안 나가고
+ * 고객 · 지정 후원자 · 운영자에게만 암호문으로 간다. 열어서 **공개 오더와 같은 모양의 이벤트**로 넘기므로 받는 쪽은
+ * 오더 처리기를 그대로 쓴다. 트랙마다 `t`가 달라 부르는 쪽이 고른다.
+ */
+export function subscribeDesignatedOrders(
+  pool: SimplePool,
+  relays: string[],
+  myPubkey: string,
+  sk: Uint8Array,
+  trackTag: string,
+  onOrder: (event: Event) => void,
+): () => void {
+  const sub = pool.subscribeMany(
+    relays,
+    {
+      kinds: [DESIGNATED_ORDER_KIND],
+      authors: [APP_PUBKEY],
+      '#p': [myPubkey],
+      '#t': [trackTag],
+      ...(NOSTR_SINCE != null && { since: NOSTR_SINCE }),
+    },
+    {
+      onevent: (event: Event) => {
+        const opened = openDesignatedOrder(event, sk);
+        if (opened) onOrder(opened);
+        else console.warn('[Nostr] 지정 거래 스냅샷을 못 열었다', event.id.slice(0, 8));
+      },
+    },
+  );
+  return () => sub.close();
 }
 
 /**
@@ -92,11 +116,11 @@ export function subscribeInbox(
  * 키를 다른 기기로 옮겨도 거래가 이어지는 이유가 이 구독이다.
  */
 export function subscribeOwnRequests(
+  pool: SimplePool,
   relays: string[],
   myPubkey: string,
   onEvent: (event: Event) => void,
 ): () => void {
-  const pool = createSubscriptionPool();
   const sub = pool.subscribeMany(
     relays,
     {
@@ -107,8 +131,5 @@ export function subscribeOwnRequests(
     },
     { onevent: onEvent },
   );
-  return () => {
-    sub.close();
-    pool.destroy();
-  };
+  return () => sub.close();
 }

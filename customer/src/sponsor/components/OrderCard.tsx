@@ -6,9 +6,10 @@
  * 의뢰를 탭마다 다른 버튼으로 보게 됐다.
  */
 import { useState } from 'react';
-import { guarded, lnOrderDisplay, remainingText, sponsorRelation, type Order } from '@sajwo-tracker/shared';
+import { guarded, lnOrderDisplay, sponsorRelation, type Order } from '@sajwo-tracker/shared';
 import { publishClaim } from '../nostr/claim';
 import { ui } from '../../ui';
+import { BookCardHead, bookCardStyle } from './BookCardHead';
 
 interface Props {
   order: Order;
@@ -30,7 +31,6 @@ function OrderCardBody({ order, now, myPubkey }: Props) {
   const relation = sponsorRelation(order, myPubkey);
   const isTaken = relation === 'taken';
   const badge = lnOrderDisplay(order);
-  const isUrgent = order.expiration > 0 && order.expiration - now < 3600;
 
   async function handleClaim() {
     setClaiming(true);
@@ -46,12 +46,7 @@ function OrderCardBody({ order, now, myPubkey }: Props) {
 
   return (
     <div style={isTaken ? { ...styles.card, ...styles.cardTaken } : styles.card}>
-      <div style={styles.top}>
-        <span style={ui.price}>{order.price.toLocaleString()}원</span>
-        <span style={{ ...ui.timeLeft, color: isUrgent ? '#DC2626' : '#666' }}>
-          {order.expiration === 0 ? '기한 없음' : remainingText(order.expiration - now, '기한 지남')}
-        </span>
-      </div>
+      <BookCardHead price={order.price} expiration={order.expiration} now={now} />
 
       <div style={styles.middle}>
         {relation === 'open' ? (
@@ -92,12 +87,11 @@ function OrderCardBody({ order, now, myPubkey }: Props) {
 }
 
 const styles = {
-  card: { background: '#fff', borderRadius: 10, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' },
+  card: bookCardStyle,
   cardTaken: {
     // 손댈 수 없는 주문임을 한눈에. 정보는 계속 읽히게 과하지 않은 수준으로.
     background: '#FAFAFA', opacity: 0.72, boxShadow: 'none', border: '1px dashed #D1D5DB',
   },
-  top: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   middle: { marginBottom: 8, display: 'flex', flexDirection: 'column' as const, gap: 8 },
   claimBtn: {
     alignSelf: 'flex-start' as const, background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 6,

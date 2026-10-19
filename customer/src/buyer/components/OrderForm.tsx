@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { addOrder } from '../order-store';
+import { addOrder, getSnapshot } from '../order-store';
 import { newOrderId } from '../order-id';
 import type { CustomerOrder } from '../types';
-import { nowSec } from '@sajwo-tracker/shared';
+import { DESIGNATED_COPY, MAX_OPEN_DESIGNATED_PER_CUSTOMER, nowSec } from '@sajwo-tracker/shared';
+import { CounterpartyInput, TradeModeToggle, type TradeMode } from '../../designated/components';
+import { openDesignatedLnCount } from '../../designated/view';
 
 const DEFAULT_EXPIRY_HOURS = 24;
 
@@ -26,12 +28,26 @@ export function OrderForm() {
   const [price, setPrice] = useState('');
   const [memo, setMemo] = useState('');
   const [expiryHours, setExpiryHours] = useState(String(DEFAULT_EXPIRY_HOURS));
+  // 지정 거래 — 상대를 묶고 보증금 없이(docs/LN-TRACK.md §7). 상대는 확인 코드·고지까지 체크돼야 값이 온다
+  const [mode, setMode] = useState<TradeMode>('public');
+  const [counterparty, setCounterparty] = useState<string | null>(null);
+  // 폼을 비울 때 상대 칸도 새로 그린다(안쪽 상태를 버린다)
+  const [formKey, setFormKey] = useState(0);
+  const designated = mode === 'designated';
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const priceNum = Number(price);
     if (!priceNum || priceNum <= 0) {
       alert('금액을 입력해주세요.');
+      return;
+    }
+    if (designated && !counterparty) {
+      alert(DESIGNATED_COPY.incomplete);
+      return;
+    }
+    if (designated && openDesignatedLnCount(Object.values(getSnapshot()), nowSec()) >= MAX_OPEN_DESIGNATED_PER_CUSTOMER) {
+      alert(`수락을 기다리는 지정 거래가 이미 ${MAX_OPEN_DESIGNATED_PER_CUSTOMER}건입니다. 상대가 수락하거나 내린 뒤 다시 만들어 주세요.`);
       return;
     }
 
@@ -47,18 +63,23 @@ export function OrderForm() {
       memo: memo.trim() || '직접 입력',
       createdAt: now,
       expiration,
+      ...(designated && counterparty ? { designatedSponsor: counterparty } : {}),
     };
 
     addOrder(order);
     setPrice('');
     setMemo('');
     setExpiryHours(String(DEFAULT_EXPIRY_HOURS));
+    setCounterparty(null);
+    setFormKey(k => k + 1);
   }
 
   return (
     <div style={styles.card}>
       <h2 style={styles.title}>의뢰 등록</h2>
+      <TradeModeToggle mode={mode} onChange={setMode} />
       <form onSubmit={handleSubmit} style={styles.form}>
+        {designated && <CounterpartyInput key={formKey} track="ln" onChange={setCounterparty} />}
         <label style={styles.label}>
           <span style={styles.labelText}>금액 (원) *</span>
           <input
@@ -103,7 +124,9 @@ export function OrderForm() {
           보이는 쪽이 맞다.
         */}
         <p style={styles.expiryHint}>
-          급하지 않으면 길게 잡아두세요. 후원자는 언제 붙을지 모릅니다.
+          {designated
+            ? '지정한 상대만 맡을 수 있고 오더북에는 올라가지 않습니다. 상대 앱의 사주기 탭에 바로 뜹니다.'
+            : '급하지 않으면 길게 잡아두세요. 후원자는 언제 붙을지 모릅니다.'}
         </p>
         {Number(expiryHours) > 24 && (
           <p style={styles.notifyHint}>
@@ -112,7 +135,9 @@ export function OrderForm() {
             화면 위 🔔에서 켤 수 있습니다.
           </p>
         )}
-        <button type="submit" style={styles.submitBtn}>의뢰 등록</button>
+        <button type="submit" style={styles.submitBtn} disabled={designated && !counterparty}>
+          {designated ? DESIGNATED_COPY.create : '의뢰 등록'}
+        </button>
       </form>
     </div>
   );

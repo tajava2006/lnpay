@@ -12,14 +12,19 @@
  * **환불 받을 주소**를 여기서 받는다. 환불은 고객이 응답하지 않을 때도
  * 나가므로 미리 받아둬야 하는데, 전에는 이 앱만 쓸 수 있는 주소로 보냈고 꺼낼
  * 화면이 없었다.
+ *
+ * **지정 거래**(docs/ONCHAIN-TRACK.md §10): 상대(사는 사람)를 주소로 정하면 보증금 없이 바로 의뢰가 생기고
+ * 그 사람만 맡는다 — **LN 지갑 없이 온체인만으로 끝까지 간다.** 보증금 인보이스가 안 오는 대신 위험 고지를 받는다.
  */
 import { useState, useSyncExternalStore } from 'react';
-import { freshPrice, type PriceTracker, nowSec } from '@sajwo-tracker/shared';
+import { DESIGNATED_COPY, freshPrice, type PriceTracker, nowSec } from '@sajwo-tracker/shared';
 import {
-  FUNDING_WINDOW_SEC, MAX_ORDER_EXPIRY_SEC, RESERVE_MIN_GAP_PERCENT, addressProblem, durationText, reserveProblem,
+  DESIGNATED_MIN_FEE_MULTIPLE, FUNDING_WINDOW_SEC, MAX_ORDER_EXPIRY_SEC, RESERVE_MIN_GAP_PERCENT, addressProblem,
+  durationText, reserveProblem,
 } from '@sajwo-tracker/shared/onchain';
 import { myOrderXonly } from '../keys';
-import { publishOnchainOrderRequest } from '../nostr/publish';
+import { publishOnchainDesignatedOrderRequest, publishOnchainOrderRequest } from '../nostr/publish';
+import { CounterpartyInput, TradeModeToggle, type TradeMode } from '../../designated/components';
 import { rememberPendingRequest } from '../pending-request-store';
 import { rememberRefundAddress } from '../refund-address-store';
 
@@ -53,6 +58,9 @@ export function OnchainOrderForm({ onDone, tracker }: {
   const [days, setDays] = useState(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<TradeMode>('public');
+  const [counterparty, setCounterparty] = useState<string | null>(null);
+  const designated = mode === 'designated';
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,16 +78,19 @@ export function OnchainOrderForm({ onDone, tracker }: {
     }
     const addrProblem = refundAddressProblem(refundAddress);
     if (addrProblem) return setError(addrProblem);
+    if (designated && !counterparty) return setError(DESIGNATED_COPY.incomplete);
 
     setBusy(true);
     try {
       const orderId = newOrderId();
       const customerXonly = await myOrderXonly(orderId);
       const expiration = nowSec() + days * DAY;
-      const result = await publishOnchainOrderRequest({
-        orderId, amountSat: sats, reserveKrw: reserve, customerXonly, expiration,
-        refundAddress: refundAddress.trim(),
-      });
+      const params = {
+        orderId, amountSat: sats, reserveKrw: reserve, customerXonly, expiration, refundAddress: refundAddress.trim(),
+      };
+      const result = designated && counterparty
+        ? await publishOnchainDesignatedOrderRequest({ ...params, designatedSponsor: counterparty })
+        : await publishOnchainOrderRequest(params);
       if (!result.success) {
         setError('발행에 실패했습니다. 잠시 후 다시 시도하세요.');
         return;
@@ -90,7 +101,7 @@ export function OnchainOrderForm({ onDone, tracker }: {
       // 어드민이 거절하거나 실패하면 유저 쪽에 흔적이 하나도 안 남는다.
       rememberPendingRequest({
         orderId, amountSat: sats, reserveKrw: reserve, expiration,
-        submittedAt: nowSec(),
+        submittedAt: nowSec(), ...(designated ? { designated: true } : {}),
       });
       setAmountSat('');
       setReserveKrw('');
@@ -106,6 +117,9 @@ export function OnchainOrderForm({ onDone, tracker }: {
 
   return (
     <form onSubmit={e => void submit(e)} style={styles.form}>
+      <TradeModeToggle mode={mode} onChange={setMode} />
+      {designated && <CounterpartyInput track="onchain" onChange={setCounterparty} />}
+
       <label style={styles.label}>
         팔 수량 (sats)
         <input
@@ -155,20 +169,29 @@ export function OnchainOrderForm({ onDone, tracker }: {
           {[1, 2, 3, 5, 7].map(d => <option key={d} value={d}>{d}일</option>)}
         </select>
         <span style={styles.hint}>
-          최대 {MAX_ORDER_EXPIRY_SEC / DAY}일. 그 안에 사는 사람이 안 붙으면 취소되고 보증금은 돌려받습니다.
+          최대 {MAX_ORDER_EXPIRY_SEC / DAY}일. 그 안에 사는 사람이 안 붙으면 취소되고{designated ? '' : ' 보증금은 돌려받습니다'}.
         </span>
       </label>
 
-      <div style={styles.notice}>
-        <strong>등록하면 보증금 인보이스가 옵니다.</strong> 결제해야 오더북에 올라갑니다.
-        거래가 정상적으로 끝나면 돌려받고, <strong>사는 사람이 붙은 뒤 {durationText(FUNDING_WINDOW_SEC)} 안에
-        입금을 컨펌시키지 못하면 몰수됩니다.</strong>
-      </div>
+      {designated ? (
+        <div style={styles.notice}>
+          <strong>보증금 없이 바로 의뢰가 생기고, 지정한 상대만 맡습니다.</strong> 오더북에는 올라가지 않고 상대 앱의
+          사기 탭에 바로 뜹니다. 상대가 맡은 뒤 <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 에스크로 주소로
+          입금을 컨펌시키세요. 지정 거래는 수수료 대비 금액이 너무 작으면(수수료가 {100 / DESIGNATED_MIN_FEE_MULTIPLE}%를
+          넘으면) 받지 않습니다.
+        </div>
+      ) : (
+        <div style={styles.notice}>
+          <strong>등록하면 보증금 인보이스가 옵니다.</strong> 결제해야 오더북에 올라갑니다.
+          거래가 정상적으로 끝나면 돌려받고, <strong>사는 사람이 붙은 뒤 {durationText(FUNDING_WINDOW_SEC)} 안에
+          입금을 컨펌시키지 못하면 몰수됩니다.</strong>
+        </div>
+      )}
 
       {error && <p style={styles.error}>{error}</p>}
 
-      <button type="submit" style={styles.submit} disabled={busy}>
-        {busy ? '등록 중…' : '의뢰 등록'}
+      <button type="submit" style={styles.submit} disabled={busy || (designated && !counterparty)}>
+        {busy ? '등록 중…' : designated ? DESIGNATED_COPY.create : '의뢰 등록'}
       </button>
     </form>
   );

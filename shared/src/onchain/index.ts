@@ -64,7 +64,7 @@ export type {
 export {
   MIN_RELEASE_FEERATE, MAX_RELEASE_FEERATE_MULTIPLIER, MAX_RELEASE_FEERATE_FLOOR,
   MAX_RELEASE_FEE_SHARE, RESERVE_MIN_GAP_PERCENT, MAX_SANE_SETTLEMENT_FEERATE,
-  releaseFeerateProblem, reserveProblem, requiredConfirmations,
+  releaseFeerateProblem, reserveProblem, requiredConfirmations, DESIGNATED_MIN_FEE_MULTIPLE, designatedMinTradeSat,
 } from './policy';
 
 export {

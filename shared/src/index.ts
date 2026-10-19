@@ -86,7 +86,7 @@ export type { Store, Persist } from './persisted-store';
 export { arrayOf, isBool, isNum, isObject, isStr, oneOf, optional, shape } from './shape';
 export type { Guard } from './shape';
 export { nowSec, remainingText, dateTimeText, durationText } from './time';
-export { BUTTON, STEP_TEXT } from './copy';
+export { BUTTON, DESIGNATED_COPY, DESIGNATED_NOTICE, STEP_TEXT } from './copy';
 
 // 거래 진행도 (고객·후원자 공용 단계 모델)
 export { SPONSOR_DEPOSIT_PENDING_DISPLAY, STATE_DISPLAY, lnOrderDisplay, stateDisplay } from './order-display';
@@ -129,4 +129,10 @@ export type {
   AdminLnOrderDetail, AdminOcBond, AdminOcOrderDetail, AdminOcUtxo, AdminState, DaemonSettings, OrderTarget, TrackName,
 } from './admin-protocol';
 export { orderRef } from './order-ref';
+export {
+  DESIGNATED_ORDER_KIND, MAX_OPEN_DESIGNATED_PER_CUSTOMER, checkCode, designatedOrderD, designatedOrderFromPlaintext, designatedOrderTemplate,
+  isLnDesignatedOrderPayload, isOnchainDesignatedOrderPayload, isPubkeyHex, npubOf, openDesignatedOrder,
+  parsePubkeyInput,
+} from './designated';
+export type { LnDesignatedOrderPayload, OnchainDesignatedOrderPayload } from './designated';
 export { orderLink } from './nip69';

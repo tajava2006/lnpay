@@ -7,7 +7,7 @@
  */
 import { useState } from 'react';
 import {
-  BUTTON, canSendAccountInfo, guarded, remainingText, type AccountInfo, type Order, type PriceTracker,
+  BUTTON, DESIGNATED_COPY, canSendAccountInfo, guarded, remainingText, type AccountInfo, type Order, type PriceTracker,
 } from '@sajwo-tracker/shared';
 import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
 import { publishAccountInfo, publishNotification, publishOrderRequest } from '../buyer/nostr/publish';
@@ -113,7 +113,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
       case 'publish':
         return (
           <button className="btn btn-publish" disabled={busy !== null} onClick={() => void publish()}>
-            {busy === 'publish' ? '올리는 중...' : '오더북에 올리기'}
+            {busy === 'publish' ? '보내는 중...' : view.designated ? DESIGNATED_COPY.publish : '오더북에 올리기'}
           </button>
         );
       case 'pay':
@@ -168,7 +168,14 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
           ? <span style={styles.turnMine}>지금 내 차례</span>
           : view.waitingFor && !view.terminal && <span style={styles.turnOther}>{view.waitingFor} 차례</span>}
         {roleLabel && <span style={styles.role}>{roleLabel}</span>}
+        {view.designated && <span style={ui.designatedBadge}>{DESIGNATED_COPY.badge}</span>}
       </div>
+
+      {view.designated && (
+        <p style={styles.note}>
+          {DESIGNATED_COPY.counterpartyLine(view.role === 'sponsor' ? '고객' : '상대', view.designated.counterpartyCode)}
+        </p>
+      )}
 
       {/* 얼마에 거래했는지 — 금액만으로는 단가가 안 보인다(2026-09-25). 승인 때 시세로 정한 지급액이 기준이다 */}
       {order?.payoutSat && view.price > 0 && (

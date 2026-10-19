@@ -229,3 +229,22 @@ describe('summarizeProgress', () => {
     expect(summarizeProgress('sponsor', 'verified')).toMatchObject({ isMyTurn: false, actor: 'customer' });
   });
 });
+
+/** 지정 거래는 보증금이 없고 지정된 사람만 맡는다(LN-TRACK §7) — 사다리가 보증금·"먼저 누른 분"을 말하면 안 된다 */
+describe('지정 거래 사다리', () => {
+  const texts = (role: 'customer' | 'sponsor', designated: boolean) =>
+    resolveProgress(role, 'requested', { designated }).steps.flatMap(s => s.actions.map(a => a.text));
+
+  it('보증금 줄과 "먼저 누른 분"이 없다 — 대신 지정 거래 문구', () => {
+    for (const role of ['customer', 'sponsor'] as const) {
+      const t = texts(role, true);
+      expect(t.filter(x => /보증금|몰수|먼저 누른 분/.test(x)), role).toEqual([]);
+    }
+    expect(texts('sponsor', true)).toContain("'수락'을 누르면 이 의뢰를 맡게 됩니다. 나를 지정한 의뢰라 다른 사람은 맡을 수 없습니다.");
+  });
+
+  it('공개 거래는 그대로', () => {
+    expect(texts('sponsor', false).some(x => /먼저 누른 분/.test(x))).toBe(true);
+    expect(texts('customer', false).some(x => /보증금/.test(x))).toBe(true);
+  });
+});

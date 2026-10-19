@@ -6,7 +6,9 @@ import {
 import { publishOnchainAccountInfo } from '../nostr/publish';
 import { styles } from './card-styles';
 
-/** 고객: 계좌 공개 — 여기서부터 후원자의 송금 시계가 시작된다 (O-013) */
+/**
+ * 고객: 계좌 공개 — 여기서부터 후원자의 송금 시계가 시작된다 (O-013). 지정 거래는 보증금이 없어 결과(환불·판정)만 말한다
+ */
 export function AccountInfoForm({ order }: { order: OnchainOrder }) {
   const [bank, setBank] = useState('');
   const [number, setNumber] = useState('');
@@ -32,10 +34,17 @@ export function AccountInfoForm({ order }: { order: OnchainOrder }) {
   return (
     <div style={styles.section}>
       <p style={styles.sectionTitle}>입금받을 계좌 ({durationText(ACCOUNT_WINDOW_SEC)} 안에)</p>
-      <p style={styles.warnText}>
-        늦으면 거래가 취소되고 <strong>내 보증금이 몰수됩니다.</strong> 계좌는 상대방에게만 암호화되어 전달됩니다.
-        틀린 계좌를 주면 상대방이 이의를 내고, 판정에 따라 보증금을 잃을 수 있습니다.
-      </p>
+      {order.designatedSponsor ? (
+        <p style={styles.warnText}>
+          늦으면 <strong>거래가 환불됩니다.</strong> 계좌는 상대방에게만 암호화되어 전달됩니다.
+          틀린 계좌를 주면 상대방이 이의를 내고 운영자가 판정합니다.
+        </p>
+      ) : (
+        <p style={styles.warnText}>
+          늦으면 거래가 취소되고 <strong>내 보증금이 몰수됩니다.</strong> 계좌는 상대방에게만 암호화되어 전달됩니다.
+          틀린 계좌를 주면 상대방이 이의를 내고, 판정에 따라 보증금을 잃을 수 있습니다.
+        </p>
+      )}
       <input style={styles.input} placeholder="은행" value={bank} onChange={e => setBank(e.target.value)} />
       <input style={styles.input} placeholder="계좌번호" value={number} onChange={e => setNumber(e.target.value)} />
       <input style={styles.input} placeholder="예금주" value={holder} onChange={e => setHolder(e.target.value)} />

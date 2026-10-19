@@ -163,3 +163,54 @@ describe('온체인 팔기 폼 — 지정 거래', () => {
     expect(button('지정 거래 만들기').disabled).toBe(false);
   });
 });
+
+/**
+ * 지정 온체인 거래는 보증금이 없다(ONCHAIN-TRACK §10) — 지나가는 칸마다 보증금·몰수를 말하지 않아야 한다(2026-10-19 리뷰 3차).
+ * 같은 칸을 공개 거래로 그리면 그대로 말한다.
+ */
+describe('온체인 지정 거래 — 칸마다 보증금·몰수를 말하지 않는다', () => {
+  const now = Math.floor(Date.now() / 1000);
+  const order = (designated: boolean, over: Record<string, unknown> = {}) => ({
+    orderId: 'oc-dz1', state: 'presigned' as const, customerPubkey: ME, sponsorPubkey: OTHER, amountSat: 100_000,
+    createdAt: now, updatedAt: now, expiration: now + 86_400, network: 'signet' as const, raw: {},
+    ...(designated ? { designatedSponsor: OTHER } : {}), ...over,
+  });
+  /** 지금 그려진 화면이 보증금·몰수를 말하는가 */
+  const says = () => /보증금|몰수/.test(host.textContent ?? '');
+
+  it('계좌 입력 폼', async () => {
+    const { AccountInfoForm } = await import('../onchain/components/AccountInfoForm');
+    act(() => root.render(<AccountInfoForm order={order(true)} />));
+    expect(says()).toBe(false);
+    act(() => root.render(<AccountInfoForm order={order(false)} />));
+    expect(says()).toBe(true);
+  });
+
+  it('사전서명 재입력(이 기기에 클레임 기록이 없을 때)', async () => {
+    const { PresignStatus } = await import('../onchain/components/PresignStatus');
+    const funded = (d: boolean) => order(d, { state: 'funded', fundedAt: now, presignDeadline: now + 900 });
+    act(() => root.render(<PresignStatus order={funded(true)} now={now} />));
+    expect(host.textContent).toContain('받을 주소를 다시 입력하세요');
+    expect(says()).toBe(false);
+    act(() => root.render(<PresignStatus order={funded(false)} now={now} />));
+    expect(says()).toBe(true);
+  });
+
+  it('의뢰 내리기', async () => {
+    const { CancelOrderPanel } = await import('../onchain/components/CancelOrderPanel');
+    act(() => root.render(<CancelOrderPanel order={order(true, { state: 'listed' })} />));
+    act(() => button('의뢰 내리기').click());
+    expect(says()).toBe(false);
+    expect(host.textContent).not.toContain('오더북');
+  });
+
+  it('마감 카운트다운(1시간 안이면 경고문이 뜬다)', async () => {
+    const { DeadlineCountdown } = await import('../onchain/components/DeadlineCountdown');
+    const soon = (d: boolean) => order(d, { state: 'presigned', presignedAt: now, accountDeadline: now + 600 });
+    act(() => root.render(<DeadlineCountdown order={soon(true)} role="customer" />));
+    expect(host.textContent).toContain('계좌 전달 마감');
+    expect(says()).toBe(false);
+    act(() => root.render(<DeadlineCountdown order={soon(false)} role="customer" />));
+    expect(says()).toBe(true);
+  });
+});

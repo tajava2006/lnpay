@@ -250,37 +250,64 @@ type DeadlineKind = 'funding' | 'presign' | 'account' | 'krw' | 'cosign';
  * 넘기면 무엇이 되는가 — **보는 사람 입장에서.** 유저 화면은 "고객·후원자"가 아니라 나·상대방으로 말한다
  * (그 이름은 쿠팡 대리구매 시절의 흔적이라 온체인에서는 누가 누구인지 안 읽힌다, 2026-09-25).
  * 처리는 `OUTCOME_RULES`와 같아야 한다. 몰수금의 행방은 적지 않는다(`progress.ts` 머리말).
+ *
+ * **지정 거래는 보증금이 없다**(ONCHAIN-TRACK §10) — `designated`에 결과만 말하는 문구를 따로 둔다. 없으면(보증금을 말하지
+ * 않는 마감) 같은 문구를 쓴다.
  */
-const DEADLINES: Record<DeadlineKind, {
-  owner: DeadlineViewer;
-  label: string;
+interface PenaltyText {
   admin: string;
   mine: string;
   theirs: string;
+}
+
+const DEADLINES: Record<DeadlineKind, PenaltyText & {
+  owner: DeadlineViewer;
+  label: string;
+  designated?: PenaltyText;
 }> = {
   funding: {
     owner: 'customer', label: '입금 컨펌 마감',
     admin: '넘기면 거래가 취소되고 고객 보증금이 몰수됩니다',
     mine: '시간 안에 입금이 컨펌되지 않으면 거래가 취소되고 내 보증금이 몰수됩니다',
     theirs: '상대방 입금이 시간 안에 컨펌되지 않으면 거래가 취소되고 상대방 보증금이 몰수됩니다. 내 보증금은 돌려받습니다',
+    designated: {
+      admin: '넘기면 거래가 취소됩니다',
+      mine: '시간 안에 입금이 컨펌되지 않으면 거래가 취소됩니다',
+      theirs: '상대방 입금이 시간 안에 컨펌되지 않으면 거래가 취소됩니다',
+    },
   },
   presign: {
     owner: 'sponsor', label: '사전서명 마감',
     admin: '넘기면 환불되고 후원자 보증금이 몰수됩니다',
     mine: '시간 안에 사전서명이 안 되면 거래가 환불되고 내 보증금이 몰수됩니다',
     theirs: '상대방이 시간 안에 서명하지 않으면 환불로 넘어가고 상대방 보증금이 몰수됩니다',
+    designated: {
+      admin: '넘기면 환불됩니다',
+      mine: '시간 안에 사전서명이 안 되면 거래가 환불됩니다',
+      theirs: '상대방이 시간 안에 서명하지 않으면 환불로 넘어갑니다',
+    },
   },
   account: {
     owner: 'customer', label: '계좌 전달 마감',
     admin: '넘기면 거래가 취소되고 고객 보증금이 몰수됩니다',
     mine: '시간 안에 계좌를 보내지 않으면 거래가 취소되고 내 보증금이 몰수됩니다',
     theirs: '상대방이 시간 안에 계좌를 보내지 않으면 거래가 취소되고 상대방 보증금이 몰수됩니다. 내 보증금은 돌려받습니다',
+    designated: {
+      admin: '넘기면 환불됩니다',
+      mine: '시간 안에 계좌를 보내지 않으면 거래가 환불됩니다',
+      theirs: '상대방이 시간 안에 계좌를 보내지 않으면 환불로 넘어갑니다',
+    },
   },
   krw: {
     owner: 'sponsor', label: '원화 송금 마감',
     admin: '넘기면 환불되고 후원자 보증금이 몰수됩니다',
     mine: '시간 안에 송금하지 않으면 거래가 환불되고 내 보증금이 몰수됩니다',
     theirs: '상대방이 시간 안에 송금하지 않으면 환불로 넘어가고 상대방 보증금이 몰수됩니다',
+    designated: {
+      admin: '넘기면 환불됩니다',
+      mine: '시간 안에 송금하지 않으면 거래가 환불됩니다',
+      theirs: '상대방이 시간 안에 송금하지 않으면 환불로 넘어갑니다',
+    },
   },
   cosign: {
     owner: 'customer', label: '입금 확인 마감',
@@ -290,9 +317,12 @@ const DEADLINES: Record<DeadlineKind, {
   },
 };
 
-function deadline(kind: DeadlineKind, at: number, viewer: DeadlineViewer | undefined): OnchainDeadline {
+function deadlineOf(
+  kind: DeadlineKind, at: number, viewer: DeadlineViewer | undefined, designated: boolean,
+): OnchainDeadline {
   const d = DEADLINES[kind];
-  const penalty = viewer === undefined ? d.admin : viewer === d.owner ? d.mine : d.theirs;
+  const text = (designated && d.designated) || d;
+  const penalty = viewer === undefined ? text.admin : viewer === d.owner ? text.mine : text.theirs;
   return { at, label: d.label, penalty };
 }
 
@@ -320,9 +350,12 @@ export function currentOnchainDeadline(
     cosignDeadline?: number;
     settlingAt?: number;
     updatedAt: number;
+    /** 지정 거래 — 보증금이 없어 넘겨도 몰수를 말하지 않는다 */
+    designatedSponsor?: string;
   },
   viewer?: DeadlineViewer,
 ): OnchainDeadline | null {
+  const deadline = (kind: DeadlineKind, at: number) => deadlineOf(kind, at, viewer, Boolean(order.designatedSponsor));
   switch (order.state) {
     case 'listed':
       return order.expiration > 0
@@ -330,25 +363,25 @@ export function currentOnchainDeadline(
         : null;
 
     case 'bonded':
-      return order.fundingDeadline ? deadline('funding', order.fundingDeadline, viewer) : null;
+      return order.fundingDeadline ? deadline('funding', order.fundingDeadline) : null;
 
     case 'funded': {
       const at = presignDeadlineOf(order);
-      return at ? deadline('presign', at, viewer) : null;
+      return at ? deadline('presign', at) : null;
     }
 
     case 'presigned': {
       // 한 상태 안에서 주인이 바뀐다 — 계좌가 나가기 전엔 고객, 그 뒤엔 후원자.
       if (!order.accountSentAt) {
         const at = accountDeadlineOf(order);
-        return at ? deadline('account', at, viewer) : null;
+        return at ? deadline('account', at) : null;
       }
-      return deadline('krw', order.krwDeadline ?? krwDeadlineFrom(order.accountSentAt), viewer);
+      return deadline('krw', order.krwDeadline ?? krwDeadlineFrom(order.accountSentAt));
     }
 
     case 'remitted': {
       const at = cosignDeadlineOf(order);
-      return at ? deadline('cosign', at, viewer) : null;
+      return at ? deadline('cosign', at) : null;
     }
 
     case 'settling':

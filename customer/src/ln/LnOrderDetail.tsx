@@ -80,6 +80,7 @@ export function LnOrderDetail({ orderId, onBack, tracker }: Props) {
           state={view.state}
           accountInfoSent={view.progress.accountInfoSent}
           sponsorDepositPending={view.progress.sponsorDepositPending}
+          designated={view.designated !== null}
         />
       )}
 

@@ -71,7 +71,8 @@
 후원자: 사주기 탭 › 지정 거래 › [내 주소] → npub·QR·확인 코드 → 카톡 등으로 고객에게 전달
 고객:   의뢰하기 › 거래 방식 [지정 거래] → 상대 주소 붙여넣기/QR → 확인 코드 대조 ☑ → 위험 고지 ☑ → 등록
         (보증금 없음 — 바로 의뢰가 생긴다)
-후원자: 사주기 탭 › "나를 지정한 거래"에 자동으로 뜬다(+웹 푸시) → 고객 확인 코드 대조 → 위험 고지 → [수락]
+후원자: 사주기 탭 › "나를 지정한 거래"에 자동으로 뜬다(+웹 푸시) → 이야기한 금액·기한인지 보고 → 위험 고지 → [수락]
+        (후원자 쪽 확인 코드 대조는 2026-10-19 뺐다 — 끼어들 자리가 없고 고객이 자기 코드를 볼 화면도 마땅치 않았다)
         (LN: 클레임 → 자동 승인 / 온체인: 받을 주소·수수료율 → 바로 bonded)
 이후:   기존 흐름 그대로(에스크로·계좌·송금·확인·분쟁). 보증금 단계만 없다.
 ```
@@ -177,7 +178,7 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하다. 그래도
   - `CounterpartyInput`(새): 붙여넣기 또는 QR 스캔(`sponsor/components/QrScanner.tsx` — `nostr:` 접두사 허용 추가) → 확인 코드 표시 →
     ☑ "상대 화면의 확인 코드와 같습니다" → ☑ 위험 고지. 자기 주소면 거절.
   - "거래 방식" 토글(공개 의뢰 · 보증금 / 지정 거래 · 보증금 없음): LN `buyer/components/OrderForm.tsx`·`ParsedOrdersSection.tsx`, 온체인 `onchain/components/OnchainOrderForm.tsx`.
-  - "나를 지정한 거래" 섹션: LN `sponsor/components/OrderBook.tsx`, 온체인 `onchain/components/OnchainOrderBook.tsx` 맨 위 — 고객 확인 코드 · 금액 · 기한 · 고지 · [수락]
+  - "나를 지정한 거래" 섹션: LN `sponsor/components/OrderBook.tsx`, 온체인 `onchain/components/OnchainOrderBook.tsx` 맨 위 — 금액 · 기한 · 고지 · [수락]
     (LN `OrderCard` 클레임 / 온체인 `OnchainBookCard`의 `ClaimForm`을 지정 변형으로). 상세 화면(`LnOrderDetail`·`OnchainOrderDetail`)의 "남에게 오더북 카드" 경로도 그대로 탄다.
   - 배지 "지정 거래": `ln/LnOrderCard.tsx`·`onchain/components/OnchainOrderCard.tsx`(+ `ln/card-view.ts`·`onchain/card-view.ts`에 플래그).
 - **위험 고지 문구(초안):**

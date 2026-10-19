@@ -57,7 +57,7 @@ describe('라이트닝 의뢰 폼 — 지정 거래', () => {
 
     type(host.querySelector<HTMLInputElement>('input[placeholder^="npub1"]')!, nip19.npubEncode(OTHER));
     expect(host.textContent).toContain(checkCode(OTHER));
-    expect(host.textContent).toContain(checkCode(ME)); // 내 코드도 보여 준다 — 상대가 대조한다
+    expect(host.textContent).not.toContain(checkCode(ME)); // 상대는 수락할 때 내 코드를 대조하지 않는다
     expect(submit().disabled).toBe(true);
 
     const [code, risk] = checkboxes();
@@ -134,7 +134,8 @@ describe('라이트닝 의뢰 폼 — 지정 의뢰 개수 상한', () => {
 });
 
 describe('나를 지정한 거래 — 수락 카드', () => {
-  it('고객 확인 코드를 보여 주고, 두 체크가 다 돼야 수락이 열린다', async () => {
+  /** 후원자는 확인 코드를 대조하지 않는다 — 내 주소를 지정해야만 뜨고 끼어들 자리가 없다(2026-10-19) */
+  it('확인 코드는 묻지 않고, 합의한 조건 안내 + 위험 고지 하나만 체크하면 수락이 열린다', async () => {
     const { DesignatedOfferCard } = await import('../sponsor/components/DesignatedOfferCard');
     const now = Math.floor(Date.now() / 1000);
     const order: Order = {
@@ -142,9 +143,11 @@ describe('나를 지정한 거래 — 수락 카드', () => {
       expiration: now + 86_400, designatedSponsor: ME, raw: {},
     };
     act(() => root.render(<DesignatedOfferCard order={order} now={now} />));
-    expect(host.textContent).toContain(checkCode(OTHER));
+    expect(host.textContent).not.toContain(checkCode(OTHER));
+    expect(host.textContent).toContain('이야기한 금액·기한');
+    expect(checkboxes()).toHaveLength(1);
     expect(button('수락').disabled).toBe(true);
-    for (const c of checkboxes()) act(() => c.click());
+    act(() => checkboxes()[0]!.click());
     expect(button('수락').disabled).toBe(false);
   });
 });

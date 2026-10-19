@@ -83,8 +83,8 @@ export interface LnCardView {
   /** 진행도 문맥 — 상세의 사다리가 같은 값으로 그린다 */
   progress: { accountInfoSent: boolean; sponsorDepositPending: boolean };
   /**
-   * 지정 거래면 상대의 확인 코드 — 고객에겐 지정 후원자의, 후원자에겐 고객의(docs/LN-TRACK.md §7).
-   * 공개 거래는 null
+   * 지정 거래면 상대의 확인 코드 — **고객에게만** 지정 후원자의 것(만들 때 대조한 그 코드, docs/LN-TRACK.md §7).
+   * 후원자는 대조할 일이 없어 빈 코드(지정 사실만). 공개 거래는 null
    */
   designated: { counterpartyCode: string } | null;
 }
@@ -95,14 +95,14 @@ function designatedSponsorOf(order: Order | null, local: CustomerOrder | null): 
 }
 
 /**
- * 지정 거래면 상대 확인 코드. 내 역할을 모르면(풀린 클레임 등) 지정 사실만(빈 코드) — 모르는데 지정 후원자를 상대로
+ * 지정 거래면 상대 확인 코드 — 고객만(만들 때 대조한 지정 후원자의 코드). 후원자·역할 모름은 지정 사실만(빈 코드) —
+ * 후원자는 고객 코드를 대조하지 않고(고객이 자기 코드를 볼 화면도 마땅치 않다), 역할을 모르는데 지정 후원자를 상대로
  * 치면 지정 후원자 본인의 코드가 "상대 확인 코드"로 뜬다
  */
 function designatedOf(order: Order | null, local: CustomerOrder | null, role: LnRole | null): LnCardView['designated'] {
   const sponsor = designatedSponsorOf(order, local);
   if (!sponsor) return null;
-  const counterparty = role === 'sponsor' ? order?.customerPubkey : role === 'customer' ? sponsor : undefined;
-  return { counterpartyCode: counterparty ? checkCode(counterparty) : '' };
+  return { counterpartyCode: role === 'customer' ? checkCode(sponsor) : '' };
 }
 
 const ACTOR_LABEL: Record<string, string> = { customer: '고객', sponsor: '후원자', admin: '에스크로' };

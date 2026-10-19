@@ -5,11 +5,14 @@
  * - `MyAddressPanel` — 내 주소(npub) · QR · 확인 코드. **공유해도 되는 값**이라 🔑(비밀키) 화면과 분리한다
  * - `TradeModeToggle` — 의뢰 폼의 "공개 의뢰 / 지정 거래"
  * - `CounterpartyInput` — 상대 주소 붙여넣기·QR → 확인 코드 대조 ☑ → 위험 고지 ☑. 둘 다 체크해야 값을 낸다
- * - `DesignatedConsent` — 확인 코드 대조 + 위험 고지 (수락 화면도 같은 것)
+ * - `DesignatedConsent` — 만들 때(고객): 확인 코드 대조 + 위험 고지
+ * - `DesignatedAcceptConsent` — 수락할 때(후원자): 합의한 조건 확인 안내 + 위험 고지. 확인 코드는 묻지 않는다 — 지정
+ *   의뢰는 누군가 내 주소를 지정해야만 뜨고 끼어들 자리가 없다(잘못 붙여넣기는 고객 쪽 대조가 막는다). 고객이 자기 코드를
+ *   볼 화면도 마땅치 않아 실제로는 대조할 수 없었다(2026-10-19)
  */
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { DESIGNATED_NOTICE, checkCode, npubOf } from '@sajwo-tracker/shared';
+import { DESIGNATED_COPY, DESIGNATED_NOTICE, checkCode, npubOf } from '@sajwo-tracker/shared';
 import { Modal } from '../components/Modal';
 import { useMyPubkey } from '../hooks';
 import { ui } from '../ui';
@@ -129,15 +132,42 @@ export function DesignatedConsent({ track, code, who, value, onChange }: {
         <input type="checkbox" checked={value.codeMatched} onChange={e => onChange({ ...value, codeMatched: e.target.checked })} />
         {who} 화면의 확인 코드와 같습니다
       </label>
+      <RiskNotice track={track} checked={value.riskAccepted} onChange={riskAccepted => onChange({ ...value, riskAccepted })} />
+    </div>
+  );
+}
+
+/** 수락할 때(후원자) — 합의한 조건이 맞는지 보라는 안내 + 위험 고지 체크 하나 */
+export function DesignatedAcceptConsent({ track, checked, onChange }: {
+  track: DesignatedTrack;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div style={styles.consent}>
+      <p style={styles.consentLine}>{DESIGNATED_COPY.acceptHint}</p>
+      <RiskNotice track={track} checked={checked} onChange={onChange} />
+    </div>
+  );
+}
+
+/** 보증금이 없다는 고지 + "이해했다" 체크 — 만들 때·수락할 때 같은 말 */
+function RiskNotice({ track, checked, onChange }: {
+  track: DesignatedTrack;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <>
       <div style={styles.notice}>
         <b>{DESIGNATED_NOTICE.title}.</b> {DESIGNATED_NOTICE.common}{' '}
         {track === 'ln' ? DESIGNATED_NOTICE.ln : DESIGNATED_NOTICE.onchain}
       </div>
       <label style={styles.check}>
-        <input type="checkbox" checked={value.riskAccepted} onChange={e => onChange({ ...value, riskAccepted: e.target.checked })} />
+        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
         위 내용을 이해했고, 믿을 수 있는 상대입니다
       </label>
-    </div>
+    </>
   );
 }
 
@@ -190,11 +220,6 @@ export function CounterpartyInput({ track, onChange }: {
       {read.kind === 'self' && <p style={styles.error}>내 주소입니다. 상대의 주소를 넣으세요.</p>}
       {read.kind === 'ok' && (
         <DesignatedConsent track={track} code={read.code} who="상대" value={consent} onChange={setConsent} />
-      )}
-      {myPubkey && (
-        <p style={styles.consentHint}>
-          내 확인 코드 <b style={styles.code}>{checkCode(myPubkey)}</b> — 상대도 수락할 때 이걸 대조합니다.
-        </p>
       )}
     </div>
   );

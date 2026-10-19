@@ -1,12 +1,12 @@
 /**
- * 나를 지정한 라이트닝 의뢰 하나 — 고객 확인 코드 대조 + 위험 고지 → [수락] (docs/LN-TRACK.md §7)
+ * 나를 지정한 라이트닝 의뢰 하나 — 합의한 금액·기한 확인 + 위험 고지 → [수락] (docs/LN-TRACK.md §7)
  *
  * 수락은 공개 의뢰의 "사줄게"와 같은 클레임이다. 데몬이 지정된 사람인지 보고, **보증금 없이 바로 승인**한다 —
  * 그래서 누르면 곧 고객 결제 단계로 넘어가고 이 카드는 "내가 사주는 중"으로 옮겨 간다.
  */
 import { useState } from 'react';
-import { checkCode, guarded, type Order } from '@sajwo-tracker/shared';
-import { DesignatedConsent, NO_CONSENT, consentGiven, type Consent } from '../../designated/components';
+import { guarded, type Order } from '@sajwo-tracker/shared';
+import { DesignatedAcceptConsent } from '../../designated/components';
 import { publishClaim } from '../nostr/claim';
 import { BookCardHead, bookCardStyle } from './BookCardHead';
 
@@ -16,7 +16,7 @@ const SLOW_SEC = 45;
 export const DesignatedOfferCard = guarded(DesignatedOfferCardBody, '지정 거래 카드');
 
 function DesignatedOfferCardBody({ order, now }: { order: Order; now: number }) {
-  const [consent, setConsent] = useState<Consent>(NO_CONSENT);
+  const [riskAccepted, setRiskAccepted] = useState(false);
   const [sending, setSending] = useState(false);
   /** 수락을 보낸 시각(초). 카드가 아직 떠 있다 = 오더가 아직 `requested`다 */
   const [sentAt, setSentAt] = useState<number | null>(null);
@@ -55,11 +55,11 @@ function DesignatedOfferCardBody({ order, now }: { order: Order; now: number }) 
         </>
       ) : (
         <>
-          <DesignatedConsent track="ln" code={checkCode(order.customerPubkey)} who="고객" value={consent} onChange={setConsent} />
+          <DesignatedAcceptConsent track="ln" checked={riskAccepted} onChange={setRiskAccepted} />
           <button
             type="button"
-            style={{ ...styles.accept, opacity: consentGiven(consent) && !sending ? 1 : 0.5 }}
-            disabled={!consentGiven(consent) || sending}
+            style={{ ...styles.accept, opacity: riskAccepted && !sending ? 1 : 0.5 }}
+            disabled={!riskAccepted || sending}
             onClick={() => void accept()}
           >
             {sending ? '보내는 중...' : '수락'}

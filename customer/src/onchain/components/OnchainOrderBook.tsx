@@ -10,17 +10,17 @@
  * 약속할 수 없으니 약속하지 않는다. 진 쪽은 취소되어 아무것도 잃지 않는다.
  *
  * **지정 거래**(docs/ONCHAIN-TRACK.md §10)는 오더북이 아니라 맨 위 "나를 지정한 거래"에 뜬다. 같은 카드·같은
- * 클레임 폼을 쓰되 보증금이 없다 — 고객 확인 코드 대조와 위험 고지를 체크하고 수락하면 바로 내가 맡는다.
+ * 클레임 폼을 쓰되 보증금이 없다 — 합의한 조건을 확인하고 위험 고지를 체크한 뒤 수락하면 바로 내가 맡는다.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { InvoicePayBlock, checkCode, freshPrice, guarded, type PriceTracker } from '@sajwo-tracker/shared';
+import { DESIGNATED_COPY, InvoicePayBlock, freshPrice, guarded, type PriceTracker } from '@sajwo-tracker/shared';
 import {
   FUNDING_WINDOW_SEC, MempoolChainAdapter, PRESIGN_WINDOW_SEC, RESERVE_MIN_GAP_PERCENT, TYPICAL_SETTLEMENT_VSIZE,
   addressProblem, durationText, releaseFeerateProblem, type FeeEstimates, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import { designatedToMe, getOnchainOrdersSnapshot, listedOrders, subscribeOnchainOrders } from '../store';
 import {
-  DesignatedConsent, DesignatedHeader, NO_CONSENT, consentGiven, type Consent,
+  DesignatedAcceptConsent, DesignatedHeader,
 } from '../../designated/components';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices, type DepositInvoice } from '../deposit-store';
 import { myOrderXonly } from '../keys';
@@ -168,9 +168,9 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
   // 지정 거래 — 보증금 인보이스가 없다. 답은 오더가 `bonded`로 바뀌는 것(이 카드가 내 거래로 옮겨 간다)
   const designated = Boolean(order.designatedSponsor);
   const text = CLAIM_TEXT[designated ? 'designated' : 'public'];
-  const [consent, setConsent] = useState<Consent>(NO_CONSENT);
-  /** 지정 거래는 고객 확인 코드 대조 · 위험 고지를 다 체크해야 보낼 수 있다 */
-  const blocked = designated && !consentGiven(consent);
+  const [riskAccepted, setRiskAccepted] = useState(false);
+  /** 지정 거래는 위험 고지를 체크해야 보낼 수 있다 */
+  const blocked = designated && !riskAccepted;
   const notice = useSyncExternalStore(subscribeNotices, getNoticesSnapshot)[orderId];
   const pending = pendingClaim(orderId, invoice?.receivedAt, notice?.receivedAt);
   const [, rerender] = useState(0);
@@ -251,7 +251,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
     e.preventDefault();
     setError(null);
     const rate = Number(feerate);
-    if (blocked) return setError('고객 확인 코드 대조와 위험 고지를 체크해 주세요.');
+    if (blocked) return setError(DESIGNATED_COPY.acceptIncomplete);
     const addrProblem = addressProblem(address, order.network);
     if (addrProblem) return setError(addrProblem);
     if (!Number.isFinite(rate) || rate <= 0) return setError('수수료율을 숫자로 입력하세요.');
@@ -282,9 +282,7 @@ function ClaimForm({ order, invoice }: { order: OnchainOrder; invoice: DepositIn
         <p style={styles.error}>{text.failed} — {notice.reason}</p>
       )}
       {designated && (
-        <DesignatedConsent
-          track="onchain" code={checkCode(order.customerPubkey)} who="고객" value={consent} onChange={setConsent}
-        />
+        <DesignatedAcceptConsent track="onchain" checked={riskAccepted} onChange={setRiskAccepted} />
       )}
       <label style={styles.label}>
         비트코인 받을 주소

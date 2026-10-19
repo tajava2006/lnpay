@@ -157,7 +157,7 @@ describe('키만으로 되살리기', () => {
 });
 
 describe('카드', () => {
-  it('라이트닝 — 지정 초안은 "지정한 상대에게 보내기", 양쪽에 상대 확인 코드', () => {
+  it('라이트닝 — 지정 초안은 "지정한 상대에게 보내기", 확인 코드는 고객에게만', () => {
     const local = { orderId: 'd1', price: 1000, memo: '', createdAt: NOW, expiration: NOW + 86_400, designatedSponsor: SPONSOR };
     const draft = lnCardView({ orderId: 'd1', order: null, local, myPubkey: CUSTOMER, now: NOW });
     expect(draft.actions).toEqual([{ kind: 'publish' }]);
@@ -167,8 +167,9 @@ describe('카드', () => {
       orderId: 'd1', state: 'verified' as const, customerPubkey: CUSTOMER, sponsorPubkey: SPONSOR, price: 1000,
       createdAt: NOW, updatedAt: NOW, expiration: NOW + 86_400, designatedSponsor: SPONSOR, raw: {},
     };
+    // 후원자는 고객 코드를 대조하지 않는다 — 지정 사실만
     expect(lnCardView({ orderId: 'd1', order, local: null, myPubkey: SPONSOR, now: NOW }).designated)
-      .toEqual({ counterpartyCode: checkCode(CUSTOMER) });
+      .toEqual({ counterpartyCode: '' });
     // 공개 의뢰는 지정 표시가 없다
     const pub = lnCardView({ orderId: 'p1', order: null, local: { ...local, designatedSponsor: undefined }, myPubkey: CUSTOMER, now: NOW });
     expect(pub.designated).toBeNull();
@@ -202,10 +203,10 @@ describe('카드', () => {
     expect(ok.actions.some(a => a.kind === 'pay')).toBe(true);
   });
 
-  it('온체인 — 고객에겐 지정 후원자의, 후원자에겐 고객의 확인 코드', () => {
+  it('온체인 — 확인 코드는 고객에게만(지정 후원자의 것), 후원자는 지정 사실만', () => {
     expect(onchainCardView(ocOrder(), 'customer', NOW, []).designated).toEqual({ counterpartyCode: checkCode(SPONSOR) });
     expect(onchainCardView(ocOrder({ state: 'bonded', sponsorPubkey: SPONSOR }), 'sponsor', NOW, []).designated)
-      .toEqual({ counterpartyCode: checkCode(CUSTOMER) });
+      .toEqual({ counterpartyCode: '' });
     expect(onchainCardView(ocOrder({ designatedSponsor: undefined }), 'customer', NOW, []).designated).toBeNull();
   });
 });

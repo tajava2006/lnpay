@@ -30,7 +30,10 @@ export interface OnchainCardView {
   account: 'form' | 'late' | null;
   /** 후원자: 원화 송금 */
   remit: boolean;
-  /** 지정 거래면 상대의 확인 코드 — 고객에겐 지정 후원자의, 후원자에겐 고객의(보증금 없음). 공개 거래는 null */
+  /**
+   * 지정 거래면 상대의 확인 코드 — 고객에게만 지정 후원자의 것(만들 때 대조한 그 코드). 후원자는 대조할 일이 없어 빈 코드.
+   * 공개 거래는 null
+   */
   designated: { counterpartyCode: string } | null;
 }
 
@@ -53,7 +56,7 @@ export function onchainCardView(
     account: owesAccount ? (isPast(accountDeadlineOf(order), now) ? 'late' : 'form') : null,
     remit: sponsor && state === 'presigned',
     designated: order.designatedSponsor
-      ? { counterpartyCode: checkCode(customer ? order.designatedSponsor : order.customerPubkey) }
+      ? { counterpartyCode: customer ? checkCode(order.designatedSponsor) : '' }
       : null,
   };
 }

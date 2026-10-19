@@ -24,7 +24,7 @@ pubkey를 비교해 유도한다 — 저장된 역할 칼럼이 없다. 어드�
 | [docs/RISKS.md](docs/RISKS.md) | **불안한 점 전부** — 열린 위험(R-xx)·신뢰 모델·공격 표(T-xxx)·변경 전 체크리스트. 새로 발견하면 여기 추가 |
 | [docs/DAEMON-DEPLOY.md](docs/DAEMON-DEPLOY.md) | 운영 런북(데몬 배포·앱 배포·감시). 배포할 때 **먼저** |
 | [docs/ONCHAIN-SIGNET-DRILL.md](docs/ONCHAIN-SIGNET-DRILL.md) | signet 드릴 런북 |
-| [docs/PLAN-DESIGNATED-TRADE.md](docs/PLAN-DESIGNATED-TRADE.md) | **진행 중(P8 실검증·배포만 남음)** — 지정 거래(보증금 없는 1:1) + 라이트닝 인보이스 마감. 단계표(§12)부터 본다. 내용은 트랙 문서에 이미 녹였다 — P8 끝나면 이 줄과 문서를 지운다 |
+| [docs/PLAN-DESIGNATED-TRADE.md](docs/PLAN-DESIGNATED-TRADE.md) | **진행 중(실검증 끝 · 배포만 남음)** — 지정 거래(보증금 없는 1:1) + 라이트닝 인보이스 마감. 단계표(§12)부터 본다. 내용은 트랙 문서에 이미 녹였다 — P8 끝나면 이 줄과 문서를 지운다 |
 
 **문서의 진실은 코드다.** 표와 코드가 어긋나면 코드가 맞고 문서를 고친다. 시간 값 사이의 부등식은
 `daemon/src/__tests__/timing-invariants.test.ts`가 지킨다 — 값을 바꾸면 트랙 문서의 표도 같이 고친다.

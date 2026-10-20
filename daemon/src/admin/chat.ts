@@ -17,8 +17,10 @@ import {
 } from '@sajwo-tracker/shared/core';
 import type { HandlerResult, InboxEvent } from '../dispatch';
 import { tagValue } from '../dispatch';
+import { NOTIFY, asPush } from '../ln/notify-messages';
 import { isTrack, roleIn } from '../orders/directory';
 import { PUBLISH_EFFECT, type PublishPayload } from '../nostr/publisher';
+import { queuePush } from '../push/send';
 import { nowSec, type AdminContext } from './context';
 import { notifyOperators } from './notify';
 
@@ -92,7 +94,8 @@ function dmOperators(
   const what = payload.type === 'text'
     ? `"${text.length > DM_PREVIEW_CHARS ? `${text.slice(0, DM_PREVIEW_CHARS)}…` : text}"`
     : '계좌를 공개했습니다';
-  notifyOperators(ctx, `분쟁 채팅 — ${TRACK_NAME[track]} ${ROLE_NAME[role]}: ${what} (${orderId})`);
+  // "분쟁"이라 부르지 않는다 — 라이트닝은 거래 내내, 온체인도 분쟁 전부터 열려 있는 채팅이다(유저 앱 이름과 같게)
+  notifyOperators(ctx, `에스크로 채팅 — ${TRACK_NAME[track]} ${ROLE_NAME[role]}: ${what} (${orderId})`);
 }
 
 /**
@@ -109,7 +112,8 @@ export function chatSend(ctx: AdminContext, args: Record<string, unknown>): Admi
 
   const parties = ctx.directory.lookup(track, orderId);
   if (!parties) return fail('unknown-order');
-  if (!roleIn(parties, to)) return fail('not-a-party');
+  const role = roleIn(parties, to);
+  if (!role) return fail('not-a-party');
 
   const payload: DisputeMessagePayload = { type: 'text', content: text };
   const createdAt = nowSec(ctx);
@@ -127,12 +131,30 @@ export function chatSend(ctx: AdminContext, args: Record<string, unknown>): Admi
     content: nip44Encrypt(JSON.stringify(payload), ctx.appKey.secretKey, to),
   }, ctx.appKey.secretKey);
   ctx.effects.enqueue<PublishPayload>(PUBLISH_EFFECT, { event }, { dedup: `chat:${event.id}` });
+  pushToRecipient(ctx, to, role, track, orderId);
 
   forwardToOperators(ctx, {
     track, orderId, from: ctx.appKey.pubkey, to, role: 'admin', payload, sentAt: createdAt, originalId: event.id,
   });
   return { ok: true, cmd: 'chat.send', result: { eventId: event.id } };
 }
+
+/**
+ * 받는 유저의 폰을 울린다. 유저 앱은 채팅을 그 거래 화면을 열어 둔 동안만 받는다 — 알림이 없으면 운영자가 물어본 걸
+ * 다음에 앱을 열 때까지 모른다(2026-10-20 고객 피드백).
+ *
+ * 메시지마다 보낸다(조용한 창 없음) — 보내는 쪽이 운영자 하나라 스팸 경로가 아니고, 읽고 닫은 뒤 온 다음 메시지를
+ * 삼키면 안 된다. 태그는 **거래 알림과 따로** 둔다: 같은 태그면 아직 안 본 "결제하세요"를 채팅 알림이 덮어 지운다.
+ * 채팅끼리는 같은 태그라 쌓이지 않고 최신 것으로 대체된다.
+ */
+function pushToRecipient(
+  ctx: AdminContext, to: string, role: 'customer' | 'sponsor', track: TrackName, orderId: string,
+): void {
+  const notice = NOTIFY.operatorMessage(role === 'customer' ? 'request' : 'fulfill', track);
+  queuePush(ctx, { pubkey: to, message: { ...asPush(notice, orderId), tag: chatPushTag(orderId) } });
+}
+
+export const chatPushTag = (orderId: string): string => `chat:${orderId}`;
 
 function forwardToOperators(ctx: AdminContext, copy: AdminChatCopy): void {
   const createdAt = nowSec(ctx);

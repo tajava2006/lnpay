@@ -41,7 +41,10 @@ export function useLnCard(orderId: string, archived?: Order | null): LnCardData 
     orderId, order, local, myPubkey, now,
     ...(deposit ? { sponsorDeposit: deposit } : {}),
     ...(account ? { receivedAccount: account } : {}),
-    ...(claimError ? { invoiceRejection: rejectReasonText(claimError) } : {}),
+    ...(claimError ? {
+      invoiceRejection: rejectReasonText(claimError),
+      invoiceRejectionIsWarning: claimError.reason === 'LIQUIDITY_WARNING',
+    } : {}),
     revealRequested,
   });
   return { view, order, local, myPubkey, now };

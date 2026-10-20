@@ -105,7 +105,9 @@ export class Daemon {
     // 홀드 인보이스(라이트닝 에스크로·보증금, 온체인 보증금)는 LN 노드가 있어야 돈다
     this.holds = deps.ln ? new Holds({ ...this.admin, node: deps.ln.node, seed: deps.seed }) : null;
     this.holds?.install();
-    if (deps.ln) this.effects.register(PUSH_EFFECT, createPushExecutor(db, deps.ln.push, nowMs, log));
+    // 트랙과 무관하게 등록한다 — 어드민 채팅(`chat.send`)도 푸시를 쌓는데, 모르는 효과는 쌓는 순간 던진다.
+    // 설정이 없으면 실행기가 아무것도 안 보낸다
+    this.effects.register(PUSH_EFFECT, createPushExecutor(db, deps.ln?.push ?? null, nowMs, log));
     this.ln = deps.ln && this.holds
       ? installLnTrack(this.admin, this.commands, deps.transport, deps.seed, this.holds, deps.ln)
       : null;

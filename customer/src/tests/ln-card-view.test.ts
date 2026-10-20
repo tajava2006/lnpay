@@ -111,6 +111,14 @@ describe('후원자', () => {
     expect(kinds(view({ order: mine('paid', { disbursed: true }), invoiceRejection: '만료' }).actions)).toEqual([]);
   });
 
+  /** 지급 중엔 데몬이 만료를 확인해야 바꿔 준다(두 번 지급 방지) — 등록 때 받은 유동성 경고로는 칸을 열지 않는다 */
+  it('paid에서 유동성 경고만 있으면 다시 내는 칸이 없다 — 그 전 단계에선 있다', () => {
+    const warn = { invoiceRejection: '경로 확인 실패', invoiceRejectionIsWarning: true };
+    expect(kinds(view({ order: mine('paid'), ...warn }).actions)).toEqual([]);
+    expect(kinds(view({ order: mine('sponsor_wins'), ...warn }).actions)).toEqual([]);
+    expect(kinds(view({ order: mine('invoiced'), ...warn }).actions)).toContain('register-invoice');
+  });
+
   it('계좌가 오면 송금, 안 왔으면 기다린다', () => {
     expect(view({ order: mine('invoiced'), receivedAccount: ACCOUNT }).actions).toEqual([{ kind: 'remit', account: ACCOUNT }]);
     expect(view({ order: mine('invoiced') }).notes.join()).toMatch(/계좌 정보를 기다리는/);

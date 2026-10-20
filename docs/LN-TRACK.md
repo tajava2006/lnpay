@@ -59,7 +59,7 @@ admin_closed  ← escrowed · invoiced                                    (운�
 | `claimed → requested` | 워처 / 운영자 `ln.revert-claim` | 후원자 보증금을 15분 안에 안 냄, 보증금 인보이스를 노드가 못 만듦 |
 | `claimed → verified` | 자동 승인(설정 — 지정 거래는 설정과 무관하게) 또는 운영자 `ln.approve` | 후원자 보증금 받음(켜져 있고 공개 거래면), 시세 있음, 에스크로 결제창 ≥ 10분. **에스크로 인보이스가 노드에 생긴 뒤** 전이 |
 | `verified → escrowed` | 고객이 에스크로 결제 (HTLC accepted) | |
-| `escrowed → invoiced` | 후원자 `sponsor-invoice` | 금액 **정확 일치**(I-011), 수명 ≥ 6시간, 에스크로 HTLC 잔여 ≥ 108블록, 우리 인보이스가 아님 |
+| `escrowed → invoiced` | 후원자 `sponsor-invoice` | 금액 **정확 일치**(I-011), 수명 ≥ 10분, 에스크로 HTLC 잔여 ≥ 108블록, 우리 인보이스가 아님 |
 | `invoiced → remitted` | 후원자 `remit-request` | 요청 시각 ≤ 기한 + 1시간 |
 | `invoiced·remitted → paid` | 고객 `payment-confirm` | 에스크로 **settle 성공 뒤에** `paid` 발행(DM-003) → 지급 |
 | `remitted → sponsor_wins·customer_wins` | 운영자 `ln.rule` | |
@@ -154,13 +154,14 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 | `ESCROW_HOLD_MARGIN_SEC` | 48시간 | 에스크로 HTLC가 기한 + 유예 뒤로 더 사는 시간(송금 완료·확인·분쟁) |
 | `SPONSOR_DEPOSIT_MARGIN_SEC` | 73시간 | 보증금 HTLC가 기한 뒤로 사는 시간 = 유예 + 48h + 24h |
 | `CUSTOMER_DEPOSIT_MARGIN_SEC` | 73시간 | 위와 같다 — 고객 보증금도 닫을 때까지 산다 |
-| `MIN_SPONSOR_INVOICE_LIFETIME_SEC` | 6시간 | 후원자 인보이스 최소 잔여 수명(지급 직전 재제출은 10분) |
+| `MIN_SPONSOR_INVOICE_LIFETIME_SEC` | 10분 | 후원자 인보이스 최소 잔여 수명 — 등록·재제출 공통. 예전 6시간은 1시간짜리 지갑 기본 인보이스(BOLT11 기본값)를 전부 막았다(2026-10-20). 지급 때 만료돼 있으면 재제출로 푼다(§6) |
 | `CLTV_MAX_BLOCKS` / `CLTV_MIN_BLOCKS` | 1500 / 40 | 우리가 요구하는 최종 CLTV의 상·하한 |
 | `BLOCK_SEC` | 600 | 초 → 블록 환산. **블록이 빨리 나오면 실제 시간이 짧아진다** |
 | `INVOICE_ESCROW_MIN_BLOCKS` | 108 | 후원자 인보이스를 받으려면 에스크로가 이만큼 더 살아야 한다 |
 | `ESCROW_END_BLOCKS` | 72 | `escrowed`·`invoiced`인데 에스크로가 이만큼 안 남으면 기한 만료 사유로 닫는다 |
 | `SAFETY_SETTLE_BLOCKS` | 36 | `remitted`인데 이만큼 안 남으면 **먼저 settle**한다(비대칭 손실 원칙) |
 | `REMITTED_ALERT_SEC` | 12시간 | `remitted`가 확인 없이 이만큼 머물면 운영자를 부른다 |
+| `PAYOUT_INVOICE_WAIT_ALERT_SEC` | 6시간 | 지급 때 후원자 인보이스가 만료돼 멈춘 뒤 새 인보이스가 이만큼 없으면 운영자를 부른다(후원자는 만료 순간 푸시를 받았다) |
 | `INVOICE_WINDOW_SEC` | 6시간 | 에스크로 뒤 후원자 인보이스 등록 마감. 마감 = min(에스크로 + 6h, 기한 + 유예) — 데몬이 `escrowed` 때 오더에 찍는다(`invoice-deadline` 태그). "에스크로"는 **데몬이 본 시각**이다(데몬이 꺼져 있던 동안은 후원자가 차례를 몰랐다). 넘기면 `expired:no-invoice`(부등식 ④-3) — 핸들러도 마감 뒤(요청 시각 기준) 첫 인보이스를 받지 않는다(워처가 닫기 전 틈). 예전엔 기한 + 유예까지라 트롤이 고객 BTC를 최대 7일 묶었다(RISKS R-5) |
 | `LND_DOWN_ALERT_SEC` | 10분 | LND가 이만큼 응답하지 않으면 운영자를 부른다 — 선제 settle 창(노드 자동 취소 전 ~4시간)의 4분의 1 안(부등식 ④-2) |
 | `PAY_BY_SKEW_SEC` | 60초 | 결제 기한 판정 여유(노드·데몬 시계 차) |
@@ -197,7 +198,21 @@ I-009는 유저 앱이 발행 직전에 한 번 더 본다(`canSendAccountInfo`)
 **지급**(`ln.payout`)은 `paid`·`sponsor_wins`에서 settle 성공 뒤에 한 번 쌓인다.
 - 먼저 결제를 **추적**한다(이미 나갔으면 끝, 진행 중이면 30초 뒤). 두 번 지급은 LND도 막는다.
 - 실패는 백오프로 계속 다시 하고, 오래 실패하면 운영자 경보. 운영자가 `ln.retry-payout`으로 앞당길 수 있다.
-- 인보이스가 만료됐으면 후원자에게 재제출을 요청하고 멈춘다(`EXPIRED_BEFORE_PAYOUT`). 재제출이 지급을 다시 쌓는다.
+- 인보이스가 만료됐으면 후원자에게 재제출을 요청하고 멈춘다(`EXPIRED_BEFORE_PAYOUT` 통지 + **웹 푸시**, `payout_error` =
+  `LN_PAYOUT_INVOICE_EXPIRED`). 재제출이 지급을 다시 쌓는다. 등록 하한이 10분이라 흔한 경로다 — BTC는 데몬에 있고 후원자가
+  한 번 더 내는 불편뿐이다. 통지는 종결 오더처럼 7일 산다(유저 앱은 통지가 있어야 재등록 칸을 연다).
+  `PAYOUT_INVOICE_WAIT_ALERT_SEC` 넘게 새 인보이스가 없으면 운영자 경보.
+- **지급이 시작된 뒤 인보이스 교체는 만료가 확인된 뒤에만**(`payout_error` = `LN_PAYOUT_INVOICE_EXPIRED`) — 그 전에 온 건
+  `ignored:payout-in-progress`. 노드 멱등성은 결제 해시 하나까지라, 진행 중에 바꾸면 옛 HTLC와 새 것이 둘 다 나갈 수 있다(RISKS T-014).
+- **경로가 오래 없는데 만료는 한참 남았으면 운영자가 직접 처리한다** — `ln.manual-payout`(자동 지급 멈춤) → 지급기가 지금 인보이스를
+  추적해 성공도 진행 중도 아님을 본 뒤 `manual`(진행 중이면 기다리고, 그 사이 나가면 그냥 완료) → 그때부터 데몬은 이 거래에 결제하지
+  않는다(재시도·재제출 모두 막힘) → 운영자가 CS로 받은 인보이스를 노드에서 직접 결제 → `ln.mark-disbursed`(기록만).
+  성공이 멈춤에 지워지지 않는 이유: 지급기는 **추적을 먼저** 하고 멈춤 표시를 그 뒤에 본다(노드 성공이 기록보다 먼저여도 완료가 된다).
+  멈춤·만료 판정은 방금 추적한 그 인보이스가 여전히 지급처일 때만 적는다. 전제: **LND ≥ v0.18.0** — 걸린 HTLC가 하나라도 있으면
+  상태가 IN_FLIGHT라, FAILED면 나중에 성공할 HTLC가 없다(`lnd/payments/db/payment_status.go` `decidePaymentStatus`).
+  ⚠️ `manual`이 되기 전에 직접 결제하면 두 번 나갈 수 있다. 교체 예약(데몬이 알아서 갈아끼우기)은 크기·버그 위험 대비 드물어서 안 만들었다(2026-10-21).
+- 다시 하지 않는 실패(지급처 없음·금액 불일치 — 불변조건 위반)는 **바로** 운영자 경보 — 효과 막힘 경보는 대기 중인 효과만 본다.
+- 어드민 상세의 "지급" 줄은 아직 아님 · 보내는 중 · 멈춤(만료) · 실패(사유) · 완료 · 없음을 가른다(`admin/src/format.ts` `lnPayoutText`).
 - 수수료 상한은 `max(10 sats, payout의 1%)`다.
 
 **유동성 프로빙**은 후원자 인보이스를 받을 때 한 번, 무작위 해시로 한다. **막지 않고 알려만 준다**

@@ -62,7 +62,7 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
     }
     const remaining = decoded.expiresAt - nowSec();
     if (remaining < LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC) {
-      return `유효시간이 너무 짧습니다. 최소 ${durationText(LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC)} 이상으로 만들어 주세요 — 원화 송금과 입금 확인에 시간이 걸립니다.`;
+      return `유효시간이 너무 짧습니다. ${durationText(LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC)} 넘게 남은 인보이스로 다시 만들어 주세요.`;
     }
     return null;
   })();

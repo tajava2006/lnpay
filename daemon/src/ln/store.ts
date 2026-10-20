@@ -5,6 +5,7 @@
  * 같이 쌓는다 — 발행은 행의 투영이라, 바꾸고 발행을 빠뜨리는 일이 구조적으로 안 생긴다.
  */
 import type { OrderState } from '@sajwo-tracker/shared/core';
+import { LN_PAYOUT_INVOICE_EXPIRED } from '@sajwo-tracker/shared/ln';
 import { nowSec } from '../admin/context';
 import { notifyOperators } from '../admin/notify';
 import { designatedQuietOver } from '../orders/designated';
@@ -59,6 +60,17 @@ export interface LnDraftRow {
 export function getOrder(ctx: Pick<LnContext, 'db'>, orderId: string): LnOrderRow | undefined {
   return ctx.db.get<LnOrderRow>('SELECT * FROM ln_orders WHERE order_id = ?', orderId);
 }
+
+/** 지급하려는데 후원자 인보이스가 만료돼 새 인보이스를 기다리는 오더 */
+export function payoutsAwaitingInvoice(ctx: Pick<LnContext, 'db'>): LnOrderRow[] {
+  return ctx.db.all<LnOrderRow>(
+    `SELECT * FROM ln_orders WHERE state IN ('paid', 'sponsor_wins') AND disbursed = 0 AND payout_error = ?`,
+    LN_PAYOUT_INVOICE_EXPIRED,
+  );
+}
+
+/** 위 상태가 된 시각(초)을 적는 kv 키 — 만료가 확인될 때마다 새로 적는다 */
+export const payoutExpiredAtKey = (orderId: string): string => `ln.payout_expired_at:${orderId}`;
 
 export function ordersInStates(ctx: Pick<LnContext, 'db'>, states: readonly OrderState[]): LnOrderRow[] {
   if (states.length === 0) return [];

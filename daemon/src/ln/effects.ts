@@ -16,7 +16,11 @@ import { finalizeEvent } from 'nostr-tools/pure';
 import {
   ADMIN_STATE_KIND, adminOrderDTag, nip44Encrypt, type AdminLnInvoice, type AdminLnOrderDetail,
 } from '@sajwo-tracker/shared/core';
-import { CLOSE_RULES, isPayoutAmountExact, lnOrderTags, lnRetention, type LnCloseReason } from '@sajwo-tracker/shared/ln';
+import {
+  CLOSE_RULES, LN_PAYOUT_INVOICE_EXPIRED, LN_PAYOUT_MANUAL, isManualPayout, isPayoutAmountExact, lnOrderTags, lnRetention,
+  type LnCloseReason,
+} from '@sajwo-tracker/shared/ln';
+import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import type { EffectExecutor } from '../effects';
 import { isLiveHold } from '../hold';
@@ -24,11 +28,12 @@ import type { RelayTransport } from '../nostr/transport';
 import { readBolt11 } from './bolt11';
 import type { LnContext } from './context';
 import {
-  LN_HOLD_PURPOSES, abandonClose, finishClose, sponsorDepositRequired, type LnHoldPurpose, type OrderPayload,
+  LN_HOLD_PURPOSES, abandonClose, finishClose, requestPayout, sponsorDepositRequired, type LnHoldPurpose, type OrderPayload,
   type ProbePayload,
 } from './flow';
 import { sendInvoiceRejected } from './messages';
-import { getOrder, updateOrder, type LnOrderRow } from './store';
+import { notifyPayoutInvoiceExpired } from './notify';
+import { getOrder, payoutExpiredAtKey, updateOrder, type LnOrderRow } from './store';
 import { alertSkippedRecipients, orderEvents, publishAll, type OrderEvents } from '../orders/publish';
 
 /** 지급 한 번에 기다리는 시간 */
@@ -122,6 +127,12 @@ export function createPayoutExecutor(ctx: LnContext): EffectExecutor<OrderPayloa
       const tracked = await ctx.node.trackPayment(info.paymentHash);
       if (tracked === 'succeeded') return { status: 'done', result: { outcome: 'paid' } };
       if (tracked === 'in-flight') return { status: 'retry', error: '결제 진행 중', delayMs: IN_FLIGHT_RECHECK_MS };
+      // 운영자가 자동 지급을 멈췄다(`ln.manual-payout`). 바로 위에서 지금 인보이스가 성공도 진행 중도 아님을 봤다 — 여기서
+      // 멈추면 데몬은 이 거래에 다시 결제하지 않으므로 운영자가 직접 결제해도 두 번 나가지 않는다. 기다리는 동안 명령이
+      // 들어왔을 수 있어 새로 읽는다
+      if (isManualPayout(getOrder(ctx, orderId)?.payout_error)) {
+        return { status: 'done', result: { outcome: 'manual', bolt11: order.sponsor_invoice } };
+      }
       if (info.expiresAt <= nowSec(ctx) + 30) {
         return { status: 'done', result: { outcome: 'expired', bolt11: order.sponsor_invoice } };
       }
@@ -133,7 +144,7 @@ export function createPayoutExecutor(ctx: LnContext): EffectExecutor<OrderPayloa
       return { status: 'retry', error: paid.failureReason ?? '결제 실패' };
     },
     onDone({ orderId }, result) {
-      const r = result as { outcome: 'paid' | 'expired' | 'skip'; bolt11?: string };
+      const r = result as { outcome: 'paid' | 'expired' | 'manual' | 'skip'; bolt11?: string };
       const order = getOrder(ctx, orderId);
       if (!order || r.outcome === 'skip') return;
       if (r.outcome === 'paid') {
@@ -141,19 +152,50 @@ export function createPayoutExecutor(ctx: LnContext): EffectExecutor<OrderPayloa
         ctx.log.info('지급 완료', { orderId });
         return;
       }
-      // 같은 인보이스로는 한 번만 알린다
-      if (order.payout_error !== 'invoice-expired' && order.sponsor) {
-        sendInvoiceRejected(ctx, orderId, order.sponsor, 'EXPIRED_BEFORE_PAYOUT', order.payout_sat ?? 0, r.bolt11 ?? '');
+      // 아래 판정(멈춤 확인·만료)은 **방금 추적한 그 인보이스**에 대한 것이다. 그 사이 지급처가 바뀌었으면 판정을 버리고
+      // 지금 인보이스로 다시 돌린다 — 지금은 요청·명령이 지급과 같은 틱에 겹치지 않아(`runtime.ts` tick: 디스패치 → 효과)
+      // 일어나지 않지만, 그 순서에 기대지 않는다. 성공(위)은 어느 인보이스였든 돈이 나간 것이라 그대로 적는다
+      if (order.sponsor_invoice !== r.bolt11) {
+        requestPayout(ctx, orderId);
+        return;
       }
-      if (order.payout_error !== 'invoice-expired') updateOrder(ctx, orderId, { payout_error: 'invoice-expired' });
+      if (r.outcome === 'manual') {
+        if (order.payout_error !== LN_PAYOUT_MANUAL) updateOrder(ctx, orderId, { payout_error: LN_PAYOUT_MANUAL });
+        ctx.log.info('자동 지급 멈춤 확인 — 운영자 직접 처리', { orderId });
+        return;
+      }
+      // 만료를 보는 사이 운영자가 멈추라고 했다 — 표시를 덮지 말고 한 번 더 돌려 멈춤을 확인시킨다
+      if (isManualPayout(order.payout_error)) {
+        requestPayout(ctx, orderId);
+        return;
+      }
+      // 같은 인보이스로는 한 번만 — 운영자가 "다시"를 눌러도 또 만료로 끝난다. 재제출이 `payout_error`를 비운다
+      if (order.payout_error === LN_PAYOUT_INVOICE_EXPIRED) return;
+      updateOrder(ctx, orderId, { payout_error: LN_PAYOUT_INVOICE_EXPIRED });
+      // 멈춘 시각 — 후원자가 오래 안 내면 워처가 사람을 부른다(`PAYOUT_INVOICE_WAIT_ALERT_SEC`)
+      ctx.db.kvSet(payoutExpiredAtKey(orderId), String(nowSec(ctx)));
+      if (order.sponsor) {
+        sendInvoiceRejected(ctx, orderId, order.sponsor, 'EXPIRED_BEFORE_PAYOUT', order.payout_sat ?? 0, r.bolt11 ?? '');
+        // 앱 안 통지만으론 모른다 — 후원자는 "거래 완료" 푸시를 받고 앱을 닫았다
+        notifyPayoutInvoiceExpired(ctx, order, (r.bolt11 && readBolt11(r.bolt11)?.paymentHash) || (r.bolt11 ?? ''));
+      }
     },
     onRetry({ orderId }, error) {
       const order = getOrder(ctx, orderId);
-      if (order && order.payout_error !== error && error !== '결제 진행 중') updateOrder(ctx, orderId, { payout_error: error });
+      // 멈춤 표시는 덮지 않는다 — 덮으면 다음 차례가 멈춤을 모르고 다시 결제한다
+      if (!order || isManualPayout(order.payout_error)) return;
+      if (order.payout_error !== error && error !== '결제 진행 중') updateOrder(ctx, orderId, { payout_error: error });
     },
     onDead({ orderId }, error) {
       const order = getOrder(ctx, orderId);
-      if (order) updateOrder(ctx, orderId, { payout_error: error });
+      if (!order) return;
+      updateOrder(ctx, orderId, { payout_error: error });
+      // 다시 하지 않는 실패(지급처 없음·금액 불일치 — 불변조건 위반)다. 효과 막힘 경보(`admin/stuck.ts`)는 대기 중인
+      // 효과만 보므로 여기서 부르지 않으면 아무도 모른다
+      raiseAlert(ctx, {
+        dedup: `ln:${orderId}:payout-dead:${error}`, level: 'anomaly', track: 'ln', orderId,
+        message: `후원자 지급을 포기했다: ${error} — 직접 확인하고 지급해야 한다`,
+      });
     },
   };
 }

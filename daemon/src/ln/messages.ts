@@ -7,6 +7,7 @@
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import { REQUEST_ACTIONS, MESSAGE_KIND, orderRef } from '@sajwo-tracker/shared/core';
+import { LN_TERMINAL_RETENTION_SEC } from '@sajwo-tracker/shared/ln';
 import { nowSec } from '../admin/context';
 import { PUBLISH_EFFECT, type PublishPayload } from '../nostr/publisher';
 import type { LnContext } from './context';
@@ -79,9 +80,12 @@ export function sendDepositStatus(
 export function sendInvoiceRejected(
   ctx: LnContext, orderId: string, sponsor: string, reason: InvoiceRejectReason, expectedSats: number, key: string,
 ): void {
+  // 지급 직전 만료는 이 통지가 와야 후원자 화면에 재등록 칸이 열린다(유저 앱은 이걸 저장하지 않고 릴레이에서 다시 받는다).
+  // 하루 뒤 앱을 열어도 칸이 있어야 한다 — 종결된 오더 카드가 사는 동안 같이 산다
+  const retention = reason === 'EXPIRED_BEFORE_PAYOUT' ? LN_TERMINAL_RETENTION_SEC : REJECT_RETENTION_SEC;
   send(ctx, orderId, sponsor, REQUEST_ACTIONS.CLAIM_PRICE_ERROR,
     [['reason', reason], ['expected-sats', String(expectedSats)]],
-    nowSec(ctx) + REJECT_RETENTION_SEC, `ln.msg:reject:${orderId}:${reason}:${key}`);
+    nowSec(ctx) + retention, `ln.msg:reject:${orderId}:${reason}:${key}`);
 }
 
 /** 분쟁 중재용 계좌 공개 요청 — 이게 와야 후원자 화면의 공개 버튼이 열린다 */

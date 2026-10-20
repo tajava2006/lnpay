@@ -10,7 +10,7 @@
 import {
   MAX_OPEN_DESIGNATED_PER_CUSTOMER, REQUEST_ACTIONS, extractOrderId, isLnDesignatedOrderPayload, isTerminalState,
 } from '@sajwo-tracker/shared/core';
-import { canTransition, isPayoutAmountExact } from '@sajwo-tracker/shared/ln';
+import { LN_PAYOUT_INVOICE_EXPIRED, canTransition, isPayoutAmountExact } from '@sajwo-tracker/shared/ln';
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
 import { loadSettings } from '../admin/settings';
@@ -31,9 +31,6 @@ import {
   DEADLINE_GRACE_SEC, INVOICE_ESCROW_MIN_BLOCKS, MAX_DEADLINE_LEAD_SEC, MIN_CLAIM_LEAD_SEC,
   MIN_SPONSOR_INVOICE_LIFETIME_SEC,
 } from './timing';
-
-/** 지급 직전에 재제출하는 인보이스는 바로 쓰이므로 짧아도 된다 */
-const MIN_REPLACEMENT_LIFETIME_SEC = 10 * 60;
 
 /** 너무 큰 금액은 입력 사고다 (원) */
 const MAX_PRICE_KRW = 100_000_000;
@@ -153,6 +150,11 @@ const sponsorInvoice: OrderHandler = (ctx, event, order) => {
   const payoutPending = (order.state === 'paid' || order.state === 'sponsor_wins') && !order.disbursed;
   const accepts = order.state === 'escrowed' || order.state === 'invoiced' || order.state === 'remitted' || payoutPending;
   if (!accepts) return ignored('bad-state');
+  // 지급이 시작된 뒤엔 **데몬이 옛 인보이스의 죽음을 확인한 뒤에만** 갈아끼운다 — 결제를 추적해 성공도 진행 중도 아니고
+  // 만료됐다(`LN_PAYOUT_INVOICE_EXPIRED`, 만료된 인보이스는 노드가 새로 결제하지 않는다). 노드의 멱등성은 결제 해시
+  // 하나까지라, 진행 중에 바꾸면 지급기는 새 것만 추적한다 — 후원자가 첫 HTLC를 잡아 뒀다(홀드 인보이스) 둘 다 풀면 두 번
+  // 나간다(2026-10-20 검토에서 재현). 경로 실패로 다시 하는 중이어도 같다 — 실패한 인보이스는 만료되면 바꿀 수 있다
+  if (payoutPending && order.payout_error !== LN_PAYOUT_INVOICE_EXPIRED) return ignored('payout-in-progress');
   // 등록 마감(에스크로 + 6h)을 넘긴 첫 인보이스는 받지 않는다 — 워처가 닫기 전 한 틱 사이(재시작 뒤 워밍업이면 2분)에
   // 들어오면 `invoiced`가 돼 고객 BTC가 다시 기한 + 유예까지 묶였다. 요청 시각으로 본다(미래로는 못 간다) — 데몬이
   // 꺼져 있던 사이 마감 안에 낸 인보이스는 받는다
@@ -174,9 +176,8 @@ const sponsorInvoice: OrderHandler = (ctx, event, order) => {
   if (ctx.holds.isOurs(info.paymentHash)) return ignored('our-invoice');
   // 범위가 아니라 **정확 일치**(I-011) — 금액을 정한 게 우리다
   if (!isPayoutAmountExact(order.payout_sat ?? undefined, info.amountSat)) return reject('AMOUNT_MISMATCH');
-  const now = nowSec(ctx);
-  const minLife = payoutPending ? MIN_REPLACEMENT_LIFETIME_SEC : MIN_SPONSOR_INVOICE_LIFETIME_SEC;
-  if (info.expiresAt - now < minLife) return reject('EXPIRES_TOO_SOON');
+  // 짧은 인보이스도 받는다 — 지급 때 만료돼 있으면 재제출을 받는다(`MIN_SPONSOR_INVOICE_LIFETIME_SEC` 주석)
+  if (info.expiresAt - nowSec(ctx) < MIN_SPONSOR_INVOICE_LIFETIME_SEC) return reject('EXPIRES_TOO_SOON');
 
   // 에스크로가 곧 죽는데 계좌 관문을 열면 후원자가 죽은 에스크로를 보고 원화를 보낸다
   if (order.state === 'escrowed' || order.state === 'invoiced') {

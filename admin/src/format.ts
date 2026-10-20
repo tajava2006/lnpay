@@ -2,12 +2,18 @@
  * 어드민 화면의 공용 문구 — 명령 결과, pubkey·금액 표기
  */
 import { nip19 } from 'nostr-tools';
-import { PROTOCOL_VERSION, type AdminCommandResult, type AdminState } from '@sajwo-tracker/shared';
+import {
+  PROTOCOL_VERSION, type AdminCommandResult, type AdminLnOrderDetail, type AdminState, type OrderState,
+} from '@sajwo-tracker/shared';
+import { LN_PAYOUT_INVOICE_EXPIRED, LN_PAYOUT_MANUAL, LN_PAYOUT_MANUAL_REQUESTED } from '@sajwo-tracker/shared/ln';
 
 /** 데몬이 돌려주는 거절 사유 중 사람이 읽어야 하는 것 */
 const REJECT_TEXT: Record<string, string> = {
   'stale-version': '그 사이 오더가 바뀌었습니다(다른 기기·유저·체인). 상세를 다시 보고 판단하세요',
   'no-fees': '데몬이 네트워크 수수료를 아직 모릅니다 — 잠시 후 다시',
+  'not-manual': '데몬이 아직 자동 지급 멈춤을 확인하지 않았습니다 — "직접 처리"로 바뀐 뒤에 누르세요',
+  'already-manual': '이미 자동 지급을 멈췄습니다',
+  'already-disbursed': '이미 지급됐습니다',
 };
 
 /**
@@ -52,6 +58,49 @@ export function depositWarnings(state: Pick<AdminState, 'settings'> | null): str
     out.push('라이트닝 고객 보증금 0% — 공개 의뢰를 공짜로 올릴 수 있습니다(오더북 스팸).');
   }
   return out;
+}
+
+/**
+ * 후원자 지급 단계 — 상태마다 못박는다(새 상태를 넣으면 빌드가 깨진다).
+ * later = 아직 지급할 때가 아니다(고객 확인·판정 전) · due = 지급 사유로 닫혔다 · none = 지급 없이 닫혔다
+ */
+const PAYOUT_PHASE: Record<OrderState, 'later' | 'due' | 'none'> = {
+  requested: 'later', claimed: 'later', verified: 'later', escrowed: 'later', invoiced: 'later', remitted: 'later',
+  paid: 'due', sponsor_wins: 'due',
+  cancelled: 'none', expired: 'none', admin_closed: 'none', customer_wins: 'none',
+};
+
+/**
+ * 오더 상세의 "지급" 한 줄. "대기"라고만 하면 **아직 때가 아닌 것**과 **지급하려다 멈춘 것**이 섞인다 —
+ * 멈춘 것도 인보이스 만료(후원자가 새로 내야 한다)와 결제 실패(데몬이 다시 한다)를 가른다.
+ */
+export function lnPayoutText(
+  d: Pick<AdminLnOrderDetail, 'state' | 'disbursed' | 'sponsorInvoice' | 'payoutError'>,
+): { text: string; warn: boolean } {
+  if (d.disbursed) return { text: d.payoutError === LN_PAYOUT_MANUAL ? '완료 (운영자가 직접 결제)' : '완료', warn: false };
+  switch (PAYOUT_PHASE[d.state]) {
+    case 'none':
+      return { text: '없음 — 후원자에게 지급하지 않고 닫힌 거래', warn: false };
+    case 'later':
+      return {
+        text: `아직 아님 — 고객 확인(또는 판정) 뒤에 나갑니다 · ${d.sponsorInvoice ? '인보이스 등록됨' : '인보이스 미등록'}`,
+        warn: false,
+      };
+    case 'due':
+      if (d.payoutError === LN_PAYOUT_MANUAL_REQUESTED) {
+        return { text: '멈추는 중 — 데몬이 지금 인보이스가 안 나갔는지 확인하고 있습니다. "직접 처리"로 바뀌기 전에 직접 결제하면 두 번 나갈 수 있습니다', warn: true };
+      }
+      if (d.payoutError === LN_PAYOUT_MANUAL) {
+        return { text: '직접 처리 — 데몬은 이 거래에 더 결제하지 않습니다(지금 인보이스가 안 나간 걸 확인함). 노드에서 직접 결제한 뒤 "지급 완료로 기록"을 누르세요', warn: true };
+      }
+      if (d.payoutError === LN_PAYOUT_INVOICE_EXPIRED) {
+        return { text: '멈춤 — 후원자 인보이스가 만료돼 새 인보이스를 기다립니다(후원자에게 알림 보냄). BTC는 데몬에 있습니다', warn: true };
+      }
+      if (d.payoutError) {
+        return { text: `실패 — ${d.payoutError}. 데몬이 다시 하는 중이면 "지급 지금 다시"로 앞당길 수 있습니다`, warn: true };
+      }
+      return { text: '보내는 중', warn: false };
+  }
 }
 
 /**

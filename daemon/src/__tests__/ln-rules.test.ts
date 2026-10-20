@@ -11,9 +11,13 @@ import {
 } from '@sajwo-tracker/shared/core';
 import { unwrapEvent } from 'nostr-tools/nip17';
 import { finalizeEvent } from 'nostr-tools/pure';
+import { LN_PAYOUT_INVOICE_EXPIRED, LN_PAYOUT_MANUAL, LN_PAYOUT_MANUAL_REQUESTED } from '@sajwo-tracker/shared/ln';
 import { openAlerts } from '../admin/alerts';
 import { CHAT_DM_QUIET_SEC } from '../admin/chat';
-import { LND_DOWN_ALERT_SEC } from '../ln/timing';
+import { readBolt11 } from '../ln/bolt11';
+import { NOTIFY } from '../ln/notify-messages';
+import { LND_DOWN_ALERT_SEC, MIN_SPONSOR_INVOICE_LIFETIME_SEC, PAYOUT_INVOICE_WAIT_ALERT_SEC } from '../ln/timing';
+import { PUSH_EFFECT, type PushPayload } from '../push/send';
 import { STUCK_EFFECT_ATTEMPTS } from '../admin/stuck';
 import { TEST_TAGS, adminCommand, eventsTo, newKey, openResult, type TestKey } from './fakes';
 import { createLnHarness, lnRequest, makeInvoice, tagOf, type LnHarness } from './ln-fakes';
@@ -31,6 +35,19 @@ async function command(h: LnHarness, cmd: string, args: Record<string, unknown>,
 }
 
 const target = (h: LnHarness, orderId: string, version = h.order(orderId)!.version) => ({ track: 'ln', orderId, version });
+
+/** 운영자에게 간 NIP-17 DM 본문 */
+const dmsTo = (h: LnHarness, pattern: RegExp) => h.relay.published
+  .filter(e => e.kind === 1059)
+  .map(e => unwrapEvent(e, h.operator.secretKey).content)
+  .filter(text => pattern.test(text));
+
+/** 이 사람에게 쌓인 웹 푸시 본문 — 보내기 전 평문이 효과 대기열에 있다 */
+const pushBodiesTo = (h: LnHarness, pubkey: string) =>
+  h.ln.db.all<{ payload: string }>('SELECT payload FROM effects WHERE kind = ? ORDER BY id', PUSH_EFFECT)
+    .map(r => JSON.parse(r.payload) as PushPayload)
+    .filter(p => p.pubkey === pubkey)
+    .map(p => p.message.body);
 
 function rejections(h: LnHarness, sponsor: TestKey) {
   return messagesTo(h, sponsor.pubkey, REQUEST_ACTIONS.CLAIM_PRICE_ERROR).map(e => ({
@@ -137,7 +154,7 @@ describe('후원자 인보이스 검증 (I-011)', () => {
     const payout = h.order(orderId)!.payout_sat!;
 
     await submitInvoice(h, orderId, { amountSat: payout + 1 });
-    await submitInvoice(h, orderId, { expirySec: HOUR });
+    await submitInvoice(h, orderId, { expirySec: MIN_SPONSOR_INVOICE_LIFETIME_SEC - 60 });
     await h.send(lnRequest(h.sponsor, h.app.pubkey, orderId, REQUEST_ACTIONS.SPONSOR_INVOICE, h.sec(), [['bolt11', 'lnbc1garbage']]));
     expect(h.order(orderId)!.state).toBe('escrowed');
     expect(rejections(h, h.sponsor)).toEqual([
@@ -145,6 +162,17 @@ describe('후원자 인보이스 검증 (I-011)', () => {
       { reason: 'EXPIRES_TOO_SOON', expected: payout },
       { reason: 'DECODE_FAILED', expected: payout },
     ]);
+  });
+
+  /** BOLT11 기본값이 1시간이라 흔한 폰 지갑이 전부 막혔다(2026-10-20 고객 피드백) — 지급 때 만료되면 재제출로 푼다 */
+  it('1시간짜리 지갑 기본 인보이스도 받는다', async () => {
+    const h = await createLnHarness();
+    const orderId = await openOrder(h);
+    await claim(h, orderId);
+    await payEscrow(h, orderId);
+    await submitInvoice(h, orderId, { expirySec: HOUR });
+    expect(h.order(orderId)!.state).toBe('invoiced');
+    expect(rejections(h, h.sponsor)).toEqual([]);
   });
 
   /** 우리 돈으로 우리 홀드를 채우는 경로 */
@@ -190,22 +218,179 @@ describe('지급', () => {
     const orderId = await openOrder(h);
     await claim(h, orderId);
     await payEscrow(h, orderId);
-    await submitInvoice(h, orderId, { expirySec: 6 * HOUR + 60 });
-    h.advance(7 * HOUR);
+    await submitInvoice(h, orderId, { expirySec: HOUR });
+    h.advance(2 * HOUR);
     await confirmPaid(h, orderId);
 
     let o = h.order(orderId)!;
     expect(o.state).toBe('paid');
     expect(o.disbursed).toBe(0);
-    expect(o.payout_error).toBe('invoice-expired');
+    expect(o.payout_error).toBe(LN_PAYOUT_INVOICE_EXPIRED);
     expect(rejections(h, h.sponsor).map(r => r.reason)).toContain('EXPIRED_BEFORE_PAYOUT');
     expect(h.node.payments.size).toBe(0);
+    // 앱 안 통지만으론 모른다 — 후원자 폰을 울린다. "거래 완료" 다음에 온다
+    expect(pushBodiesTo(h, h.sponsor.pubkey).slice(-2)).toEqual([
+      NOTIFY.sponsorCompleted().body, NOTIFY.sponsorShouldReplaceInvoice().body,
+    ]);
 
-    // paid인데 아직 안 나갔으니 재제출을 받는다 — 짧은 인보이스여도 바로 쓰이니 괜찮다
-    await submitInvoice(h, orderId, { expirySec: 30 * 60 });
+    // 운영자가 "다시"를 눌러도 같은 인보이스로는 다시 울리지 않는다
+    await command(h, 'ln.retry-payout', { target: target(h, orderId) });
+    expect(pushBodiesTo(h, h.sponsor.pubkey).filter(b => b === NOTIFY.sponsorShouldReplaceInvoice().body)).toHaveLength(1);
+
+    // paid인데 아직 안 나갔으니 재제출을 받는다
+    await submitInvoice(h, orderId, { expirySec: HOUR });
     o = h.order(orderId)!;
     expect(o.disbursed).toBe(1);
     expect(o.payout_error).toBeNull();
+  });
+
+  /**
+   * 노드의 멱등성은 결제 해시 하나까지다 — 인보이스가 바뀌면 못 막는다. 후원자가 받는 노드에서 첫 HTLC를 잡아 두고
+   * (홀드 인보이스) 지급 도중 다른 인보이스로 갈아끼운 뒤 둘 다 풀면 두 번 받는다(2026-10-20 검토).
+   */
+  it('지급이 진행 중일 때 낸 새 인보이스는 받지 않는다 — 두 번 지급 금지', async () => {
+    const h = await createLnHarness();
+    const orderId = await toRemitted(h);
+    const first = h.order(orderId)!.sponsor_invoice!;
+    h.node.payResult = () => ({ status: 'in-flight' }); // 후원자 노드가 HTLC를 잡고 안 푼다
+    await confirmPaid(h, orderId);
+    expect(h.order(orderId)!.disbursed).toBe(0);
+
+    h.node.payResult = () => ({ status: 'succeeded' });
+    await submitInvoice(h, orderId, { expirySec: HOUR }); // 갈아끼우기
+    h.advance(60);
+    await h.run();
+    h.node.payments.get(readBolt11(first)!.paymentHash)!.status = 'succeeded'; // 잡아 둔 첫 HTLC를 이제 푼다
+    h.advance(60);
+    await h.run();
+
+    expect([...h.node.payments.values()].filter(p => p.status === 'succeeded')).toHaveLength(1);
+    expect(h.order(orderId)!.sponsor_invoice).toBe(first);
+    expect(h.order(orderId)!.disbursed).toBe(1);
+  });
+
+  /** 경로 실패는 다시 하는 중이다 — 그 사이 갈아끼우면 위와 같은 창이 열린다. 만료가 확인돼야(위 테스트) 바꾼다 */
+  it('결제 실패로 다시 하는 중에도 새 인보이스는 받지 않는다', async () => {
+    const h = await createLnHarness();
+    h.node.payResult = () => ({ status: 'failed', failureReason: 'FAILURE_REASON_NO_ROUTE' });
+    const orderId = await toRemitted(h);
+    const first = h.order(orderId)!.sponsor_invoice!;
+    await confirmPaid(h, orderId);
+    await submitInvoice(h, orderId, { expirySec: HOUR });
+    expect(h.order(orderId)!.sponsor_invoice).toBe(first);
+  });
+
+  /** 경로가 오래 없는데 만료는 한참 남았다 — 교체를 기다리지 않고 운영자가 직접 결제한다. 데몬이 다시 결제하면 두 번 나간다 */
+  it('자동 지급 멈춤 — 데몬은 다시 결제하지 않고, 직접 결제를 기록하면 완료', async () => {
+    const h = await createLnHarness();
+    h.node.payResult = () => ({ status: 'failed', failureReason: 'FAILURE_REASON_NO_ROUTE' });
+    const orderId = await toRemitted(h);
+    const hash = readBolt11(h.order(orderId)!.sponsor_invoice!)!.paymentHash;
+    await confirmPaid(h, orderId);
+    expect(h.order(orderId)!.payout_error).toBe('FAILURE_REASON_NO_ROUTE');
+
+    // 멈춤 확인 전엔 기록할 수 없다
+    expect(await command(h, 'ln.mark-disbursed', { target: target(h, orderId) })).toMatchObject({ error: 'not-manual' });
+    expect((await command(h, 'ln.manual-payout', { target: target(h, orderId) })).ok).toBe(true);
+    await h.run();
+    expect(h.order(orderId)!.payout_error).toBe(LN_PAYOUT_MANUAL);
+    const attempts = h.node.payments.get(hash)!.attempts;
+
+    // 경로가 살아나도, 운영자가 "다시"를 눌러도, 후원자가 새 인보이스를 내도 데몬은 결제하지 않는다
+    h.node.payResult = () => ({ status: 'succeeded' });
+    h.advance(20 * 60);
+    await h.run();
+    await command(h, 'ln.retry-payout', { target: target(h, orderId) });
+    await submitInvoice(h, orderId, { expirySec: HOUR });
+    expect(h.node.payments.get(hash)!.attempts).toBe(attempts);
+    expect(h.node.payments.size).toBe(1);
+    expect(h.order(orderId)!.payout_error).toBe(LN_PAYOUT_MANUAL);
+
+    expect((await command(h, 'ln.mark-disbursed', { target: target(h, orderId) })).ok).toBe(true);
+    expect(h.order(orderId)!.disbursed).toBe(1);
+  });
+
+  /** 진행 중인 HTLC가 있으면 멈췄다고 하지 않는다 — 그걸 믿고 직접 결제한 뒤 HTLC가 풀리면 두 번 나간다 */
+  it('결제가 진행 중이면 멈춤을 확인하지 않고 기다린다 — 그 사이 나가면 그냥 완료', async () => {
+    const h = await createLnHarness();
+    h.node.payResult = () => ({ status: 'in-flight' });
+    const orderId = await toRemitted(h);
+    const hash = readBolt11(h.order(orderId)!.sponsor_invoice!)!.paymentHash;
+    await confirmPaid(h, orderId);
+
+    await command(h, 'ln.manual-payout', { target: target(h, orderId) });
+    h.advance(60);
+    await h.run();
+    expect(h.order(orderId)!.payout_error).toBe(LN_PAYOUT_MANUAL_REQUESTED);
+    expect(await command(h, 'ln.mark-disbursed', { target: target(h, orderId) })).toMatchObject({ error: 'not-manual' });
+
+    h.node.payments.get(hash)!.status = 'succeeded';
+    h.advance(60);
+    await h.run();
+    expect(h.order(orderId)!.disbursed).toBe(1);
+    expect(h.order(orderId)!.payout_error).toBeNull();
+  });
+
+  /**
+   * 노드에선 이미 나갔는데 데몬이 아직 적기 전에 멈춤 명령이 왔다 — 성공이 멈춤에 지워지면 운영자가 또 결제한다.
+   * 지급기는 **추적을 먼저** 하고 멈춤 표시는 그 뒤에 보므로, 성공은 언제나 이긴다.
+   */
+  it('나간 지급은 멈춤 명령이 지우지 못한다 — 노드 성공이 데몬 기록보다 먼저여도', async () => {
+    const h = await createLnHarness();
+    h.node.payResult = () => ({ status: 'in-flight' });
+    const orderId = await toRemitted(h);
+    const hash = readBolt11(h.order(orderId)!.sponsor_invoice!)!.paymentHash;
+    await confirmPaid(h, orderId);
+
+    h.node.payments.get(hash)!.status = 'succeeded'; // 노드에선 나갔다 — 데몬은 아직 모른다
+    h.advance(60);
+    expect((await command(h, 'ln.manual-payout', { target: target(h, orderId) })).ok).toBe(true);
+    await h.run();
+
+    expect(h.order(orderId)!.disbursed).toBe(1);
+    expect(h.order(orderId)!.payout_error).toBeNull();
+    // 기록된 뒤엔 멈출 것도, 직접 결제를 기록할 것도 없다
+    expect(await command(h, 'ln.manual-payout', { target: target(h, orderId) })).toMatchObject({ error: 'already-disbursed' });
+    expect(await command(h, 'ln.mark-disbursed', { target: target(h, orderId) })).toMatchObject({ error: 'already-disbursed' });
+  });
+
+  /** 후원자가 만료 푸시를 받고도 오래 안 내면 — 돈은 데몬에 있지만 누군가 연락해야 한다 */
+  it('만료로 멈춘 지급은 오래가면 운영자를 부른다 — 한 번만, 재제출하면 안 부른다', async () => {
+    const h = await createLnHarness();
+    const waiting = (orderId: string) => openAlerts(h.ln).filter(a => a.orderId === orderId && /인보이스가 만료돼 지급이/.test(a.message));
+
+    const stalled = await openOrder(h);
+    await claim(h, stalled);
+    await payEscrow(h, stalled);
+    await submitInvoice(h, stalled, { expirySec: HOUR });
+    h.advance(2 * HOUR);
+    await confirmPaid(h, stalled);
+    expect(h.order(stalled)!.payout_error).toBe(LN_PAYOUT_INVOICE_EXPIRED);
+
+    h.advance(PAYOUT_INVOICE_WAIT_ALERT_SEC - 60);
+    await h.run(1);
+    expect(waiting(stalled)).toHaveLength(0);
+    h.advance(120);
+    await h.run(2);
+    expect(waiting(stalled)).toHaveLength(1);
+    expect(dmsTo(h, /인보이스가 만료돼 지급이/)).toHaveLength(1);
+
+    // 새로 내면 나가고, 더는 기다리는 목록에 없다
+    await submitInvoice(h, stalled, { expirySec: HOUR });
+    expect(h.order(stalled)!.disbursed).toBe(1);
+    h.advance(PAYOUT_INVOICE_WAIT_ALERT_SEC);
+    await h.run(1);
+    expect(waiting(stalled)).toHaveLength(1); // 앞의 그 한 건뿐 — 새로 울리지 않았다
+  });
+
+  /** 다시 하지 않는 실패는 효과 막힘 경보(대기 중인 효과만 본다)에 안 걸린다 — 여기서 부르지 않으면 조용히 묻힌다 */
+  it('지급을 포기하면(불변조건 위반) 바로 운영자를 부른다', async () => {
+    const h = await createLnHarness();
+    const orderId = await toRemitted(h);
+    h.ln.db.run('UPDATE ln_orders SET payout_sat = payout_sat + 1 WHERE order_id = ?', orderId); // 금액이 어긋난 DB
+    await confirmPaid(h, orderId);
+    expect(h.order(orderId)!.disbursed).toBe(0);
+    expect(openAlerts(h.ln).some(a => a.orderId === orderId && /후원자 지급을 포기했다/.test(a.message))).toBe(true);
   });
 
   it('지급 실패는 계속 다시 하고, 오래 실패하면 경보 — 운영자가 앞당길 수 있다', async () => {
@@ -372,11 +557,6 @@ describe('운영자 상세 · 채팅', () => {
 });
 
 describe('운영자 DM (NIP-17)', () => {
-  const dmsTo = (h: LnHarness, pattern: RegExp) => h.relay.published
-    .filter(e => e.kind === 1059)
-    .map(e => unwrapEvent(e, h.operator.secretKey).content)
-    .filter(text => pattern.test(text));
-
   it('새 의뢰는 운영자에게 DM이 간다', async () => {
     const h = await createLnHarness();
     const orderId = await openOrder(h, { price: 32_900 });
@@ -419,11 +599,11 @@ describe('운영자 DM (NIP-17)', () => {
 
     await say('송금했어요');
     await say('확인 부탁드려요');
-    expect(dmsTo(h, /분쟁 채팅/)).toEqual([`[페어바이] 분쟁 채팅 — 라이트닝 후원자: "송금했어요" (${orderId})`]);
+    expect(dmsTo(h, /에스크로 채팅/)).toEqual([`[페어바이] 에스크로 채팅 — 라이트닝 후원자: "송금했어요" (${orderId})`]);
 
     h.advance(CHAT_DM_QUIET_SEC);
     await say('아직인가요');
-    expect(dmsTo(h, /분쟁 채팅/)).toHaveLength(2);
+    expect(dmsTo(h, /에스크로 채팅/)).toHaveLength(2);
   });
 });
 

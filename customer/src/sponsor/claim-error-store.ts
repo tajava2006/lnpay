@@ -2,7 +2,8 @@
  * 후원자 인보이스 거절·경고 스토어 — 데몬이 보낸 `claim-price-error`(이름은 옛것)를 보관해 카드에 띄운다.
  * 영구 저장 불필요 (세션 알림 목적).
  */
-import { nowSec } from '@sajwo-tracker/shared';
+import { durationText, nowSec } from '@sajwo-tracker/shared';
+import { LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC } from '@sajwo-tracker/shared/ln';
 
 /**
  * 어드민이 보낸 인보이스 거절 사유.
@@ -75,7 +76,7 @@ export function rejectReasonText(e: ClaimPriceError): string {
     case 'AMOUNT_MISMATCH':
       return `금액이 다릅니다. ${e.expectedSats.toLocaleString()} sats로 정확히 다시 만들어 주세요.`;
     case 'EXPIRES_TOO_SOON':
-      return '유효시간이 너무 짧습니다. 최소 6시간 이상으로 만들어 주세요.';
+      return `유효시간이 너무 짧습니다. ${durationText(LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC)} 넘게 남은 인보이스로 다시 만들어 주세요.`;
     case 'EXPIRED_BEFORE_PAYOUT':
       return '인보이스가 만료됐습니다. 새로 만들어 등록해 주세요 — 거래는 그대로 진행됩니다.';
     case 'LIQUIDITY_WARNING':

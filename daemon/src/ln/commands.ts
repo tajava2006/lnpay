@@ -7,12 +7,13 @@
  * 판단이 필요한 건 분쟁 판정(`ln.rule`)뿐이다. 나머지는 자동 경로가 막혔을 때의 예외용이다.
  */
 import type { AdminCommandResult } from '@sajwo-tracker/shared/core';
+import { LN_PAYOUT_MANUAL, LN_PAYOUT_MANUAL_REQUESTED, isManualPayout } from '@sajwo-tracker/shared/ln';
 import type { CommandRegistry } from '../admin/commands';
 import { checkTarget } from '../orders/directory';
 import type { LnContext } from './context';
 import { approve, beginClose, requestPayout, revertClaim } from './flow';
 import { sendRevealRequest } from './messages';
-import { getOrder, requestDetail, type LnOrderRow } from './store';
+import { getOrder, requestDetail, updateOrder, type LnOrderRow } from './store';
 
 type LnCommand = (order: LnOrderRow, args: Record<string, unknown>) => { error?: string; result?: unknown };
 
@@ -68,6 +69,28 @@ export function registerLnCommands(registry: CommandRegistry, ctx: LnContext): v
     if (order.state !== 'paid' && order.state !== 'sponsor_wins') return { error: 'bad-state' };
     if (order.disbursed) return { error: 'already-disbursed' };
     requestPayout(ctx, order.order_id);
+    return {};
+  });
+
+  /**
+   * 자동 지급을 멈추고 운영자가 직접 처리한다 — 경로가 오래 없는데 후원자 인보이스 만료는 한참 남았을 때(만료 전엔 교체를
+   * 안 받는다 — RISKS T-014). **바로 멈추지 않는다**: 지급기가 지금 인보이스를 추적해 성공도 진행 중도 아님을 본 뒤에
+   * `manual`이 된다. 진행 중이면 기다리고, 그 사이 나가면 그냥 완료다. `manual` 전에 직접 결제하면 두 번 나갈 수 있다.
+   */
+  register('ln.manual-payout', order => {
+    if (order.state !== 'paid' && order.state !== 'sponsor_wins') return { error: 'bad-state' };
+    if (order.disbursed) return { error: 'already-disbursed' };
+    if (isManualPayout(order.payout_error)) return { error: 'already-manual' };
+    updateOrder(ctx, order.order_id, { payout_error: LN_PAYOUT_MANUAL_REQUESTED });
+    requestPayout(ctx, order.order_id);
+    return {};
+  });
+
+  /** 운영자가 노드에서 직접 결제했다 — 기록만 한다(데몬은 결제하지 않는다). 데몬이 멈춤을 확인한(`manual`) 뒤에만 */
+  register('ln.mark-disbursed', order => {
+    if (order.disbursed) return { error: 'already-disbursed' };
+    if (order.payout_error !== LN_PAYOUT_MANUAL) return { error: 'not-manual' };
+    updateOrder(ctx, order.order_id, { disbursed: 1 });
     return {};
   });
 

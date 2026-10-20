@@ -33,6 +33,8 @@ export interface LnCardInput {
   receivedAccount?: AccountInfo;
   /** 후원자: 인보이스 거절 통보 문구 (있으면 다시 내야 한다) */
   invoiceRejection?: string;
+  /** 후원자: 위 통보가 거절이 아니라 경고다(유동성 — 등록은 됐다) */
+  invoiceRejectionIsWarning?: boolean;
   /** 후원자: 어드민이 분쟁 중재로 계좌 공개를 요청했다 */
   revealRequested?: boolean;
   now: number;
@@ -184,7 +186,9 @@ export function lnCardView(input: LnCardInput): LnCardView {
     const rejected = input.invoiceRejection ?? null;
     const resubmit = rejected !== null && (
       state === 'invoiced' || state === 'remitted'
-      || ((state === 'paid' || state === 'sponsor_wins') && !order?.disbursed)
+      // 지급이 시작된 뒤엔 데몬이 옛 인보이스의 만료를 확인해야 바꿔 준다(두 번 지급 방지) — 그 전에 낸 건 무시된다.
+      // 등록 때의 유동성 경고로 칸을 열면 내도 아무 일이 없다. 만료되면 데몬이 통지·푸시를 따로 보낸다
+      || ((state === 'paid' || state === 'sponsor_wins') && !order?.disbursed && !input.invoiceRejectionIsWarning)
     );
     if (state === 'escrowed' || resubmit) actions.push({ kind: 'register-invoice', notice: rejected });
     if (state === 'escrowed' && order?.invoiceDeadline) {

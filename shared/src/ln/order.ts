@@ -52,10 +52,34 @@ export const LN_MIN_CLAIM_LEAD_SEC = 60 * 60;
 export const LN_MAX_DEADLINE_LEAD_SEC = 7 * 24 * 60 * 60;
 
 /**
- * 후원자가 낼 지급 인보이스의 최소 잔여 수명 — 원화 송금과 입금 확인이 그 안에 들어가야 한다.
+ * 후원자가 낼 지급 인보이스의 최소 잔여 수명 — 받는 순간 이미 죽어 가는 것만 거른다.
  * 데몬이 거절하고, 유저 앱은 입력 폼에서 미리 거른다(같은 값이어야 한다).
+ *
+ * 예전엔 6시간이었다 — 원화 송금·입금 확인 뒤 지급할 때까지 살아 있으라고. 그런데 BOLT11 기본값이 1시간이라
+ * (Zeus·lightning-kmp도 1시간, LND만 24시간) 흔한 폰 지갑 인보이스가 전부 막혔다(2026-10-20 고객 피드백).
+ * 지급 때 만료돼 있으면 어차피 재제출을 받는다(`LN_PAYOUT_INVOICE_EXPIRED` → 후원자에게 푸시). 돈은 데몬에 있으니
+ * 후원자가 한 번 더 내는 불편뿐이다. 트롤과도 무관하다 — 묶는 시간의 상한은 등록 마감(`INVOICE_WINDOW_SEC`)이 맡는다.
  */
-export const LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC = 6 * 60 * 60;
+export const LN_MIN_SPONSOR_INVOICE_LIFETIME_SEC = 10 * 60;
+
+/**
+ * 지급하려는데 후원자 인보이스가 만료돼 멈춘 상태 — 데몬의 `payout_error` 값. 어드민 화면이 이걸로
+ * "새 인보이스를 기다린다"를 다른 지급 실패와 가른다.
+ */
+export const LN_PAYOUT_INVOICE_EXPIRED = 'invoice-expired';
+
+/**
+ * 운영자가 자동 지급을 멈추라고 했다(`ln.manual-payout`) — 데몬이 지금 인보이스가 성공도 진행 중도 아님을 확인하는 중.
+ * 진행 중이면 기다린다(그 사이 나가면 그냥 완료). **이 상태에서 직접 결제하면 두 번 나갈 수 있다.**
+ */
+export const LN_PAYOUT_MANUAL_REQUESTED = 'manual-requested';
+
+/** 확인 끝 — 데몬은 이 거래에 더 결제하지 않는다. 운영자가 노드에서 직접 결제한 뒤 `ln.mark-disbursed`로 기록한다 */
+export const LN_PAYOUT_MANUAL = 'manual';
+
+/** 자동 지급을 멈춘(또는 멈추는 중인) 거래인가 — 재시도·재제출 어느 것도 이 표시를 넘지 못한다 */
+export const isManualPayout = (payoutError: string | null | undefined): boolean =>
+  payoutError === LN_PAYOUT_MANUAL_REQUESTED || payoutError === LN_PAYOUT_MANUAL;
 
 /** 오더북에서 클레임할 수 있는 의뢰인가 */
 export function isClaimableLn(order: Pick<Order, 'state' | 'expiration'>, nowSec: number): boolean {

@@ -11,6 +11,9 @@ import {
   type AdminChatCopy, type AdminState,
 } from '@sajwo-tracker/shared/core';
 import { raiseAlert } from '../admin/alerts';
+import { chatPushTag } from '../admin/chat';
+import { NOTIFY } from '../ln/notify-messages';
+import { PUSH_EFFECT, type PushMessage, type PushPayload } from '../push/send';
 import { Db } from '../db';
 import { resolveEpoch } from '../nostr/ingress';
 import { STATE_INTERVAL_MS } from '../admin/state';
@@ -185,6 +188,14 @@ function disputeMessage(from: TestKey, appPubkey: string, orderId: string, text:
   }, from.secretKey);
 }
 
+/** 이 사람에게 쌓인 웹 푸시 — 보내기 전 평문이 효과 대기열에 있다 */
+function pushesTo(daemon: import('../runtime').Daemon, pubkey: string): PushMessage[] {
+  return daemon.admin.db.all<{ payload: string }>('SELECT payload FROM effects WHERE kind = ? ORDER BY id', PUSH_EFFECT)
+    .map(r => JSON.parse(r.payload) as PushPayload)
+    .filter(p => p.pubkey === pubkey)
+    .map(p => p.message);
+}
+
 function chatCopies(h: Harness, operator: TestKey): AdminChatCopy[] {
   return eventsTo(h.relay, operator.pubkey, ADMIN_ACTIONS.CHAT)
     .map(e => JSON.parse(nip44Decrypt(e.content, operator.secretKey, h.app.pubkey)) as AdminChatCopy);
@@ -248,6 +259,41 @@ describe('분쟁 채팅 중계', () => {
     for (const op of h.operators) {
       expect(chatCopies(h, op)).toMatchObject([{ from: h.app.pubkey, to: sponsor.pubkey, role: 'admin', originalId: eventId }]);
     }
+  });
+
+  /** 유저 앱은 거래 화면을 열어 둔 동안만 채팅을 받는다 — 알림이 없으면 운영자 질문을 모른다(2026-10-20 고객 피드백) */
+  it('chat.send — 받는 사람에게만 웹 푸시, 내용은 싣지 않고 그 거래 화면으로', async () => {
+    const { h, customer, sponsor } = withOrder();
+    const daemon = h.start();
+    await command(h, daemon, { cmd: 'chat.send', args: { track: 'ln', orderId: 'o-1', to: sponsor.pubkey, text: '송금 증빙을 올려주세요' } });
+    await command(h, daemon, { cmd: 'chat.send', args: { track: 'ln', orderId: 'o-1', to: customer.pubkey, text: '입금 내역 보여주세요' } });
+
+    const toSponsor = pushesTo(daemon, sponsor.pubkey);
+    expect(toSponsor).toEqual([{
+      title: '페어바이', body: NOTIFY.operatorMessage('fulfill', 'ln').body, url: '/?order=o-1', tag: chatPushTag('o-1'),
+    }]);
+    expect(toSponsor[0]!.body).not.toContain('송금 증빙'); // 잠금화면에 뜰 수 있다
+    expect(pushesTo(daemon, customer.pubkey)).toMatchObject([{ url: '/?tab=request&order=o-1', tag: chatPushTag('o-1') }]);
+    // 거래 알림(tag = 오더 id)을 덮어 지우지 않는다
+    expect(chatPushTag('o-1')).not.toBe('o-1');
+  });
+
+  it('chat.send — 온체인이면 온체인 화면으로', async () => {
+    const h = createHarness();
+    const customer = newKey();
+    h.directory.set('onchain', 'oc-1', { version: 1, customer: customer.pubkey });
+    const daemon = h.start();
+    await command(h, daemon, { cmd: 'chat.send', args: { track: 'onchain', orderId: 'oc-1', to: customer.pubkey, text: 'hi' } });
+    expect(pushesTo(daemon, customer.pubkey)).toMatchObject([{ url: '/?track=onchain&tab=request&order=oc-1' }]);
+  });
+
+  /** 유저 → 운영자 방향은 운영자 DM이 맡는다 — 보낸 유저 자신의 폰을 울리지 않는다 */
+  it('유저가 보낸 메시지로는 웹 푸시가 안 나간다', async () => {
+    const { h, customer } = withOrder();
+    const daemon = h.start();
+    h.relay.inject(disputeMessage(customer, h.app.pubkey, 'o-1', '입금 안 됐어요', h.sec()));
+    await h.settle(daemon);
+    expect(daemon.admin.db.all('SELECT 1 FROM effects WHERE kind = ?', PUSH_EFFECT)).toHaveLength(0);
   });
 
   it('chat.send 거절 — 모르는 오더 · 당사자 아님 · 빈 글 · 너무 김', async () => {

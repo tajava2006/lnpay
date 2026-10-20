@@ -9,10 +9,10 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { dateTimeText, lnOrderDisplay, type AdminLnOrderDetail, type Order } from '@sajwo-tracker/shared';
-import { LN_CLOSE_REASON_LABEL, isLnCloseReason } from '@sajwo-tracker/shared/ln';
+import { LN_CLOSE_REASON_LABEL, LN_PAYOUT_MANUAL, isLnCloseReason, isManualPayout } from '@sajwo-tracker/shared/ln';
 import { sendCommand } from '../daemon/client';
 import { chats, lnDetails, lnOrders } from '../daemon/stores';
-import { WAITING_DETAIL_TEXT, commandResultText, shortNpub } from '../format';
+import { WAITING_DETAIL_TEXT, commandResultText, lnPayoutText, shortNpub } from '../format';
 import { DisputeChat } from './DisputeChat';
 import { ui } from '../ui';
 
@@ -77,6 +77,7 @@ function reasonLabel(reason: string): string {
 function Summary({ order, detail }: { order: Order | undefined; detail: AdminLnOrderDetail | undefined }) {
   const price = detail?.price ?? order?.price;
   const deadline = detail?.deadline ?? order?.expiration;
+  const payout = detail ? lnPayoutText(detail) : null;
   return (
     <dl style={ui.dl}>
       <dt>금액</dt><dd>{price ? `${price.toLocaleString()}원` : '—'}{detail?.payoutSat ? ` · 지급 ${detail.payoutSat.toLocaleString()} sats` : ''}</dd>
@@ -90,10 +91,7 @@ function Summary({ order, detail }: { order: Order | undefined; detail: AdminLnO
         <dt>버전</dt><dd>{detail.version} <span style={ui.note}>· 갱신 {dateTimeText(detail.updatedAt)}</span></dd>
         {detail.closeReason && <><dt>종결 사유</dt><dd>{reasonLabel(detail.closeReason)}</dd></>}
         <dt>지급</dt>
-        <dd>
-          {detail.disbursed ? '완료' : detail.sponsorInvoice ? '대기' : '인보이스 없음'}
-          {detail.payoutError && <span style={ui.warnText}> · 오류: {detail.payoutError}</span>}
-        </dd>
+        <dd style={payout?.warn ? ui.warnText : undefined}>{payout?.text}</dd>
         {detail.escrowSettled && !detail.disbursed && <><dt>에스크로</dt><dd style={ui.warnText}>이미 받음(선제 정산) — 판정이 필요합니다</dd></>}
         {detail.state === 'escrowed' && detail.invoiceDeadline && (
           <><dt>인보이스 마감</dt><dd>{dateTimeText(detail.invoiceDeadline)} — 넘기면 `expired:no-invoice`로 닫힌다</dd></>
@@ -167,7 +165,19 @@ function actionsFor(d: AdminLnOrderDetail): ActionSpec[] {
     });
   }
   if ((d.state === 'paid' || d.state === 'sponsor_wins') && !d.disbursed) {
-    list.push({ cmd: 'ln.retry-payout', label: '지급 지금 다시' });
+    if (d.payoutError === LN_PAYOUT_MANUAL) {
+      list.push({
+        cmd: 'ln.mark-disbursed', label: '지급 완료로 기록',
+        confirm: '노드에서 후원자에게 직접 결제를 마쳤나요? 데몬은 결제하지 않고 기록만 합니다(후원자 화면도 완료로 바뀝니다).',
+      });
+    } else if (!isManualPayout(d.payoutError)) {
+      list.push({ cmd: 'ln.retry-payout', label: '지급 지금 다시' });
+      list.push({
+        cmd: 'ln.manual-payout', label: '자동 지급 멈춤 (직접 처리)', danger: true,
+        confirm: '데몬의 자동 지급을 멈춥니다. 데몬이 지금 인보이스가 안 나간 걸 확인하면 "직접 처리"로 바뀝니다 — '
+          + '그 뒤에 노드에서 직접 결제하세요. 바뀌기 전에 결제하면 두 번 나갈 수 있습니다. 되돌릴 수 없습니다.',
+      });
+    }
   }
   if (d.sponsor && d.accountCommitment && !['paid', 'cancelled', 'expired', 'admin_closed'].includes(d.state)) {
     list.push({ cmd: 'ln.reveal-request', label: '후원자에게 계좌 공개 요청' });

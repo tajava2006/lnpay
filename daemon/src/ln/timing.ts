@@ -103,6 +103,13 @@ export function invoiceDeadlineFor(escrowedAt: number, deadline: number): number
 export const REMITTED_ALERT_SEC = 12 * HOUR;
 
 /**
+ * 지급하려는데 후원자 인보이스가 만료돼 멈춘 지 이만큼 지나도 새 인보이스가 없으면 사람을 부른다. 후원자는 만료 순간
+ * 푸시를 받았다 — 자는 시간을 덮는 길이(`INVOICE_WINDOW_SEC`와 같은 이유). 돈은 데몬에 있어 급하진 않다.
+ * 경로 실패로 다시 하는 지급은 효과 막힘 경보(`admin/stuck.ts`)가 따로 부른다.
+ */
+export const PAYOUT_INVOICE_WAIT_ALERT_SEC = 6 * HOUR;
+
+/**
  * LND가 이만큼 응답하지 않으면 사람을 부른다(RISKS R-3). 데몬은 살아 있어도 LND가 죽으면 선제 settle을 못 한다 —
  * 원화를 보낸 후원자가 잃는 자리다. 선제 settle 창(노드 자동 취소 전까지 ~4시간)보다 한참 먼저 알아야 고칠 틈이 있다.
  */

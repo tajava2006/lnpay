@@ -9,6 +9,7 @@
  * 다만 **꺼져 있던 동안 쌓인 요청**(기한 안에 누른 송금 완료 등)을 먼저 받아야 하므로, 뜨고 나서
  * 잠깐(`CATCHUP_WARMUP_SEC`)은 기한 만료로 닫지 않는다.
  */
+import { durationText } from '@sajwo-tracker/shared/core';
 import { expiryReasonFor, type LnCloseReason } from '@sajwo-tracker/shared/ln';
 import { raiseAlert } from '../admin/alerts';
 import { nowSec } from '../admin/context';
@@ -19,10 +20,12 @@ import {
   approve, approveBlocker, beginClose, planCustomerDeposit, planSponsorDeposit, revertClaim, sponsorDepositOf,
   sponsorDepositRequired,
 } from './flow';
-import { allDrafts, deleteDraft, insertOrder, ordersInStates, type LnOrderRow } from './store';
+import {
+  allDrafts, deleteDraft, insertOrder, ordersInStates, payoutExpiredAtKey, payoutsAwaitingInvoice, type LnOrderRow,
+} from './store';
 import {
   CATCHUP_WARMUP_SEC, CUSTOMER_DEPOSIT_PAY_SEC, DEADLINE_GRACE_SEC, ESCROW_END_BLOCKS, PAY_BY_SKEW_SEC,
-  LND_DOWN_ALERT_SEC, REMITTED_ALERT_SEC, SAFETY_SETTLE_BLOCKS,
+  LND_DOWN_ALERT_SEC, PAYOUT_INVOICE_WAIT_ALERT_SEC, REMITTED_ALERT_SEC, SAFETY_SETTLE_BLOCKS,
 } from './timing';
 
 /** LND가 마지막으로 응답한 시각(초) */
@@ -152,6 +155,17 @@ export class LnWatcher {
           message: '송금 완료 뒤 고객 확인이 오래 없다 — 분쟁 판정이 필요할 수 있다',
         });
       }
+    }
+
+    // ── 지급이 인보이스 만료로 멈춤 — 후원자가 새 인보이스를 오래 안 낸다(푸시는 만료 순간 갔다)
+    for (const order of payoutsAwaitingInvoice(ctx)) {
+      const since = Number(ctx.db.kvGet(payoutExpiredAtKey(order.order_id)) ?? order.updated_at);
+      if (now - since < PAYOUT_INVOICE_WAIT_ALERT_SEC) continue;
+      raiseAlert(ctx, {
+        dedup: `ln:${order.order_id}:payout-waiting:${since}`, level: 'warn', track: 'ln', orderId: order.order_id,
+        message: `후원자 인보이스가 만료돼 지급이 ${durationText(now - since)}째 멈춰 있다 — 새 인보이스 요청은 후원자에게 갔다. `
+          + '채팅으로 연락해 보세요(BTC는 데몬에 있다)',
+      });
     }
   }
 

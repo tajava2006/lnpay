@@ -5,7 +5,7 @@
  * 보는 건 셋 다 같다 — 얼마를, 왜, 어떻게. 금액은 인보이스에서 읽는다(오더에 적힌 값이 아니라).
  */
 import { useMemo, useSyncExternalStore } from 'react';
-import { InvoicePayBlock, type PriceTracker } from '@sajwo-tracker/shared';
+import { HOLD_DEPOSIT_NOTE, InvoicePayBlock, type PriceTracker } from '@sajwo-tracker/shared';
 import { decodeBolt11 } from '../buyer/bolt11';
 import type { PayPurpose } from './card-view';
 
@@ -19,12 +19,12 @@ const TITLE: Record<PayPurpose, string> = {
 
 /** 돌려받는 경우·몰수되는 경우는 데몬의 처리 표(`shared/src/ln/outcomes.ts`)와 같아야 한다 */
 const LEAD: Record<PayPurpose, string> = {
-  'customer-deposit': '장난 의뢰를 막는 보증금입니다. 내면 의뢰가 오더북에 올라갑니다. 거래가 끝나면 돌려받고, '
-    + '후원자가 붙은 뒤 취소하거나, 에스크로를 결제하지 않거나, 계좌 정보를 보내지 않아 기한이 지나면 몰수됩니다.',
-  escrow: '결제한 BTC는 거래가 끝날 때까지 에스크로가 맡아둡니다. 원화가 오지 않으면 돌려받습니다. '
+  'customer-deposit': `${HOLD_DEPOSIT_NOTE.full} 내면 의뢰가 오더북에 올라갑니다. 돌려받지 못하는 건 후원자가 붙은 뒤 `
+    + '내가 취소하거나, 에스크로를 결제하지 않거나, 계좌 정보를 보내지 않아 기한이 지났을 때뿐입니다.',
+  escrow: '결제한 BTC는 거래가 끝날 때까지 에스크로가 맡아둡니다. 원화가 오지 않으면 수수료 포함 전액 그대로 돌려받습니다. '
     + '지갑에서 "대기 중"으로 남아 있는 것이 정상입니다 — 다시 보내지 마세요.',
-  'sponsor-deposit': '공짜 점유를 막는 보증금입니다. 내야 배정이 확정되고, 제한 시간 안에 안 내면 다른 후원자에게 '
-    + '넘어갑니다. 인보이스를 등록하지 않고 떠나거나 분쟁에서 지면 몰수되고, 그 밖에는 돌려받습니다.',
+  'sponsor-deposit': `${HOLD_DEPOSIT_NOTE.full} 내야 배정이 확정되고, 제한 시간 안에 안 내면 다른 후원자에게 넘어갑니다`
+    + '(낸 게 없으니 잃는 것도 없습니다). 돌려받지 못하는 건 인보이스를 등록하지 않고 떠나거나 분쟁에서 졌을 때뿐입니다.',
 };
 
 export function LnPayPanel({ purpose, bolt11, price, tracker }: {

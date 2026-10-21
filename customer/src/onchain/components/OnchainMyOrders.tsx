@@ -5,7 +5,7 @@
  * 카드와 그 규칙은 `OnchainOrderCard.tsx`에 있다.
  */
 import { useSyncExternalStore } from 'react';
-import { InvoicePayBlock } from '@sajwo-tracker/shared';
+import { HOLD_DEPOSIT_NOTE, InvoicePayBlock } from '@sajwo-tracker/shared';
 import { getOnchainOrdersSnapshot, myOnchainOrders, roleIn, subscribeOnchainOrders } from '../store';
 import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit-store';
 import { getSignRequestsSnapshot, signRequestsFor, subscribeSignRequests } from '../sign-request-store';
@@ -93,7 +93,7 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
           </div>
           <p style={styles.warnText}>
             <strong>보증금 {depositAmountText(inv.bolt11)}을 결제해야</strong> 의뢰가
-            오더북에 올라갑니다. 거래가 정상적으로 끝나면 그대로 돌려받습니다.
+            오더북에 올라갑니다. {HOLD_DEPOSIT_NOTE.full}
           </p>
           <InvoicePayBlock bolt11={inv.bolt11} />
         </div>

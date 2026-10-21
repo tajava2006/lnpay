@@ -15,7 +15,7 @@ import {
 } from '@sajwo-tracker/shared/onchain';
 import { sendCommand } from '../daemon/client';
 import { chats, ocDetails, onchainOrders } from '../daemon/stores';
-import { WAITING_DETAIL_TEXT, commandResultText, satsText, shortNpub } from '../format';
+import { WAITING_DETAIL_TEXT, cancelledHoldText, commandResultText, satsText, shortNpub } from '../format';
 import { DisputeChat } from './DisputeChat';
 import { ui } from '../ui';
 
@@ -116,7 +116,7 @@ function Bonds({ detail }: { detail: AdminOcOrderDetail }) {
         <div key={b.role} style={ui.row}>
           <strong>{b.role === 'customer' ? '고객' : '후원자'}</strong>
           <span>{satsText(b.amountSat)}</span>
-          <span>{BOND_STATUS[b.status]}</span>
+          <span>{b.status === 'cancelled' ? cancelledHoldText(b.htlcExpiryHeight) : BOND_STATUS[b.status]}</span>
           {/* 몰수는 판정 시점에 집행된다 — 이 시각을 넘긴 판정은 몰수할 게 없을 수 있다 */}
           <span style={ui.note}>HTLC 만료 추정 {dateTimeText(expiresOf(b.role))}</span>
         </div>

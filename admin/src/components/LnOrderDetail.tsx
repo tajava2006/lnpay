@@ -12,7 +12,7 @@ import { dateTimeText, lnOrderDisplay, type AdminLnOrderDetail, type Order } fro
 import { LN_CLOSE_REASON_LABEL, LN_PAYOUT_MANUAL, isLnCloseReason, isManualPayout } from '@sajwo-tracker/shared/ln';
 import { sendCommand } from '../daemon/client';
 import { chats, lnDetails, lnOrders } from '../daemon/stores';
-import { WAITING_DETAIL_TEXT, commandResultText, lnPayoutText, shortNpub } from '../format';
+import { WAITING_DETAIL_TEXT, cancelledHoldText, commandResultText, lnPayoutText, shortNpub } from '../format';
 import { DisputeChat } from './DisputeChat';
 import { ui } from '../ui';
 
@@ -116,7 +116,7 @@ function Invoices({ detail }: { detail: AdminLnOrderDetail }) {
             <tr key={i}>
               <td style={ui.td}>{INVOICE_PURPOSE[inv.purpose]}</td>
               <td style={ui.td}>{inv.amountSat.toLocaleString()} sats</td>
-              <td style={ui.td}>{INVOICE_STATUS[inv.status]}</td>
+              <td style={ui.td}>{inv.status === 'cancelled' ? cancelledHoldText(inv.htlcExpiryHeight) : INVOICE_STATUS[inv.status]}</td>
               <td style={ui.td}>{dateTimeText(inv.payBy)}</td>
               <td style={ui.td}>
                 {inv.htlcExpiryHeight

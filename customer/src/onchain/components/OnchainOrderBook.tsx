@@ -13,7 +13,9 @@
  * 클레임 폼을 쓰되 보증금이 없다 — 합의한 조건을 확인하고 위험 고지를 체크한 뒤 수락하면 바로 내가 맡는다.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { DESIGNATED_COPY, InvoicePayBlock, freshPrice, guarded, type PriceTracker } from '@sajwo-tracker/shared';
+import {
+  DESIGNATED_COPY, HOLD_DEPOSIT_NOTE, InvoicePayBlock, freshPrice, guarded, type PriceTracker,
+} from '@sajwo-tracker/shared';
 import {
   FUNDING_WINDOW_SEC, MempoolChainAdapter, PRESIGN_WINDOW_SEC, RESERVE_MIN_GAP_PERCENT, TYPICAL_SETTLEMENT_VSIZE,
   addressProblem, durationText, releaseFeerateProblem, type FeeEstimates, type OnchainOrder,
@@ -107,8 +109,9 @@ function OnchainBookCardBody({ order, invoice, price }: {
         <div style={styles.invoiceBox}>
           <p style={styles.invoiceNote}>
             <strong>보증금 {depositAmountText(invoice.bolt11)}</strong>을 결제하면
-            이 의뢰를 맡게 됩니다. 거래가 정상적으로 끝나면 <strong>그대로 돌려받습니다.</strong>
+            이 의뢰를 맡게 됩니다.
           </p>
+          <p style={styles.invoiceNote}>{HOLD_DEPOSIT_NOTE.full}</p>
           <p style={styles.invoiceNote}>
             ⚠️ 같은 의뢰에 다른 분도 보증금을 내고 있을 수 있습니다 —
             <strong> 결제가 먼저 확인된 쪽이 맡습니다.</strong> 늦은 쪽은 결제가

@@ -13,6 +13,7 @@ export const styles = {
   meta: { fontSize: 12, color: '#6B7280' },
   section: { display: 'flex', flexDirection: 'column' as const, gap: 8, borderTop: '1px solid #F3F4F6', paddingTop: 12 },
   sectionTitle: { margin: 0, fontSize: 13, fontWeight: 600 as const, color: '#374151' },
+  sectionNote: { margin: 0, fontSize: 12, color: '#4B5563', lineHeight: 1.6 },
   input: { padding: '9px 11px', fontSize: 14, border: '1px solid #D1D5DB', borderRadius: 8 },
   primary: { padding: '11px', fontSize: 14, fontWeight: 600 as const, background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
   disabled: { padding: '11px', fontSize: 14, fontWeight: 600 as const, background: '#E5E7EB', color: '#9CA3AF', border: 'none', borderRadius: 8, cursor: 'not-allowed' },

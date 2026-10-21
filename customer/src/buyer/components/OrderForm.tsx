@@ -125,7 +125,7 @@ export function OrderForm() {
         */}
         <p style={styles.expiryHint}>
           {designated
-            ? '지정한 상대만 맡을 수 있고 오더북에는 올라가지 않습니다. 상대 앱의 사주기 탭에 바로 뜹니다.'
+            ? '지정한 상대만 맡을 수 있고 오더북에는 올라가지 않습니다. 상대 앱의 "의뢰 맡기" 탭에 바로 뜹니다.'
             : '급하지 않으면 길게 잡아두세요. 후원자는 언제 붙을지 모릅니다.'}
         </p>
         {Number(expiryHours) > 24 && (

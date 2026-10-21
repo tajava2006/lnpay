@@ -57,10 +57,10 @@ function OrderCardBody({ order, now, myPubkey }: Props) {
               onClick={() => void handleClaim()}
               disabled={claiming}
             >
-              {claiming ? '발행 중...' : '사줄게'}
+              {claiming ? '보내는 중...' : '맡기'}
             </button>
             <p style={styles.hint}>
-              맡겠다는 표시만 합니다. 보증금이 요구되면 그걸 내야 배정이 확정되고, 고객이 결제를 마치면 BTC 받을
+              맡겠다는 표시만 합니다. 보증금을 내야 배정이 확정되고, 고객이 결제를 마치면 BTC 받을
               인보이스를 등록하게 됩니다. {HOLD_DEPOSIT_NOTE.short}
             </p>
           </>

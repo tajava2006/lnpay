@@ -98,11 +98,11 @@ describe('resolveProgress', () => {
     expect(steps[steps.length - 1]!.status).toBe('current');
   });
 
-  it('보증금 안내는 클레임하는 자리(requested)에 조건부로 붙는다', () => {
-    // 보증금을 내는 시점이 "사줄게"를 누를 때라 안내도 거기 있어야 한다.
-    // claimed는 어드민이 금액을 확정하는 대기 구간이라 후원자가 할 일이 없다.
+  it('보증금 안내는 클레임하는 자리(requested)에 붙는다 — 거래 방해 방지·잘못하지 않는 한 전액', () => {
+    // 보증금을 내는 시점이 "맡기"를 누를 때라 안내도 거기 있어야 한다.
+    // claimed는 에스크로가 금액을 확정하는 대기 구간이라 후원자가 할 일이 없다.
     const requested = resolveProgress('sponsor', 'requested').steps[idx('requested')]!;
-    expect(requested.actions.some(a => a.optional)).toBe(true);
+    expect(requested.actions.some(a => /보증금을 결제해야.*수수료 포함 전액/.test(a.text))).toBe(true);
   });
 });
 
@@ -199,12 +199,24 @@ describe('후원자 보증금 대기', () => {
     expect(resolveProgress('customer', 'claimed', pending).steps[idx('requested')]!.isMyTurn).toBe(false);
   });
 
-  it('보증금이 걸려 있으면 보증금 안내에서 "요구될 수 있음"을 뗀다', () => {
-    const optional = (p: ReturnType<typeof resolveProgress>) =>
-      p.steps[idx('requested')]!.actions.filter(a => /보증금/.test(a.text)).map(a => a.optional);
-    expect(optional(resolveProgress('sponsor', 'claimed', pending))).toEqual([false]);
-    expect(optional(resolveProgress('sponsor', 'requested'))).toEqual([true]);
-    expect(optional(resolveProgress('customer', 'claimed', pending))).toEqual([false]);
+  /** 공개 거래의 보증금은 항상 있다(2026-10-22) — "요구될 수 있음" 같은 조건부 표시 없이, 지정 거래에서만 뺀다 */
+  it('보증금 안내는 공개 거래면 늘 보이고, 지정 거래면 빠진다', () => {
+    const depositLines = (p: ReturnType<typeof resolveProgress>) =>
+      p.steps[idx('requested')]!.actions.filter(a => /보증금/.test(a.text));
+    expect(depositLines(resolveProgress('sponsor', 'requested'))).toHaveLength(1);
+    expect(depositLines(resolveProgress('sponsor', 'claimed', pending))).toHaveLength(1);
+    expect(depositLines(resolveProgress('customer', 'requested'))).toHaveLength(1);
+    expect(depositLines(resolveProgress('sponsor', 'requested', { designated: true }))).toHaveLength(0);
+    expect(depositLines(resolveProgress('customer', 'requested', { designated: true }))).toHaveLength(0);
+  });
+
+  /** 취소·만료는 누구 잘못이냐에 따라 보증금이 다르다 — "전부 환불"은 몰수된 쪽에 거짓말이다 */
+  it('취소·만료 설명은 에스크로 전액 환불과 보증금(종료 사유 확인)을 가른다', () => {
+    for (const state of ['cancelled', 'expired'] as const) {
+      const d = resolveProgress('customer', state).terminal!.description;
+      expect(d).toMatch(/에스크로로 결제한 BTC는 수수료 포함 전액/);
+      expect(d).toMatch(/종료 사유를 확인/);
+    }
   });
 
   it('보증금이 들어왔거나 없으면 "후원자 확정"', () => {

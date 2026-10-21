@@ -192,7 +192,7 @@ export function lnCardView(input: LnCardInput): LnCardView {
     );
     if (state === 'escrowed' || resubmit) actions.push({ kind: 'register-invoice', notice: rejected });
     if (state === 'escrowed' && order?.invoiceDeadline) {
-      const forfeit = designatedTo ? '' : '(보증금이 있으면 몰수)';
+      const forfeit = designatedTo ? '' : '(보증금 몰수)';
       notes.push(`인보이스 등록 마감: ${remainingText(order.invoiceDeadline - now, '지남')} — 넘기면 거래가 닫힙니다${forfeit}.`);
     }
 

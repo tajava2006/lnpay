@@ -137,7 +137,8 @@ const styles = {
     padding: '6px 12px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280',
     fontSize: 13, fontWeight: 500 as const, cursor: 'pointer' as const, fontFamily: 'inherit',
   },
-  chipOn: { background: '#4F46E5', borderColor: '#4F46E5', color: '#fff', fontWeight: 600 as const },
+  // `chip`과 같은 속성(border)으로 덮는다 — borderColor만 덮으면 끌 때 테두리가 글자색으로 남는다(App.tsx `tabOn`)
+  chipOn: { background: '#4F46E5', border: '1px solid #4F46E5', color: '#fff', fontWeight: 600 as const },
   list: { display: 'flex', flexDirection: 'column' as const, gap: 12 },
   empty: { textAlign: 'center' as const, padding: 48, color: '#666', fontSize: 14 },
   error: { padding: 12, marginBottom: 12, fontSize: 13, color: '#991B1B', background: '#FEF2F2', borderRadius: 8 },

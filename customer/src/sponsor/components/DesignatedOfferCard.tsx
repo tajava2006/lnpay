@@ -43,7 +43,7 @@ function DesignatedOfferCardBody({ order, now }: { order: Order; now: number }) 
       </p>
       {sentAt !== null ? (
         <>
-          <p style={styles.sent}><span className="spinner" /> 수락을 보냈습니다 — 확인되면 "내가 사주는 중"으로 옮겨 갑니다.</p>
+          <p style={styles.sent}><span className="spinner" /> 수락을 보냈습니다 — 확인되면 "내가 맡은 의뢰"로 옮겨 갑니다.</p>
           {slow && (
             <>
               <p style={styles.hint}>응답이 늦습니다. 기한이 코앞이거나 다른 기기의 키로 지정됐을 수 있습니다.</p>

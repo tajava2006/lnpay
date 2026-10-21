@@ -317,7 +317,7 @@ export const OUTCOME_RULES: Record<OnchainOutcome, OutcomeRule> = {
     // 양쪽 보증금은 CLTV 타임아웃으로 자동 환불된다 — 그게 맞는 결과다.
     terminal: 'swept',
     sponsorBond: 'expired', customerBond: 'expired',
-    arbitrated: false, label: '타임락 회수 — 어드민 부재',
+    arbitrated: false, label: '타임락 회수 — 에스크로 응답 없음',
   },
 };
 

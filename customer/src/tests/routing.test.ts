@@ -10,7 +10,7 @@ import { orderLink } from '@sajwo-tracker/shared';
 import { parseRoute, urlFor } from '../routing';
 
 describe('주소 읽기', () => {
-  it('아무것도 없으면 기본 화면 (라이트닝 + 사주기)', () => {
+  it('아무것도 없으면 기본 화면 (라이트닝 + 의뢰 맡기)', () => {
     expect(parseRoute('')).toEqual({ track: 'ln', tab: 'fulfill', orderId: null });
   });
 

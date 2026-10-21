@@ -243,7 +243,8 @@ const styles = {
     background: '#fff', border: '1px solid #D1D5DB', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
     fontSize: 14, color: '#374151', textAlign: 'left' as const,
   },
-  modeOn: { borderColor: '#4F46E5', background: '#EEF2FF', color: '#3730A3' },
+  // `mode`와 같은 속성(border)으로 덮는다 — borderColor만 덮으면 끌 때 테두리가 글자색으로 남는다(App.tsx `tabOn`)
+  modeOn: { border: '1px solid #4F46E5', background: '#EEF2FF', color: '#3730A3' },
   modeSub: { fontSize: 11, color: '#6B7280' },
   counterparty: { display: 'flex', flexDirection: 'column' as const, gap: 8, width: '100%' },
   label: { display: 'flex', flexDirection: 'column' as const, gap: 6, fontSize: 13, fontWeight: 600 as const, color: '#374151' },

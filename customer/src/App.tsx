@@ -47,7 +47,7 @@ const TRACKS: Array<{ key: Track; label: string }> = [
  * "여기서 당신이 무엇을 하는가"를 말하면 그 오해가 구조적으로 사라진다.
  */
 const TAB_LABELS: Record<Track, Record<Tab, string>> = {
-  ln: { request: '의뢰하기', fulfill: '사주기', history: '내 거래' },
+  ln: { request: '의뢰하기', fulfill: '의뢰 맡기', history: '내 거래' },
   onchain: { request: '팔기', fulfill: '사기', history: '내 거래' },
 };
 
@@ -326,9 +326,11 @@ const styles = {
     cursor: 'pointer' as const,
     fontFamily: 'inherit',
   },
+  // 밑줄은 `tab`과 **같은 속성(borderBottom)**으로 덮는다. `borderBottomColor`로 덮으면 탭을 떠날 때 React가 그 칸만
+  // 지워 2px 밑줄이 글자색으로 남았다 — 한 번 연 탭에만 회색 밑줄이 붙었다(2026-10-22 모바일). 아래 border 류 전부 같은 규칙
   tabOn: {
     color: '#4F46E5',
-    borderBottomColor: '#4F46E5',
+    borderBottom: '2px solid #4F46E5',
     fontWeight: 700 as const,
   },
   version: {

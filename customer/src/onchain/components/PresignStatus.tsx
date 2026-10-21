@@ -19,17 +19,17 @@ export function PresignStatus({ order, now }: { order: OnchainOrder; now: number
   const [busy, setBusy] = useState(false);
 
   if (isPast(presignDeadlineOf(order), now)) {
-    return <p style={styles.dangerText}>사전서명 마감이 지났습니다. 거래가 환불로 넘어갑니다.</p>;
+    return <p style={styles.dangerText}>처리 마감이 지났습니다. 거래가 환불로 넘어갑니다.</p>;
   }
   if (claim) {
-    return <p style={styles.okText}>앱이 자동으로 사전서명합니다. 이 화면을 열어 두세요.</p>;
+    return <p style={styles.okText}>앱이 자동으로 처리합니다. 이 화면을 열어 두세요.</p>;
   }
   return (
     <div style={styles.section}>
       <p style={styles.sectionTitle}>받을 주소를 다시 입력하세요</p>
       <p style={styles.warnText}>
         이 기기에는 클레임 때 낸 받을 주소·수수료율 기록이 없습니다. <strong>그때와 똑같이</strong>
-        입력하면 앱이 바로 사전서명합니다. 마감을 넘기면 {order.designatedSponsor ? '거래가 환불됩니다' : '보증금을 잃습니다'}.
+        입력하면 앱이 바로 처리합니다. 마감을 넘기면 {order.designatedSponsor ? '거래가 환불됩니다' : '보증금을 잃습니다'}.
       </p>
       <input style={styles.input} placeholder="받을 주소" value={address} onChange={e => setAddress(e.target.value)} />
       <input
@@ -48,7 +48,7 @@ export function PresignStatus({ order, now }: { order: OnchainOrder; now: number
           void presignNow(order).finally(() => setBusy(false));
         }}
       >
-        {busy ? '서명 중…' : '사전서명하기'}
+        {busy ? '처리 중…' : '입력하고 진행'}
       </button>
     </div>
   );

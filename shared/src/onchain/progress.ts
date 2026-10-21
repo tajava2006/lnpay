@@ -98,7 +98,7 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
       { text: '최저가를 걸어두면 그보다 낮은 시세에서는 체결되지 않습니다.', optional: true },
     ],
     sponsor: [
-      { text: '사기로 하면 보증금 인보이스가 발행됩니다.', designated: '나를 지정한 의뢰입니다. 수락하면 보증금 없이 바로 내가 맡습니다.' },
+      { text: "'사기'를 누르면 보증금 인보이스가 발행됩니다.", designated: '나를 지정한 의뢰입니다. 수락하면 보증금 없이 바로 내가 맡습니다.' },
       {
         text: '**결제한 분이 가져갑니다.** 여러 명이 동시에 시도해도 되고, 결제 전에는 아무도 이 의뢰를 붙잡지 않습니다.',
         designated: null,
@@ -111,8 +111,8 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     title: '에스크로 입금 (컨펌까지)',
     actor: 'customer',
     customer: [
+      // 주소 검증은 앱이 알아서 한다 — 어떻게 하는지는 말하지 않는다(2026-10-22). 실패하면 주소 칸이 경고로 바뀐다
       { text: '화면의 에스크로 주소로 **정확한 수량**을 보냅니다. 금액이 다르면 처리되지 않습니다.' },
-      { text: '앱이 그 주소를 내 키로 직접 다시 만들어 대조합니다. **경고가 뜨면 절대 보내지 마세요.**' },
       { text: `**${FUNDING} 안에 컨펌까지** 끝나야 합니다. 보내는 것만으로는 부족하니 수수료를 넉넉히 잡으세요.` },
       {
         text: '늦으면 거래가 취소되고 **내 보증금이 몰수됩니다.** 안 잡히면 RBF·CPFP로 수수료를 올릴 수 있습니다.',
@@ -127,17 +127,18 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
   },
   {
     state: 'funded',
-    title: '가격 확정 · 사전서명',
+    // 사전서명은 앱이 알아서 한다 — 유저가 할 일은 앱을 여는 것뿐이라 그 말만 한다(2026-10-22)
+    title: '가격 확정',
     actor: 'sponsor',
     customer: [
       { text: '컨펌 시점 시세로 받을 원화가 확정됐습니다.' },
-      { text: `상대방 앱이 서명할 때까지 기다립니다. ${PRESIGN}이 지나면 환불로 넘어갑니다.` },
+      { text: `상대방 앱이 확인을 마칠 때까지 기다립니다. ${PRESIGN}이 지나면 환불로 넘어갑니다.` },
     ],
     sponsor: [
-      { text: '앱이 입금을 확인하고 **자동으로 사전서명**합니다. 고민할 것은 없습니다.' },
+      { text: '앱이 입금을 확인하고 **자동으로 처리**합니다. 이 화면을 열어 두기만 하면 됩니다.' },
       {
-        text: `**${PRESIGN} 안에** 앱이 깨어나야 합니다. 넘기면 거래가 환불되고 **내 보증금이 몰수됩니다.**`,
-        designated: `**${PRESIGN} 안에** 앱이 깨어나야 합니다. 넘기면 거래가 환불됩니다.`,
+        text: `**${PRESIGN} 안에** 앱을 열어야 처리됩니다. 넘기면 거래가 환불되고 **내 보증금이 몰수됩니다.**`,
+        designated: `**${PRESIGN} 안에** 앱을 열어야 처리됩니다. 넘기면 거래가 환불됩니다.`,
       },
       { text: '받을 sats = 판매 수량 − 네트워크 수수료입니다. 수수료율은 내가 정했고 내가 부담합니다.' },
     ],
@@ -180,7 +181,7 @@ export const ONCHAIN_PROGRESS_STEPS: readonly OnchainProgressStep[] = [
     actor: 'chain',
     customer: [
       { text: '종결 트랜잭션이 블록에 들어가기를 기다립니다.' },
-      { text: '이 단계에서는 되돌릴 수 없습니다. 멤풀에서 사라지면 같은 트랜잭션을 다시 뿌립니다.' },
+      { text: '이 단계에서는 되돌릴 수 없습니다.' },
       { text: '수수료가 낮아 안 잡히면 내 지갑에서 **받은 출력으로 CPFP**해서 올릴 수 있습니다.', receiverOnly: true },
     ],
     sponsor: [

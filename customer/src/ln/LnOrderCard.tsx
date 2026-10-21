@@ -105,7 +105,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
     if (confirm('이 의뢰를 목록에서 지우시겠습니까?')) deleteOrder(orderId);
   };
 
-  const roleLabel = view.role === 'customer' ? '내 의뢰' : view.role === 'sponsor' ? '내가 사주는 중' : null;
+  const roleLabel = view.role === 'customer' ? '내 의뢰' : view.role === 'sponsor' ? '내가 맡은 의뢰' : null;
   const closeReason = view.closeReason && isLnCloseReason(view.closeReason) ? LN_CLOSE_REASON_LABEL[view.closeReason] : null;
 
   function renderAction(action: LnAction) {
@@ -143,7 +143,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
               {busy === 'reveal' ? '보내는 중...' : '계좌정보 공개'}
             </button>
             <span style={styles.revealHint}>
-              어드민이 분쟁 중재를 위해 계좌정보 공개를 요청했습니다. 받은 계좌를 그대로 제출하면 커밋먼트와 대조됩니다.
+              운영자가 분쟁 중재를 위해 계좌정보 공개를 요청했습니다. 받은 계좌를 그대로 제출하면 고객이 보낸 계좌와 대조됩니다.
             </span>
           </div>
         );

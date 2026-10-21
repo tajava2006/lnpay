@@ -91,7 +91,6 @@ function Step({ step, isLast }: { step: ResolvedStep; isLast: boolean }) {
               }}
             >
               {action.text}
-              {action.optional && <span style={styles.optional}>요구될 수 있음</span>}
             </li>
           ))}
         </ul>
@@ -215,16 +214,5 @@ const styles = {
   action: {
     fontSize: 12,
     lineHeight: 1.6,
-  },
-  optional: {
-    display: 'inline-block',
-    marginLeft: 6,
-    fontSize: 10,
-    fontWeight: 600 as const,
-    color: '#92400E',
-    background: '#FEF3C7',
-    borderRadius: 4,
-    padding: '1px 5px',
-    whiteSpace: 'nowrap' as const,
   },
 };

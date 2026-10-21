@@ -31,13 +31,11 @@ export type StepActor = ProgressRole | 'admin';
 export interface StepAction {
   text: string;
   /**
-   * 조건부 항목. 보증금은 어드민 설정(퍼센트 0이면 없음)과 hold invoice 생성
-   * 성공 여부에 달려 있어, 아직 오지 않은 단계에서는 요구될지 알 수 없다.
+   * 지정 거래에서 대신 쓸 문구 — `null`이면 지정 거래에선 뺀다. 없으면 같은 문구.
+   *
+   * 공개 거래의 보증금은 **항상 있다**(2026-10-22 운영 결정 — 유저가 없을 때도 트롤이 찜하고 거래를 깼다). 예전의 "요구될
+   * 수 있음" 조건부 표시는 없앴다. 보증금이 없는 건 지정 거래뿐이고 그건 이 칸이 맡는다.
    */
-  optional?: boolean;
-  /** 후원자 보증금 안내 — 보증금이 실제로 걸려 있으면(`sponsorDepositPending`) 조건부 표시를 뗀다 */
-  sponsorDeposit?: boolean;
-  /** 지정 거래에서 대신 쓸 문구 — `null`이면 지정 거래에선 뺀다. 없으면 같은 문구 */
   designated?: string | null;
 }
 
@@ -69,18 +67,19 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
       { text: '후원자가 의뢰를 가져갈 때까지 기다립니다.', designated: '지정한 상대가 수락할 때까지 기다립니다.' },
       {
         text: '후원자가 보증금을 내야 확정됩니다. 제한 시간 안에 안 내면 다른 후원자를 다시 기다립니다.',
-        optional: true, sponsorDeposit: true, designated: null,
+        designated: null,
       },
     ],
     sponsor: [
       {
-        text: "'사줄게'를 누르면 이 의뢰를 맡게 됩니다. 먼저 누른 분에게 배정됩니다.",
+        text: "'맡기'를 누르면 이 의뢰를 맡게 됩니다. 먼저 누른 분에게 배정됩니다.",
         designated: "'수락'을 누르면 이 의뢰를 맡게 됩니다. 나를 지정한 의뢰라 다른 사람은 맡을 수 없습니다.",
       },
       {
-        text: '보증금 인보이스가 오면 결제해야 배정이 확정됩니다. 제한 시간 안에 안 내면 다른 후원자에게 넘어갑니다. '
-          + '인보이스를 등록하지 않고 떠나거나 분쟁에서 지면 몰수되고, 그 밖에는 돌려받습니다.',
-        optional: true, sponsorDeposit: true, designated: null,
+        text: '보증금을 결제해야 배정이 확정됩니다. 제한 시간 안에 안 내면 다른 후원자에게 넘어갑니다(낸 게 없으니 잃는 것도 '
+          + '없습니다). 보증금은 거래 방해를 막기 위한 것이라, 받을 인보이스를 등록하지 않고 떠나거나 분쟁에서 지지 않는 한 '
+          + '수수료 포함 전액 돌아옵니다.',
+        designated: null,
       },
       { text: 'BTC 받을 인보이스는 지금이 아니라, 고객이 결제를 마친 뒤에 등록합니다.' },
     ],
@@ -90,10 +89,10 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     title: '후원자 확정',
     actor: 'admin',
     customer: [
-      { text: '어드민이 거래 금액을 확정합니다. 기다리면 됩니다.' },
+      { text: '에스크로가 지금 시세로 거래 금액을 확정합니다. 보통 몇 초면 끝납니다.' },
     ],
     sponsor: [
-      { text: '어드민이 거래 금액을 확정할 때까지 기다립니다. 보통 몇 초면 끝납니다.' },
+      { text: '에스크로가 지금 시세로 거래 금액을 확정합니다. 보통 몇 초면 끝납니다.' },
     ],
   },
   {
@@ -102,11 +101,11 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     actor: 'customer',
     customer: [
       { text: "'결제하기'를 눌러 Lightning 인보이스를 결제합니다." },
-      { text: '결제한 BTC는 거래가 끝날 때까지 어드민이 맡아둡니다. 원화가 오지 않으면 돌려받습니다.' },
+      { text: '결제한 BTC는 거래가 끝날 때까지 에스크로가 맡아둡니다. 원화가 오지 않으면 수수료 포함 전액 돌려받습니다.' },
       { text: '지갑에서 "대기 중"으로 남아 있는 것이 정상입니다. 다시 보내지 마세요.' },
     ],
     sponsor: [
-      { text: '고객이 어드민에게 에스크로 금액을 맡길 때까지 기다리세요.' },
+      { text: '고객이 에스크로 결제를 마칠 때까지 기다립니다.' },
     ],
   },
   {
@@ -155,7 +154,7 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
       { text: '거래가 끝났습니다.' },
     ],
     sponsor: [
-      { text: '등록한 인보이스로 어드민이 BTC를 보내줍니다.' },
+      { text: '등록한 인보이스로 BTC가 지급됩니다.' },
     ],
   },
 ] as const;
@@ -171,9 +170,12 @@ export interface TerminalInfo {
 }
 
 const TERMINALS: Record<TerminalInfo['state'], Omit<TerminalInfo, 'state'>> = {
+  // 취소·만료는 누구 잘못으로 닫혔느냐에 따라 보증금이 다르다(`outcomes.ts`) — "전부 환불"이라고 하면 몰수된 쪽에 거짓말이다.
+  // 사유는 카드의 "종료 사유" 줄이 말한다
   cancelled: {
     label: '취소됨',
-    description: '거래가 취소되었습니다. 결제한 금액이 있다면 환불됩니다.',
+    description: '거래가 취소되었습니다. 에스크로로 결제한 BTC는 수수료 포함 전액 돌려받습니다. 보증금은 내 쪽 잘못으로 '
+      + '닫힌 경우가 아니면 전액 돌아옵니다 — 카드의 종료 사유를 확인하세요.',
   },
   sponsor_wins: {
     label: '후원자 승리',
@@ -189,7 +191,8 @@ const TERMINALS: Record<TerminalInfo['state'], Omit<TerminalInfo, 'state'>> = {
   },
   expired: {
     label: '기한 만료',
-    description: '입금 기한이 지나 거래가 끝났습니다. 결제한 금액은 환불됩니다.',
+    description: '입금 기한이 지나 거래가 끝났습니다. 에스크로로 결제한 BTC는 수수료 포함 전액 돌려받습니다. 보증금은 내 쪽 '
+      + '잘못으로 닫힌 경우가 아니면 전액 돌아옵니다 — 카드의 종료 사유를 확인하세요.',
   },
 };
 
@@ -286,9 +289,7 @@ export function resolveProgress(
       status,
       actor,
       isMyTurn: status === 'current' && actor === role,
-      actions: ctx.sponsorDepositPending
-        ? actions.map(a => (a.sponsorDeposit ? { ...a, optional: false } : a))
-        : actions,
+      actions,
     };
   });
 

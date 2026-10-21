@@ -157,7 +157,7 @@ const SLOW_MS = 45_000;
  */
 const CLAIM_TEXT = {
   public: {
-    open: '사줄게', waiting: '보증금 인보이스를 받는 중…', failed: '보증금 인보이스를 받지 못했습니다',
+    open: '사기', waiting: '보증금 인보이스를 받는 중…', failed: '보증금 인보이스를 받지 못했습니다',
     act: '결제하면', when: '결제하세요', submit: '보증금 인보이스 받기',
   },
   designated: {

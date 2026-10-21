@@ -95,7 +95,7 @@ export function asPush(n: Notice, orderId?: string): { title: string; body: stri
  */
 export const PUSH_WELCOME = {
   title: '페어바이',
-  body: '알림이 등록되었습니다. 거래가 회원님 차례가 되면 여기로 알려드립니다.',
+  body: '알림이 등록되었습니다. 거래가 회원님 차례가 되거나 에스크로 채팅에 메시지가 오면 여기로 알려드립니다.',
   url: '/',
   tag: 'pairbuy-welcome',
 } as const;

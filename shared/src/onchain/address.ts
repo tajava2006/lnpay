@@ -181,7 +181,7 @@ export function verifyEscrowAddress(
   if (descriptor.address !== expectedAddress) {
     return {
       ok: false,
-      reason: '어드민이 발행한 주소가 내 키로 파생한 주소와 다르다',
+      reason: '에스크로가 알려준 주소가 내 키로 직접 만든 주소와 다릅니다.',
       derived: descriptor.address,
     };
   }

@@ -87,7 +87,7 @@ function PublicBook({ tracker, onSelectOrder, orders, synced, myPubkey, now }: P
       {!synced && <div style={styles.syncBadge}>동기화 중...</div>}
       {sponsoring.length > 0 && (
         <>
-          <h2 className="section-title">내가 사주는 중</h2>
+          <h2 className="section-title">내가 맡은 의뢰</h2>
           <div style={{ ...styles.list, marginBottom: 24 }}>
             {sponsoring.map(o => <LnOrderCard key={o.orderId} orderId={o.orderId} tracker={tracker} onOpen={onSelectOrder} />)}
           </div>

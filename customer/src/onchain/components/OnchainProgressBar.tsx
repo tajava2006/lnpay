@@ -12,6 +12,14 @@ interface Props {
   accountInfoSent?: boolean;
 }
 
+/**
+ * 단계표 문구의 `**…**`를 굵게 — 단계표가 강조를 이 표기로 적는다. 예전엔 글자 그대로 그려 별표가 화면에 보였다(2026-10-22).
+ * 짝이 안 맞으면 마지막 조각이 굵어질 뿐 글자는 다 보인다.
+ */
+function Rich({ text }: { text: string }) {
+  return <>{text.split('**').map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part))}</>;
+}
+
 export function OnchainProgressBar({ order, role, accountInfoSent }: Props) {
   const progress = resolveOnchainProgress(role, order.state, {
     accountInfoSent,
@@ -38,12 +46,12 @@ export function OnchainProgressBar({ order, role, accountInfoSent }: Props) {
       {progress.terminal ? (
         <div style={styles.terminal}>
           <strong>{progress.terminal.label}</strong>
-          <p style={styles.desc}>{progress.terminal.description}</p>
+          <p style={styles.desc}><Rich text={progress.terminal.description} /></p>
         </div>
       ) : progress.refunding ? (
         <div style={styles.refunding}>
           <strong>{progress.refunding.label}</strong>
-          <p style={styles.desc}>{progress.refunding.description}</p>
+          <p style={styles.desc}><Rich text={progress.refunding.description} /></p>
         </div>
       ) : progress.disputed ? (
         <div style={styles.dispute}>
@@ -60,7 +68,7 @@ export function OnchainProgressBar({ order, role, accountInfoSent }: Props) {
           </p>
           <ul style={styles.actions}>
             {progress.steps[progress.currentIndex]?.actions.map((a, i) => (
-              <li key={i} style={styles.action}>{a.text}</li>
+              <li key={i} style={styles.action}><Rich text={a.text} /></li>
             ))}
           </ul>
         </div>

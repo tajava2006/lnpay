@@ -125,5 +125,6 @@ const styles = {
   logout: { padding: '6px 12px', fontSize: 12, background: '#fff', color: '#6B7280', border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer' },
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
   tab: { padding: '8px 16px', fontSize: 14, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer' },
-  tabActive: { background: '#4F46E5', color: '#fff', borderColor: '#4F46E5' },
+  // `tab`과 같은 속성(border)으로 덮는다 — borderColor만 덮으면 탭을 떠날 때 테두리가 글자색으로 남는다
+  tabActive: { background: '#4F46E5', color: '#fff', border: '1px solid #4F46E5' },
 };

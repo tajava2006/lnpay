@@ -61,6 +61,18 @@ export function depositWarnings(state: Pick<AdminState, 'settings'> | null): str
 }
 
 /**
+ * 취소된 홀드 인보이스(보증금·에스크로) 한 칸 — **낸 적이 있나**로 가른다. "취소·환불"이라고만 하면 찜하고 보증금을
+ * 안 낸 채 떠난 것도 돈을 냈다 돌려받은 것처럼 보인다(2026-10-21).
+ *
+ * 근거는 HTLC 만기다 — 노드가 잡힌 HTLC를 보고할 때만 데몬이 적는다. 없으면 노드가 결제를 잡은 적이 없다. 기한이 지나
+ * 취소된 인보이스는 노드가 새 결제를 받지 않는다. 그보다 먼저 취소되는 사이에 막 들어온 결제는 곧바로 되돌아가 내는 쪽엔
+ * 실패한 결제로 보이므로 "결제 안 됨"이 맞다.
+ */
+export function cancelledHoldText(htlcExpiryHeight: number | undefined): string {
+  return htlcExpiryHeight ? '취소·환불 (냈다가 돌려받음)' : '결제 안 됨 · 취소';
+}
+
+/**
  * 후원자 지급 단계 — 상태마다 못박는다(새 상태를 넣으면 빌드가 깨진다).
  * later = 아직 지급할 때가 아니다(고객 확인·판정 전) · due = 지급 사유로 닫혔다 · none = 지급 없이 닫혔다
  */

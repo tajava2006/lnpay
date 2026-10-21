@@ -13,7 +13,7 @@
  *      받지 않는다 — 화면이 열어두면 원화만 헛되이 나간다
  */
 import { useSyncExternalStore } from 'react';
-import { DESIGNATED_COPY, ErrorBoundary, InvoicePayBlock, useNow } from '@sajwo-tracker/shared';
+import { DESIGNATED_COPY, ErrorBoundary, HOLD_DEPOSIT_NOTE, InvoicePayBlock, useNow } from '@sajwo-tracker/shared';
 import { onchainStateDisplay, settlementSummary, type OnchainOrder } from '@sajwo-tracker/shared/onchain';
 import { onchainCardView } from '../card-view';
 import type { SignRequest } from '../sign-request-store';
@@ -125,6 +125,7 @@ function OnchainOrderCardBody({ order, role, myPubkey, invoiceBolt11, signReques
       {invoiceBolt11 && (
         <div style={styles.section}>
           <p style={styles.sectionTitle}>보증금 결제</p>
+          <p style={styles.sectionNote}>{HOLD_DEPOSIT_NOTE.full}</p>
           <InvoicePayBlock bolt11={invoiceBolt11} />
         </div>
       )}

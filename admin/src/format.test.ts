@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, PROTOCOL_VERSION, type DaemonSettings, type OrderState } from '@sajwo-tracker/shared';
 import { LN_PAYOUT_INVOICE_EXPIRED, LN_PAYOUT_MANUAL, LN_PAYOUT_MANUAL_REQUESTED } from '@sajwo-tracker/shared/ln';
-import { depositWarnings, lnPayoutText, protocolWarning } from './format';
+import { cancelledHoldText, depositWarnings, lnPayoutText, protocolWarning } from './format';
 
 describe('protocolWarning', () => {
   it('같으면·상태를 아직 모르면 말하지 않는다', () => {
@@ -19,6 +19,14 @@ describe('protocolWarning', () => {
 
   it('이 앱이 옛것이면 새로고침·배포하라고', () => {
     expect(protocolWarning({ protocol: PROTOCOL_VERSION + 1 })).toMatch(/pnpm ship/);
+  });
+});
+
+/** 찜하고 보증금을 안 낸 채 떠난 것이 "취소·환불"로 보여 돈을 냈다 돌려받은 줄 알았다(2026-10-21 mvgpqiwwzcfb) */
+describe('cancelledHoldText', () => {
+  it('노드가 HTLC를 본 적 없으면 결제 안 됨 · 봤으면 환불', () => {
+    expect(cancelledHoldText(undefined)).toBe('결제 안 됨 · 취소');
+    expect(cancelledHoldText(973_780)).toMatch(/^취소·환불/);
   });
 });
 

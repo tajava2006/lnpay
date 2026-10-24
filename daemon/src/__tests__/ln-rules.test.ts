@@ -599,11 +599,11 @@ describe('운영자 DM (NIP-17)', () => {
 
     await say('송금했어요');
     await say('확인 부탁드려요');
-    expect(dmsTo(h, /에스크로 채팅/)).toEqual([`[페어바이] 에스크로 채팅 — 라이트닝 후원자: "송금했어요" (${orderId})`]);
+    expect(dmsTo(h, /운영자 채팅/)).toEqual([`[페어바이] 운영자 채팅 — 라이트닝 후원자: "송금했어요" (${orderId})`]);
 
     h.advance(CHAT_DM_QUIET_SEC);
     await say('아직인가요');
-    expect(dmsTo(h, /에스크로 채팅/)).toHaveLength(2);
+    expect(dmsTo(h, /운영자 채팅/)).toHaveLength(2);
   });
 });
 

@@ -8,16 +8,20 @@
  * 가리지 않으면 운영자 폰이 스팸 창구가 된다.
  *
  * 사본은 어드민 앱만 읽는 우리 kind라 폰을 울리지 않는다. 그래서 유저 메시지는 운영자 DM(NIP-17)도 따로 보낸다.
+ *
+ * **운영자 부르기**(`call`, docs/PLAN-PEER-CHAT.md §6.2)도 이 길로 온다 — 사유와 그 거래의 상대방 대화 키가 실려 있고,
+ * 사본에 그대로 실어 운영자가 두 사람 대화를 읽게 한다(어드민 세 번째 창). 운영자 DM은 조용한 창 없이 바로, 상대방에게는
+ * "상대방이 운영자를 불렀습니다"를 APP으로 보낸다(대화가 공개됐다는 걸 상대도 알아야 한다 — D8).
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
   ADMIN_ACTIONS, MAX_CHAT_TEXT, REQUEST_ACTIONS, MESSAGE_KIND,
-  extractOrderId, nip44Decrypt, nip44Encrypt, orderRef,
+  extractOrderId, isCallPayload, nip44Decrypt, nip44Encrypt, orderRef,
   type AdminChatCopy, type AdminCommandResult, type DisputeMessagePayload, type TrackName,
 } from '@sajwo-tracker/shared/core';
 import type { HandlerResult, InboxEvent } from '../dispatch';
 import { tagValue } from '../dispatch';
-import { NOTIFY, asPush } from '../ln/notify-messages';
+import { NOTIFY, asPush, type Notice, type Tab } from '../ln/notify-messages';
 import { isTrack, roleIn } from '../orders/directory';
 import { PUBLISH_EFFECT, type PublishPayload } from '../nostr/publisher';
 import { queuePush } from '../push/send';
@@ -42,6 +46,7 @@ function isDisputePayload(v: unknown): v is DisputeMessagePayload {
   const p = v as Record<string, unknown>;
   if (p.type === 'text') return typeof p.content === 'string';
   if (p.type === 'account-reveal') return typeof p.accountInfo === 'object' && p.accountInfo !== null;
+  if (p.type === 'call') return isCallPayload(p as unknown as DisputeMessagePayload);
   return false;
 }
 
@@ -77,7 +82,13 @@ export function createChatForwarder(ctx: AdminContext): (event: InboxEvent) => H
       track, orderId, from: event.pubkey, to: ctx.appKey.pubkey, role, payload,
       sentAt: event.created_at, originalId: event.id,
     });
-    dmOperators(ctx, track, orderId, role, payload);
+    if (payload.type === 'call') {
+      callOperators(ctx, track, orderId, role, payload);
+      const counterparty = role === 'customer' ? parties.sponsor : parties.customer;
+      if (counterparty) tellCounterparty(ctx, track, orderId, event.pubkey, counterparty, role === 'customer' ? 'sponsor' : 'customer');
+    } else {
+      dmOperators(ctx, track, orderId, role, payload);
+    }
     return { outcome: 'ok' };
   };
 }
@@ -94,9 +105,35 @@ function dmOperators(
   const what = payload.type === 'text'
     ? `"${text.length > DM_PREVIEW_CHARS ? `${text.slice(0, DM_PREVIEW_CHARS)}…` : text}"`
     : '계좌를 공개했습니다';
-  // "분쟁"이라 부르지 않는다 — 라이트닝은 거래 내내, 온체인도 분쟁 전부터 열려 있는 채팅이다(유저 앱 이름과 같게)
-  notifyOperators(ctx, `에스크로 채팅 — ${TRACK_NAME[track]} ${ROLE_NAME[role]}: ${what} (${orderId})`);
+  // "분쟁"이라 부르지 않는다 — 분쟁 전부터 열 수 있는 채팅이다(유저 앱 이름 "운영자"와 같게)
+  notifyOperators(ctx, `운영자 채팅 — ${TRACK_NAME[track]} ${ROLE_NAME[role]}: ${what} (${orderId})`);
 }
+
+/** 유저가 운영자를 불렀다 — 조용한 창 없이 바로 운영자 폰을 울린다. 부르기는 드물고, 부른 이상 기다리게 하면 안 된다 */
+function callOperators(
+  ctx: AdminContext, track: TrackName, orderId: string, role: keyof typeof ROLE_NAME, payload: DisputeMessagePayload,
+): void {
+  const reason = payload.reason ?? '';
+  const preview = reason.length > DM_PREVIEW_CHARS ? `${reason.slice(0, DM_PREVIEW_CHARS)}…` : reason;
+  const disclosed = payload.peerChatKey ? ' · 상대방과의 대화 공개' : '';
+  notifyOperators(ctx, `운영자 호출 — ${TRACK_NAME[track]} ${ROLE_NAME[role]}: "${preview}"${disclosed} (${orderId})`);
+  // 부르면서 이어 쓴 말로 또 울리지 않게 — 운영자 채팅의 조용한 창을 여기서 시작한다
+  ctx.db.kvSet(`chat.dm:${track}:${orderId}`, String(nowSec(ctx)));
+}
+
+/** 부른 사람마다 한 번만 상대에게 알린다 — 같은 사람이 여러 번 불러도 상대 채팅에 같은 말이 쌓이지 않게 */
+function tellCounterparty(
+  ctx: AdminContext, track: TrackName, orderId: string, caller: string, to: string, toRole: 'customer' | 'sponsor',
+): void {
+  const key = `chat.call:${track}:${orderId}:${caller}`;
+  if (ctx.db.kvGet(key) !== undefined) return;
+  ctx.db.kvSet(key, String(nowSec(ctx)));
+  sendAsApp(ctx, track, orderId, to, toRole, CALL_NOTICE, NOTIFY.operatorCalled);
+}
+
+/** 상대방에게 가는 안내 — 운영자 채팅에 뜬다(그래서 상대 앱의 운영자 칸이 저절로 열린다) */
+export const CALL_NOTICE = '상대방이 운영자를 불렀습니다. 운영자가 이 거래에서 두 분이 나눈 대화를 확인합니다. '
+  + '운영자가 물어보면 여기서 답해 주세요.';
 
 /**
  * 운영자 → 유저. `chat.send` 명령.
@@ -115,6 +152,15 @@ export function chatSend(ctx: AdminContext, args: Record<string, unknown>): Admi
   const role = roleIn(parties, to);
   if (!role) return fail('not-a-party');
 
+  const eventId = sendAsApp(ctx, track, orderId, to, role, text);
+  return { ok: true, cmd: 'chat.send', result: { eventId } };
+}
+
+/** APP 키로 당사자에게 운영자 채팅 한 통 — 발행 · 받는 사람 푸시 · 운영자 사본. 이벤트 id를 돌려준다 */
+function sendAsApp(
+  ctx: AdminContext, track: TrackName, orderId: string, to: string, role: 'customer' | 'sponsor', text: string,
+  push: (tab: Tab, track: TrackName) => Notice = NOTIFY.operatorMessage,
+): string {
   const payload: DisputeMessagePayload = { type: 'text', content: text };
   const createdAt = nowSec(ctx);
   // 증거라 만료를 달지 않는다 (CLAUDE.md 예외 — dispute-message)
@@ -131,12 +177,12 @@ export function chatSend(ctx: AdminContext, args: Record<string, unknown>): Admi
     content: nip44Encrypt(JSON.stringify(payload), ctx.appKey.secretKey, to),
   }, ctx.appKey.secretKey);
   ctx.effects.enqueue<PublishPayload>(PUBLISH_EFFECT, { event }, { dedup: `chat:${event.id}` });
-  pushToRecipient(ctx, to, role, track, orderId);
+  pushToRecipient(ctx, to, role, track, orderId, push);
 
   forwardToOperators(ctx, {
     track, orderId, from: ctx.appKey.pubkey, to, role: 'admin', payload, sentAt: createdAt, originalId: event.id,
   });
-  return { ok: true, cmd: 'chat.send', result: { eventId: event.id } };
+  return event.id;
 }
 
 /**
@@ -149,8 +195,9 @@ export function chatSend(ctx: AdminContext, args: Record<string, unknown>): Admi
  */
 function pushToRecipient(
   ctx: AdminContext, to: string, role: 'customer' | 'sponsor', track: TrackName, orderId: string,
+  push: (tab: Tab, track: TrackName) => Notice,
 ): void {
-  const notice = NOTIFY.operatorMessage(role === 'customer' ? 'request' : 'fulfill', track);
+  const notice = push(role === 'customer' ? 'request' : 'fulfill', track);
   queuePush(ctx, { pubkey: to, message: { ...asPush(notice, orderId), tag: chatPushTag(orderId) } });
 }
 

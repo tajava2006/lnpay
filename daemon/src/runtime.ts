@@ -21,6 +21,7 @@ import { createPublishExecutor, PUBLISH_EFFECT } from './nostr/publisher';
 import type { RelayTransport } from './nostr/transport';
 import { createAdminHandler, createBaseCommands, type CommandRegistry } from './admin/commands';
 import { createChatForwarder } from './admin/chat';
+import { createPeerPinger } from './admin/peer-chat';
 import type { AdminContext } from './admin/context';
 import { STATE_EFFECT, STATE_INTERVAL_MS, createStateExecutor, requestStatePublish } from './admin/state';
 import type { DaemonMode, DaemonTags } from './config';
@@ -102,6 +103,7 @@ export class Daemon {
     this.commands = createBaseCommands();
     const adminHandler = createAdminHandler(this.admin, this.commands);
     const chatForwarder = createChatForwarder(this.admin);
+    const peerPinger = createPeerPinger(this.admin);
     // 홀드 인보이스(라이트닝 에스크로·보증금, 온체인 보증금)는 LN 노드가 있어야 돈다
     this.holds = deps.ln ? new Holds({ ...this.admin, node: deps.ln.node, seed: deps.seed }) : null;
     this.holds?.install();
@@ -133,6 +135,10 @@ export class Daemon {
       }
       if ((t === deps.tags.ln || t === deps.tags.onchain) && action === REQUEST_ACTIONS.DISPUTE_MESSAGE) {
         return chatForwarder;
+      }
+      // 상대방 채팅 — 데몬은 못 연다. 상대에게 푸시만(`admin/peer-chat.ts`)
+      if ((t === deps.tags.ln || t === deps.tags.onchain) && action === REQUEST_ACTIONS.PEER_MESSAGE) {
+        return peerPinger;
       }
       if (t === deps.tags.ln && action && lnHandlers) return lnHandlers.get(action) ?? null;
       if (t === deps.tags.onchain && action && ocHandlers) return ocHandlers.get(action) ?? null;

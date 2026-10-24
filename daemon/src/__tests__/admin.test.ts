@@ -8,10 +8,11 @@ import { unwrapEvent } from 'nostr-tools/nip17';
 import {
   ADMIN_ACTIONS, ADMIN_STATE_KIND, DEFAULT_SETTINGS, PROTOCOL_VERSION, REQUEST_ACTIONS, MESSAGE_KIND,
   adminStateDTag, applySettingsPatch, nip44Decrypt, nip44Encrypt, orderRef,
-  type AdminChatCopy, type AdminState,
+  type AdminChatCopy, type AdminState, type DisputeMessagePayload,
 } from '@sajwo-tracker/shared/core';
 import { raiseAlert } from '../admin/alerts';
-import { chatPushTag } from '../admin/chat';
+import { CALL_NOTICE, chatPushTag } from '../admin/chat';
+import { PEER_PUSH_QUIET_SEC, peerPushTag } from '../admin/peer-chat';
 import { NOTIFY } from '../ln/notify-messages';
 import { PUSH_EFFECT, type PushMessage, type PushPayload } from '../push/send';
 import { Db } from '../db';
@@ -313,6 +314,186 @@ describe('분쟁 채팅 중계', () => {
     await command(h, daemon, { cmd: 'chat.send', args: { track: 'ln', orderId: 'o-1', to: customer.pubkey, text: 'hi' } });
     await h.settle(daemon);
     expect(chatCopies(h, h.operator)).toHaveLength(1);
+  });
+});
+
+// ── 상대방 채팅 · 운영자 부르기 (docs/PLAN-PEER-CHAT.md §6) ──────────────────
+
+function disputePayload(
+  from: TestKey, appPubkey: string, orderId: string, payload: DisputeMessagePayload, createdAt: number, t = TAGS.ln,
+): Event {
+  return finalizeEvent({
+    kind: MESSAGE_KIND,
+    created_at: createdAt,
+    tags: [['a', orderRef(appPubkey, orderId)], ['action', REQUEST_ACTIONS.DISPUTE_MESSAGE], ['t', t], ['p', appPubkey], ['p', from.pubkey]],
+    content: nip44Encrypt(JSON.stringify(payload), from.secretKey, appPubkey),
+  }, from.secretKey);
+}
+
+/** 상대방 채팅 한 통 — 데몬은 내용을 못 연다(거래별 대화 키). 그래서 내용은 아무 문자열이어도 된다 */
+function peerMessage(from: TestKey, to: string, appPubkey: string, orderId: string, createdAt: number, t = TAGS.ln): Event {
+  return finalizeEvent({
+    kind: MESSAGE_KIND,
+    created_at: createdAt,
+    tags: [
+      ['a', orderRef(appPubkey, orderId)], ['action', REQUEST_ACTIONS.PEER_MESSAGE], ['t', t],
+      ['p', to], ['p', from.pubkey], ['p', appPubkey], ['expiration', String(createdAt + 86_400)],
+    ],
+    content: 'ciphertext-under-the-order-key',
+  }, from.secretKey);
+}
+
+const operatorDms = (h: Harness, op: TestKey): string[] => h.relay.published
+  .filter(e => e.kind === 1059 && e.tags.some(t => t[0] === 'p' && t[1] === op.pubkey))
+  .map(e => unwrapEvent(e, op.secretKey).content);
+
+describe('상대방 채팅 → 푸시', () => {
+  function withOrder(sponsored = true) {
+    const h = createHarness({ operators: 2 });
+    const customer = newKey();
+    const sponsor = newKey();
+    h.directory.set('ln', 'o-1', { version: 3, customer: customer.pubkey, ...(sponsored ? { sponsor: sponsor.pubkey } : {}) });
+    return { h, customer, sponsor };
+  }
+
+  it('반대쪽에게만 내용 없이 — 받는 사람 탭으로, 상대방 채팅 태그로. 운영자에게는 아무것도 안 간다', async () => {
+    const { h, customer, sponsor } = withOrder();
+    const daemon = h.start();
+    h.relay.inject(peerMessage(customer, sponsor.pubkey, h.app.pubkey, 'o-1', h.sec()));
+    await h.settle(daemon);
+
+    expect(pushesTo(daemon, sponsor.pubkey)).toEqual([{
+      title: '페어바이', body: NOTIFY.peerMessage('fulfill', 'ln').body, url: '/?order=o-1', tag: peerPushTag('o-1'),
+    }]);
+    expect(pushesTo(daemon, customer.pubkey)).toHaveLength(0);
+    // 거래 알림 · 운영자 채팅 알림을 덮어 지우지 않는다
+    expect(peerPushTag('o-1')).not.toBe('o-1');
+    expect(peerPushTag('o-1')).not.toBe(chatPushTag('o-1'));
+    expect(chatCopies(h, h.operator)).toHaveLength(0);
+    expect(operatorDms(h, h.operator)).toHaveLength(0);
+  });
+
+  it('사는 사람이 보내면 파는 사람의 팔기 탭으로 · 온체인이면 온체인 화면으로', async () => {
+    const h = createHarness();
+    const customer = newKey();
+    const sponsor = newKey();
+    h.directory.set('onchain', 'oc-1', { version: 1, customer: customer.pubkey, sponsor: sponsor.pubkey });
+    const daemon = h.start();
+    h.relay.inject(peerMessage(sponsor, customer.pubkey, h.app.pubkey, 'oc-1', h.sec(), TAGS.onchain));
+    await h.settle(daemon);
+    expect(pushesTo(daemon, customer.pubkey)).toMatchObject([{ url: '/?track=onchain&tab=request&order=oc-1' }]);
+  });
+
+  /** RoboSats와 같은 규칙 — 첫 메시지는 늘, 말이 오가는 중엔 조용히, 한참 조용했다가 온 말은 다시 */
+  it('조용한 창', async () => {
+    const { h, customer, sponsor } = withOrder();
+    const daemon = h.start();
+    const say = async (from: TestKey, to: TestKey) => {
+      h.relay.inject(peerMessage(from, to.pubkey, h.app.pubkey, 'o-1', h.sec()));
+      await h.settle(daemon);
+    };
+    await say(customer, sponsor);
+    h.clock.now += 60_000;
+    await say(sponsor, customer); // 1분 뒤 답장 — 대화 중
+    h.clock.now += 60_000;
+    await say(customer, sponsor);
+    expect(pushesTo(daemon, sponsor.pubkey)).toHaveLength(1);
+    expect(pushesTo(daemon, customer.pubkey)).toHaveLength(0);
+
+    h.clock.now += (PEER_PUSH_QUIET_SEC + 60) * 1000;
+    await say(sponsor, customer); // 한참 조용했다
+    expect(pushesTo(daemon, customer.pubkey)).toHaveLength(1);
+  });
+
+  /** p=APP은 누구나 달 수 있다 — 가리지 않으면 아무 유저의 폰이나 울리는 창구가 된다 */
+  it('당사자가 아니거나 · 모르는 오더거나 · 상대가 아직 없으면 안 울린다', async () => {
+    const { h, customer, sponsor } = withOrder(false);
+    const daemon = h.start();
+    h.relay.inject(peerMessage(newKey(), customer.pubkey, h.app.pubkey, 'o-1', h.sec()));
+    h.relay.inject(peerMessage(customer, sponsor.pubkey, h.app.pubkey, 'o-unknown', h.sec()));
+    h.relay.inject(peerMessage(customer, sponsor.pubkey, h.app.pubkey, 'o-1', h.sec()));
+    await h.settle(daemon);
+    expect(daemon.admin.db.all('SELECT 1 FROM effects WHERE kind = ?', PUSH_EFFECT)).toHaveLength(0);
+  });
+});
+
+describe('운영자 부르기', () => {
+  const KEY = 'ab'.repeat(32);
+  function withOrder() {
+    const h = createHarness({ operators: 2 });
+    const customer = newKey();
+    const sponsor = newKey();
+    h.directory.set('ln', 'o-1', { version: 3, customer: customer.pubkey, sponsor: sponsor.pubkey });
+    return { h, customer, sponsor };
+  }
+  const call = (reason: string, peerChatKey?: string): DisputeMessagePayload =>
+    ({ type: 'call', reason, ...(peerChatKey ? { peerChatKey } : {}) });
+
+  it('사본에 대화 키가 실려 운영자 전원에게 간다 — 어드민이 두 사람 대화를 연다', async () => {
+    const { h, customer } = withOrder();
+    const daemon = h.start();
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('입금이 안 들어와요', KEY), h.sec()));
+    await h.settle(daemon);
+    for (const op of h.operators) {
+      expect(chatCopies(h, op)).toContainEqual(expect.objectContaining({
+        from: customer.pubkey, role: 'customer', payload: { type: 'call', reason: '입금이 안 들어와요', peerChatKey: KEY },
+      }));
+    }
+  });
+
+  /** 운영자 채팅은 거래당 10분에 한 번 울린다 — 부르기는 그 창에 걸리면 안 된다 */
+  it('운영자 DM은 조용한 창 없이 바로 — 방금 채팅을 보냈어도', async () => {
+    const { h, customer } = withOrder();
+    const daemon = h.start();
+    h.relay.inject(disputeMessage(customer, h.app.pubkey, 'o-1', '여보세요', h.sec()));
+    await h.settle(daemon);
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('입금이 안 들어와요', KEY), h.sec()));
+    await h.settle(daemon);
+    const dms = operatorDms(h, h.operator);
+    expect(dms).toHaveLength(2);
+    expect(dms[1]).toContain('운영자 호출');
+    expect(dms[1]).toContain('입금이 안 들어와요');
+    expect(dms[1]).toContain('대화 공개');
+  });
+
+  it('상대방에게 APP으로 알리고 푸시 — 부른 사람마다 한 번', async () => {
+    const { h, customer, sponsor } = withOrder();
+    const daemon = h.start();
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('첫 번째', KEY), h.sec()));
+    await h.settle(daemon);
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('두 번째', KEY), h.sec()));
+    await h.settle(daemon);
+
+    const notices = eventsTo(h.relay, sponsor.pubkey, REQUEST_ACTIONS.DISPUTE_MESSAGE).filter(e => e.pubkey === h.app.pubkey);
+    expect(notices).toHaveLength(1);
+    expect(JSON.parse(nip44Decrypt(notices[0]!.content, sponsor.secretKey, h.app.pubkey))).toEqual({ type: 'text', content: CALL_NOTICE });
+    expect(pushesTo(daemon, sponsor.pubkey)).toEqual([{
+      title: '페어바이', body: NOTIFY.operatorCalled('fulfill', 'ln').body, url: '/?order=o-1', tag: chatPushTag('o-1'),
+    }]);
+    expect(pushesTo(daemon, customer.pubkey)).toHaveLength(0);
+    // 운영자는 매번 — 부르기는 드물고 놓치면 안 된다
+    expect(operatorDms(h, h.operator).filter(d => d.includes('운영자 호출'))).toHaveLength(2);
+  });
+
+  it('상대가 아직 없으면 키 없이 부르고, 알릴 상대도 없다', async () => {
+    const h = createHarness();
+    const customer = newKey();
+    h.directory.set('ln', 'o-2', { version: 1, customer: customer.pubkey });
+    const daemon = h.start();
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-2', call('판매가 안 올라가요'), h.sec()));
+    await h.settle(daemon);
+    expect(chatCopies(h, h.operator)).toHaveLength(1);
+    expect(operatorDms(h, h.operator)[0]).not.toContain('대화 공개');
+    expect(daemon.admin.db.all('SELECT 1 FROM effects WHERE kind = ?', PUSH_EFFECT)).toHaveLength(0);
+  });
+
+  it('모양이 틀리면 버린다 — 빈 사유 · 엉뚱한 키', async () => {
+    const { h, customer } = withOrder();
+    const daemon = h.start();
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('  ', KEY), h.sec()));
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('x', 'not-a-key'), h.sec()));
+    await h.settle(daemon);
+    expect(chatCopies(h, h.operator)).toHaveLength(0);
   });
 });
 

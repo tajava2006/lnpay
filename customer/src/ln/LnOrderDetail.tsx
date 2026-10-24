@@ -64,7 +64,7 @@ export function LnOrderDetail({ orderId, onBack, tracker }: Props) {
       <button style={styles.back} onClick={onBack}>← 목록으로</button>
 
       {order && relation === 'open' && !isClaimableLn(order, now) ? (
-        <p style={ui.empty}>기한이 얼마 안 남아 지금은 맡을 수 없는 의뢰입니다.</p>
+        <p style={ui.empty}>기한이 얼마 안 남아 지금은 살 수 없는 판매입니다.</p>
       ) : order && relation === 'open' && order.designatedSponsor ? (
         // 나를 지정한 거래 — 알림을 누르면 여기로 온다. 공개 클레임 카드가 아니라 확인 코드·고지를 거치는 수락 카드
         <DesignatedOfferCard order={order} now={now} />

@@ -82,7 +82,7 @@ export function rejectReasonText(e: ClaimPriceError): string {
     case 'LIQUIDITY_WARNING':
       return '경로 확인에 실패했습니다. 등록은 됐지만 받지 못할 수 있으니 인바운드 용량을 확인해 주세요.';
     case 'ESCROW_ENDING_SOON':
-      return '고객 결제(에스크로)가 곧 만료돼 인보이스를 받지 않았습니다. 원화를 보내지 마세요 — 거래는 곧 종료됩니다.';
+      return '파는 사람의 에스크로 결제가 곧 만료돼 인보이스를 받지 않았습니다. 원화를 보내지 마세요 — 거래는 곧 종료됩니다.';
     default:
       return `현재 시세 기준 ${e.expectedSats.toLocaleString()} sats로 재발행해 주세요.`;
   }

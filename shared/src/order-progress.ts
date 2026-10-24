@@ -61,32 +61,32 @@ export interface ProgressContext {
 export const PROGRESS_STEPS: readonly ProgressStep[] = [
   {
     state: 'requested',
-    title: '후원자 찾는 중',
+    title: '사는 사람 찾는 중',
     actor: 'sponsor',
     customer: [
-      { text: '후원자가 의뢰를 가져갈 때까지 기다립니다.', designated: '지정한 상대가 수락할 때까지 기다립니다.' },
+      { text: '사는 사람이 붙을 때까지 기다립니다.', designated: '지정한 상대가 수락할 때까지 기다립니다.' },
       {
-        text: '후원자가 보증금을 내야 확정됩니다. 제한 시간 안에 안 내면 다른 후원자를 다시 기다립니다.',
+        text: '사는 사람이 보증금을 내야 확정됩니다. 제한 시간 안에 안 내면 다른 사람을 다시 기다립니다.',
         designated: null,
       },
     ],
     sponsor: [
       {
-        text: "'맡기'를 누르면 이 의뢰를 맡게 됩니다. 먼저 누른 분에게 배정됩니다.",
-        designated: "'수락'을 누르면 이 의뢰를 맡게 됩니다. 나를 지정한 의뢰라 다른 사람은 맡을 수 없습니다.",
+        text: "'사기'를 누르면 이 판매가 나에게 배정됩니다. 먼저 누른 분에게 갑니다.",
+        designated: "'수락'을 누르면 이 판매가 나에게 배정됩니다. 나를 지정한 판매라 다른 사람은 살 수 없습니다.",
       },
       {
-        text: '보증금을 결제해야 배정이 확정됩니다. 제한 시간 안에 안 내면 다른 후원자에게 넘어갑니다(낸 게 없으니 잃는 것도 '
+        text: '보증금을 결제해야 배정이 확정됩니다. 제한 시간 안에 안 내면 다른 사람에게 넘어갑니다(낸 게 없으니 잃는 것도 '
           + '없습니다). 보증금은 거래 방해를 막기 위한 것이라, 받을 인보이스를 등록하지 않고 떠나거나 분쟁에서 지지 않는 한 '
           + '수수료 포함 전액 돌아옵니다.',
         designated: null,
       },
-      { text: 'BTC 받을 인보이스는 지금이 아니라, 고객이 결제를 마친 뒤에 등록합니다.' },
+      { text: 'BTC 받을 인보이스는 지금이 아니라, 파는 사람이 에스크로 결제를 마친 뒤에 등록합니다.' },
     ],
   },
   {
     state: 'claimed',
-    title: '후원자 확정',
+    title: '사는 사람 확정',
     actor: 'admin',
     customer: [
       { text: '에스크로가 지금 시세로 거래 금액을 확정합니다. 보통 몇 초면 끝납니다.' },
@@ -97,7 +97,7 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
   },
   {
     state: 'verified',
-    title: '고객 결제',
+    title: '에스크로 결제',
     actor: 'customer',
     customer: [
       { text: "'결제하기'를 눌러 Lightning 인보이스를 결제합니다." },
@@ -105,20 +105,20 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
       { text: '지갑에서 "대기 중"으로 남아 있는 것이 정상입니다. 다시 보내지 마세요.' },
     ],
     sponsor: [
-      { text: '고객이 에스크로 결제를 마칠 때까지 기다립니다.' },
+      { text: '파는 사람이 에스크로 결제를 마칠 때까지 기다립니다.' },
     ],
   },
   {
     state: 'escrowed',
-    title: '후원자 인보이스 등록',
+    title: '사는 사람 인보이스 등록',
     actor: 'sponsor',
     customer: [
-      { text: '후원자가 BTC 받을 인보이스를 등록하기를 기다립니다.' },
+      { text: '사는 사람이 BTC 받을 인보이스를 등록하기를 기다립니다.' },
       { text: '등록되면 계좌 정보를 보낼 수 있게 됩니다.' },
     ],
     sponsor: [
       { text: '화면에 표시된 금액 그대로 인보이스를 만들어 등록합니다.' },
-      { text: '등록해야 고객의 계좌 정보를 받을 수 있습니다. 그 전에는 원화를 보내지 마세요.' },
+      { text: '등록해야 파는 사람의 계좌 정보를 받을 수 있습니다. 그 전에는 원화를 보내지 마세요.' },
     ],
   },
   {
@@ -127,10 +127,10 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     actor: 'customer',
     customer: [
       { text: STEP_TEXT.sendAccount },
-      { text: '후원자가 원화를 보낼 때까지 기다립니다.' },
+      { text: '사는 사람이 원화를 보낼 때까지 기다립니다.' },
     ],
     sponsor: [
-      { text: '고객이 보낸 계좌로 의뢰 금액을 원화 송금합니다.' },
+      { text: '파는 사람이 보낸 계좌로 거래 금액을 원화 송금합니다.' },
       { text: STEP_TEXT.pressRemitted },
     ],
   },
@@ -140,10 +140,10 @@ export const PROGRESS_STEPS: readonly ProgressStep[] = [
     actor: 'customer',
     customer: [
       { text: STEP_TEXT.checkDeposit },
-      { text: `확인했으면 '${BUTTON.confirmPaid}'을 누릅니다. 이때 후원자에게 BTC가 지급됩니다.` },
+      { text: `확인했으면 '${BUTTON.confirmPaid}'을 누릅니다. 이때 사는 사람에게 BTC가 지급됩니다.` },
     ],
     sponsor: [
-      { text: '고객의 입금 확인을 기다립니다.' },
+      { text: '파는 사람의 입금 확인을 기다립니다.' },
     ],
   },
   {
@@ -178,12 +178,12 @@ const TERMINALS: Record<TerminalInfo['state'], Omit<TerminalInfo, 'state'>> = {
       + '닫힌 경우가 아니면 전액 돌아옵니다 — 카드의 종료 사유를 확인하세요.',
   },
   sponsor_wins: {
-    label: '후원자 승리',
-    description: '분쟁 판정 결과 후원자의 송금이 인정되어 BTC가 후원자에게 지급되었습니다.',
+    label: '판정: 송금 인정',
+    description: '분쟁 판정 결과 사는 사람의 송금이 인정되어 BTC가 사는 사람에게 지급되었습니다.',
   },
   customer_wins: {
-    label: '고객 승리',
-    description: '분쟁 판정 결과 송금이 확인되지 않아 고객에게 환불되었습니다.',
+    label: '판정: 송금 불인정',
+    description: '분쟁 판정 결과 송금이 확인되지 않아 파는 사람에게 환불되었습니다.',
   },
   admin_closed: {
     label: '강제 종결',

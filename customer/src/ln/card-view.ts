@@ -107,7 +107,7 @@ function designatedOf(order: Order | null, local: CustomerOrder | null, role: Ln
   return { counterpartyCode: role === 'customer' ? checkCode(sponsor) : '' };
 }
 
-const ACTOR_LABEL: Record<string, string> = { customer: '고객', sponsor: '후원자', admin: '에스크로' };
+const ACTOR_LABEL: Record<string, string> = { customer: '파는 사람', sponsor: '사는 사람', admin: '에스크로' };
 
 const DRAFT_BADGE = {
   unpublished: { label: '올리기 전', color: '#3730A3', bg: '#E0E7FF' },
@@ -150,7 +150,7 @@ export function lnCardView(input: LnCardInput): LnCardView {
   // 결제·계좌를 열지 않는다
   const designatedTo = designatedSponsorOf(order, local);
   const wrongSponsor = role === 'customer' && !!designatedTo && !!sponsorPubkey && sponsorPubkey !== designatedTo;
-  if (wrongSponsor) notes.push('지정한 상대가 아닌 사람이 맡은 것으로 보입니다. 결제하지 말고 에스크로 채팅으로 알려 주세요.');
+  if (wrongSponsor) notes.push('지정한 상대가 아닌 사람이 붙은 것으로 보입니다. 결제하지 말고 에스크로 채팅으로 알려 주세요.');
 
   if (role === 'customer') {
     const bolt11 = order?.bolt11 ?? local?.bolt11;
@@ -161,7 +161,7 @@ export function lnCardView(input: LnCardInput): LnCardView {
       else if (local?.fixedAccountInfo) notes.push('계좌 정보를 자동으로 보내는 중…');
       // 보낸 기록이 이 기기에 없으면 버튼을 열지 않는다 — 다른 기기에서 이미 보냈다면 두 번째 계좌가 나간다
       else if (local) actions.push({ kind: 'send-account' });
-      else notes.push('이 기기에는 의뢰 기록이 없습니다. 계좌 정보는 의뢰를 올린 기기에서 보내세요.');
+      else notes.push('이 기기에는 판매 기록이 없습니다. 계좌 정보는 판매를 올린 기기에서 보내세요.');
     }
     if ((canSendAccountInfo(state) && !!local?.accountInfo) || state === 'remitted') actions.push({ kind: 'confirm-paid' });
 
@@ -171,7 +171,7 @@ export function lnCardView(input: LnCardInput): LnCardView {
   }
 
   if (role === 'customer' && state === 'escrowed' && order?.invoiceDeadline) {
-    notes.push(`후원자 인보이스 마감: ${remainingText(order.invoiceDeadline - now, '지남')} — 넘기면 거래가 닫히고 에스크로가 돌아옵니다.`);
+    notes.push(`사는 사람 인보이스 마감: ${remainingText(order.invoiceDeadline - now, '지남')} — 넘기면 거래가 닫히고 에스크로가 돌아옵니다.`);
   }
 
   if (role === 'sponsor') {
@@ -198,12 +198,12 @@ export function lnCardView(input: LnCardInput): LnCardView {
 
     if (state === 'invoiced') {
       if (input.receivedAccount) actions.push({ kind: 'remit', account: input.receivedAccount });
-      else notes.push('고객의 계좌 정보를 기다리는 중…');
+      else notes.push('파는 사람의 계좌 정보를 기다리는 중…');
     }
     if (input.revealRequested && input.receivedAccount) actions.push({ kind: 'reveal' });
   }
 
-  if (role === null && order) notes.push('내 클레임이 풀린 의뢰입니다. 지금은 참여하고 있지 않습니다.');
+  if (role === null && order) notes.push('내 배정이 풀린 거래입니다. 지금은 참여하고 있지 않습니다.');
 
   return {
     role, draft: false, state,
@@ -232,7 +232,7 @@ function draftView(input: LnCardInput): LnCardView {
   };
   if (!local) {
     return {
-      ...base, role: null, badge: DRAFT_BADGE.dead, title: '의뢰를 찾을 수 없음', isMyTurn: false, waitingFor: null,
+      ...base, role: null, badge: DRAFT_BADGE.dead, title: '판매를 찾을 수 없음', isMyTurn: false, waitingFor: null,
       actions: [], side: { cancel: false, delete: false }, notes: [],
     };
   }
@@ -241,7 +241,7 @@ function draftView(input: LnCardInput): LnCardView {
 
   if (!local.raw) {
     return {
-      ...base, badge: DRAFT_BADGE.unpublished, title: '의뢰 올리기 전', isMyTurn: !expired, waitingFor: null,
+      ...base, badge: DRAFT_BADGE.unpublished, title: '판매 올리기 전', isMyTurn: !expired, waitingFor: null,
       actions: expired ? [] : [{ kind: 'publish' }], side,
       notes: expired ? ['기한이 지나 올릴 수 없습니다.'] : [],
     };
@@ -249,14 +249,14 @@ function draftView(input: LnCardInput): LnCardView {
   if (local.depositStatus === 'cancelled' || local.depositStatus === 'settled' || expired) {
     return {
       ...base, badge: DRAFT_BADGE.dead, title: '등록 안 됨', isMyTurn: false, waitingFor: null, actions: [], side,
-      notes: [expired ? '기한이 지났습니다.' : '보증금을 제때 내지 않아 의뢰가 등록되지 않았습니다.'],
+      notes: [expired ? '기한이 지났습니다.' : '보증금을 제때 내지 않아 판매가 등록되지 않았습니다.'],
     };
   }
   if (local.depositBolt11 && !local.depositStatus) {
     return {
       ...base, badge: DRAFT_BADGE.deposit, title: '보증금 결제', isMyTurn: true, waitingFor: null,
       actions: [{ kind: 'pay', purpose: 'customer-deposit', bolt11: local.depositBolt11 }], side,
-      notes: ['보증금을 내면 의뢰가 오더북에 올라갑니다.'],
+      notes: ['보증금을 내면 판매가 오더북에 올라갑니다.'],
     };
   }
   return {

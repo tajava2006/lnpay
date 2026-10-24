@@ -7,6 +7,7 @@ import {
   summarizeProgress,
 } from '../index';
 import type { OrderState } from '../index';
+import { LN_CLOSE_REASON_LABEL } from '../ln';
 
 const idx = (state: OrderState) => PROGRESS_STEPS.findIndex(s => s.state === state);
 
@@ -219,10 +220,10 @@ describe('후원자 보증금 대기', () => {
     }
   });
 
-  it('보증금이 들어왔거나 없으면 "후원자 확정"', () => {
+  it('보증금이 들어왔거나 없으면 "사는 사람 확정"', () => {
     expect(resolveProgress('sponsor', 'claimed').currentIndex).toBe(idx('claimed'));
-    expect(summarizeProgress('customer', 'claimed').title).toBe('후원자 확정');
-    expect(summarizeProgress('customer', 'claimed', pending).title).toBe('후원자 찾는 중');
+    expect(summarizeProgress('customer', 'claimed').title).toBe('사는 사람 확정');
+    expect(summarizeProgress('customer', 'claimed', pending).title).toBe('사는 사람 찾는 중');
   });
 
   it('"지금은 보증금 없이 운영 중" 같은 운영값 추측을 박지 않는다 — 설정은 데몬에 있다', () => {
@@ -237,7 +238,7 @@ describe('summarizeProgress', () => {
   });
 
   it('진행 중이면 현재 단계와 누구 차례인지', () => {
-    expect(summarizeProgress('customer', 'verified')).toMatchObject({ title: '고객 결제', isMyTurn: true, actor: 'customer' });
+    expect(summarizeProgress('customer', 'verified')).toMatchObject({ title: '에스크로 결제', isMyTurn: true, actor: 'customer' });
     expect(summarizeProgress('sponsor', 'verified')).toMatchObject({ isMyTurn: false, actor: 'customer' });
   });
 });
@@ -252,11 +253,36 @@ describe('지정 거래 사다리', () => {
       const t = texts(role, true);
       expect(t.filter(x => /보증금|몰수|먼저 누른 분/.test(x)), role).toEqual([]);
     }
-    expect(texts('sponsor', true)).toContain("'수락'을 누르면 이 의뢰를 맡게 됩니다. 나를 지정한 의뢰라 다른 사람은 맡을 수 없습니다.");
+    expect(texts('sponsor', true)).toContain("'수락'을 누르면 이 판매가 나에게 배정됩니다. 나를 지정한 판매라 다른 사람은 살 수 없습니다.");
   });
 
   it('공개 거래는 그대로', () => {
     expect(texts('sponsor', false).some(x => /먼저 누른 분/.test(x))).toBe(true);
     expect(texts('customer', false).some(x => /보증금/.test(x))).toBe(true);
+  });
+});
+
+/**
+ * 유저 문구는 파는 사람·사는 사람·판매로 (2026-10-24 피드백) — 고객·후원자·의뢰는 쿠팡 대리결제 시절 이름이라 온체인과
+ * 말이 갈렸다(온체인 `onchain-progress.test.ts`의 같은 가드). 종료 사유는 유저 앱 카드에도 뜬다.
+ */
+describe('유저 문구 — 옛 이름이 없다', () => {
+  const OLD = /고객|후원자|의뢰|맡기/;
+  const stepTexts = PROGRESS_STEPS.flatMap(s => [
+    s.title,
+    ...[...s.customer, ...s.sponsor].flatMap(a => [a.text, ...(typeof a.designated === 'string' ? [a.designated] : [])]),
+  ]);
+  const terminals = (['cancelled', 'sponsor_wins', 'customer_wins', 'admin_closed', 'expired'] as const)
+    .flatMap(state => {
+      const t = resolveProgress('customer', state).terminal!;
+      return [t.label, t.description];
+    });
+
+  it('진행도 단계·종결 문구', () => {
+    expect([...stepTexts, ...terminals].filter(t => OLD.test(t))).toEqual([]);
+  });
+
+  it('종료 사유', () => {
+    expect(Object.values(LN_CLOSE_REASON_LABEL).filter(t => OLD.test(t))).toEqual([]);
   });
 });

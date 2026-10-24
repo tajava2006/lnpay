@@ -51,9 +51,13 @@ export function AccountInfoModal({ orderId, onClose, onSubmit, submitting }: Pro
         </div>
         <div style={styles.body}>
           <p style={styles.desc}>
-            의뢰 <strong>#{orderId}</strong>의 후원자에게 전달할 계좌 정보를 입력하세요.
-            이 정보는 암호화되어 후원자만 열람할 수 있습니다.
+            사는 사람이 <strong>이 계좌로</strong> 원화를 보냅니다. 원화가 도착하는 곳은 언제나 여기 입력한 계좌입니다 —
+            내 통장도, 쿠팡 무통장입금 가상계좌도 됩니다.
           </p>
+          <p style={styles.desc}>
+            앱은 이 계좌를 암호화해 사는 사람에게 그대로 전달할 뿐, 쿠팡 같은 곳과 연결돼 있지 않습니다.
+          </p>
+          <p style={styles.orderRef}>거래 #{orderId}</p>
 
           <label style={styles.label}>은행</label>
           <select
@@ -157,6 +161,11 @@ const styles = {
     fontSize: 13,
     color: '#666',
     lineHeight: 1.5,
+    margin: '0 0 8px',
+  },
+  orderRef: {
+    fontSize: 11,
+    color: '#9CA3AF',
     margin: '0 0 8px',
   },
   label: {

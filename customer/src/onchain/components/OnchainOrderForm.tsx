@@ -109,7 +109,7 @@ export function OnchainOrderForm({ onDone, tracker }: {
       onDone?.();
     } catch (err) {
       console.error('[온체인] 의뢰 등록 실패', err);
-      setError('의뢰를 올리지 못했습니다. 잠시 후 다시 시도하세요.');
+      setError('판매를 올리지 못했습니다. 잠시 후 다시 시도하세요.');
     } finally {
       setBusy(false);
     }
@@ -175,8 +175,8 @@ export function OnchainOrderForm({ onDone, tracker }: {
 
       {designated ? (
         <div style={styles.notice}>
-          <strong>보증금 없이 바로 의뢰가 생기고, 지정한 상대만 맡습니다.</strong> 오더북에는 올라가지 않고 상대 앱의
-          사기 탭에 바로 뜹니다. 상대가 맡은 뒤 <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 에스크로 주소로
+          <strong>보증금 없이 바로 판매가 생기고, 지정한 상대만 살 수 있습니다.</strong> 오더북에는 올라가지 않고 상대 앱의
+          사기 탭에 바로 뜹니다. 상대가 수락한 뒤 <strong>{durationText(FUNDING_WINDOW_SEC)} 안에</strong> 에스크로 주소로
           입금을 컨펌시키세요. 지정 거래는 수수료 대비 금액이 너무 작으면(수수료가 {100 / DESIGNATED_MIN_FEE_MULTIPLE}%를
           넘으면) 받지 않습니다.
         </div>
@@ -191,7 +191,7 @@ export function OnchainOrderForm({ onDone, tracker }: {
       {error && <p style={styles.error}>{error}</p>}
 
       <button type="submit" style={styles.submit} disabled={busy || (designated && !counterparty)}>
-        {busy ? '등록 중…' : designated ? DESIGNATED_COPY.create : '의뢰 등록'}
+        {busy ? '등록 중…' : designated ? DESIGNATED_COPY.create : '판매 등록'}
       </button>
     </form>
   );

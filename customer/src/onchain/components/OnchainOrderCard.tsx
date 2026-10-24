@@ -90,7 +90,7 @@ function OnchainOrderCardBody({ order, role, myPubkey, invoiceBolt11, signReques
 
       {view.designated && (
         <p style={{ ...styles.meta, margin: 0 }}>
-          {DESIGNATED_COPY.counterpartyLine(role === 'customer' ? '상대' : '고객', view.designated.counterpartyCode)}
+          {DESIGNATED_COPY.counterpartyLine(role === 'customer' ? '상대' : '파는 사람', view.designated.counterpartyCode)}
         </p>
       )}
 

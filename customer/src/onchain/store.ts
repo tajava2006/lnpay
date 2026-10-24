@@ -50,6 +50,11 @@ export function myOnchainOrders(myPubkey: string): OnchainOrder[] {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+/** 내가 판 적이 있나 — 팔기 탭 설명 상자를 접어 둘지 정할 때만 본다(구독 없이 지금 값) */
+export function hasOnchainSale(myPubkey: string): boolean {
+  return Object.values(store.get()).some(o => o.customerPubkey === myPubkey);
+}
+
 export function roleIn(order: OnchainOrder, myPubkey: string): 'customer' | 'sponsor' | null {
   if (order.customerPubkey === myPubkey) return 'customer';
   if (order.sponsorPubkey === myPubkey) return 'sponsor';

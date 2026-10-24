@@ -92,7 +92,7 @@ export function OnchainMyOrders({ myPubkey, onSelectOrder }: Props) {
             <span style={styles.meta}>{inv.orderId}</span>
           </div>
           <p style={styles.warnText}>
-            <strong>보증금 {depositAmountText(inv.bolt11)}을 결제해야</strong> 의뢰가
+            <strong>보증금 {depositAmountText(inv.bolt11)}을 결제해야</strong> 판매가
             오더북에 올라갑니다. {HOLD_DEPOSIT_NOTE.full}
           </p>
           <InvoicePayBlock bolt11={inv.bolt11} />

@@ -293,6 +293,6 @@ describe('지정 거래 — 보증금·몰수를 말하지 않는다', () => {
       resolveOnchainProgress('sponsor', 'listed', { designated }).steps[0]!.actions.map(a => a.text);
     expect(listed(false).some(t => t.includes('결제한 분이 가져갑니다'))).toBe(true);
     expect(listed(true).some(t => t.includes('결제한 분이 가져갑니다'))).toBe(false);
-    expect(listed(true)[0]).toMatch(/보증금 없이 바로 내가 맡습니다/);
+    expect(listed(true)[0]).toMatch(/보증금 없이 바로 거래가 시작됩니다/);
   });
 });

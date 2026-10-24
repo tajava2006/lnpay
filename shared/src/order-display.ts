@@ -40,8 +40,8 @@ export const STATE_DISPLAY: Record<OrderState, StateDisplay> = {
   remitted: { label: '송금 주장', color: '#BE185D', bg: '#FCE7F3' },
   paid: { label: '완료', color: '#059669', bg: '#D1FAE5' },
   cancelled: { label: '취소', color: '#6B7280', bg: '#F3F4F6' },
-  sponsor_wins: { label: '후원자 승리', color: '#0F766E', bg: '#CCFBF1' },
-  customer_wins: { label: '고객 승리', color: '#0E7490', bg: '#CFFAFE' },
+  sponsor_wins: { label: '판정: 송금 인정', color: '#0F766E', bg: '#CCFBF1' },
+  customer_wins: { label: '판정: 송금 불인정', color: '#0E7490', bg: '#CFFAFE' },
   admin_closed: { label: '강제 종결', color: '#B45309', bg: '#FEF3C7' },
   expired: { label: '기한 만료', color: '#6B7280', bg: '#F3F4F6' },
 };

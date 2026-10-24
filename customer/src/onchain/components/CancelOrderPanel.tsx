@@ -16,7 +16,7 @@ export function CancelOrderPanel({ order }: { order: OnchainOrder }) {
   if (!asked) {
     return (
       <div style={styles.section}>
-        <button style={styles.ghost} onClick={() => setAsked(true)}>의뢰 내리기</button>
+        <button style={styles.ghost} onClick={() => setAsked(true)}>판매 내리기</button>
       </div>
     );
   }
@@ -25,11 +25,11 @@ export function CancelOrderPanel({ order }: { order: OnchainOrder }) {
     <div style={styles.section}>
       {order.designatedSponsor ? (
         <p style={styles.warnText}>
-          이 의뢰를 내립니다. 아직 상대가 수락하지 않았으니 아무도 손해를 보지 않습니다.
+          이 판매를 내립니다. 아직 상대가 수락하지 않았으니 아무도 손해를 보지 않습니다.
         </p>
       ) : (
         <p style={styles.warnText}>
-          이 의뢰를 오더북에서 내립니다. <strong>보증금은 그대로 돌려받습니다</strong> —
+          이 판매를 오더북에서 내립니다. <strong>보증금은 그대로 돌려받습니다</strong> —
           아직 아무도 붙지 않았으니 아무도 손해를 보지 않습니다.
         </p>
       )}

@@ -6,6 +6,7 @@ import { LnOrderCard } from '../../ln/LnOrderCard';
 import { OrderForm } from './OrderForm';
 import { ParsedOrdersSection } from './ParsedOrdersSection';
 import { UserscriptGuide, canInstallUserscript } from './UserscriptGuide';
+import { HowItWorks } from '../../components/HowItWorks';
 
 interface Props {
   tracker: PriceTracker;
@@ -34,24 +35,25 @@ export function Dashboard({ tracker, onSelectOrder }: Props) {
   const sorted = Object.values(orders).sort(byUrgency);
 
   function handleClearAll() {
-    if (!confirm('끝난 의뢰와 오더가 되지 않은 의뢰를 모두 지우시겠습니까? 진행 중인 의뢰는 남습니다.')) return;
-    if (clearDeletableOrders(isClearable) === 0) alert('지울 의뢰가 없습니다.');
+    if (!confirm('끝난 판매와 올라가지 않은 판매를 모두 지우시겠습니까? 진행 중인 거래는 남습니다.')) return;
+    if (clearDeletableOrders(isClearable) === 0) alert('지울 판매가 없습니다.');
   }
 
   return (
     <>
       {/* 제목과 시세는 App 셸이 그린다 — 탭 전환과 무관하게 늘 떠 있어야 하므로 */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button className="btn btn-secondary" onClick={handleClearAll}>끝난 의뢰 지우기</button>
+        <button className="btn btn-secondary" onClick={handleClearAll}>끝난 판매 지우기</button>
       </div>
 
+      <HowItWorks track="ln" defaultOpen={sorted.length === 0} />
       <ParsedOrdersSection />
       <OrderForm />
 
-      <h2 className="section-title">내 의뢰</h2>
+      <h2 className="section-title">내 판매</h2>
       {!synced && <p style={styles.syncing}>릴레이에서 상태를 불러오는 중...</p>}
       {sorted.length === 0 ? (
-        <div className="empty-state">등록한 의뢰가 없습니다</div>
+        <div className="empty-state">등록한 판매가 없습니다</div>
       ) : (
         <div style={styles.list}>
           {sorted.map(o => (

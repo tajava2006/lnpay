@@ -39,11 +39,11 @@ function DesignatedOfferCardBody({ order, now }: { order: Order; now: number }) 
     <div style={styles.card}>
       <BookCardHead price={order.price} expiration={order.expiration} now={now} />
       <p style={styles.lead}>
-        고객이 나를 상대로 지정한 의뢰입니다. 수락하면 바로 내가 맡고, 고객이 결제하면 BTC 받을 인보이스를 등록하게 됩니다.
+        파는 사람이 나를 상대로 지정한 판매입니다. 수락하면 바로 내 구매가 되고, 파는 사람이 에스크로 결제를 하면 BTC 받을 인보이스를 등록하게 됩니다.
       </p>
       {sentAt !== null ? (
         <>
-          <p style={styles.sent}><span className="spinner" /> 수락을 보냈습니다 — 확인되면 "내가 맡은 의뢰"로 옮겨 갑니다.</p>
+          <p style={styles.sent}><span className="spinner" /> 수락을 보냈습니다 — 확인되면 "내 구매"로 옮겨 갑니다.</p>
           {slow && (
             <>
               <p style={styles.hint}>응답이 늦습니다. 기한이 코앞이거나 다른 기기의 키로 지정됐을 수 있습니다.</p>

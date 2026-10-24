@@ -47,7 +47,7 @@ export function OnchainOrderDetail({ orderId, myPubkey, onBack, tracker }: Props
         // 남의 의뢰 — 다른 오더 모음의 링크(NIP-69 `source`)로 들어온 사람도 오더북에서 보던 카드로 맡는다
         order.state === 'listed'
           ? <OnchainBookCard order={order} invoice={invoices[orderId]} price={price} />
-          : <p style={ui.empty}>이미 다른 분이 맡았거나 끝난 의뢰입니다.</p>
+          : <p style={ui.empty}>이미 다른 분이 샀거나 끝난 판매입니다.</p>
       ) : (
         <OnchainOrderCard
           order={order}

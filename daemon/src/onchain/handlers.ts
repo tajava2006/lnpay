@@ -78,7 +78,7 @@ function orderGate(
   if (!Number.isInteger(t.amountSat) || t.amountSat <= 0) return ignored('bad-request');
   if (t.reserveKrw !== undefined && !(Number.isFinite(t.reserveKrw) && t.reserveKrw > 0)) return ignored('bad-reserve');
   if (getOc(ctx, orderId) || candidatesOf(ctx, orderId).length > 0) return ignored('duplicate');
-  if (!loadSettings(ctx.db).onchain.acceptNewOrders) return reject(ctx, orderId, event, '지금은 온체인 의뢰를 받지 않습니다');
+  if (!loadSettings(ctx.db).onchain.acceptNewOrders) return reject(ctx, orderId, event, '지금은 온체인 판매를 받지 않습니다');
   return null;
 }
 
@@ -208,17 +208,17 @@ export function ocClaim(ctx: OcContext, event: InboxEvent): HandlerResult {
 
   const row = getOc(ctx, orderId);
   const order = row?.order;
-  if (!row || !order || order.state !== 'listed') return r('이 의뢰는 이미 다른 분이 맡았거나 끝났습니다');
-  if (event.pubkey === order.customerPubkey) return r('자기 의뢰는 맡을 수 없습니다');
+  if (!row || !order || order.state !== 'listed') return r('이 판매는 이미 다른 분이 샀거나 끝났습니다');
+  if (event.pubkey === order.customerPubkey) return r('자기 판매는 살 수 없습니다');
   // 지정 거래는 고객이 고른 그 사람만 — 보증금이 없는 대신 상대를 묶는다
-  if (order.designatedSponsor && event.pubkey !== order.designatedSponsor) return r('이 의뢰는 지정된 상대만 맡을 수 있습니다');
+  if (order.designatedSponsor && event.pubkey !== order.designatedSponsor) return r('이 판매는 지정된 상대만 살 수 있습니다');
   const now = nowSec(ctx);
-  if (order.expiration <= now) return r('의뢰가 만료됐습니다');
+  if (order.expiration <= now) return r('판매가 만료됐습니다');
 
   const sponsors = candidatesOf(ctx, orderId).filter(c => c.type === 'sponsor');
   if (sponsors.some(c => c.party === event.pubkey)) return ignored('duplicate');
   if (sponsors.length >= MAX_CLAIM_CANDIDATES) {
-    return r('이 의뢰에 보증금 결제를 기다리는 분이 이미 여럿입니다 — 잠시 후 다시 시도해 주세요');
+    return r('이 판매에 보증금 결제를 기다리는 분이 이미 여럿입니다 — 잠시 후 다시 시도해 주세요');
   }
 
   const payload = decrypt(ctx, event);
@@ -258,7 +258,7 @@ export function ocClaim(ctx: OcContext, event: InboxEvent): HandlerResult {
   const floor = depositFloorSat(Math.ceil(TYPICAL_SETTLEMENT_VSIZE * fees.halfHour));
   // 보증금은 **남은 의뢰 수명 + 거래 최악 소요**를 덮어야 한다 — 막바지 클레임도
   const cltvBlocks = depositCltvBlocks(order.expiration, now);
-  if (cltvBlocks > CLTV_MAX_BLOCKS) return r('의뢰 만료가 너무 멀어 보증금을 받을 수 없습니다');
+  if (cltvBlocks > CLTV_MAX_BLOCKS) return r('판매 만료가 너무 멀어 보증금을 받을 수 없습니다');
 
   const inv = ctx.holds.plan({
     purpose: 'oc-sponsor-bond', orderId, party: event.pubkey,
@@ -384,7 +384,7 @@ function ocRemit(ctx: OcContext, event: InboxEvent, row: OcRow): HandlerResult {
   if (order.state !== 'presigned' || order.settlementKind) {
     return r('송금 완료를 받을 수 없는 단계입니다 — 마감이 지나 환불로 넘어갔을 수 있습니다');
   }
-  if (!order.accountSentAt) return r('고객 계좌가 아직 전달되지 않았습니다');
+  if (!order.accountSentAt) return r('파는 사람의 계좌가 아직 전달되지 않았습니다');
   if (isPast(krwDeadlineOf(order), requestAt(ctx, event))) return r('원화 송금 마감이 지났습니다');
 
   const remittedAt = nowSec(ctx);
@@ -433,7 +433,7 @@ function ocCancel(ctx: OcContext, event: InboxEvent): HandlerResult {
     return mine.length > 0 ? ok : ignored('unknown-order');
   }
   if (event.pubkey !== row.order.customerPubkey) return ignored('not-customer');
-  if (row.order.state !== 'listed') return reject(ctx, orderId, event, '후원자가 이미 붙어 의뢰를 내릴 수 없습니다');
+  if (row.order.state !== 'listed') return reject(ctx, orderId, event, '사는 사람이 이미 붙어 판매를 내릴 수 없습니다');
 
   const cancelled = updateOc(ctx, orderId, { state: 'cancelled' });
   applyOutcome(ctx, cancelled, 'cancel:customer');

@@ -78,7 +78,7 @@ export function UserscriptGuide() {
   return (
     <div style={styles.card}>
       <button onClick={() => void handleExpand()} style={styles.headerBtn}>
-        <span style={styles.headerTitle}>쿠팡 자동 파싱 (유저스크립트)</span>
+        <span style={styles.headerTitle}>쿠팡 가상계좌 자동 입력 (선택 · 유저스크립트)</span>
         <span style={styles.arrow}>{expanded ? '\u25B2' : '\u25BC'}</span>
       </button>
 
@@ -90,15 +90,20 @@ export function UserscriptGuide() {
           <div style={styles.intro}>
             <p style={styles.introLead}>이게 뭔가요?</p>
             <p style={styles.introText}>
-              쿠팡 주문 상세 페이지를 볼 때 <strong>무통장입금 주문의 금액과 가상계좌를
-              자동으로 읽어</strong> 이 앱에 채워 넣는 보조 스크립트입니다.
-              직접 옮겨 적는 수고가 사라지고, 무엇보다 <strong>오타가 나지 않습니다.</strong>
+              쿠팡에서 무통장입금으로 주문하면 쿠팡이 입금할 가상계좌를 줍니다. 이 스크립트는 쿠팡 주문 상세 페이지에서
+              <strong> 그 금액과 가상계좌를 읽어 이 앱에 옮겨 적어 주는</strong> 보조 도구입니다. 판매로 올리면 사는 사람이
+              그 가상계좌로 원화를 보내 내 쿠팡 결제가 끝납니다 — 쿠팡과 연동된 것처럼 동작해서, 쿠팡의 모든 물건을
+              비트코인으로 결제할 수 있게 되는 셈입니다. 직접 옮겨 적는 수고가 사라지고, 무엇보다 <strong>오타가 나지 않습니다.</strong>
+            </p>
+            <p style={styles.introText}>
+              쿠팡 주문을 대신 넣거나 결제 버튼을 대신 누르는 건 아닙니다. 하는 일은 계좌를 옮겨 적는 것뿐이고, 원화는
+              언제나 앱에 들어간 그 계좌로 갑니다.
             </p>
 
             <p style={styles.introLead}>꼭 설치해야 하나요?</p>
             <p style={styles.introText}>
               아닙니다. <strong>설치하지 않아도 모든 기능을 쓸 수 있습니다.</strong>
-              금액과 계좌를 직접 입력해서 의뢰를 올리면 됩니다.
+              금액을 직접 입력해 판매를 올리고, 사는 사람이 붙은 뒤 계좌를 직접 입력해 보내면 됩니다.
               내 주문 정보를 읽는 게 찜찜하다면 설치하지 마세요 — 그게 이상한 반응이 아닙니다.
             </p>
 
@@ -106,13 +111,13 @@ export function UserscriptGuide() {
             <p style={styles.introText}>
               쿠팡 주문 페이지에서 <strong>입금 금액·은행·계좌번호·예금주·입금 기한</strong>만
               읽습니다. 읽은 값은 <strong>내 키로 암호화되어 나에게만</strong> 전달되고,
-              내가 "의뢰 등록"을 눌러야 비로소 오더북에 올라갑니다. 내가 확인하기 전에
+              내가 "판매 등록"을 눌러야 비로소 오더북에 올라갑니다. 내가 확인하기 전에
               저절로 공개되는 것은 없습니다.
             </p>
 
             <p style={styles.warnBox}>
               <strong>직접 입력하실 때 주의</strong> — 금액이나 계좌번호에 오타가 있으면
-              후원자가 엉뚱한 곳에 송금하게 되고, 그때는 분쟁에서 불리하게 작용할 수 있습니다.
+              사는 사람이 엉뚱한 곳에 송금하게 되고, 그때는 분쟁에서 불리하게 작용할 수 있습니다.
               직접 입력하신다면 등록 전에 한 번 더 대조해 주세요.
             </p>
           </div>
@@ -137,7 +142,8 @@ export function UserscriptGuide() {
             <p style={styles.step}><strong>2.</strong> Tampermonkey에서 새 스크립트를 만들고 아래 코드를 붙여넣습니다.</p>
             <p style={styles.step}><strong>3.</strong> 크롬 주소창에 <strong>chrome://extensions</strong>를 입력한 뒤, Tampermonkey의 <strong>세부정보</strong>에서 <strong>사용자 스크립트 허용</strong>을 켭니다.</p>
             <p style={styles.stepNote}>이 설정을 켜지 않으면 스크립트를 활성화해도 실행되지 않습니다. 항목이 보이지 않는 구버전 크롬은 확장 프로그램 페이지 우측 상단의 <strong>개발자 모드</strong>를 대신 켜세요.</p>
-            <p style={styles.step}><strong>4.</strong> 쿠팡 주문 상세 페이지를 방문하면 자동으로 주문이 감지됩니다.</p>
+            <p style={styles.step}><strong>4.</strong> 쿠팡에서 결제 수단을 <strong>무통장입금</strong>으로 골라 주문한 뒤, 주문 상세 페이지를 열면 자동으로 감지됩니다.</p>
+            <p style={styles.stepNote}>카드 결제처럼 취소·환불될 수 있는 결제는 에스크로로 묶을 수 없어 감지하지 않습니다. 감지된 주문은 이 탭 위 '감지된 주문'에 뜹니다.</p>
           </div>
 
           {scriptContent && (

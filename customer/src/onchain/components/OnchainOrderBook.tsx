@@ -60,7 +60,7 @@ export function OnchainOrderBook({ myPubkey, tracker }: Props) {
 
   return (
     <div>
-      <DesignatedHeader track="onchain" />
+      <DesignatedHeader />
       {offers.length > 0 && (
         <>
           <h2 className="section-title">나를 지정한 거래</h2>
@@ -72,7 +72,7 @@ export function OnchainOrderBook({ myPubkey, tracker }: Props) {
         </>
       )}
       {orders.length === 0 ? (
-        <p style={ui.empty}>지금은 올라온 의뢰가 없습니다.</p>
+        <p style={ui.empty}>지금은 올라온 판매가 없습니다.</p>
       ) : (
         <div style={styles.list}>
           {orders.map(order => (
@@ -100,7 +100,7 @@ function OnchainBookCardBody({ order, invoice, price }: {
       </div>
       {order.designatedSponsor && (
         <p style={styles.hint}>
-          고객이 나를 상대로 지정한 의뢰입니다. 수락하면 보증금 없이 바로 내가 맡습니다.
+          파는 사람이 나를 상대로 지정한 판매입니다. 수락하면 보증금 없이 바로 거래가 시작됩니다.
         </p>
       )}
       {order.reserveKrw !== undefined && <ReserveLine order={order} price={price} />}
@@ -109,12 +109,12 @@ function OnchainBookCardBody({ order, invoice, price }: {
         <div style={styles.invoiceBox}>
           <p style={styles.invoiceNote}>
             <strong>보증금 {depositAmountText(invoice.bolt11)}</strong>을 결제하면
-            이 의뢰를 맡게 됩니다.
+            이 판매가 나에게 배정됩니다.
           </p>
           <p style={styles.invoiceNote}>{HOLD_DEPOSIT_NOTE.full}</p>
           <p style={styles.invoiceNote}>
-            ⚠️ 같은 의뢰에 다른 분도 보증금을 내고 있을 수 있습니다 —
-            <strong> 결제가 먼저 확인된 쪽이 맡습니다.</strong> 늦은 쪽은 결제가
+            ⚠️ 같은 판매에 다른 분도 보증금을 내고 있을 수 있습니다 —
+            <strong> 결제가 먼저 확인된 쪽에 배정됩니다.</strong> 늦은 쪽은 결제가
             실패 처리되어 아무것도 잃지 않습니다.
           </p>
           <InvoicePayBlock bolt11={invoice.bolt11} />

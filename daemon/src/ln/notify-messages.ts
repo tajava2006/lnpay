@@ -107,25 +107,25 @@ export const NOTIFY = {
 
   /** 후원자가 붙고 검증도 끝났다. 고객이 결제해야 거래가 시작된다. */
   customerShouldPay: (): Notice =>
-    ({ body: '후원자가 확정되었습니다. 결제하시면 거래가 시작됩니다.', tab: 'request' }),
+    ({ body: '사는 사람이 확정되었습니다. 에스크로를 결제하시면 거래가 시작됩니다.', tab: 'request' }),
 
   /** 결제가 확인됐다. 이제 후원자가 받을 인보이스를 등록할 차례다. */
   // 보증금 — 전이가 아니라 홀드 인보이스가 생길 때 보낸다(클레임·의뢰 직후 화면을 떠났을 수 있다)
   customerShouldPayDeposit: (): Notice =>
-    ({ body: '보증금을 결제하면 의뢰가 오더북에 올라갑니다.', tab: 'request' }),
+    ({ body: '보증금을 결제하면 판매가 오더북에 올라갑니다.', tab: 'request' }),
   sponsorShouldPayDeposit: (): Notice =>
-    ({ body: '보증금을 결제하면 의뢰가 확정됩니다. 제한 시간 안에 결제해 주세요.', tab: 'fulfill' }),
+    ({ body: '보증금을 결제하면 배정이 확정됩니다. 제한 시간 안에 결제해 주세요.', tab: 'fulfill' }),
 
   sponsorShouldRegisterInvoice: (withinSec: number): Notice =>
-    ({ body: `고객이 결제를 마쳤습니다. ${durationText(withinSec)} 안에 BTC 받을 인보이스를 등록해 주세요.`, tab: 'fulfill' }),
+    ({ body: `파는 사람이 에스크로 결제를 마쳤습니다. ${durationText(withinSec)} 안에 BTC 받을 인보이스를 등록해 주세요.`, tab: 'fulfill' }),
 
   /** 후원자 인보이스가 확인됐다. 이제 고객이 계좌를 보낼 수 있다. */
   customerShouldSendAccount: (): Notice =>
-    ({ body: '후원자가 받을 준비를 마쳤습니다. 입금받을 계좌 정보를 보내주세요.', tab: 'request' }),
+    ({ body: '사는 사람이 받을 준비를 마쳤습니다. 원화 받을 계좌 정보를 보내주세요.', tab: 'request' }),
 
   /** 후원자가 송금을 마쳤다고 알려왔다. 고객이 확인하고 컨펌해야 한다. */
   customerShouldConfirm: (): Notice =>
-    ({ body: '후원자가 원화를 보냈다고 알려왔습니다. 입금을 확인하고 컨펌해 주세요.', tab: 'request' }),
+    ({ body: '사는 사람이 원화를 보냈다고 알려왔습니다. 입금을 확인하고 컨펌해 주세요.', tab: 'request' }),
 
   /** 계좌가 도착했다. 후원자가 원화를 보낼 차례다. */
   sponsorShouldRemit: (): Notice =>

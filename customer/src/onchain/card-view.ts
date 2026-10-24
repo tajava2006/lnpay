@@ -6,7 +6,7 @@
  */
 import { checkCode } from '@sajwo-tracker/shared';
 import {
-  accountDeadlineOf, canActOnSignRequest, isPast, type OnchainOrder,
+  accountDeadlineOf, canActOnSignRequest, isOnchainTerminal, isPast, type OnchainOrder,
 } from '@sajwo-tracker/shared/onchain';
 import type { SignRequest } from './sign-request-store';
 
@@ -18,8 +18,10 @@ export interface OnchainCardView {
    * 새로고침마다 다시 배달되므로 로컬에서 지워도 되살아난다. 진실은 FSM이다.
    */
   actionable: SignRequest[];
-  /** 에스크로 채팅 — 계좌가 나간 뒤부터 분쟁까지 */
-  chatOpen: boolean;
+  /** 정식 분쟁 중(이의 · 확인 마감 초과 · 계좌 이의) — 상세의 "운영자 부르기"를 눈에 띄게 둔다 */
+  disputeOpen: boolean;
+  /** 상대방 채팅 — 사는 사람이 붙은 뒤(보증금을 낸 `bonded`부터, 지정 거래는 수락부터). 끝난 거래는 읽기만 */
+  peer: { pubkey: string; readOnly: boolean } | null;
   /** 고객: 의뢰 내리기 — 후원자가 붙기 전에만 */
   cancel: boolean;
   /** 고객: 입금할 에스크로 주소 */
@@ -37,6 +39,17 @@ export interface OnchainCardView {
   designated: { counterpartyCode: string } | null;
 }
 
+/** 정식 분쟁 중인가 — 상세의 대화(`chat/TradeChat`)가 같은 판단을 쓴다 */
+export function isOnchainDisputeOpen(order: OnchainOrder): boolean {
+  return order.state === 'disputed' || (order.state === 'refunding' && order.settlementKind === 'refund:account-disputed');
+}
+
+/** 상대방 채팅 — 사는 사람이 정해졌으면(오더북에서 내려온 뒤) 반대쪽과 */
+export function onchainPeerChat(order: OnchainOrder, role: OnchainRole): OnchainCardView['peer'] {
+  if (order.state === 'listed' || !order.sponsorPubkey) return null;
+  return { pubkey: role === 'customer' ? order.sponsorPubkey : order.customerPubkey, readOnly: isOnchainTerminal(order.state) };
+}
+
 /** `now`는 초 */
 export function onchainCardView(
   order: OnchainOrder, role: OnchainRole, now: number, signRequests: readonly SignRequest[],
@@ -47,9 +60,8 @@ export function onchainCardView(
   const owesAccount = customer && state === 'presigned' && !order.accountSentAt;
   return {
     actionable: signRequests.filter(r => canActOnSignRequest(state, r.purpose, order.settlementKind)),
-    chatOpen: (state === 'presigned' && order.accountSentAt !== undefined)
-      || state === 'remitted' || state === 'disputed'
-      || (state === 'refunding' && order.settlementKind === 'refund:account-disputed'),
+    disputeOpen: isOnchainDisputeOpen(order),
+    peer: onchainPeerChat(order, role),
     cancel: customer && state === 'listed',
     escrowAddress: customer && state === 'bonded',
     presignStatus: sponsor && state === 'funded' && !order.settlementKind,

@@ -1,20 +1,16 @@
 /**
  * 라이트닝 의뢰 하나만 보는 화면 — 어느 탭에서 들어와도 같다
  *
- * 위는 목록과 **같은 카드**(할 일이 전부 거기 있다), 아래는 진행도 전체와 에스크로 채팅. 예전엔 여기에
+ * 위는 목록과 **같은 카드**(할 일이 전부 거기 있다), 아래는 진행도 전체와 대화(상대방 · 운영자 — `chat/TradeChat`). 예전엔 여기에
  * 진행도·채팅만 있어서, 내 거래에서 들어오면 결제할 수 없었다(2026-09-24 드릴).
  *
  * URL에 오더가 남는다(`?order=`) — 새로고침·알림 클릭이 이 화면으로 돌아온다. 다른 오더 모음에서 링크(NIP-69
  * `source`)로 들어온 **남**에게는 오더북 카드를 그린다 — 거기서 바로 맡는다.
  */
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import {
-  CLIENT_TAG, ChatWindow, OrderProgress, addMessage, clearMessages, getChatSnapshot, idbGetOrder, loadFromIdb,
-  retryChatMessage, sendChatMessage, sponsorRelation, subscribeChatMessages, subscribeChatStore,
-  type ChatMessage, type DisputeMessagePayload, type Order, type PriceTracker,
-} from '@sajwo-tracker/shared';
+import { useEffect, useState } from 'react';
+import { OrderProgress, idbGetOrder, sponsorRelation, type Order, type PriceTracker } from '@sajwo-tracker/shared';
 import { isClaimableLn } from '@sajwo-tracker/shared/ln';
-import { prepareDisputeMessage } from '../nostr/dispute-message';
+import { TradeChat } from '../chat/TradeChat';
 import { DesignatedOfferCard } from '../sponsor/components/DesignatedOfferCard';
 import { OrderCard } from '../sponsor/components/OrderCard';
 import { ui } from '../ui';
@@ -37,27 +33,6 @@ export function LnOrderDetail({ orderId, onBack, tracker }: Props) {
   const { view, myPubkey, order, local, now } = useLnCard(orderId, archived);
   // 이 기기에 내 기록이 없는 남의 의뢰. 클레임이 풀린 후원자는 IDB 사본이 있어 내 카드로 본다
   const relation = order && !local && !archived ? sponsorRelation(order, myPubkey) : null;
-
-  useEffect(() => {
-    let cleanup: (() => void) | null = null;
-    void loadFromIdb(orderId);
-    void subscribeChatMessages(orderId, msg => addMessage(msg)).then(unsub => { cleanup = unsub; });
-    return () => {
-      cleanup?.();
-      clearMessages(orderId);
-    };
-  }, [orderId]);
-
-  const messages = useSyncExternalStore(subscribeChatStore, getChatSnapshot)[orderId] ?? [];
-
-  const handleSend = useCallback(async (text: string) => {
-    const payload: DisputeMessagePayload = { type: 'text', content: text };
-    await sendChatMessage(() => prepareDisputeMessage(orderId, payload, CLIENT_TAG));
-  }, [orderId]);
-
-  const handleRetry = useCallback(async (failed: ChatMessage) => {
-    await retryChatMessage(failed, () => prepareDisputeMessage(orderId, failed.payload, CLIENT_TAG));
-  }, [orderId]);
 
   return (
     <div style={styles.wrap}>
@@ -84,15 +59,9 @@ export function LnOrderDetail({ orderId, onBack, tracker }: Props) {
         />
       )}
 
-      {/* 에스크로(운영자)와 나 사이 1:1 — 상대방은 이 대화를 못 본다 */}
+      {/* 상대방과 대화(운영자 못 봄) + 운영자는 부를 때만 — 운영자와는 당사자마다 따로다 */}
       {myPubkey && view.role && !view.draft && (
-        <ChatWindow
-          label="에스크로 채팅"
-          messages={messages}
-          myPubkey={myPubkey}
-          onSend={handleSend}
-          onRetry={handleRetry}
-        />
+        <TradeChat track="ln" orderId={orderId} myPubkey={myPubkey} role={view.role} peer={view.peer} />
       )}
     </div>
   );

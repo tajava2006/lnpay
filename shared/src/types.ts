@@ -156,7 +156,11 @@ export interface AccountInfo {
 
 /** dispute-message 이벤트의 NIP-44 암호화 페이로드 */
 export interface DisputeMessagePayload {
-  type: 'text' | 'account-reveal';
+  /**
+   * `call` = 운영자 부르기(docs/PLAN-PEER-CHAT.md) — 사유와 이 거래의 상대방 대화 키를 운영자에게 넘긴다.
+   * 상대방 채팅(`channel: 'peer'`)은 `text`만 쓴다.
+   */
+  type: 'text' | 'account-reveal' | 'call';
   /** 텍스트 메시지 (type: 'text') */
   content?: string;
   /** 계좌정보 평문 제출 (type: 'account-reveal', 커밋먼트 대조 검증용) */
@@ -166,6 +170,13 @@ export interface DisputeMessagePayload {
    * 솔트 도입 이전 기록에는 없다 — 그 경우 레거시 무솔트로 검증한다.
    */
   commitmentSalt?: string;
+  /** 운영자를 부른 사유 (type: 'call') */
+  reason?: string;
+  /**
+   * 이 거래의 상대방 대화 키 hex (type: 'call') — 운영자가 두 사람 대화를 **읽기만** 하게 넘긴다(`peer-chat.ts`).
+   * 상대가 아직 없을 때 부르면 없다. 화면에 그리지 않는다
+   */
+  peerChatKey?: string;
 }
 
 /** 복호화된 채팅 메시지 (IDB 저장용) */
@@ -176,6 +187,11 @@ export interface ChatMessage {
   recipientPubkey: string;
   payload: DisputeMessagePayload;
   createdAt: number;
+  /**
+   * 어느 대화인가. `peer` = 상대방과 둘만(운영자 못 봄), 없으면 운영자와(분쟁 채팅 — 이 칼럼이 생기기 전 기록도 여기).
+   * 한 스토어·한 IDB에 같이 두고 화면이 가른다
+   */
+  channel?: 'peer';
   /**
    * 내가 보낸 메시지의 전송 상태. 릴레이에서 받은 메시지에는 없다(이미 도달한 것이므로).
    *

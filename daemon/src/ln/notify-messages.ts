@@ -95,7 +95,7 @@ export function asPush(n: Notice, orderId?: string): { title: string; body: stri
  */
 export const PUSH_WELCOME = {
   title: '페어바이',
-  body: '알림이 등록되었습니다. 거래가 회원님 차례가 되거나 에스크로 채팅에 메시지가 오면 여기로 알려드립니다.',
+  body: '알림이 등록되었습니다. 거래가 회원님 차례가 되거나 상대방·운영자가 메시지를 보내면 여기로 알려드립니다.',
   url: '/',
   tag: 'pairbuy-welcome',
 } as const;
@@ -160,11 +160,19 @@ export const NOTIFY = {
     ({ body: '거래가 오래 멈춰 있어 종료되었습니다. 결제한 금액은 환불됩니다.', tab: 'history' }),
 
   /**
-   * 운영자가 에스크로 채팅을 보냈다. 내용은 싣지 않는다 — 잠금화면에 뜰 수 있다(위 "내용에 무엇을 담지 않나").
-   * 트랙·탭은 받는 사람 자리에 따라 다르므로 부르는 쪽이 정한다.
+   * 운영자가 운영자 채팅에 메시지를 보냈다. 내용은 싣지 않는다 — 잠금화면에 뜰 수 있다(위 "내용에 무엇을 담지 않나").
+   * 트랙·탭은 받는 사람 자리에 따라 다르므로 부르는 쪽이 정한다. 아래 둘도 같다.
    */
   operatorMessage: (tab: Tab, track: Track): Notice =>
-    ({ body: '에스크로 채팅에 새 메시지가 왔습니다. 앱에서 확인해 주세요.', tab, track }),
+    ({ body: '운영자가 메시지를 보냈습니다. 앱에서 확인해 주세요.', tab, track }),
+
+  /** 상대방이 운영자를 불렀다 — 내 운영자 칸이 열리고, 두 사람 대화를 운영자가 보게 됐다(docs/PLAN-PEER-CHAT.md D8) */
+  operatorCalled: (tab: Tab, track: Track): Notice =>
+    ({ body: '상대방이 운영자를 불렀습니다. 앱에서 확인해 주세요.', tab, track }),
+
+  /** 상대방 채팅에 메시지가 왔다(`admin/peer-chat.ts` — 조용한 창을 거친다). 데몬은 내용을 모른다 */
+  peerMessage: (tab: Tab, track: Track): Notice =>
+    ({ body: '상대방이 메시지를 보냈습니다. 앱에서 확인해 주세요.', tab, track }),
 
   /** 분쟁 판정 결과. */
   disputeResolved: (won: boolean): Notice => ({

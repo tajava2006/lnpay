@@ -100,7 +100,7 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
       {payoutSat === null ? (
         <div style={styles.missingAmount}>
           <b>받을 금액을 아직 받아오지 못했습니다.</b> 잠시 후 새로고침해 보시고,
-          계속 이 상태면 이 거래는 진행할 수 없습니다 — 에스크로 채팅으로 문의해 주세요.
+          계속 이 상태면 이 거래는 진행할 수 없습니다 — 진행 상황 · 채팅 화면에서 운영자를 불러 문의해 주세요.
         </div>
       ) : (
         <div style={styles.amountRow}>

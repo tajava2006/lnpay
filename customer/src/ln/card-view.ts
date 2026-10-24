@@ -89,6 +89,12 @@ export interface LnCardView {
    * 후원자는 대조할 일이 없어 빈 코드(지정 사실만). 공개 거래는 null
    */
   designated: { counterpartyCode: string } | null;
+  /**
+   * 상대방 채팅(docs/PLAN-PEER-CHAT.md D11) — 사는 사람이 **확정된** 뒤에만: 보증금을 낸 클레임이거나 지정 거래 수락.
+   * 보증금을 안 낸 클레임은 아직 확정이 아니라(풀리면 다른 사람에게 간다) 열지 않는다. 지정한 상대가 아닌 사람이 붙었으면
+   * 열지 않는다. 끝난 거래는 읽기만
+   */
+  peer: { pubkey: string; readOnly: boolean } | null;
 }
 
 /** 지정 상대 — 고객은 **자기 기록**을 먼저 믿는다(데몬 값은 그다음). T-107처럼 앱이 스스로 대조할 근거다 */
@@ -150,7 +156,7 @@ export function lnCardView(input: LnCardInput): LnCardView {
   // 결제·계좌를 열지 않는다
   const designatedTo = designatedSponsorOf(order, local);
   const wrongSponsor = role === 'customer' && !!designatedTo && !!sponsorPubkey && sponsorPubkey !== designatedTo;
-  if (wrongSponsor) notes.push('지정한 상대가 아닌 사람이 붙은 것으로 보입니다. 결제하지 말고 에스크로 채팅으로 알려 주세요.');
+  if (wrongSponsor) notes.push('지정한 상대가 아닌 사람이 붙은 것으로 보입니다. 결제하지 말고 운영자를 불러 알려 주세요(진행 상황 · 채팅 화면의 \'운영자 부르기\').');
 
   if (role === 'customer') {
     const bolt11 = order?.bolt11 ?? local?.bolt11;
@@ -205,6 +211,11 @@ export function lnCardView(input: LnCardInput): LnCardView {
 
   if (role === null && order) notes.push('내 배정이 풀린 거래입니다. 지금은 참여하고 있지 않습니다.');
 
+  const peerPubkey = role === 'customer' ? sponsorPubkey : role === 'sponsor' ? order?.customerPubkey : undefined;
+  const peer = peerPubkey && sponsorPubkey && !sponsorDepositPending && !wrongSponsor
+    ? { pubkey: peerPubkey, readOnly: terminal }
+    : null;
+
   return {
     role, draft: false, state,
     badge: lnOrderDisplay({ state, sponsorDepositPending }),
@@ -218,6 +229,7 @@ export function lnCardView(input: LnCardInput): LnCardView {
     disbursed: !!order?.disbursed,
     actions, side, notes, progress,
     designated: designatedOf(order, local, role),
+    peer,
   };
 }
 
@@ -229,6 +241,7 @@ function draftView(input: LnCardInput): LnCardView {
     price: local?.price ?? 0, deadline: local?.expiration ?? 0, disbursed: false,
     progress: { accountInfoSent: false, sponsorDepositPending: false },
     designated: designatedOf(null, local, 'customer'),
+    peer: null,
   };
   if (!local) {
     return {

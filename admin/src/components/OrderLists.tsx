@@ -7,7 +7,8 @@
 import { useSyncExternalStore } from 'react';
 import { dateTimeText, isTerminalState, lnOrderDisplay } from '@sajwo-tracker/shared';
 import { isOnchainTerminal, onchainStateDisplay } from '@sajwo-tracker/shared/onchain';
-import { daemonEpoch, daemonState, lnOrders, onchainOrders } from '../daemon/stores';
+import { chats, daemonEpoch, daemonState, lnOrders, onchainOrders } from '../daemon/stores';
+import { hasCall } from './DisputeChat';
 import { ui } from '../ui';
 
 interface Row {
@@ -20,17 +21,20 @@ interface Row {
   done: boolean;
   /** 지정 거래 — 보증금 없이 고객이 고른 상대와(docs/LN-TRACK.md §7 · ONCHAIN-TRACK.md §10) */
   designated: boolean;
+  /** 당사자가 운영자를 불렀다 — 열어 볼 거래 */
+  called: boolean;
 }
 
 export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void }) {
   const orders = useSyncExternalStore(lnOrders.subscribe, lnOrders.get);
+  const chatMap = useSyncExternalStore(chats.subscribe, chats.get);
   const empty = useEmptyText();
   const rows: Row[] = Object.values(orders).map(o => {
     const d = lnOrderDisplay(o);
     return {
       orderId: o.orderId, label: d.label, color: d.color, bg: d.bg,
       amount: `${o.price.toLocaleString()}원`, updatedAt: o.updatedAt, done: isTerminalState(o.state),
-      designated: Boolean(o.designatedSponsor),
+      designated: Boolean(o.designatedSponsor), called: hasCall(chatMap[`ln:${o.orderId}`]),
     };
   });
   return <Table title="라이트닝 오더" rows={rows} onSelect={onSelect} empty={empty} />;
@@ -38,13 +42,14 @@ export function LnOrderList({ onSelect }: { onSelect: (orderId: string) => void 
 
 export function OnchainOrderList({ onSelect }: { onSelect: (orderId: string) => void }) {
   const orders = useSyncExternalStore(onchainOrders.subscribe, onchainOrders.get);
+  const chatMap = useSyncExternalStore(chats.subscribe, chats.get);
   const empty = useEmptyText();
   const rows: Row[] = Object.values(orders).map(o => {
     const d = onchainStateDisplay(o.state);
     return {
       orderId: o.orderId, label: d.label, color: d.color, bg: d.bg,
       amount: `${o.amountSat.toLocaleString()} sats`, updatedAt: o.updatedAt, done: isOnchainTerminal(o.state),
-      designated: Boolean(o.designatedSponsor),
+      designated: Boolean(o.designatedSponsor), called: hasCall(chatMap[`onchain:${o.orderId}`]),
     };
   });
   return <Table title="온체인 오더" rows={rows} onSelect={onSelect} empty={empty} />;
@@ -85,6 +90,7 @@ function Table({ title, rows, onSelect, note, empty }: {
                   <td style={styles.td}>
                     <span style={{ ...styles.badge, color: r.color, background: r.bg }}>{r.label}</span>
                     {r.designated && <span style={styles.designated}>지정</span>}
+                    {r.called && <span style={styles.called}>호출</span>}
                   </td>
                   <td style={styles.td}>{r.amount}</td>
                   <td style={styles.td}>{dateTimeText(r.updatedAt)}</td>
@@ -110,6 +116,10 @@ const styles = {
   designated: {
     marginLeft: 6, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600 as const,
     color: '#6D28D9', background: '#F5F3FF',
+  },
+  called: {
+    marginLeft: 6, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600 as const,
+    color: '#B45309', background: '#FEF3C7',
   },
   doneRow: { opacity: 0.55 },
   clickable: { cursor: 'pointer' },

@@ -1,9 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ChatMessage } from '../types';
 import type { AccountInfo } from '../types';
 
+/**
+ * 어느 대화인가 — 한 화면에 상대방 대화와 운영자 대화가 같이 뜨므로 **머리 색·이름으로 한눈에 갈린다**(2026-10-24 피드백:
+ * 운영자와의 1:1을 상대방과의 대화로 알았다). 생략하면 운영자 대화 모양(예전 그대로)
+ */
+export type ChatVariant = 'peer' | 'operator';
+
 interface Props {
   label: string;
+  variant?: ChatVariant;
+  /** 머리 아래 고정 안내(경고문 등) */
+  notice?: ReactNode;
+  /** 입력칸을 숨긴다 — 끝난 거래 */
+  readOnly?: boolean;
+  /** 메시지가 없을 때 문구 */
+  emptyText?: string;
   messages: ChatMessage[];
   myPubkey: string;
   onSend: (text: string) => Promise<void>;
@@ -13,7 +26,9 @@ interface Props {
   renderAccountExtra?: (accountInfo: AccountInfo, commitmentSalt?: string) => React.ReactNode;
 }
 
-export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderAccountExtra }: Props) {
+export function ChatWindow({
+  label, variant = 'operator', notice, readOnly, emptyText, messages, myPubkey, onSend, onRetry, renderAccountExtra,
+}: Props) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -71,10 +86,11 @@ export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderA
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>{label}</div>
+      <div style={{ ...styles.header, ...(variant === 'peer' ? styles.headerPeer : styles.headerOperator) }}>{label}</div>
+      {notice && <div style={styles.notice}>{notice}</div>}
       <div ref={listRef} style={styles.messageList}>
         {messages.length === 0 && (
-          <div style={styles.empty}>메시지 없음</div>
+          <div style={styles.empty}>{emptyText ?? '메시지 없음'}</div>
         )}
         {messages.map(msg => {
           const isMine = msg.senderPubkey === myPubkey;
@@ -88,7 +104,15 @@ export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderA
                 ...styles.bubble,
                 ...(isMine ? styles.mine : styles.theirs),
               }}>
-                {msg.payload.type === 'account-reveal' && msg.payload.accountInfo ? (
+                {msg.payload.type === 'call' ? (
+                  // 대화 키는 그리지 않는다 — 운영자만 쓰는 값이다
+                  <div style={styles.accountReveal}>
+                    <div style={styles.callLabel}>
+                      운영자 호출{msg.payload.peerChatKey ? ' · 상대방과의 대화 공개' : ''}
+                    </div>
+                    <div style={styles.text}>{msg.payload.reason}</div>
+                  </div>
+                ) : msg.payload.type === 'account-reveal' && msg.payload.accountInfo ? (
                   <div style={styles.accountReveal}>
                     <div style={styles.accountLabel}>계좌 정보 공개</div>
                     <div>{msg.payload.accountInfo.bankName}</div>
@@ -126,7 +150,7 @@ export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderA
           );
         })}
       </div>
-      <div style={styles.inputRow}>
+      {!readOnly && <div style={styles.inputRow}>
         <textarea
           style={styles.input}
           value={text}
@@ -144,7 +168,7 @@ export function ChatWindow({ label, messages, myPubkey, onSend, onRetry, renderA
         >
           {sending ? '...' : '전송'}
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -161,9 +185,22 @@ const styles = {
     padding: '8px 16px',
     fontSize: 13,
     fontWeight: 600 as const,
-    color: '#333',
-    background: '#F9FAFB',
     borderBottom: '1px solid #E5E7EB',
+  },
+  headerPeer: { color: '#3730A3', background: '#EEF2FF' },
+  headerOperator: { color: '#92400E', background: '#FFFBEB' },
+  notice: {
+    padding: '8px 16px',
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: '#4B5563',
+    background: '#FAFAFA',
+    borderBottom: '1px solid #F3F4F6',
+  },
+  callLabel: {
+    fontWeight: 600 as const,
+    color: '#B45309',
+    marginBottom: 4,
   },
   messageList: {
     minHeight: 200,

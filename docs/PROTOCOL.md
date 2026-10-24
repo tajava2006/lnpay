@@ -150,7 +150,8 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하지만, "두 p
 | `remit-request` | 후원자 | | `invoiced` (요청 시각 ≤ 기한 + 1h) |
 | `payment-confirm` | 고객 | | `invoiced`·`remitted` |
 | `cancel-request` | 고객 | | 초안·`requested`·`claimed`·`verified` |
-| `dispute-message` | 양쪽 | `p`=자기 자신도. 내용 = APP에게 암호화한 채팅. **만료 없음** | 아무 때나 |
+| `dispute-message` | 양쪽 | `p`=자기 자신도. 내용 = APP에게 암호화한 **운영자 채팅** — `text` · `account-reveal` · `call`(운영자 부르기: `{reason, peerChatKey?}`, 아래). **만료 없음** | 아무 때나 |
+| `peer-message` | 양쪽 → **상대** | `p`=상대·나·APP, `expiration`=+90일. 내용 = **거래별 대화 키**로 암호화한 상대방 채팅 — 운영자·데몬은 못 연다. 데몬은 `p`=APP을 보고 상대에게 푸시만 | 상대가 정해진 뒤 |
 | `push-subscription` | 유저 | `a` 없음. 내용 = APP에게 암호화한 구독. **만료 없음** | — |
 | `parsed-order` · `coupang-status` | 유저스크립트 → **자기 웹앱** | 자기 자신에게 암호화. 데몬은 안 본다 | — |
 
@@ -168,6 +169,7 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하지만, "두 p
 | `onchain-dispute` | 양쪽 | `stage`=`account-unusable`(후원자, 계좌 이의) | `remitted`, 이의는 `presigned` |
 | `cancel-request` | 고객 | | 초안·`listed` |
 | `dispute-message` | 양쪽 | 라이트닝과 같다 | |
+| `peer-message` | 양쪽 → 상대 | 라이트닝과 같다 | `listed` 뒤 |
 
 데몬이 받는 action은 트랙별 핸들러 표(`createLnHandlers` · `createOcHandlers`)에 있는 것뿐이다. 나머지는
 `ignored:no-route`로 닫힌다.
@@ -184,7 +186,19 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하지만, "두 p
 | `reveal-request` | 라이트닝 | 운영자가 후원자에게 받은 계좌 공개를 요청 — 이게 와야 공개 버튼이 열린다 |
 | `onchain-cosign` | 온체인 | 서명 요청 `{psbt}` (암호문). 릴리스는 후원자 서명이 든 PSBT, 그 밖은 **서명 없는** PSBT |
 | `onchain-rejected` | 온체인 | `reason` — 요청을 처리할 수 없다. 없으면 거절이 유저에게 안 보인다 |
-| `dispute-message` | 둘 다 | 운영자 답장(데몬이 APP 키로 대신 보낸다) |
+| `dispute-message` | 둘 다 | 운영자 답장(데몬이 APP 키로 대신 보낸다). 상대가 운영자를 부르면 "상대방이 운영자를 불렀습니다"도 이 길로(부른 사람마다 한 번) |
+
+### 상대방 채팅과 운영자 부르기 (`shared/src/peer-chat.ts`)
+
+- **대화 키** `K_order` = HKDF-SHA256(IKM = 두 당사자의 NIP-44 대화 키, salt = `pairbuy-peer-chat`, info = `v1:<트랙>:<오더>`).
+  두 당사자가 각자 자기 개인키 + 상대 pubkey(오더 태그에 공개)로 계산해도 같다. `peer-message` 내용은 이 키로 NIP-44 v2 암호화한다.
+- **운영자 부르기** = `dispute-message`의 `call` — 사유와 `K_order` hex. 데몬은 사본에 그대로 실어 운영자에게 보내고, 어드민은
+  그 키로 릴레이의 `peer-message` 원본을 받아 **읽기만** 한다. 넘기는 게 두 사람 NIP-44 대화 키가 아니라 `K_order`인 건 범위
+  때문이다 — 그 키는 같은 두 사람의 다른 거래 대화와 `account-info`(바로 그 키로 암호화된다)까지 연다. 어느 키든 개인키는 안 나온다.
+- **누가 썼나** — 바깥 이벤트는 보낸 사람 메인 키로 서명한다. 받는 쪽(유저 앱 · 어드민)은 작성자가 그 거래 당사자인 것만 연다 —
+  키를 받은 운영자도 대화에 쓸 수 없다.
+- **계좌는 채팅이 아니다** — 분쟁 판정의 기준은 커밋먼트가 있는 `account-info`뿐이다. 채팅으로 받은 계좌는 인정하지 않는다
+  (RISKS T-015).
 
 ## 5. 구독 필터
 
@@ -194,6 +208,8 @@ pubkey는 브라우저마다 만든 앱 키라 실명과 무관하지만, "두 p
 | 유저 앱 — 수신함 | `kinds:[3838] #p:[내 pubkey] #t:[트랙 태그] since:…` (역할 공용, 받은 뒤 action으로 분기) |
 | 유저 앱 — 내가 보낸 요청 | `kinds:[3838] authors:[내 pubkey] #t:[트랙 태그] since:…` — 로컬 기록 되살리기 |
 | 유저 앱 — 지정 거래 | `kinds:[33839] authors:[APP] #p:[내 pubkey] #t:[트랙 태그] since:…` — 열어서 오더 처리기로 |
+| 유저 앱 — 거래 상세의 대화 | 운영자 채팅 `kinds:[3838] #a:[오더] #p:[내 pubkey] #t:[트랙 태그]`(action `dispute-message`) · 상대방 채팅 같은 필터(action `peer-message`, 작성자 = 나·상대) — 그 화면에 있는 동안만 |
+| 어드민 앱 — 공개된 두 사람 대화 | `kinds:[3838] #a:[오더] #t:[트랙 태그] authors:[고객, 후원자]`(action `peer-message`) — 대화 키를 받은 오더만 |
 | 데몬 | `kinds:[3838] #p:[APP] since:커서−6h` — 5분마다 새로 연다 |
 | 어드민 앱 | [ARCHITECTURE.md](ARCHITECTURE.md) §2 (지정 거래 스냅샷도 `#p`=운영자로 받아 벙커로 연다) |
 
@@ -240,7 +256,8 @@ NIP-17 DM으로 따로 보낸다(`daemon/src/admin/notify.ts`, 데몬 릴레이�
 | 언제 | 몇 번 |
 |---|---|
 | **경보** — 분쟁 진입, 계좌 이의, 송금 뒤 무응답, 정산·지급 실패, 체인 이상 등 (`raiseAlert`) | 사유(`dedup`)마다 한 번. 어드민 앱 경보 목록에도 남는다 |
-| **유저의 에스크로 채팅** ("에스크로 채팅 — …") — 앞 80자, 계좌 공개는 "계좌를 공개했습니다" | 오더마다 `CHAT_DM_QUIET_SEC`(10분)에 한 번 — 전문은 어드민 앱 |
+| **유저의 운영자 채팅** ("운영자 채팅 — …") — 앞 80자, 계좌 공개는 "계좌를 공개했습니다" | 오더마다 `CHAT_DM_QUIET_SEC`(10분)에 한 번 — 전문은 어드민 앱 |
+| **운영자 호출** ("운영자 호출 — …") — 사유 앞 80자, 대화 키를 넘겼으면 "상대방과의 대화 공개" | **매번, 조용한 창 없이** — 부르기는 드물고 기다리게 하면 안 된다. 상대방 채팅 자체는 운영자에게 아무것도 안 보낸다 |
 | **새 의뢰** — 라이트닝 오더 생성·온체인 등록 | 오더마다 한 번 |
 | **새 지정 거래** — 지정 의뢰 생성 (공짜라 몰아 오면 폰만 울린다) | 트랙마다 10분에 한 번 — 나머지는 어드민 앱 목록 |
 | **LND 불통** — 10분 넘게 응답 없음 / 복구 | 불통 한 번마다 한 번 · 복구 한 번 |

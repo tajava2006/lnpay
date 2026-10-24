@@ -322,6 +322,7 @@ export function buildLnDetail(ctx: LnContext, order: LnOrderRow, blockHeight?: n
       status: inv.status,
       payBy: inv.pay_by,
       ...(inv.htlc_expiry_height ? { htlcExpiryHeight: inv.htlc_expiry_height } : {}),
+      paymentHash: inv.payment_hash,
     })),
     ...(blockHeight ? { blockHeight } : {}),
   };

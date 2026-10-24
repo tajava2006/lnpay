@@ -7,13 +7,14 @@
  *
  * 채팅은 데몬이 중계한 사본이다(운영자 키로는 APP↔유저 대화를 못 연다).
  */
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useState, useSyncExternalStore } from 'react';
 import { dateTimeText, lnOrderDisplay, type AdminLnOrderDetail, type Order } from '@sajwo-tracker/shared';
 import { LN_CLOSE_REASON_LABEL, LN_PAYOUT_MANUAL, isLnCloseReason, isManualPayout } from '@sajwo-tracker/shared/ln';
 import { sendCommand } from '../daemon/client';
 import { chats, lnDetails, lnOrders } from '../daemon/stores';
 import { WAITING_DETAIL_TEXT, cancelledHoldText, commandResultText, lnPayoutText, shortNpub } from '../format';
 import { DisputeChat } from './DisputeChat';
+import { PaymentHash } from './PaymentHash';
 import { ui } from '../ui';
 
 const INVOICE_PURPOSE: Record<AdminLnOrderDetail['invoices'][number]['purpose'], string> = {
@@ -113,17 +114,22 @@ function Invoices({ detail }: { detail: AdminLnOrderDetail }) {
         <thead><tr><th style={ui.th}>무엇</th><th style={ui.th}>금액</th><th style={ui.th}>상태</th><th style={ui.th}>결제 기한</th><th style={ui.th}>HTLC 만기</th></tr></thead>
         <tbody>
           {detail.invoices.map((inv, i) => (
-            <tr key={i}>
-              <td style={ui.td}>{INVOICE_PURPOSE[inv.purpose]}</td>
-              <td style={ui.td}>{inv.amountSat.toLocaleString()} sats</td>
-              <td style={ui.td}>{inv.status === 'cancelled' ? cancelledHoldText(inv.htlcExpiryHeight) : INVOICE_STATUS[inv.status]}</td>
-              <td style={ui.td}>{dateTimeText(inv.payBy)}</td>
-              <td style={ui.td}>
-                {inv.htlcExpiryHeight
-                  ? `${inv.htlcExpiryHeight.toLocaleString()}${detail.blockHeight ? ` (${inv.htlcExpiryHeight - detail.blockHeight}블록 남음)` : ''}`
-                  : '—'}
-              </td>
-            </tr>
+            <Fragment key={i}>
+              <tr>
+                <td style={ui.td}>{INVOICE_PURPOSE[inv.purpose]}</td>
+                <td style={ui.td}>{inv.amountSat.toLocaleString()} sats</td>
+                <td style={ui.td}>{inv.status === 'cancelled' ? cancelledHoldText(inv.htlcExpiryHeight) : INVOICE_STATUS[inv.status]}</td>
+                <td style={ui.td}>{dateTimeText(inv.payBy)}</td>
+                <td style={ui.td}>
+                  {inv.htlcExpiryHeight
+                    ? `${inv.htlcExpiryHeight.toLocaleString()}${detail.blockHeight ? ` (${inv.htlcExpiryHeight - detail.blockHeight}블록 남음)` : ''}`
+                    : '—'}
+                </td>
+              </tr>
+              {inv.paymentHash && (
+                <tr><td style={ui.td} colSpan={5}><PaymentHash hash={inv.paymentHash} /></td></tr>
+              )}
+            </Fragment>
           ))}
         </tbody>
       </table>

@@ -82,6 +82,7 @@ export function buildOcDetail(ctx: OcContext, row: OcRow): AdminOcOrderDetail {
       status: inv.status,
       payBy: inv.pay_by,
       ...(inv.htlc_expiry_height ? { htlcExpiryHeight: inv.htlc_expiry_height } : {}),
+      paymentHash: inv.payment_hash,
     }));
   return {
     v: 1,

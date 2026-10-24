@@ -15,6 +15,8 @@ import { OnchainOrderBook } from './onchain/components/OnchainOrderBook';
 import { OnchainOrderForm } from './onchain/components/OnchainOrderForm';
 import { OnchainMyOrders } from './onchain/components/OnchainMyOrders';
 import { OnchainOrderDetail } from './onchain/components/OnchainOrderDetail';
+import { hasOnchainSale } from './onchain/store';
+import { HowItWorks } from './components/HowItWorks';
 import { startOnchainSubscriptions, stopOnchainSubscriptions } from './onchain/nostr/service';
 import { NotifySetup } from './components/NotifySetup';
 import { KeyManager } from './components/KeyManager';
@@ -235,7 +237,11 @@ function AppContent() {
                 tracker={tracker}
               />
             ) : tab === 'request' ? (
-              <OnchainOrderForm onDone={() => goTab('history')} tracker={tracker} />
+              <>
+                {/* 내 키를 알아야 "판 적이 있나"를 본다 — 모를 땐 잠깐 안 그린다(펼침이 처음 값으로 굳는다) */}
+                {myPubkey && <HowItWorks track="onchain" defaultOpen={!hasOnchainSale(myPubkey)} />}
+                <OnchainOrderForm onDone={() => goTab('history')} tracker={tracker} />
+              </>
             ) : tab === 'fulfill' ? (
               <OnchainOrderBook myPubkey={myPubkey} tracker={tracker} />
             ) : (

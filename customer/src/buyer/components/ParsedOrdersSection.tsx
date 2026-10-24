@@ -172,7 +172,8 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
           </p>
           <p style={styles.attachHint}>
             연결하면 새 판매를 올리지 않고 <b>이미 올려 둔 판매</b>에 이 계좌를 씁니다.
-            사는 사람을 기다리며 걸어둔 판매가 있다면 이쪽입니다.
+            사는 사람을 기다리며 걸어둔 판매가 있다면 이쪽입니다. 붙인 가상계좌는 사는 사람이 받을 준비를 마치면 자동으로
+            전달됩니다(그때 이 앱이 열려 있어야 하고, 닫혀 있었다면 다시 열면 바로 보냅니다).
           </p>
           {attachable.map(o => (
             <button
@@ -181,7 +182,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
               disabled={attaching || requesting}
               style={styles.attachBtn}
             >
-              {o.memo || '직접 입력'} · {o.price.toLocaleString()}원 에 연결
+              {o.memo || '직접 입력'} · {o.price.toLocaleString()}원에 연결
             </button>
           ))}
         </div>

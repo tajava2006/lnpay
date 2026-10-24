@@ -142,7 +142,8 @@ export function UserscriptGuide() {
             <p style={styles.step}><strong>2.</strong> Tampermonkey에서 새 스크립트를 만들고 아래 코드를 붙여넣습니다.</p>
             <p style={styles.step}><strong>3.</strong> 크롬 주소창에 <strong>chrome://extensions</strong>를 입력한 뒤, Tampermonkey의 <strong>세부정보</strong>에서 <strong>사용자 스크립트 허용</strong>을 켭니다.</p>
             <p style={styles.stepNote}>이 설정을 켜지 않으면 스크립트를 활성화해도 실행되지 않습니다. 항목이 보이지 않는 구버전 크롬은 확장 프로그램 페이지 우측 상단의 <strong>개발자 모드</strong>를 대신 켜세요.</p>
-            <p style={styles.step}><strong>4.</strong> 쿠팡 주문 상세 페이지를 방문하면 자동으로 주문이 감지됩니다.</p>
+            <p style={styles.step}><strong>4.</strong> 쿠팡에서 결제 수단을 <strong>무통장입금</strong>으로 골라 주문한 뒤, 주문 상세 페이지를 열면 자동으로 감지됩니다.</p>
+            <p style={styles.stepNote}>카드 결제처럼 취소·환불될 수 있는 결제는 에스크로로 묶을 수 없어 감지하지 않습니다. 감지된 주문은 이 탭 위 '감지된 주문'에 뜹니다.</p>
           </div>
 
           {scriptContent && (

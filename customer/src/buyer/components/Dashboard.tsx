@@ -6,7 +6,7 @@ import { LnOrderCard } from '../../ln/LnOrderCard';
 import { OrderForm } from './OrderForm';
 import { ParsedOrdersSection } from './ParsedOrdersSection';
 import { UserscriptGuide, canInstallUserscript } from './UserscriptGuide';
-import { HowItWorks } from './HowItWorks';
+import { HowItWorks } from '../../components/HowItWorks';
 
 interface Props {
   tracker: PriceTracker;
@@ -46,7 +46,7 @@ export function Dashboard({ tracker, onSelectOrder }: Props) {
         <button className="btn btn-secondary" onClick={handleClearAll}>끝난 판매 지우기</button>
       </div>
 
-      <HowItWorks defaultOpen={sorted.length === 0} />
+      <HowItWorks track="ln" defaultOpen={sorted.length === 0} />
       <ParsedOrdersSection />
       <OrderForm />
 

@@ -14,8 +14,8 @@ interface Props {
 }
 
 const ACTOR_LABEL: Record<string, string> = {
-  customer: '고객',
-  sponsor: '후원자',
+  customer: '파는 사람',
+  sponsor: '사는 사람',
   admin: '에스크로',
 };
 
@@ -77,7 +77,7 @@ function Step({ step, isLast }: { step: ResolvedStep; isLast: boolean }) {
           {current && (
             step.isMyTurn
               ? <span style={styles.turnMine}>지금 당신 차례</span>
-              : <span style={styles.turnOther}>{ACTOR_LABEL[step.actor]} 대기 중</span>
+              : <span style={styles.turnOther}>{ACTOR_LABEL[step.actor]} 차례</span>
           )}
         </div>
 

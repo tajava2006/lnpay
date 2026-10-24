@@ -360,7 +360,7 @@ export function currentOnchainDeadline(
   switch (order.state) {
     case 'listed':
       return order.expiration > 0
-        ? { at: order.expiration, label: '의뢰 만료' }
+        ? { at: order.expiration, label: '판매 만료' }
         : null;
 
     case 'bonded':

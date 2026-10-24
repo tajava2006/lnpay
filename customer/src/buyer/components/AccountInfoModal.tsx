@@ -51,8 +51,8 @@ export function AccountInfoModal({ orderId, onClose, onSubmit, submitting }: Pro
         </div>
         <div style={styles.body}>
           <p style={styles.desc}>
-            의뢰 <strong>#{orderId}</strong>의 후원자에게 전달할 계좌 정보를 입력하세요.
-            이 정보는 암호화되어 후원자만 열람할 수 있습니다.
+            거래 <strong>#{orderId}</strong>의 사는 사람에게 전달할 계좌 정보를 입력하세요.
+            이 정보는 암호화되어 사는 사람만 열람할 수 있습니다.
           </p>
 
           <label style={styles.label}>은행</label>

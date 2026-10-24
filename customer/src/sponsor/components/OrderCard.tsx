@@ -57,22 +57,22 @@ function OrderCardBody({ order, now, myPubkey }: Props) {
               onClick={() => void handleClaim()}
               disabled={claiming}
             >
-              {claiming ? '보내는 중...' : '맡기'}
+              {claiming ? '보내는 중...' : '사기'}
             </button>
             <p style={styles.hint}>
-              맡겠다는 표시만 합니다. 보증금을 내야 배정이 확정되고, 고객이 결제를 마치면 BTC 받을
+              사겠다는 표시만 합니다. 보증금을 내야 배정이 확정되고, 파는 사람이 에스크로 결제를 마치면 BTC 받을
               인보이스를 등록하게 됩니다. {HOLD_DEPOSIT_NOTE.short}
             </p>
           </>
         ) : (
           <div style={ui.statusRow}>
             <span style={{ ...styles.statusBadge, background: badge.bg, color: badge.color }}>{badge.label}</span>
-            {isTaken && <span style={styles.lockBadge}>다른 후원자가 진행 중</span>}
+            {isTaken && <span style={styles.lockBadge}>다른 사람이 진행 중</span>}
           </div>
         )}
         {isTaken && (
           <p style={styles.takenNotice}>
-            이미 다른 후원자가 가져간 의뢰라 참여할 수 없습니다.
+            이미 다른 사람이 가져간 판매라 참여할 수 없습니다.
             거래가 취소되거나 보증금을 안 내 풀리면 다시 '요청됨'으로 돌아오고, 그때는 누구나 참여할 수 있습니다.
           </p>
         )}

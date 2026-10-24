@@ -129,8 +129,8 @@ shared/                 ← @sajwo-tracker/shared — FSM·사유 표·시간·�
   src/ln/  src/onchain/ ←   트랙별 규약 (`/ln`, `/onchain` 입구)
 daemon/                 ← 에스크로 에이전트 (Node 24, node:sqlite). src/ln · src/onchain · src/hold(홀드 인보이스 공용)
 customer/               ← 통합 유저 앱 (React 19). 패키지 이름은 옛것이다
-  src/sponsor/          ←   의뢰 맡기 탭 (오더북, 첫 화면)
-  src/buyer/            ←   의뢰하기 탭
+  src/sponsor/          ←   사기 탭 (오더북, 첫 화면)
+  src/buyer/            ←   팔기 탭
   src/history/          ←   내 거래 탭
   src/ln/               ←   라이트닝 카드 하나(LnOrderCard) — 세 탭·상세 공용. 할 일은 card-view.ts가 데이터로 정한다
   src/onchain/          ←   온체인 트랙 (탭·구독·저장소 분리)

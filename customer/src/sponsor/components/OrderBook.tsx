@@ -28,7 +28,7 @@ export function OrderBook({ tracker, onSelectOrder }: Props) {
   const offers = designatedLnOffers(Object.values(orders), myPubkey, now);
   return (
     <div>
-      <DesignatedHeader track="ln" />
+      <DesignatedHeader />
       {offers.length > 0 && (
         <>
           <h2 className="section-title">나를 지정한 거래</h2>
@@ -70,11 +70,11 @@ function PublicBook({ tracker, onSelectOrder, orders, synced, myPubkey, now }: P
     });
 
   if (activeOrders.length === 0 && !synced) {
-    return <div style={styles.message}>의뢰를 불러오는 중...</div>;
+    return <div style={styles.message}>판매를 불러오는 중...</div>;
   }
 
   if (activeOrders.length === 0) {
-    return <div style={styles.message}>지금 올라온 의뢰가 없습니다</div>;
+    return <div style={styles.message}>지금 올라온 판매가 없습니다</div>;
   }
 
   // 내가 사주는 의뢰는 위에 따로 — 할 일이 있는 자리다. 내가 참여한 의뢰(사주는 것·올린 것)는 어느 탭에서든
@@ -87,7 +87,7 @@ function PublicBook({ tracker, onSelectOrder, orders, synced, myPubkey, now }: P
       {!synced && <div style={styles.syncBadge}>동기화 중...</div>}
       {sponsoring.length > 0 && (
         <>
-          <h2 className="section-title">내가 맡은 의뢰</h2>
+          <h2 className="section-title">내 구매</h2>
           <div style={{ ...styles.list, marginBottom: 24 }}>
             {sponsoring.map(o => <LnOrderCard key={o.orderId} orderId={o.orderId} tracker={tracker} onOpen={onSelectOrder} />)}
           </div>

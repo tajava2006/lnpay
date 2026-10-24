@@ -27,7 +27,7 @@ import { parseRoute, urlFor, type Tab, type Track } from './routing';
  * 넣으면 층위가 어긋나고(온체인이 라이트닝의 하위처럼 보인다), 무엇보다
  * 두 트랙의 화면 구조가 달라져 옮겨 다닐 때마다 다시 배워야 한다.
  *
- * 그래서 **트랙을 위에 두고 탭 구조를 양쪽이 공유한다.** 이름만 트랙에 맞게 바꾼다.
+ * 그래서 **트랙을 위에 두고 탭 구조를 양쪽이 공유한다.** 탭 이름도 같다(아래 TAB_LABELS).
  * 주소 규칙은 `routing.ts`가 진실이다.
  */
 const TRACKS: Array<{ key: Track; label: string }> = [
@@ -45,11 +45,12 @@ const TRACKS: Array<{ key: Track; label: string }> = [
  * 라벨을 동사형으로 둔 이유: "내 주문"처럼 명사로 두면 후원자가 자기 BTC
  * 구매를 '주문'으로 여겨 엉뚱한 탭을 찾는다(실제 혼동 사례). 각 탭이
  * "여기서 당신이 무엇을 하는가"를 말하면 그 오해가 구조적으로 사라진다.
+ *
+ * **두 트랙 다 '팔기 / 사기'다** (2026-10-24 피드백 — 트랙마다 이름이 달라 헷갈린다). 라이트닝만 '의뢰하기 / 의뢰
+ * 맡기'였는데, 쿠팡 대리결제에서 출발한 이름일 뿐 두 트랙 모두 고객이 BTC를 내고 원화를 받는(= 파는) 쪽이다.
+ * 유저 화면의 역할 이름도 고객 → 파는 사람, 후원자 → 사는 사람, 오더북에 올린 것은 '판매'다(코드 식별자는 그대로).
  */
-const TAB_LABELS: Record<Track, Record<Tab, string>> = {
-  ln: { request: '의뢰하기', fulfill: '의뢰 맡기', history: '내 거래' },
-  onchain: { request: '팔기', fulfill: '사기', history: '내 거래' },
-};
+const TAB_LABELS: Record<Tab, string> = { request: '팔기', fulfill: '사기', history: '내 거래' };
 
 const TAB_ORDER: Tab[] = ['request', 'fulfill', 'history'];
 
@@ -217,7 +218,7 @@ function AppContent() {
             onClick={() => goTab(key)}
             style={tab === key ? { ...styles.tab, ...styles.tabOn } : styles.tab}
           >
-            {TAB_LABELS[track][key]}
+            {TAB_LABELS[key]}
           </button>
         ))}
       </nav>

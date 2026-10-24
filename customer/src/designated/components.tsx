@@ -1,7 +1,7 @@
 /**
  * 지정 거래 화면 부품 — 두 트랙이 같이 쓴다 (docs/LN-TRACK.md §7 · ONCHAIN-TRACK.md §10)
  *
- * - `DesignatedHeader` — 사주기 탭 맨 위. 지정 거래가 뭔지 한 줄 + [내 주소 보기]
+ * - `DesignatedHeader` — 사기 탭 맨 위. 지정 거래가 뭔지 한 줄 + [내 주소 보기]
  * - `MyAddressPanel` — 내 주소(npub) · QR · 확인 코드. **공유해도 되는 값**이라 🔑(비밀키) 화면과 분리한다
  * - `TradeModeToggle` — 의뢰 폼의 "공개 의뢰 / 지정 거래"
  * - `CounterpartyInput` — 상대 주소 붙여넣기·QR → 확인 코드 대조 ☑ → 위험 고지 ☑. 둘 다 체크해야 값을 낸다
@@ -22,15 +22,15 @@ const QrScanner = lazy(() => import('../sponsor/components/QrScanner').then(m =>
 
 export type DesignatedTrack = 'ln' | 'onchain';
 
-// ── 사주기 탭 머리 ──────────────────────────────────────────
+// ── 사기 탭 머리 ──────────────────────────────────────────
 
-export function DesignatedHeader({ track }: { track: DesignatedTrack }) {
+export function DesignatedHeader() {
   const [open, setOpen] = useState(false);
   return (
     <div style={styles.header}>
       <div style={styles.headerText}>
         <b>지정 거래</b> — 이미 이야기가 된 상대와 <b>보증금 없이</b> 거래합니다. 내 주소를 상대에게 보내면, 상대가
-        나를 지정해 {track === 'ln' ? '의뢰' : '팔기'}를 올리고 여기에 바로 뜹니다.
+        나를 지정해 판매를 올리면 여기에 바로 뜹니다.
       </div>
       <button type="button" style={ui.ghostButton} onClick={() => setOpen(true)}>내 주소 보기</button>
       {open && (
@@ -97,7 +97,7 @@ export function TradeModeToggle({ mode, onChange }: { mode: TradeMode; onChange:
   );
   return (
     <div style={styles.modes} role="group" aria-label="거래 방식">
-      {option('public', '공개 의뢰', '오더북에 올림 · 보증금')}
+      {option('public', '공개 판매', '오더북에 올림 · 보증금')}
       {option('designated', '지정 거래', '정한 상대만 · 보증금 없음')}
     </div>
   );

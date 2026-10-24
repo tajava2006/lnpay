@@ -62,7 +62,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
     }
     if (hoursLeft < 3 && !confirm(
       `입금 기한이 ${Math.floor(hoursLeft * 60)}분밖에 남지 않았습니다.\n\n`
-      + '그 안에 후원자가 원화를 보내지 못하면 입금이 실패합니다. 그래도 연결할까요?',
+      + '그 안에 사는 사람이 원화를 보내지 못하면 입금이 실패합니다. 그래도 연결할까요?',
     )) return;
 
     setAttaching(true);
@@ -75,7 +75,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
         holderName: payload.depositor,
       });
       if (!ok) {
-        alert('연결에 실패했습니다. 의뢰를 다시 확인해 주세요.');
+        alert('연결에 실패했습니다. 판매를 다시 확인해 주세요.');
         return;
       }
       // 이미 계좌를 보낼 수 있는 단계면 지금 바로 보낸다. 그 단계로 들어올 때
@@ -97,7 +97,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
       // 쿠팡 기한이 너무 가까우면 데몬이 받지 않는다(후원자가 붙을 틈이 없다). 조용히 사라지게 두지 않는다
       const deadline = Math.min(Math.floor(payload.expirationDate / 1000), now + LN_MAX_DEADLINE_LEAD_SEC - 60);
       if (deadline - now < LN_MIN_CLAIM_LEAD_SEC + 5 * 60) {
-        alert('입금 기한이 한 시간 남짓밖에 남지 않아 후원자를 구할 수 없습니다. 새로 주문해 주세요.');
+        alert('입금 기한이 한 시간 남짓밖에 남지 않아 사는 사람을 구할 수 없습니다. 새로 주문해 주세요.');
         return;
       }
       const order: CustomerOrder = {
@@ -123,10 +123,10 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
         markPublished(order.orderId, result.raw);
         removeParsedOrder(eventId);
       } else {
-        alert('의뢰 등록에 실패했습니다.');
+        alert('판매 등록에 실패했습니다.');
       }
     } catch {
-      alert('의뢰 등록 중 오류가 발생했습니다.');
+      alert('판매 등록 중 오류가 발생했습니다.');
     } finally {
       setRequesting(false);
     }
@@ -165,11 +165,11 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
       {attachable.length > 0 && (
         <div style={styles.attachBox}>
           <p style={styles.attachTitle}>
-            금액이 같은 의뢰가 {attachable.length}건 있습니다 — 여기에 연결할까요?
+            금액이 같은 판매가 {attachable.length}건 있습니다 — 여기에 연결할까요?
           </p>
           <p style={styles.attachHint}>
-            연결하면 새 의뢰를 올리지 않고 <b>이미 진행 중인 의뢰</b>에 이 계좌를 씁니다.
-            후원자를 기다리며 걸어둔 의뢰가 있다면 이쪽입니다.
+            연결하면 새 판매를 올리지 않고 <b>이미 올려 둔 판매</b>에 이 계좌를 씁니다.
+            사는 사람을 기다리며 걸어둔 판매가 있다면 이쪽입니다.
           </p>
           {attachable.map(o => (
             <button
@@ -190,7 +190,7 @@ function ParsedOrderCard({ eventId, payload }: { eventId: string; payload: Parse
           disabled={requesting}
           style={styles.requestBtn}
         >
-          {requesting ? '등록 중...' : '의뢰 등록'}
+          {requesting ? '등록 중...' : '판매 등록'}
         </button>
         <button
           onClick={handleDismiss}

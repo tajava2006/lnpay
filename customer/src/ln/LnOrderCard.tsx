@@ -33,7 +33,7 @@ interface Props {
 }
 
 /** 카드 하나가 깨져도 목록·다른 카드는 그대로 */
-export const LnOrderCard = guarded(LnOrderCardBody, '이 의뢰 카드');
+export const LnOrderCard = guarded(LnOrderCardBody, '이 거래 카드');
 
 function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Props) {
   const { view, order, local, now } = useLnCard(orderId, archived);
@@ -56,7 +56,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
     const r = await publishOrderRequest(local);
     if (r.success && r.raw) markPublished(orderId, r.raw);
     return r.success;
-  }, '의뢰를 올리지 못했습니다.');
+  }, '판매를 올리지 못했습니다.');
 
   const confirmPaid = () => {
     if (!confirm('실제로 원화 입금이 확인되었습니까?\n\n'
@@ -66,7 +66,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
   };
 
   const cancel = () => {
-    if (!confirm('이 의뢰를 취소하시겠습니까?')) return;
+    if (!confirm('이 판매를 취소하시겠습니까?')) return;
     void run('cancel', async () => (await publishNotification({ orderId }, 'cancel-request')).success,
       '취소 요청을 보내지 못했습니다.');
   };
@@ -75,7 +75,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
     // 버튼이 안 보여도 여기 닿는 길이 생길 수 있다 — 발행 직전에 한 번 더 본다(후원자 보호 I-009)
     const sponsorPubkey = order?.sponsorPubkey ?? local?.sponsorPubkey;
     if (!canSendAccountInfo(view.state ?? undefined) || !sponsorPubkey) {
-      alert('아직 후원자가 받을 인보이스를 등록하지 않았습니다. 잠시 후 다시 시도해 주세요.');
+      alert('아직 사는 사람이 받을 인보이스를 등록하지 않았습니다. 잠시 후 다시 시도해 주세요.');
       return;
     }
     await run('account', async () => {
@@ -97,15 +97,15 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
 
   const reveal = () => {
     if (!order) return;
-    if (!confirm('계좌정보를 Admin에게 공개하시겠습니까?\n원래 전달받은 계좌정보의 커밋먼트와 대조 검증됩니다.')) return;
+    if (!confirm('받은 계좌 정보를 운영자에게 공개하시겠습니까?\n파는 사람이 보낼 때 남긴 커밋먼트와 대조됩니다.')) return;
     void run('reveal', () => publishAccountReveal(order), '계좌정보를 공개하지 못했습니다.');
   };
 
   const remove = () => {
-    if (confirm('이 의뢰를 목록에서 지우시겠습니까?')) deleteOrder(orderId);
+    if (confirm('이 판매를 목록에서 지우시겠습니까?')) deleteOrder(orderId);
   };
 
-  const roleLabel = view.role === 'customer' ? '내 의뢰' : view.role === 'sponsor' ? '내가 맡은 의뢰' : null;
+  const roleLabel = view.role === 'customer' ? '판매' : view.role === 'sponsor' ? '구매' : null;
   const closeReason = view.closeReason && isLnCloseReason(view.closeReason) ? LN_CLOSE_REASON_LABEL[view.closeReason] : null;
 
   function renderAction(action: LnAction) {
@@ -143,7 +143,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
               {busy === 'reveal' ? '보내는 중...' : '계좌정보 공개'}
             </button>
             <span style={styles.revealHint}>
-              운영자가 분쟁 중재를 위해 계좌정보 공개를 요청했습니다. 받은 계좌를 그대로 제출하면 고객이 보낸 계좌와 대조됩니다.
+              운영자가 분쟁 중재를 위해 계좌정보 공개를 요청했습니다. 받은 계좌를 그대로 제출하면 파는 사람이 보낸 계좌와 대조됩니다.
             </span>
           </div>
         );
@@ -173,7 +173,7 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
 
       {view.designated && (
         <p style={styles.note}>
-          {DESIGNATED_COPY.counterpartyLine(view.role === 'sponsor' ? '고객' : '상대', view.designated.counterpartyCode)}
+          {DESIGNATED_COPY.counterpartyLine(view.role === 'sponsor' ? '파는 사람' : '상대', view.designated.counterpartyCode)}
         </p>
       )}
 
@@ -253,9 +253,9 @@ function RemitBlock({ price, account, busy, onRemit }: {
         </button>
       </p>
       <p style={styles.accountDetail}>예금주: {account.holderName}</p>
-      {/* 안 눌러도 고객이 컨펌하면 끝나지만(invoiced → paid), 누르면 고객이 그때부터 확인한다 */}
+      {/* 안 눌러도 파는 사람이 컨펌하면 끝나지만(invoiced → paid), 누르면 파는 사람이 그때부터 확인한다 */}
       <p style={styles.remitReminder}>
-        보내셨으면 아래 <b>'{BUTTON.remitted}'</b>를 꼭 눌러주세요. 고객이 그때부터 입금을 확인합니다.
+        보내셨으면 아래 <b>'{BUTTON.remitted}'</b>를 꼭 눌러주세요. 파는 사람이 그때부터 입금을 확인합니다.
       </p>
       <button style={styles.remitBtn} disabled={busy} onClick={onRemit}>
         {busy ? '보내는 중...' : BUTTON.remitted}

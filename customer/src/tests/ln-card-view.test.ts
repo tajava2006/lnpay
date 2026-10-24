@@ -36,7 +36,7 @@ describe('고객', () => {
     const v = view({ order: order('verified', { bolt11: 'lnbc1escrow' }) });
     expect(v.role).toBe('customer');
     expect(v.actions).toContainEqual({ kind: 'pay', purpose: 'escrow', bolt11: 'lnbc1escrow' });
-    expect(v).toMatchObject({ title: '고객 결제', isMyTurn: true });
+    expect(v).toMatchObject({ title: '에스크로 결제', isMyTurn: true });
   });
 
   it('기한이 지난 에스크로는 결제 칸을 열지 않는다', () => {
@@ -48,7 +48,7 @@ describe('고객', () => {
     expect(kinds(view({ order: order('invoiced'), local: local() }).actions)).toContain('send-account');
     const elsewhere = view({ order: order('invoiced') });
     expect(kinds(elsewhere.actions)).not.toContain('send-account');
-    expect(elsewhere.notes.join()).toMatch(/의뢰를 올린 기기/);
+    expect(elsewhere.notes.join()).toMatch(/판매를 올린 기기/);
   });
 
   it('계좌를 보냈으면 입금 컨펌, remitted면 기록이 없어도 컨펌', () => {
@@ -75,14 +75,14 @@ describe('후원자 보증금 대기', () => {
   it('후원자: 보증금 결제가 할 일이고, 아직 "후원자 찾는 중"', () => {
     const v = view({ order: pending, sponsorDeposit: { bolt11: 'lnbc1dep', at: NOW } });
     expect(v.actions).toEqual([{ kind: 'pay', purpose: 'sponsor-deposit', bolt11: 'lnbc1dep' }]);
-    expect(v).toMatchObject({ title: '후원자 찾는 중', isMyTurn: true });
+    expect(v).toMatchObject({ title: '사는 사람 찾는 중', isMyTurn: true });
     expect(v.badge.label).toBe('보증금 대기');
   });
 
   it('고객: 할 일 없음, 후원자를 기다린다', () => {
     const v = view({ order: { ...pending, customerPubkey: ME, sponsorPubkey: OTHER }, local: local() });
     expect(v.actions).toEqual([]);
-    expect(v).toMatchObject({ title: '후원자 찾는 중', isMyTurn: false, waitingFor: '후원자' });
+    expect(v).toMatchObject({ title: '사는 사람 찾는 중', isMyTurn: false, waitingFor: '사는 사람' });
     expect(v.progress.sponsorDepositPending).toBe(true);
   });
 
@@ -94,7 +94,7 @@ describe('후원자 보증금 대기', () => {
     const paid = order('claimed', { customerPubkey: OTHER, sponsorPubkey: ME, sponsorDepositPaymentHash: 'h' });
     const v = view({ order: paid, sponsorDeposit: { bolt11: 'lnbc1dep', at: NOW } });
     expect(v.actions).toEqual([]);
-    expect(v).toMatchObject({ title: '후원자 확정', isMyTurn: false, waitingFor: '에스크로' });
+    expect(v).toMatchObject({ title: '사는 사람 확정', isMyTurn: false, waitingFor: '에스크로' });
   });
 });
 
@@ -141,14 +141,14 @@ describe('참여하지 않는 의뢰 (풀린 클레임)', () => {
     expect(v.role).toBeNull();
     expect(v.actions).toEqual([]);
     expect(v.isMyTurn).toBe(false);
-    expect(v.notes.join()).toMatch(/클레임이 풀린/);
+    expect(v.notes.join()).toMatch(/배정이 풀린/);
   });
 });
 
 describe('오더가 되기 전 (내 기기에만 있는 의뢰)', () => {
   it('올리기 전이면 올리기', () => {
     const v = view({ local: local({ raw: undefined }) });
-    expect(v).toMatchObject({ draft: true, title: '의뢰 올리기 전', isMyTurn: true });
+    expect(v).toMatchObject({ draft: true, title: '판매 올리기 전', isMyTurn: true });
     expect(kinds(v.actions)).toEqual(['publish']);
   });
 
@@ -172,7 +172,7 @@ describe('인보이스 등록 마감', () => {
     const sponsor = lnCardView({ orderId: 'x', order: { ...o, customerPubkey: OTHER, sponsorPubkey: ME }, local: null, myPubkey: ME, now: NOW });
     expect(sponsor.notes.some(n => n.startsWith('인보이스 등록 마감: 2시간 0분 남음'))).toBe(true);
     const customer = view({ order: o });
-    expect(customer.notes.some(n => n.startsWith('후원자 인보이스 마감: 2시간 0분 남음'))).toBe(true);
+    expect(customer.notes.some(n => n.startsWith('사는 사람 인보이스 마감: 2시간 0분 남음'))).toBe(true);
   });
 
   it('마감이 없는 옛 오더나 다른 상태에서는 말하지 않는다', () => {

@@ -86,7 +86,7 @@ export function SignPanel({ order, role, request }: {
           {check.needsRefundAddress && (
             <input
               style={styles.input}
-              placeholder="의뢰 때 낸 환불 주소를 입력하세요"
+              placeholder="판매를 올릴 때 낸 환불 주소를 입력하세요"
               value={typedRefund}
               onChange={e => setTypedRefund(e.target.value)}
             />

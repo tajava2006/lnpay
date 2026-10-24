@@ -76,7 +76,7 @@ export function OrderForm() {
 
   return (
     <div style={styles.card}>
-      <h2 style={styles.title}>의뢰 등록</h2>
+      <h2 style={styles.title}>판매 등록</h2>
       <TradeModeToggle mode={mode} onChange={setMode} />
       <form onSubmit={handleSubmit} style={styles.form}>
         {designated && <CounterpartyInput key={formKey} track="ln" onChange={setCounterparty} />}
@@ -125,18 +125,18 @@ export function OrderForm() {
         */}
         <p style={styles.expiryHint}>
           {designated
-            ? '지정한 상대만 맡을 수 있고 오더북에는 올라가지 않습니다. 상대 앱의 "의뢰 맡기" 탭에 바로 뜹니다.'
-            : '급하지 않으면 길게 잡아두세요. 후원자는 언제 붙을지 모릅니다.'}
+            ? '지정한 상대만 살 수 있고 오더북에는 올라가지 않습니다. 상대 앱의 "사기" 탭에 바로 뜹니다.'
+            : '급하지 않으면 길게 잡아두세요. 사는 사람이 언제 붙을지 모릅니다.'}
         </p>
         {Number(expiryHours) > 24 && (
           <p style={styles.notifyHint}>
-            길게 잡을수록 <b>알림을 켜두는 게 중요합니다</b>. 후원자가 언제 붙을지
+            길게 잡을수록 <b>알림을 켜두는 게 중요합니다</b>. 사는 사람이 언제 붙을지
             모르는데, 붙고 나면 <b>하루 안에 결제</b>해야 거래가 유지됩니다.
             화면 위 🔔에서 켤 수 있습니다.
           </p>
         )}
         <button type="submit" style={styles.submitBtn} disabled={designated && !counterparty}>
-          {designated ? DESIGNATED_COPY.create : '의뢰 등록'}
+          {designated ? DESIGNATED_COPY.create : '판매 등록'}
         </button>
       </form>
     </div>

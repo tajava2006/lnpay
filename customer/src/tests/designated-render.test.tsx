@@ -159,7 +159,7 @@ describe('온체인 팔기 폼 — 지정 거래', () => {
     expect(host.textContent).toContain('보증금 인보이스가 옵니다');
     act(() => button('지정 거래').click());
     expect(host.textContent).not.toContain('보증금 인보이스가 옵니다');
-    expect(host.textContent).toContain('보증금 없이 바로 의뢰가 생기고');
+    expect(host.textContent).toContain('보증금 없이 바로 판매가 생기고');
     expect(button('지정 거래 만들기').disabled).toBe(true);
     type(host.querySelector<HTMLInputElement>('input[placeholder^="npub1"]')!, nip19.npubEncode(OTHER));
     for (const c of checkboxes()) act(() => c.click());
@@ -199,10 +199,10 @@ describe('온체인 지정 거래 — 칸마다 보증금·몰수를 말하지 �
     expect(says()).toBe(true);
   });
 
-  it('의뢰 내리기', async () => {
+  it('판매 내리기', async () => {
     const { CancelOrderPanel } = await import('../onchain/components/CancelOrderPanel');
     act(() => root.render(<CancelOrderPanel order={order(true, { state: 'listed' })} />));
-    act(() => button('의뢰 내리기').click());
+    act(() => button('판매 내리기').click());
     expect(says()).toBe(false);
     expect(host.textContent).not.toContain('오더북');
   });

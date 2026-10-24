@@ -73,17 +73,17 @@ export const CLOSE_RULES: Record<LnCloseReason, CloseRule> = {
 /** 화면에 쓰는 사유 문장 — 어드민 상세와 유저 앱 내역이 같은 말을 한다 */
 export const LN_CLOSE_REASON_LABEL: Record<LnCloseReason, string> = {
   paid: '정상 완료',
-  sponsor_wins: '분쟁 판정 — 후원자 승',
-  customer_wins: '분쟁 판정 — 고객 승 (후원자 보증금 몰수)',
+  sponsor_wins: '분쟁 판정 — 송금 인정',
+  customer_wins: '분쟁 판정 — 송금 불인정 (사는 사람 보증금 몰수)',
   admin_closed: '운영자가 종료 (보증금 전부 환불)',
-  'cancel:customer': '고객 취소 (후원자가 붙기 전)',
-  'cancel:customer-after-claim': '고객 취소 — 후원자가 붙은 뒤 (고객 보증금 몰수)',
-  'cancel:unpaid-escrow': '고객이 결제 기한 안에 결제하지 않음 (고객 보증금 몰수)',
-  'expired:no-sponsor': '기한까지 후원자가 없음',
+  'cancel:customer': '파는 사람이 취소 (사는 사람이 붙기 전)',
+  'cancel:customer-after-claim': '파는 사람이 취소 — 사는 사람이 붙은 뒤 (파는 사람 보증금 몰수)',
+  'cancel:unpaid-escrow': '파는 사람이 기한 안에 에스크로를 결제하지 않음 (파는 사람 보증금 몰수)',
+  'expired:no-sponsor': '기한까지 사는 사람이 없음',
   'expired:not-approved': '기한까지 승인되지 않음',
-  'expired:unpaid-escrow': '기한까지 결제되지 않음 (고객 보증금 몰수)',
-  'expired:no-invoice': '후원자가 받을 인보이스를 끝내 내지 않음 (후원자 보증금 몰수)',
-  'expired:no-account': '고객이 기한까지 계좌를 보내지 않음 (고객 보증금 몰수)',
+  'expired:unpaid-escrow': '기한까지 에스크로가 결제되지 않음 (파는 사람 보증금 몰수)',
+  'expired:no-invoice': '사는 사람이 받을 인보이스를 끝내 내지 않음 (사는 사람 보증금 몰수)',
+  'expired:no-account': '파는 사람이 기한까지 계좌를 보내지 않음 (파는 사람 보증금 몰수)',
   'expired:no-remit': '기한까지 송금 완료가 없음 (보증금 전부 환불)',
 };
 

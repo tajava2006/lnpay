@@ -94,13 +94,13 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
     <div style={styles.box}>
       <p style={styles.title}>BTC 받을 인보이스를 등록하세요</p>
       <p style={styles.lead}>
-        등록해야 고객이 계좌 정보를 보냅니다. 그 전에는 원화를 보내지 마세요.
+        등록해야 파는 사람이 계좌 정보를 보냅니다. 그 전에는 원화를 보내지 마세요.
       </p>
 
       {payoutSat === null ? (
         <div style={styles.missingAmount}>
           <b>받을 금액을 아직 받아오지 못했습니다.</b> 잠시 후 새로고침해 보시고,
-          계속 이 상태면 이 의뢰는 진행할 수 없습니다 — 에스크로 채팅으로 문의해 주세요.
+          계속 이 상태면 이 거래는 진행할 수 없습니다 — 에스크로 채팅으로 문의해 주세요.
         </div>
       ) : (
         <div style={styles.amountRow}>
@@ -136,7 +136,7 @@ export function SponsorInvoiceForm({ order, notice, onSubmitted }: Props) {
 
       {waiting && (
         <p style={styles.waiting}>
-          등록했습니다. 에스크로가 확인하면 고객이 계좌 정보를 보냅니다 —
+          등록했습니다. 에스크로가 확인하면 파는 사람이 계좌 정보를 보냅니다 —
           잠시 기다려 주세요. 다시 보내지 않으셔도 됩니다.
         </p>
       )}

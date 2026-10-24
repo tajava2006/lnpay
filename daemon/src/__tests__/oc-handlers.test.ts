@@ -57,7 +57,7 @@ describe('의뢰 등록', () => {
     saveSettings(h.ln.db, { ...s, onchain: { acceptNewOrders: false } });
     await request(h, 'ocoff1');
     expect(bondInvoices(h, 'ocoff1')).toHaveLength(0);
-    expect(rejectionsTo(h, h.customer.pubkey)).toEqual(['지금은 온체인 의뢰를 받지 않습니다']);
+    expect(rejectionsTo(h, h.customer.pubkey)).toEqual(['지금은 온체인 판매를 받지 않습니다']);
   });
 
   it('의뢰 만료가 7일을 넘으면 · 최소 거래액 미만이면 · 수수료를 모르면 거절한다', async () => {
@@ -126,7 +126,7 @@ describe('클레임', () => {
     const h = await createOcHarness();
     const orderId = await openOc(h);
     await claimOc(h, orderId, { sponsor: h.customer, pay: false });
-    expect(rejectionsTo(h, h.customer.pubkey).at(-1)).toMatch(/자기 의뢰/);
+    expect(rejectionsTo(h, h.customer.pubkey).at(-1)).toMatch(/자기 판매/);
 
     const odd = newKey();
     await claimWith(h, orderId, { payoutAddress: 42 }, odd);
@@ -135,7 +135,7 @@ describe('클레임', () => {
     await claimOc(h, orderId);
     const late = newKey();
     await claimOc(h, orderId, { sponsor: late, pay: false });
-    expect(rejectionsTo(h, late.pubkey).at(-1)).toMatch(/이미 다른 분이 맡았거나/);
+    expect(rejectionsTo(h, late.pubkey).at(-1)).toMatch(/이미 다른 분이 샀거나/);
   });
 
   it('다른 네트워크 주소 · 터무니없는 feerate는 인보이스를 내주지 않는다', async () => {
@@ -278,7 +278,7 @@ describe('송금 주장 · 계좌 · 분쟁 — 보낸 사람과 마감', () => 
     // 후원자가 붙은 뒤에는 고객도 일방으로 못 접는다
     await h.send(ocRequest(h.customer, h.app.pubkey, orderId, REQUEST_ACTIONS.CANCEL_REQUEST, h.sec()));
     expect(h.row(orderId)!.order.state).toBe('bonded');
-    expect(rejectionsTo(h, h.customer.pubkey).at(-1)).toMatch(/후원자가 이미 붙어/);
+    expect(rejectionsTo(h, h.customer.pubkey).at(-1)).toMatch(/사는 사람이 이미 붙어/);
   });
 
   it('listed에서 접으면 취소되고 보증금이 환불되고, 결제 안 된 후원자 인보이스도 치운다', async () => {

@@ -158,9 +158,11 @@ export interface AccountInfo {
 export interface DisputeMessagePayload {
   /**
    * `call` = 운영자 부르기(docs/PLAN-PEER-CHAT.md) — 사유와 이 거래의 상대방 대화 키를 운영자에게 넘긴다.
+   * `called` = 데몬(APP)만 보낸다 — "상대방이 대화 키를 넘겨 운영자를 불렀다"는 신호. 상대 앱은 말풍선이 아니라 상태로 쓴다
+   * (상대방 칸 안내가 바뀌고 부르기가 잠긴다). 내용은 없다.
    * 상대방 채팅(`channel: 'peer'`)은 `text`만 쓴다.
    */
-  type: 'text' | 'account-reveal' | 'call';
+  type: 'text' | 'account-reveal' | 'call' | 'called';
   /** 텍스트 메시지 (type: 'text') */
   content?: string;
   /** 계좌정보 평문 제출 (type: 'account-reveal', 커밋먼트 대조 검증용) */

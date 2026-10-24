@@ -8,12 +8,14 @@
  * - **운영자 칸** — 평소엔 없다. "운영자 부르기"를 누르거나 운영자가 먼저 말을 걸면(메시지가 하나라도 있으면) 열린다.
  *   운영자는 당사자마다 따로 대화한다 — 상대방은 이 칸을 못 본다.
  * - **부르기** — 사유와 이 거래의 대화 키를 보낸다. 운영자가 두 사람 대화를 읽기만 하게 된다(한 번 공개하면 되돌릴 수 없다).
+ *   대화 키는 두 사람이 같아서 **한 사람이 부르면 끝**이다 — 상대 앱에는 데몬이 `called` 신호를 보내고(말풍선이 아니다),
+ *   두 앱 모두 상대방 칸 안내를 "운영자도 봅니다"로 바꾸고 다시 부르기를 잠근다(2026-10-24 메인넷 확인 피드백).
  *
  * 채팅 스토어 하나에 두 대화가 같이 들어온다(`channel`로 가른다). 구독은 이 화면에 있는 동안만 연다.
  */
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
-  BUTTON, ChatWindow, addMessage, clearMessages, getChatSnapshot, loadFromIdb, retryChatMessage, sendChatMessage,
+  APP_PUBKEY, BUTTON, ChatWindow, addMessage, clearMessages, getChatSnapshot, loadFromIdb, retryChatMessage, sendChatMessage,
   subscribeChatMessages, subscribeChatStore, subscribePeerMessages, trackTagOf,
   type ChatMessage, type TrackName,
 } from '@sajwo-tracker/shared';
@@ -74,9 +76,12 @@ export function TradeChat({ track, orderId, myPubkey, role, peer, dispute = fals
 
   const all = useSyncExternalStore(subscribeChatStore, getChatSnapshot)[orderId] ?? EMPTY;
   const peerMessages = all.filter(m => m.channel === 'peer');
-  const operatorMessages = all.filter(m => m.channel !== 'peer');
-  // 대화 키까지 넘긴 부르기가 있나 — 상대가 없을 때 부른 건 대화를 공개하지 않았다
-  const disclosed = operatorMessages.some(m => m.senderPubkey === myPubkey && m.payload.type === 'call' && !!m.payload.peerChatKey);
+  // `called`는 말풍선이 아니라 상태다 — 운영자 칸에서 빼고(그 칸을 열지도 않는다), 데몬(APP)이 보낸 것만 믿는다
+  const operatorMessages = all.filter(m => m.channel !== 'peer' && m.payload.type !== 'called');
+  // 누가 대화 키를 넘겼나 — 상대가 없을 때 부른 건 대화를 공개하지 않았다
+  const disclosedBy: Disclosure = operatorMessages.some(m => m.senderPubkey === myPubkey && m.payload.type === 'call' && !!m.payload.peerChatKey)
+    ? 'me'
+    : all.some(m => m.channel !== 'peer' && m.payload.type === 'called' && m.senderPubkey === APP_PUBKEY) ? 'peer' : null;
 
   const sendPeer = useCallback(async (text: string) => {
     if (!peerPubkey) return;
@@ -102,7 +107,8 @@ export function TradeChat({ track, orderId, myPubkey, role, peer, dispute = fals
   }, [track, orderId, peerPubkey]);
 
   const peerName = role === 'customer' ? '사는 사람' : '파는 사람';
-  const canDisclose = !!peerPubkey && !disclosed;
+  const canDisclose = !!peerPubkey && disclosedBy === null;
+  const showCall = disclosedBy === null && (operatorMessages.length === 0 || canDisclose);
 
   return (
     <div style={styles.wrap}>
@@ -111,8 +117,8 @@ export function TradeChat({ track, orderId, myPubkey, role, peer, dispute = fals
       {peer && (
         <ChatWindow
           variant="peer"
-          label={`상대방(${peerName})과 대화 — 운영자는 보지 않습니다`}
-          notice={<PeerNotice track={track} role={role} />}
+          label={`상대방(${peerName})과 대화 — ${disclosedBy ? '운영자도 봅니다' : '운영자는 보지 않습니다'}`}
+          notice={<PeerNotice track={track} role={role} disclosedBy={disclosedBy} />}
           readOnly={peer.readOnly}
           emptyText={peer.readOnly ? '나눈 대화가 없습니다' : `거래에 필요한 이야기를 ${peerName}과 여기서 나누세요`}
           messages={peerMessages}
@@ -137,7 +143,15 @@ export function TradeChat({ track, orderId, myPubkey, role, peer, dispute = fals
         </>
       )}
 
-      {(operatorMessages.length === 0 || canDisclose) && (
+      {disclosedBy === 'peer' && operatorMessages.length === 0 && (
+        // 대화 키가 같아 또 불러도 바뀌는 게 없다 — 잠가 두고 왜 잠겼는지 말한다
+        <div style={styles.callBox}>
+          <button type="button" style={ui.ghostButton} disabled>운영자 부르기</button>
+          <span style={styles.callHint}>상대방이 이미 운영자를 불렀습니다. 하실 말씀은 상대방과의 대화에 남기면 운영자도 봅니다.</span>
+        </div>
+      )}
+
+      {showCall && (
         <div style={dispute ? styles.callBoxStrong : styles.callBox}>
           {dispute && (
             <p style={styles.callLead}>
@@ -158,11 +172,20 @@ export function TradeChat({ track, orderId, myPubkey, role, peer, dispute = fals
   );
 }
 
+/** 누가 대화 키를 넘겨 운영자를 불렀나 */
+type Disclosure = 'me' | 'peer' | null;
+
 /** 상대방 칸 위 고정 안내 — 채팅이 생기면 생기는 사기 수법을 막는다(docs/RISKS.md) */
-function PeerNotice({ track, role }: { track: TrackName; role: 'customer' | 'sponsor' }) {
+function PeerNotice({ track, role, disclosedBy }: { track: TrackName; role: 'customer' | 'sponsor'; disclosedBy: Disclosure }) {
   const confirm = track === 'ln' ? `'${BUTTON.confirmPaid}'을` : `'${BUTTON.confirmReleased}'를`;
   return (
     <ul style={styles.noticeList}>
+      {disclosedBy && (
+        <li style={styles.disclosed}>
+          {disclosedBy === 'me' ? '운영자를 불렀습니다' : '상대방이 운영자를 불렀습니다'} — 이제 운영자가 이 대화를 처음부터 전부 볼 수
+          있습니다.
+        </li>
+      )}
       {role === 'customer' ? (
         <>
           <li>계좌는 '{BUTTON.sendAccount}'로만 보내세요. 채팅으로 보낸 계좌는 분쟁에서 인정되지 않습니다.</li>
@@ -235,6 +258,7 @@ function CallOperatorDialog({ hasPeer, onClose, onCall }: {
 const styles = {
   wrap: { display: 'flex', flexDirection: 'column' as const, gap: 12 },
   noticeList: { margin: 0, paddingLeft: 16 },
+  disclosed: { fontWeight: 700 as const, color: '#92400E' },
   callBox: { display: 'flex', flexWrap: 'wrap' as const, alignItems: 'center', gap: 8 },
   callBoxStrong: {
     display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', gap: 8, padding: 12,

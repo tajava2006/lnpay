@@ -11,7 +11,7 @@ import {
   type AdminChatCopy, type AdminState, type DisputeMessagePayload,
 } from '@sajwo-tracker/shared/core';
 import { raiseAlert } from '../admin/alerts';
-import { CALL_NOTICE, chatPushTag } from '../admin/chat';
+import { chatPushTag } from '../admin/chat';
 import { PEER_PUSH_QUIET_SEC, peerPushTag } from '../admin/peer-chat';
 import { NOTIFY } from '../ln/notify-messages';
 import { PUSH_EFFECT, type PushMessage, type PushPayload } from '../push/send';
@@ -456,23 +456,44 @@ describe('운영자 부르기', () => {
     expect(dms[1]).toContain('대화 공개');
   });
 
-  it('상대방에게 APP으로 알리고 푸시 — 부른 사람마다 한 번', async () => {
+  const signalsTo = (h: ReturnType<typeof createHarness>, to: { pubkey: string; secretKey: Uint8Array }) =>
+    eventsTo(h.relay, to.pubkey, REQUEST_ACTIONS.DISPUTE_MESSAGE)
+      .filter(e => e.pubkey === h.app.pubkey)
+      .map(e => JSON.parse(nip44Decrypt(e.content, to.secretKey, h.app.pubkey)) as unknown);
+
+  /** 대화 키는 두 사람이 같다 — 두 번째 공개는 바뀌는 게 없으니 처음 부른 사람에게 되돌아가지 않는다(앱은 버튼을 잠근다) */
+  it('상대방에게 called 신호 + 푸시 — 오더마다 한 번', async () => {
     const { h, customer, sponsor } = withOrder();
     const daemon = h.start();
     h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('첫 번째', KEY), h.sec()));
     await h.settle(daemon);
     h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('두 번째', KEY), h.sec()));
+    h.relay.inject(disputePayload(sponsor, h.app.pubkey, 'o-1', call('나도 부름', KEY), h.sec()));
     await h.settle(daemon);
 
-    const notices = eventsTo(h.relay, sponsor.pubkey, REQUEST_ACTIONS.DISPUTE_MESSAGE).filter(e => e.pubkey === h.app.pubkey);
-    expect(notices).toHaveLength(1);
-    expect(JSON.parse(nip44Decrypt(notices[0]!.content, sponsor.secretKey, h.app.pubkey))).toEqual({ type: 'text', content: CALL_NOTICE });
+    // 말풍선(text)이 아니라 신호다 — 상대 앱이 상대방 칸 안내를 바꾸고 부르기를 잠근다
+    expect(signalsTo(h, sponsor)).toEqual([{ type: 'called' }]);
+    expect(signalsTo(h, customer)).toEqual([]);
     expect(pushesTo(daemon, sponsor.pubkey)).toEqual([{
       title: '페어바이', body: NOTIFY.operatorCalled('fulfill', 'ln').body, url: '/?order=o-1', tag: chatPushTag('o-1'),
     }]);
     expect(pushesTo(daemon, customer.pubkey)).toHaveLength(0);
     // 운영자는 매번 — 부르기는 드물고 놓치면 안 된다
-    expect(operatorDms(h, h.operator).filter(d => d.includes('운영자 호출'))).toHaveLength(2);
+    expect(operatorDms(h, h.operator).filter(d => d.includes('운영자 호출'))).toHaveLength(3);
+  });
+
+  /** 상대방 칸이 아직 없을 때(예: 후원자 보증금 대기) 부르면 키가 없다 — 공개된 게 없으니 상대에게 알릴 것도 없다 */
+  it('키 없이 부르면 상대에게 알리지 않는다 — 나중에 키를 넘길 때 알린다', async () => {
+    const { h, customer, sponsor } = withOrder();
+    const daemon = h.start();
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('보증금이 안 잡혀요'), h.sec()));
+    await h.settle(daemon);
+    expect(signalsTo(h, sponsor)).toEqual([]);
+    expect(pushesTo(daemon, sponsor.pubkey)).toHaveLength(0);
+
+    h.relay.inject(disputePayload(customer, h.app.pubkey, 'o-1', call('대화도 봐 주세요', KEY), h.sec()));
+    await h.settle(daemon);
+    expect(signalsTo(h, sponsor)).toEqual([{ type: 'called' }]);
   });
 
   it('상대가 아직 없으면 키 없이 부르고, 알릴 상대도 없다', async () => {

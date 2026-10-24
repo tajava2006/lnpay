@@ -10,8 +10,9 @@
  * 사본은 어드민 앱만 읽는 우리 kind라 폰을 울리지 않는다. 그래서 유저 메시지는 운영자 DM(NIP-17)도 따로 보낸다.
  *
  * **운영자 부르기**(`call`, docs/PLAN-PEER-CHAT.md §6.2)도 이 길로 온다 — 사유와 그 거래의 상대방 대화 키가 실려 있고,
- * 사본에 그대로 실어 운영자가 두 사람 대화를 읽게 한다(어드민 세 번째 창). 운영자 DM은 조용한 창 없이 바로, 상대방에게는
- * "상대방이 운영자를 불렀습니다"를 APP으로 보낸다(대화가 공개됐다는 걸 상대도 알아야 한다 — D8).
+ * 사본에 그대로 실어 운영자가 두 사람 대화를 읽게 한다(어드민 세 번째 창). 운영자 DM은 조용한 창 없이 바로.
+ * 대화 키가 처음 넘어오면 상대방에게 `called` 신호 + 푸시를 보낸다(대화가 공개됐다는 걸 상대도 알아야 한다 — D8).
+ * 말풍선이 아니라 신호다 — 상대 앱은 그걸 보고 상대방 칸 안내를 바꾸고 부르기를 잠근다(대화 키가 같아 또 불러도 바뀌는 게 없다).
  */
 import { finalizeEvent } from 'nostr-tools/pure';
 import {
@@ -85,7 +86,9 @@ export function createChatForwarder(ctx: AdminContext): (event: InboxEvent) => H
     if (payload.type === 'call') {
       callOperators(ctx, track, orderId, role, payload);
       const counterparty = role === 'customer' ? parties.sponsor : parties.customer;
-      if (counterparty) tellCounterparty(ctx, track, orderId, event.pubkey, counterparty, role === 'customer' ? 'sponsor' : 'customer');
+      if (counterparty && payload.peerChatKey) {
+        tellCounterparty(ctx, track, orderId, counterparty, role === 'customer' ? 'sponsor' : 'customer');
+      }
     } else {
       dmOperators(ctx, track, orderId, role, payload);
     }
@@ -121,19 +124,18 @@ function callOperators(
   ctx.db.kvSet(`chat.dm:${track}:${orderId}`, String(nowSec(ctx)));
 }
 
-/** 부른 사람마다 한 번만 상대에게 알린다 — 같은 사람이 여러 번 불러도 상대 채팅에 같은 말이 쌓이지 않게 */
+/**
+ * 대화가 처음 공개됐을 때 **오더마다 한 번** 상대에게 알린다. 대화 키는 두 사람이 같아서(`shared/peer-chat.ts`) 두 번째
+ * 공개는 바뀌는 게 없다 — 앱도 부르기를 잠그지만, 고친 앱이 또 불러도 처음 부른 사람에게 되돌아가지 않게 여기서 막는다
+ */
 function tellCounterparty(
-  ctx: AdminContext, track: TrackName, orderId: string, caller: string, to: string, toRole: 'customer' | 'sponsor',
+  ctx: AdminContext, track: TrackName, orderId: string, to: string, toRole: 'customer' | 'sponsor',
 ): void {
-  const key = `chat.call:${track}:${orderId}:${caller}`;
+  const key = `chat.disclosed:${track}:${orderId}`;
   if (ctx.db.kvGet(key) !== undefined) return;
   ctx.db.kvSet(key, String(nowSec(ctx)));
-  sendAsApp(ctx, track, orderId, to, toRole, CALL_NOTICE, NOTIFY.operatorCalled);
+  sendAsApp(ctx, track, orderId, to, toRole, { type: 'called' }, NOTIFY.operatorCalled);
 }
-
-/** 상대방에게 가는 안내 — 운영자 채팅에 뜬다(그래서 상대 앱의 운영자 칸이 저절로 열린다) */
-export const CALL_NOTICE = '상대방이 운영자를 불렀습니다. 운영자가 이 거래에서 두 분이 나눈 대화를 확인합니다. '
-  + '운영자가 물어보면 여기서 답해 주세요.';
 
 /**
  * 운영자 → 유저. `chat.send` 명령.
@@ -152,16 +154,16 @@ export function chatSend(ctx: AdminContext, args: Record<string, unknown>): Admi
   const role = roleIn(parties, to);
   if (!role) return fail('not-a-party');
 
-  const eventId = sendAsApp(ctx, track, orderId, to, role, text);
+  const eventId = sendAsApp(ctx, track, orderId, to, role, { type: 'text', content: text });
   return { ok: true, cmd: 'chat.send', result: { eventId } };
 }
 
 /** APP 키로 당사자에게 운영자 채팅 한 통 — 발행 · 받는 사람 푸시 · 운영자 사본. 이벤트 id를 돌려준다 */
 function sendAsApp(
-  ctx: AdminContext, track: TrackName, orderId: string, to: string, role: 'customer' | 'sponsor', text: string,
+  ctx: AdminContext, track: TrackName, orderId: string, to: string, role: 'customer' | 'sponsor',
+  payload: DisputeMessagePayload,
   push: (tab: Tab, track: TrackName) => Notice = NOTIFY.operatorMessage,
 ): string {
-  const payload: DisputeMessagePayload = { type: 'text', content: text };
   const createdAt = nowSec(ctx);
   // 증거라 만료를 달지 않는다 (CLAUDE.md 예외 — dispute-message)
   const event = finalizeEvent({

@@ -22,7 +22,6 @@ import { ChainLinks } from './ChainLinks';
 import { DeadlineCountdown } from './DeadlineCountdown';
 import { EscrowAddressPanel } from './EscrowAddressPanel';
 import { OnchainProgressBar } from './OnchainProgressBar';
-import { OnchainChat } from './OnchainChat';
 import { RecoveryPanel } from './RecoveryPanel';
 import { styles } from './card-styles';
 import { ui } from '../../ui';
@@ -65,7 +64,7 @@ export function OnchainOrderCard(props: OnchainOrderCardProps) {
   );
 }
 
-function OnchainOrderCardBody({ order, role, myPubkey, invoiceBolt11, signRequests, onSelect }: OnchainOrderCardProps) {
+function OnchainOrderCardBody({ order, role, invoiceBolt11, signRequests, onSelect }: OnchainOrderCardProps) {
   const badge = onchainStateDisplay(order.state);
   const notices = useSyncExternalStore(subscribeNotices, getNoticesSnapshot);
   const notice = notices[order.orderId];
@@ -151,8 +150,6 @@ function OnchainOrderCardBody({ order, role, myPubkey, invoiceBolt11, signReques
       ))}
 
       <DisputeButton order={order} role={role} now={now} />
-
-      {view.chatOpen && <OnchainChat order={order} myPubkey={myPubkey} role={role} />}
     </>
   );
 }

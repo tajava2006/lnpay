@@ -24,7 +24,7 @@ const view = (o: OnchainOrder, role: OnchainRole, requests: SignRequest[] = []) 
 /** 켜진 칸 이름만 — 표를 읽기 쉽게 */
 function shown(o: OnchainOrder, role: OnchainRole): string[] {
   const v = view(o, role);
-  const flags: string[] = (['cancel', 'escrowAddress', 'presignStatus', 'remit', 'chatOpen'] as const).filter(k => v[k]);
+  const flags: string[] = (['cancel', 'escrowAddress', 'presignStatus', 'remit', 'disputeOpen'] as const).filter(k => v[k]);
   return v.account ? [...flags, `account:${v.account}`] : flags;
 }
 
@@ -40,16 +40,34 @@ describe('역할 × 상태', () => {
     ['presigned', 'customer', { accountDeadline: NOW - 1 }, ['account:late']],
     // 마감을 모르면 지난 것으로 본다 — 모르는 마감에 계좌를 내보내지 않는다
     ['presigned', 'customer', {}, ['account:late']],
-    ['presigned', 'customer', { accountSentAt: NOW - 10 }, ['chatOpen']],
+    ['presigned', 'customer', { accountSentAt: NOW - 10 }, []],
     ['presigned', 'sponsor', {}, ['remit']],
-    ['presigned', 'sponsor', { accountSentAt: NOW - 10 }, ['remit', 'chatOpen']],
-    ['remitted', 'customer', {}, ['chatOpen']],
-    ['disputed', 'sponsor', {}, ['chatOpen']],
-    ['refunding', 'customer', { settlementKind: 'refund:account-disputed' }, ['chatOpen']],
+    ['presigned', 'sponsor', { accountSentAt: NOW - 10 }, ['remit']],
+    ['remitted', 'customer', {}, []],
+    ['disputed', 'sponsor', {}, ['disputeOpen']],
+    ['refunding', 'customer', { settlementKind: 'refund:account-disputed' }, ['disputeOpen']],
     ['refunding', 'customer', { settlementKind: 'refund:sponsor-timeout' }, []],
     ['released', 'customer', {}, []],
   ] as const)('%s · %s %o → %o', (state, role, over, expected) => {
     expect(shown(order({ state, ...over }), role)).toEqual(expected);
+  });
+});
+
+/** 상대방 채팅(docs/PLAN-PEER-CHAT.md D11) — 사는 사람이 붙은 뒤부터, 끝나면 읽기만 */
+describe('상대방 채팅', () => {
+  it('오더북에 있을 땐 없다 — 상대가 없다', () => {
+    expect(view(order({ state: 'listed' }), 'customer').peer).toBeNull();
+    expect(view(order({ state: 'bonded', sponsorPubkey: undefined }), 'customer').peer).toBeNull();
+  });
+
+  it('붙은 뒤엔 반대쪽과 — 파는 사람은 사는 사람과, 사는 사람은 파는 사람과', () => {
+    expect(view(order({ state: 'bonded' }), 'customer').peer).toEqual({ pubkey: 's', readOnly: false });
+    expect(view(order({ state: 'remitted' }), 'sponsor').peer).toEqual({ pubkey: 'c', readOnly: false });
+  });
+
+  it('끝난 거래는 읽기만', () => {
+    expect(view(order({ state: 'released' }), 'customer').peer).toEqual({ pubkey: 's', readOnly: true });
+    expect(view(order({ state: 'cancelled' }), 'sponsor').peer).toEqual({ pubkey: 'c', readOnly: true });
   });
 });
 

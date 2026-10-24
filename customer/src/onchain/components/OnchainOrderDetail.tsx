@@ -6,6 +6,9 @@
  * 그 시간을 그냥 까먹는다. `?track=onchain&tab=history&order=…`로 돌아온다.
  *
  * 카드는 목록과 **같은 컴포넌트**를 쓴다 — 갈리면 한쪽에만 있는 버튼이 생긴다.
+ *
+ * 대화(상대방 · 운영자 — `chat/TradeChat`)는 라이트닝처럼 **상세에만** 둔다. 예전엔 카드 안에 운영자 채팅이 있어 목록에서도
+ * 열렸다. 알림을 누르면 이 화면으로 온다.
  */
 import { useSyncExternalStore } from 'react';
 import type { PriceTracker } from '@sajwo-tracker/shared';
@@ -16,6 +19,9 @@ import { getDepositInvoicesSnapshot, subscribeDepositInvoices } from '../deposit
 import { getSignRequestsSnapshot, signRequestsFor, subscribeSignRequests } from '../sign-request-store';
 import { OnchainOrderCard } from './OnchainOrderCard';
 import { OnchainBookCard, useBookPrice } from './OnchainOrderBook';
+import { OnchainAccountReveal } from './OnchainAccountReveal';
+import { isOnchainDisputeOpen, onchainPeerChat } from '../card-view';
+import { TradeChat } from '../../chat/TradeChat';
 import { ui } from '../../ui';
 
 interface Props {
@@ -49,13 +55,24 @@ export function OnchainOrderDetail({ orderId, myPubkey, onBack, tracker }: Props
           ? <OnchainBookCard order={order} invoice={invoices[orderId]} price={price} />
           : <p style={ui.empty}>이미 다른 분이 샀거나 끝난 판매입니다.</p>
       ) : (
-        <OnchainOrderCard
-          order={order}
-          role={role}
-          myPubkey={myPubkey}
-          invoiceBolt11={invoices[orderId]?.done ? undefined : invoices[orderId]?.bolt11}
-          signRequests={signRequestsFor(signRequests, orderId)}
-        />
+        <>
+          <OnchainOrderCard
+            order={order}
+            role={role}
+            myPubkey={myPubkey}
+            invoiceBolt11={invoices[orderId]?.done ? undefined : invoices[orderId]?.bolt11}
+            signRequests={signRequestsFor(signRequests, orderId)}
+          />
+          <TradeChat
+            track="onchain"
+            orderId={orderId}
+            myPubkey={myPubkey}
+            role={role}
+            peer={onchainPeerChat(order, role)}
+            dispute={isOnchainDisputeOpen(order)}
+            {...(role === 'sponsor' ? { operatorExtra: <OnchainAccountReveal orderId={orderId} /> } : {})}
+          />
+        </>
       )}
     </div>
   );

@@ -180,3 +180,29 @@ describe('인보이스 등록 마감', () => {
     expect(view({ order: order('invoiced', { invoiceDeadline: NOW + 60 }) }).notes.some(n => n.includes('인보이스 마감'))).toBe(false);
   });
 });
+
+/** 상대방 채팅(docs/PLAN-PEER-CHAT.md D11) — 사는 사람이 확정된 뒤에만, 끝나면 읽기만 */
+describe('상대방 채팅', () => {
+  it('사는 사람이 없거나 보증금을 기다리는 클레임이면 없다 — 풀리면 다른 사람에게 간다', () => {
+    expect(view({ order: order('requested', { sponsorPubkey: undefined }) }).peer).toBeNull();
+    expect(view({ order: order('claimed', { sponsorDepositPending: true }) }).peer).toBeNull();
+  });
+
+  it('확정되면 반대쪽과 — 파는 사람은 사는 사람과, 사는 사람은 파는 사람과', () => {
+    expect(view({ order: order('claimed') }).peer).toEqual({ pubkey: OTHER, readOnly: false });
+    expect(view({ order: order('invoiced', { customerPubkey: OTHER, sponsorPubkey: ME }) }).peer)
+      .toEqual({ pubkey: OTHER, readOnly: false });
+  });
+
+  it('끝난 거래는 읽기만 · 배정이 풀린 사람과 올리기 전 판매는 없다', () => {
+    expect(view({ order: order('paid') }).peer).toEqual({ pubkey: OTHER, readOnly: true });
+    expect(view({ order: order('verified', { customerPubkey: OTHER, sponsorPubkey: 'z'.repeat(64) }) }).peer).toBeNull();
+    expect(view({ local: local({ raw: undefined }) }).peer).toBeNull();
+  });
+
+  /** 지정 거래에 엉뚱한 사람이 붙었다 — 결제도 계좌도 막는데 대화만 열면 그 사람에게 말을 걸게 된다 */
+  it('지정한 상대가 아닌 사람이 붙었으면 없다', () => {
+    const v = view({ order: order('claimed', { sponsorPubkey: 'b'.repeat(64) }), local: local({ designatedSponsor: 'a'.repeat(64) }) });
+    expect(v.peer).toBeNull();
+  });
+});

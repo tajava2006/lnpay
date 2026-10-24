@@ -65,7 +65,7 @@ export function NotifySetup({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="거래 알림 받기" onClose={onClose}>
         <p style={ui.lead}>
-          거래가 회원님 차례로 넘어올 때와 에스크로 채팅에 메시지가 올 때 알려드립니다. 결제할 때, 계좌를 보낼 때,
+          거래가 회원님 차례로 넘어올 때와 상대방이나 운영자가 메시지를 보낼 때 알려드립니다. 결제할 때, 계좌를 보낼 때,
           입금을 확인할 때 — 화면을 지켜보지 않아도 되도록.
         </p>
 

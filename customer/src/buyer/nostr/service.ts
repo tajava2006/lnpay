@@ -7,7 +7,7 @@
  *
  * 1. 오더 이벤트 → order-store 상태 반영 + IDB 아카이브
  * 2. 요청·통지 이벤트 → parsed-store / 보증금 / 분쟁 채팅
- * 3. 파싱 주문이 escrowed에 도달하면 계좌정보 자동 전송
+ * 3. 쿠팡 가상계좌가 정해진 판매(파싱 주문으로 올렸거나 나중에 붙였거나)가 invoiced에 들어오면 계좌정보 자동 전송
  */
 import {
   canSendAccountInfo,
@@ -41,15 +41,21 @@ export function handleAdminOrder(event: Event, myPubkey: string): void {
   // 릴레이는 만료 시 오더를 지운다. 내가 관여한 거래의 영구 기록은 IDB뿐이다.
   void archiveOrder(event);
 
-  // 파싱 주문의 계좌정보 자동 전송.
+  // 쿠팡 가상계좌의 자동 전송.
   //
   // **`escrowed`가 아니라 `invoiced`다** (불변조건 I-009). 후원자 인보이스가
   // 검증되기 전에 계좌가 나가면, 후원자가 받을 준비도 안 된 상태에서 원화를
   // 보낼 수 있다. 수동 경로만 막고 여기를 놔두면 파싱 주문은 **항상** 게이트를
   // 우회한다 — 자동이라 사람이 눈치채지도 못한다.
+  //
+  // **`source`가 아니라 `fixedAccountInfo`를 본다**(2026-10-24). 먼저 올려 둔 판매에 쿠팡 주문을 나중에 붙이면
+  // (`attachParsedToOrder`) `source`는 그대로라, 예전 조건(`source === 'parsed'`)은 invoiced 전에 붙인 판매를
+  // 건너뛰었다 — 카드는 "자동으로 보내는 중…"에 멈추고 수동 버튼도 없어, 기한이 지나면 `expired:no-account`로
+  // 파는 사람 보증금이 몰수된다. 안내문이 권하는 길("금액만 맞춰 먼저 올리고, 사는 사람이 붙으면 붙인다")이 바로 이 경우다.
+  // 앱을 다시 열면 첫 동기화가 invoiced 오더를 다시 흘려 주므로, 지난번 전송이 실패했어도 여기서 다시 시도된다.
   if (update.adminState === 'invoiced' && update.sponsorPubkey) {
     const order = getSnapshot()[update.orderId];
-    if (order?.source === 'parsed' && order.fixedAccountInfo && !order.accountInfo) {
+    if (order?.fixedAccountInfo && !order.accountInfo) {
       void autoSendAccountInfo(order.orderId);
     }
   }
@@ -134,9 +140,13 @@ export async function sendAccountInfoNow(orderId: string): Promise<void> {
   return autoSendAccountInfo(orderId);
 }
 
+/** 보내는 중인 주문 — 오더 갱신이 연달아 오거나 붙이기와 겹쳐도 계좌가 두 번 나가지 않게 */
+const autoSending = new Set<string>();
+
 async function autoSendAccountInfo(orderId: string): Promise<void> {
   const order = getSnapshot()[orderId];
-  if (!order?.fixedAccountInfo || !order.sponsorPubkey) return;
+  if (!order?.fixedAccountInfo || !order.sponsorPubkey || order.accountInfo) return;
+  if (autoSending.has(orderId)) return;
 
   // 호출 지점이 하나뿐이어도 여기서 다시 본다. 게이트가 호출자에만 있으면
   // 호출자가 하나 늘어나는 순간 뚫린다.
@@ -147,6 +157,7 @@ async function autoSendAccountInfo(orderId: string): Promise<void> {
 
   console.log('[Customer] Auto-sending account info for parsed order', orderId);
 
+  autoSending.add(orderId);
   try {
     const result = await publishAccountInfo(order, order.fixedAccountInfo);
     if (result.success) {
@@ -157,6 +168,8 @@ async function autoSendAccountInfo(orderId: string): Promise<void> {
     }
   } catch (e) {
     console.error('[Customer] Account info auto-send error for', orderId, e);
+  } finally {
+    autoSending.delete(orderId);
   }
 }
 

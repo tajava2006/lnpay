@@ -15,6 +15,7 @@ import {
   canSendAccountInfo, checkCode, isTerminalState, lnOrderDisplay, remainingText, summarizeProgress,
   type AccountInfo, type Order, type OrderState, type StateDisplay,
 } from '@sajwo-tracker/shared';
+import { decodeBolt11 } from '../buyer/bolt11';
 import type { CustomerOrder } from '../buyer/types';
 import type { SponsorDeposit } from '../sponsor/deposit-store';
 
@@ -174,6 +175,16 @@ export function lnCardView(input: LnCardInput): LnCardView {
     side.cancel = state === 'requested' || state === 'claimed' || state === 'verified';
     side.delete = !!local && terminal;
     if (local?.depositBolt11 && local.depositStatus) notes.push(`보증금: ${DEPOSIT_STATUS_TEXT[local.depositStatus]}`);
+  }
+
+  // 에스크로 결제 마감 — 인보이스 만료가 곧 데몬의 결제 기한이다(`escrowPayBy` = min(승인 + 24시간, 기한 − 30분)).
+  // 넘기면 데몬이 `cancel:unpaid-escrow`로 닫는다. 예전엔 어디에도 안 보여서, 판매 기한(최대 7일)이 결제 기한인 줄 알았다
+  const escrowPayBy = state === 'verified' && order?.bolt11 ? decodeBolt11(order.bolt11)?.expiresAt : undefined;
+  if (escrowPayBy && (role === 'customer' || role === 'sponsor')) {
+    const left = remainingText(escrowPayBy - now, '지남');
+    notes.push(role === 'customer'
+      ? `에스크로 결제 마감: ${left} — 넘기면 거래가 취소됩니다${designatedTo ? '' : '(내 보증금 몰수)'}.`
+      : `파는 사람의 에스크로 결제 마감: ${left} — 넘기면 거래가 취소됩니다${designatedTo ? '' : '(내 보증금은 돌려받음)'}.`);
   }
 
   if (role === 'customer' && state === 'escrowed' && order?.invoiceDeadline) {

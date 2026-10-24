@@ -36,6 +36,7 @@ export type {
 } from './admin-protocol';
 export type { DisputeMessagePayload, AccountInfo } from './types';
 export { extractOrderId, orderRef } from './order-ref';
+export { isCallPayload, isPeerChatKeyHex } from './peer-chat';
 export {
   DESIGNATED_ORDER_KIND, MAX_OPEN_DESIGNATED_PER_CUSTOMER, designatedOrderD, designatedOrderFromPlaintext, designatedOrderTemplate,
   isLnDesignatedOrderPayload, isOnchainDesignatedOrderPayload, isPubkeyHex, openDesignatedOrder,

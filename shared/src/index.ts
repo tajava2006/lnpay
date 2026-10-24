@@ -67,6 +67,14 @@ export {
 // 분쟁 채팅 on-demand 구독 (고객·후원자 공용)
 export { subscribeChatMessages } from './chat-subscribe';
 
+// 상대방 채팅 (두 당사자만 읽는 암호문 — docs/PLAN-PEER-CHAT.md)
+export {
+  PEER_CHAT_RETENTION_SEC, derivePeerChatKey, isCallPayload, isPeerChatKeyHex, openPeerMessage, peerChatKeyFromHex,
+  peerChatKeyHex, peerMessageTemplate,
+} from './peer-chat';
+export type { PeerChatParties } from './peer-chat';
+export { subscribePeerMessages, trackTagOf } from './peer-chat-subscribe';
+
 // Dispute Message (공통 처리)
 export { extractOrderId, processDisputeEvent } from './dispute-message';
 export type { DisputeEvent } from './dispute-message';
@@ -75,6 +83,7 @@ export type { DisputeEvent } from './dispute-message';
 export { BtcPrice } from './components/BtcPrice';
 export { KeyInit } from './components/KeyInit';
 export { ChatWindow } from './components/ChatWindow';
+export type { ChatVariant } from './components/ChatWindow';
 export { InvoicePayBlock } from './components/InvoicePayBlock';
 export { OrderProgress } from './components/OrderProgress';
 export { useNow } from './components/useNow';

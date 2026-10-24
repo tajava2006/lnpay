@@ -20,7 +20,10 @@ export function ParsedOrdersSection() {
   return (
     <div style={styles.card}>
       <h2 style={styles.title}>감지된 주문</h2>
-      <p style={styles.desc}>유저스크립트가 쿠팡에서 감지한 무통장입금 주문입니다.</p>
+      <p style={styles.desc}>
+        유저스크립트가 쿠팡에서 읽어 온 무통장입금 주문입니다. 판매로 올리면 이 가상계좌가 원화 받을 계좌가 되어,
+        사는 사람이 붙은 뒤 자동으로 전달됩니다.
+      </p>
       <div style={styles.list}>
         {entries.map(([eventId, payload]) => (
           <ParsedOrderCard key={eventId} eventId={eventId} payload={payload} />

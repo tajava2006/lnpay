@@ -76,7 +76,7 @@ async function main() {
   if (parsed?.kind === 'shape-changed') {
     // 콘솔에만 남기면 유저는 "감지가 안 된다"만 본다
     console.warn('[사줘] 무통장 주문인데 계좌를 읽지 못했다 — 쿠팡 응답 모양이 바뀐 것 같다');
-    showNotification('주문을 읽지 못했습니다', '쿠팡 화면이 바뀐 것 같습니다. 의뢰는 웹앱에서 직접 입력해 주세요.');
+    showNotification('주문을 읽지 못했습니다', '쿠팡 화면이 바뀐 것 같습니다. 판매 금액과 계좌는 웹앱에서 직접 입력해 주세요.');
     return;
   }
   if (parsed?.kind === 'order') {

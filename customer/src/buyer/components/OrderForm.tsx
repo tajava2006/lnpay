@@ -92,12 +92,12 @@ export function OrderForm() {
           />
         </label>
         <label style={styles.label}>
-          <span style={styles.labelText}>메모</span>
+          <span style={styles.labelText}>메모 (나만 봄)</span>
           <input
             type="text"
             value={memo}
             onChange={e => setMemo(e.target.value)}
-            placeholder="예: 맥북 프로 결제"
+            placeholder="예: 쿠팡 주문"
             style={styles.input}
           />
         </label>

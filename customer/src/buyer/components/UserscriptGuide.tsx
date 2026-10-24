@@ -78,7 +78,7 @@ export function UserscriptGuide() {
   return (
     <div style={styles.card}>
       <button onClick={() => void handleExpand()} style={styles.headerBtn}>
-        <span style={styles.headerTitle}>쿠팡 자동 파싱 (유저스크립트)</span>
+        <span style={styles.headerTitle}>쿠팡 가상계좌 자동 입력 (선택 · 유저스크립트)</span>
         <span style={styles.arrow}>{expanded ? '\u25B2' : '\u25BC'}</span>
       </button>
 
@@ -90,9 +90,14 @@ export function UserscriptGuide() {
           <div style={styles.intro}>
             <p style={styles.introLead}>이게 뭔가요?</p>
             <p style={styles.introText}>
-              쿠팡 주문 상세 페이지를 볼 때 <strong>무통장입금 주문의 금액과 가상계좌를
-              자동으로 읽어</strong> 이 앱에 채워 넣는 보조 스크립트입니다.
-              직접 옮겨 적는 수고가 사라지고, 무엇보다 <strong>오타가 나지 않습니다.</strong>
+              쿠팡에서 무통장입금으로 주문하면 쿠팡이 입금할 가상계좌를 줍니다. 이 스크립트는 쿠팡 주문 상세 페이지에서
+              <strong> 그 금액과 가상계좌를 읽어 이 앱에 옮겨 적어 주는</strong> 보조 도구입니다. 판매로 올리면 사는 사람이
+              그 가상계좌로 원화를 보내 내 쿠팡 결제가 끝납니다 — 쿠팡과 연동된 것처럼 동작해서, 쿠팡의 모든 물건을
+              비트코인으로 결제할 수 있게 되는 셈입니다. 직접 옮겨 적는 수고가 사라지고, 무엇보다 <strong>오타가 나지 않습니다.</strong>
+            </p>
+            <p style={styles.introText}>
+              쿠팡 주문을 대신 넣거나 결제 버튼을 대신 누르는 건 아닙니다. 하는 일은 계좌를 옮겨 적는 것뿐이고, 원화는
+              언제나 앱에 들어간 그 계좌로 갑니다.
             </p>
 
             <p style={styles.introLead}>꼭 설치해야 하나요?</p>

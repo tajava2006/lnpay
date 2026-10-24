@@ -239,6 +239,11 @@ function RemitBlock({ price, account, busy, onRemit }: {
   return (
     <div style={styles.account}>
       <p style={styles.accountTitle}>이 계좌로 원화를 보내세요</p>
+      {/* 파는 사람이 자기 통장을 넣었는데 "쿠팡 계좌가 아니라 상대 계좌가 왔다"는 제보가 있었다(2026-10-24) */}
+      <p style={styles.accountWhose}>
+        파는 사람이 정한 계좌입니다. 개인 통장일 수도, 쿠팡 같은 곳의 가상계좌일 수도 있습니다 — 어느 쪽이든 이 계좌로
+        아래 금액을 정확히 보내면 됩니다.
+      </p>
       {/* 쿠팡 가상계좌는 **금액이 1원만 달라도 입금으로 인식되지 않는다** — 금액을 계좌 바로 옆에 */}
       <div style={styles.remitAmountRow}>
         <b style={styles.remitAmount}>{price.toLocaleString()}원</b>
@@ -303,6 +308,7 @@ const styles = {
     background: '#F9FAFB', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column' as const, gap: 4,
   },
   accountTitle: { fontSize: 12, fontWeight: 600 as const, color: '#333', margin: 0 },
+  accountWhose: { fontSize: 12, color: '#6B7280', lineHeight: 1.5, margin: 0 },
   accountDetail: { fontSize: 13, color: '#555', margin: 0, fontFamily: 'monospace' },
   remitAmountRow: { display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 8px' },
   remitAmount: { fontSize: 18, color: '#111827' },

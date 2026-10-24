@@ -112,6 +112,9 @@ export function ChatWindow({
                     </div>
                     <div style={styles.text}>{msg.payload.reason}</div>
                   </div>
+                ) : msg.payload.type === 'called' ? (
+                  // 유저 앱은 이걸 말풍선으로 그리지 않는다(상태로 쓴다) — 여기 오는 건 어드민의 사본이다
+                  <div style={styles.callLabel}>상대방에게 호출 알림 · 이제 운영자가 두 분의 대화를 봅니다</div>
                 ) : msg.payload.type === 'account-reveal' && msg.payload.accountInfo ? (
                   <div style={styles.accountReveal}>
                     <div style={styles.accountLabel}>계좌 정보 공개</div>

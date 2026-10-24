@@ -67,6 +67,19 @@ describe('고객', () => {
     expect(view({ order: order('escrowed'), local: local() }).side).toEqual({ cancel: false, delete: false });
     expect(view({ order: order('paid'), local: local() }).side).toEqual({ cancel: false, delete: true });
   });
+
+  /** 2026-10-24 메인넷: 사는 사람이 붙은 뒤 취소했더니 아무 말 없이 보증금이 몰수됐다(`cancel:customer-after-claim`) */
+  it('사는 사람이 붙은 뒤 취소는 보증금 몰수를 먼저 말한다 — 보증금이 있을 때만', () => {
+    const forfeits = (o: Order, l?: CustomerOrder) => view({ order: o, local: l ?? null }).side.cancelForfeitsDeposit === true;
+    expect(forfeits(order('claimed', { depositPaymentHash: 'h' }))).toBe(true);
+    expect(forfeits(order('verified', { depositPaymentHash: 'h' }))).toBe(true);
+    // 오더 태그가 없어도 이 기기에 맡긴 기록이 있으면
+    expect(forfeits(order('verified'), local({ depositStatus: 'accepted' }))).toBe(true);
+    // 아직 아무도 안 붙었으면 돌려받는다
+    expect(forfeits(order('requested', { depositPaymentHash: 'h' }))).toBe(false);
+    // 보증금이 없는 거래(지정 거래 · 0%)는 잃을 게 없다
+    expect(forfeits(order('verified'))).toBe(false);
+  });
 });
 
 describe('후원자 보증금 대기', () => {

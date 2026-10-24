@@ -15,6 +15,7 @@ import {
   canSendAccountInfo, checkCode, isTerminalState, lnOrderDisplay, remainingText, summarizeProgress,
   type AccountInfo, type Order, type OrderState, type StateDisplay,
 } from '@sajwo-tracker/shared';
+import { decodeBolt11 } from '../buyer/bolt11';
 import type { CustomerOrder } from '../buyer/types';
 import type { SponsorDeposit } from '../sponsor/deposit-store';
 
@@ -57,6 +58,8 @@ export interface LnSideActions {
   cancel: boolean;
   /** 로컬 기록 지우기 (초안·종결). 의뢰하기 탭만 쓴다 */
   delete: boolean;
+  /** 지금 취소하면 내 보증금이 몰수된다(`cancel:customer-after-claim`) — 확인창이 먼저 말한다 */
+  cancelForfeitsDeposit?: boolean;
 }
 
 export interface LnCardView {
@@ -172,8 +175,23 @@ export function lnCardView(input: LnCardInput): LnCardView {
     if ((canSendAccountInfo(state) && !!local?.accountInfo) || state === 'remitted') actions.push({ kind: 'confirm-paid' });
 
     side.cancel = state === 'requested' || state === 'claimed' || state === 'verified';
+    // 사는 사람이 붙은 뒤 접으면 내 보증금은 몰수다 — 2026-10-24 메인넷에서 아무 말 없이 몰수됐다. 보증금 유무는 오더 태그가
+    // 진실(다른 기기에서 올린 판매도), 이 기기 기록은 보조. 지정 거래·보증금 0%면 둘 다 없다
+    if ((state === 'claimed' || state === 'verified') && (!!order?.depositPaymentHash || local?.depositStatus === 'accepted')) {
+      side.cancelForfeitsDeposit = true;
+    }
     side.delete = !!local && terminal;
     if (local?.depositBolt11 && local.depositStatus) notes.push(`보증금: ${DEPOSIT_STATUS_TEXT[local.depositStatus]}`);
+  }
+
+  // 에스크로 결제 마감 — 인보이스 만료가 곧 데몬의 결제 기한이다(`escrowPayBy` = min(승인 + 24시간, 기한 − 30분)).
+  // 넘기면 데몬이 `cancel:unpaid-escrow`로 닫는다. 예전엔 어디에도 안 보여서, 판매 기한(최대 7일)이 결제 기한인 줄 알았다
+  const escrowPayBy = state === 'verified' && order?.bolt11 ? decodeBolt11(order.bolt11)?.expiresAt : undefined;
+  if (escrowPayBy && (role === 'customer' || role === 'sponsor')) {
+    const left = remainingText(escrowPayBy - now, '지남');
+    notes.push(role === 'customer'
+      ? `에스크로 결제 마감: ${left} — 넘기면 거래가 취소됩니다${designatedTo ? '' : '(내 보증금 몰수)'}.`
+      : `파는 사람의 에스크로 결제 마감: ${left} — 넘기면 거래가 취소됩니다${designatedTo ? '' : '(내 보증금은 돌려받음)'}.`);
   }
 
   if (role === 'customer' && state === 'escrowed' && order?.invoiceDeadline) {

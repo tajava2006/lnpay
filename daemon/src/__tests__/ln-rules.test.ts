@@ -535,7 +535,10 @@ describe('운영자 상세 · 채팅', () => {
       expect(detail).toMatchObject({
         orderId, state: 'invoiced', version: h.order(orderId)!.version, accountCommitment: 'cd'.repeat(32),
       });
-      expect(detail.invoices).toEqual([expect.objectContaining({ purpose: 'escrow', status: 'accepted' })]);
+      // 결제 해시도 싣는다 — 운영자가 노드에서 바로 조회한다
+      expect(detail.invoices).toEqual([expect.objectContaining({
+        purpose: 'escrow', status: 'accepted', paymentHash: h.order(orderId)!.escrow_hash,
+      })]);
     }
   });
 

@@ -32,8 +32,9 @@ export const MESSAGE_KIND = 3838;
  * 1 = 2026-09-26 kind 전환(38383·3838·33838) 이후.
  * 2 = 2026-10-17 지정 거래(스냅샷 kind 33839 · 지정 의뢰 action 2개 · `designated-sponsor`·`invoice-deadline` 태그).
  * 3 = 2026-10-24 상대방 채팅(`peer-message`) · 운영자 부르기(dispute-message `call`).
+ * 4 = 2026-10-24 부른 뒤 상대에게 가는 안내가 말풍선(text)에서 신호(dispute-message `called`)로.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** 이벤트에 실린 프로토콜 버전. 없거나 못 읽으면 null(버전을 싣기 전 데몬) */
 export function protocolOf(tags: readonly string[][]): number | null {

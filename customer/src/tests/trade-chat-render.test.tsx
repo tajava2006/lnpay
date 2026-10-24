@@ -110,6 +110,31 @@ describe('거래 상세 대화', () => {
     expect(host.textContent).toContain('운영자 호출 · 상대방과의 대화 공개');
     expect(host.textContent).not.toContain(KEY);
     expect(button('운영자에게 상대방과의 대화 보여주기')).toBeUndefined(); // 이미 공개했다
+    // 상대방 칸이 더는 "운영자는 보지 않습니다"라고 하지 않는다
+    expect(host.textContent).toContain('상대방(사는 사람)과 대화 — 운영자도 봅니다');
+    expect(host.textContent).toContain('운영자를 불렀습니다 — 이제 운영자가 이 대화를 처음부터 전부 볼 수');
+    expect(host.textContent).not.toContain('운영자는 보지 않습니다');
+  });
+
+  /** 2026-10-24 메인넷 확인: 상대가 부른 뒤에도 내 쪽에 부르기가 남아 있었고, 누르면 처음 부른 사람에게 또 알림이 갔다 */
+  it('상대가 부르면 — 안내가 바뀌고 부르기가 잠긴다 · 신호는 말풍선이 아니다', () => {
+    act(() => root.render(<TradeChat track="ln" orderId="o4" myPubkey={ME} role="sponsor" peer={{ pubkey: PEER, readOnly: false }} />));
+    act(() => shared.addMessage(msg({
+      eventId: 'sig-1', orderId: 'o4', senderPubkey: shared.APP_PUBKEY, payload: { type: 'called' },
+    })));
+    expect(host.textContent).toContain('상대방(파는 사람)과 대화 — 운영자도 봅니다');
+    expect(host.textContent).toContain('상대방이 운영자를 불렀습니다 — 이제 운영자가 이 대화를 처음부터 전부 볼 수');
+    expect(host.textContent).not.toContain('운영자와 대화'); // 운영자 칸을 열지 않는다
+    expect(host.textContent).not.toContain('호출 알림');
+    expect(button('운영자 부르기')?.disabled).toBe(true);
+    expect(button('운영자에게 상대방과의 대화 보여주기')).toBeUndefined();
+  });
+
+  it('APP이 아닌 사람이 보낸 called는 무시한다', () => {
+    act(() => root.render(<TradeChat track="ln" orderId="o5" myPubkey={ME} role="sponsor" peer={{ pubkey: PEER, readOnly: false }} />));
+    act(() => shared.addMessage(msg({ eventId: 'sig-2', orderId: 'o5', senderPubkey: PEER, payload: { type: 'called' } })));
+    expect(host.textContent).toContain('운영자는 보지 않습니다');
+    expect(button('운영자 부르기')?.disabled).toBe(false);
   });
 
   it('끝난 거래는 상대방 칸을 읽기만', () => {

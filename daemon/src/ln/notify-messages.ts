@@ -166,9 +166,9 @@ export const NOTIFY = {
   operatorMessage: (tab: Tab, track: Track): Notice =>
     ({ body: '운영자가 메시지를 보냈습니다. 앱에서 확인해 주세요.', tab, track }),
 
-  /** 상대방이 운영자를 불렀다 — 내 운영자 칸이 열리고, 두 사람 대화를 운영자가 보게 됐다(docs/PLAN-PEER-CHAT.md D8) */
+  /** 상대방이 운영자를 불렀다 — 두 사람 대화를 운영자가 보게 됐다(docs/PLAN-PEER-CHAT.md D8). 앱 안에선 상대방 칸 안내가 바뀐다 */
   operatorCalled: (tab: Tab, track: Track): Notice =>
-    ({ body: '상대방이 운영자를 불렀습니다. 앱에서 확인해 주세요.', tab, track }),
+    ({ body: '상대방이 운영자를 불렀습니다. 이제 운영자가 두 분의 대화를 볼 수 있습니다.', tab, track }),
 
   /** 상대방 채팅에 메시지가 왔다(`admin/peer-chat.ts` — 조용한 창을 거친다). 데몬은 내용을 모른다 */
   peerMessage: (tab: Tab, track: Track): Notice =>

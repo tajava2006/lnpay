@@ -206,6 +206,8 @@ export interface AdminLnInvoice {
   payBy: number;
   /** 잡힌 HTLC의 만기 블록 — 에스크로가 실제로 죽는 때 */
   htlcExpiryHeight?: number;
+  /** 노드에서 조회할 때 쓰는 결제 해시(hex). 옛 데몬은 안 보낸다 */
+  paymentHash?: string;
 }
 
 export interface AdminLnOrderDetail {
@@ -252,6 +254,8 @@ export interface AdminOcBond {
   status: AdminLnInvoice['status'];
   payBy: number;
   htlcExpiryHeight?: number;
+  /** 노드에서 조회할 때 쓰는 결제 해시(hex). 옛 데몬은 안 보낸다 */
+  paymentHash?: string;
 }
 
 export interface AdminOcUtxo {

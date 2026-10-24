@@ -58,6 +58,8 @@ export interface LnSideActions {
   cancel: boolean;
   /** 로컬 기록 지우기 (초안·종결). 의뢰하기 탭만 쓴다 */
   delete: boolean;
+  /** 지금 취소하면 내 보증금이 몰수된다(`cancel:customer-after-claim`) — 확인창이 먼저 말한다 */
+  cancelForfeitsDeposit?: boolean;
 }
 
 export interface LnCardView {
@@ -173,6 +175,11 @@ export function lnCardView(input: LnCardInput): LnCardView {
     if ((canSendAccountInfo(state) && !!local?.accountInfo) || state === 'remitted') actions.push({ kind: 'confirm-paid' });
 
     side.cancel = state === 'requested' || state === 'claimed' || state === 'verified';
+    // 사는 사람이 붙은 뒤 접으면 내 보증금은 몰수다 — 2026-10-24 메인넷에서 아무 말 없이 몰수됐다. 보증금 유무는 오더 태그가
+    // 진실(다른 기기에서 올린 판매도), 이 기기 기록은 보조. 지정 거래·보증금 0%면 둘 다 없다
+    if ((state === 'claimed' || state === 'verified') && (!!order?.depositPaymentHash || local?.depositStatus === 'accepted')) {
+      side.cancelForfeitsDeposit = true;
+    }
     side.delete = !!local && terminal;
     if (local?.depositBolt11 && local.depositStatus) notes.push(`보증금: ${DEPOSIT_STATUS_TEXT[local.depositStatus]}`);
   }

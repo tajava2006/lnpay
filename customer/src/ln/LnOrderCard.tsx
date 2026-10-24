@@ -66,7 +66,10 @@ function LnOrderCardBody({ orderId, archived, tracker, onOpen, allowDelete }: Pr
   };
 
   const cancel = () => {
-    if (!confirm('이 판매를 취소하시겠습니까?')) return;
+    const forfeit = view.side.cancelForfeitsDeposit
+      ? '\n\n사는 사람이 이미 붙어 있어, 지금 취소하면 내 보증금은 돌려받지 못합니다.'
+      : '';
+    if (!confirm(`이 판매를 취소하시겠습니까?${forfeit}`)) return;
     void run('cancel', async () => (await publishNotification({ orderId }, 'cancel-request')).success,
       '취소 요청을 보내지 못했습니다.');
   };

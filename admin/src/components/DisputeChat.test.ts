@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { AdminChatCopy } from '@sajwo-tracker/shared';
-import { splitThreads } from './DisputeChat';
+import { findDisclosure, hasCall, splitThreads } from './DisputeChat';
 
 const APP = 'a'.repeat(64);
 const C = 'c'.repeat(64);
@@ -38,5 +38,30 @@ describe('splitThreads', () => {
     const t = splitThreads([msg(C, APP, 'customer')], C, undefined);
     expect(t.sponsor).toEqual([]);
     expect(t.customer).toHaveLength(1);
+  });
+});
+
+/** 세 번째 창(두 사람 대화)을 여는 키 — docs/PLAN-PEER-CHAT.md §9 */
+describe('findDisclosure', () => {
+  const KEY = 'ab'.repeat(32);
+  const call = (from: string, role: AdminChatCopy['role'], peerChatKey?: string): AdminChatCopy => ({
+    ...msg(from, APP, role), payload: { type: 'call', reason: '입금 안 됨', ...(peerChatKey ? { peerChatKey } : {}) },
+  });
+
+  it('지금 당사자가 키를 넘긴 부르기를 찾는다', () => {
+    const c = call(S, 'sponsor', KEY);
+    expect(findDisclosure([msg(C, APP, 'customer'), c], C, S)).toEqual({ keyHex: KEY, by: 'sponsor', at: c.sentAt });
+  });
+
+  it('키 없는 부르기 · 옛 후원자 · 모양이 틀린 키는 안 쓴다', () => {
+    expect(findDisclosure([call(C, 'customer')], C, S)).toBeNull();
+    expect(findDisclosure([call(OLD, 'sponsor', KEY)], C, S)).toBeNull();
+    expect(findDisclosure([call(C, 'customer', 'xyz')], C, S)).toBeNull();
+  });
+
+  it('목록 표시 — 부르기가 하나라도 있으면', () => {
+    expect(hasCall([msg(C, APP, 'customer'), call(C, 'customer')])).toBe(true);
+    expect(hasCall([msg(C, APP, 'customer')])).toBe(false);
+    expect(hasCall(undefined)).toBe(false);
   });
 });

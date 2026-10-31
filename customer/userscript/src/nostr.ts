@@ -38,6 +38,18 @@ export function describeAppPubkey(): string {
   return `${APP_PUBKEY} (${nip19.npubEncode(APP_PUBKEY)})`;
 }
 
+/**
+ * 내 키의 확인 코드 — 앱(shared `checkCode`)과 같은 모양(npub 본문 앞 6 · 뒤 6). 계약 테스트가 둘을 묶는다.
+ *
+ * 앱은 자기 키 앞으로 온 것만 받는다. 스크립트가 다른 키로 보내도 릴레이는 받아 주니 어디서도 에러가 안 난다 —
+ * 그래서 쿠팡 쪽 알림과 앱의 설치 안내에 같은 코드를 띄워 **눈으로** 맞춰 보게 한다. (shared 루트 입구는 React를
+ * 끌고 와서 여기서 못 가져온다.)
+ */
+export function keyCheckCode(pubkey: string): string {
+  const body = nip19.npubEncode(pubkey).slice('npub1'.length);
+  return `${body.slice(0, 6)}…${body.slice(-6)}`;
+}
+
 // ── 릴레이 디스커버리 ────────────────────────────────
 
 /** NIP-65 kind 10002 이벤트에서 읽기 릴레이 추출 (one-shot) */

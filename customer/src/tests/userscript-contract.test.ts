@@ -11,7 +11,12 @@ import { describe, expect, it } from 'vitest';
 import {
   buildParsedPayload, isCancelled, isPaid, type CoupangOrderData,
 } from '../../userscript/src/coupang';
+import { pickNsec } from '../../userscript/src/storage';
+import { keyCheckCode } from '../../userscript/src/nostr';
 import { isParsedOrderPayload } from '../buyer/types';
+import { checkCode } from '@sajwo-tracker/shared';
+import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import { nsecEncode } from 'nostr-tools/nip19';
 
 const ORDER_ID = '31000123456789';
 
@@ -92,5 +97,37 @@ describe('입금·취소 판정', () => {
   it('입금 완료', () => {
     expect(isPaid(coupang({ payed: true }), ORDER_ID)).toBe(true);
     expect(isPaid(coupang(), ORDER_ID)).toBe(false);
+  });
+});
+
+/**
+ * 스크립트가 쓰는 키 = 앱의 키여야 한다. 어긋나면 릴레이는 받아 주고 앱은 못 받아 감지된 주문이 조용히 사라진다
+ * (2026-10-31 실측). 저장값이 덮어 붙여넣은 새 키를 이기던 게 원인이었다.
+ */
+describe('키 — 붙여넣은 키가 저장된 키를 이긴다', () => {
+  const OLD = nsecEncode(generateSecretKey());
+  const NEW = nsecEncode(generateSecretKey());
+  const PLACEHOLDER = '%%NSEC_PLACEHOLDER%%';
+
+  it('앱에서 키를 바꾸고 코드를 덮어 붙여넣으면 새 키로 바뀐다 (옛 이력을 비우라는 신호와 함께)', () => {
+    expect(pickNsec(OLD, NEW)).toEqual({ nsec: NEW, replaced: true });
+  });
+
+  it('처음 설치는 붙여넣은 키 — 바꾼 게 아니다', () => {
+    expect(pickNsec(null, NEW)).toEqual({ nsec: NEW, replaced: false });
+  });
+
+  it('같은 코드를 다시 붙여넣어도 바꾼 게 아니다', () => {
+    expect(pickNsec(NEW, NEW)).toEqual({ nsec: NEW, replaced: false });
+  });
+
+  it('자동 업데이트로 받은 코드(키 자리가 플레이스홀더)는 저장된 키를 쓴다', () => {
+    expect(pickNsec(NEW, PLACEHOLDER)).toEqual({ nsec: NEW, replaced: false });
+    expect(pickNsec(null, PLACEHOLDER)).toEqual({ nsec: null, replaced: false });
+  });
+
+  it('쿠팡 쪽 알림의 확인 코드는 앱 안내의 확인 코드와 같은 모양이다', () => {
+    const pubkey = getPublicKey(generateSecretKey());
+    expect(keyCheckCode(pubkey)).toBe(checkCode(pubkey));
   });
 });

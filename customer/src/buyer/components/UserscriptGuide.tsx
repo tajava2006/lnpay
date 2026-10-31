@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { nsecEncode } from 'nostr-tools/nip19';
-import { getSecretKey, storage } from '@sajwo-tracker/shared';
+import { getPublicKey } from 'nostr-tools/pure';
+import { checkCode, getSecretKey, storage } from '@sajwo-tracker/shared';
 
 const NSEC_PLACEHOLDER = '%%NSEC_PLACEHOLDER%%';
 
@@ -35,6 +36,8 @@ export function UserscriptGuide() {
   const [expanded, setExpanded] = useState(false);
   const [scriptContent, setScriptContent] = useState<string | null>(null);
   const [version, setVersion] = useState<string | null>(null);
+  /** 이 코드에 든 키의 확인 코드 — 쿠팡 쪽 알림·콘솔에 같은 코드가 떠야 이 앱에 도착한다 */
+  const [keyCode, setKeyCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function handleExpand() {
@@ -53,6 +56,7 @@ export function UserscriptGuide() {
           const raw = await res.text();
           const nsec = nsecEncode(sk);
           setVersion(extractVersion(raw));
+          setKeyCode(checkCode(getPublicKey(sk)));
           setScriptContent(raw.split(NSEC_PLACEHOLDER).join(nsec));
         } else {
           setScriptContent('// 유저스크립트 파일을 찾을 수 없습니다. pnpm build:userscript를 실행하세요.');
@@ -157,6 +161,13 @@ export function UserscriptGuide() {
                   {copied ? '복사됨' : '코드 복사'}
                 </button>
               </div>
+              {keyCode && (
+                <p style={styles.keyNote}>
+                  이 코드에 든 키 — 확인 코드 <code style={styles.keyCode}>{keyCode}</code>. 쿠팡 주문 페이지에 뜨는
+                  알림에 <b>같은 코드</b>가 보여야 이 앱에 도착합니다. 다르면 이 코드를 복사해 기존 스크립트에 덮어
+                  붙여 넣은 뒤, 쿠팡 주문 페이지를 한 번 여세요 — 그때 이 키로 바뀝니다.
+                </p>
+              )}
               <pre style={styles.codeBlock}>{scriptContent}</pre>
             </div>
           )}
@@ -274,6 +285,20 @@ const styles = {
     borderRadius: 4,
     padding: '2px 6px',
     fontFamily: 'monospace',
+  },
+  keyNote: {
+    fontSize: 12,
+    color: '#4338CA',
+    background: '#EEF2FF',
+    border: '1px solid #C7D2FE',
+    borderRadius: 6,
+    padding: '8px 10px',
+    lineHeight: 1.6,
+    margin: '0 0 8px',
+  },
+  keyCode: {
+    fontFamily: 'monospace',
+    fontWeight: 600 as const,
   },
   copyBtn: {
     padding: '4px 12px',

@@ -12,10 +12,13 @@ import {
   isCancelled,
   isPaid,
 } from './coupang';
+import { getPublicKey } from 'nostr-tools/pure';
+import { npubEncode } from 'nostr-tools/nip19';
 import {
   decodeNsec,
   describeAppPubkey,
   discoverRelays,
+  keyCheckCode,
   publishToRelays,
   buildParsedOrderEvent,
   buildCoupangStatusEvent,
@@ -43,6 +46,11 @@ async function main() {
     console.error('[사줘] nsec decode error:', e);
     return;
   }
+
+  // 앱이 받는 건 이 키 앞으로 온 것뿐이다. 어긋나도 어디서도 에러가 안 나므로 매번 찍는다.
+  const myPubkey = getPublicKey(sk);
+  const keyNote = `키 ${keyCheckCode(myPubkey)} — 앱의 유저스크립트 안내에 같은 코드가 보여야 앱에 도착합니다`;
+  console.log('[사줘] 내 키: %s (확인 코드 %s)', npubEncode(myPubkey), keyCheckCode(myPubkey));
 
   // 2. URL에서 orderId 추출
   const orderId = extractOrderIdFromUrl();
@@ -90,7 +98,7 @@ async function main() {
     if (result.success) {
       markProcessed(orderId, 'parsed', Math.floor(payload.expirationDate / 1000));
       console.log('[사줘] parsed-order published to', result.publishedTo.length, 'relays');
-      showNotification('주문 감지됨', `${payload.productName} — ₩${payload.price.toLocaleString()}`);
+      showNotification('주문 감지됨', `${payload.productName} — ₩${payload.price.toLocaleString()}`, keyNote);
     } else {
       console.error('[사줘] Failed to publish parsed-order');
     }
@@ -122,7 +130,7 @@ async function main() {
       if (result.success) {
         markProcessed(orderId, 'paid', expiration);
         console.log('[사줘] 입금 감지 알림 발행 (웹앱이 어드민에 전달)');
-        showNotification('입금 완료 감지', '웹앱을 열면 에스크로에 전달됩니다.');
+        showNotification('입금 완료 감지', '웹앱을 열면 에스크로에 전달됩니다.', keyNote);
       }
       return;
     }
@@ -132,7 +140,7 @@ async function main() {
 }
 
 /** 페이지 상단에 알림 표시 */
-function showNotification(title: string, message: string) {
+function showNotification(title: string, message: string, footnote?: string) {
   const wrapper = document.createElement('div');
 
   const card = document.createElement('div');
@@ -155,6 +163,12 @@ function showNotification(title: string, message: string) {
   msgEl.textContent = message;
 
   card.append(titleEl, msgEl);
+  if (footnote) {
+    const noteEl = document.createElement('div');
+    Object.assign(noteEl.style, { fontSize: '11px', opacity: '0.75', marginTop: '8px' });
+    noteEl.textContent = footnote;
+    card.append(noteEl);
+  }
 
   const style = document.createElement('style');
   style.textContent = `@keyframes sajwoSlideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`;

@@ -27,19 +27,35 @@ export function setStoredNsec(nsec: string): void {
 }
 
 /**
- * 저장된 nsec 또는 고객앱이 주입한 nsec를 반환한다.
- * (과거에는 prompt()로 수동 입력을 받았으나, 고객앱이 코드 복사 시점에 자동 치환하므로 제거함)
+ * 쓸 nsec을 고른다 — **붙여넣은 코드에 든 키가 저장된 키를 이긴다.**
+ *
+ * 예전엔 저장된 키가 먼저였다. 저장값은 스크립트를 덮어 붙여넣어도 남아서, 앱에서 키를 바꾸고 안내대로 코드를 다시
+ * 붙여넣어도 스크립트는 옛 키로 계속 보냈다. 앱은 지금 키 앞으로 온 것만 받으니 감지된 주문이 **조용히** 사라졌다
+ * (2026-10-31 실측 — 9월에 바뀐 옛 키로 한 달 넘게 발행). 자동 업데이트로 받은 코드는 키 자리가 플레이스홀더라
+ * 그때만 저장값을 쓴다.
  */
+export function pickNsec(
+  stored: string | null,
+  preloaded: string,
+): { nsec: string | null; replaced: boolean } {
+  if (preloaded.startsWith('nsec1')) {
+    return { nsec: preloaded, replaced: stored !== null && stored !== preloaded };
+  }
+  return { nsec: stored, replaced: false };
+}
+
+/** 쓸 nsec을 정해 저장해 두고 돌려준다. 키가 바뀌었으면 옛 키로 처리한 주문 이력을 비운다. */
 export function ensureNsec(): string | null {
   const stored = getStoredNsec();
-  if (stored) return stored;
-
-  if (PRELOADED_NSEC.startsWith('nsec1')) {
-    setStoredNsec(PRELOADED_NSEC);
-    return PRELOADED_NSEC;
+  const { nsec, replaced } = pickNsec(stored, PRELOADED_NSEC);
+  if (nsec && nsec !== stored) setStoredNsec(nsec);
+  if (replaced) {
+    // 옛 키로 보낸 주문은 지금 앱에 도착한 적이 없다. 이력이 남아 있으면 같은 주문 페이지를 다시 열어도
+    // "이미 처리함"으로 끝나므로 비워서 새 키로 다시 보내게 한다.
+    GM_setValue(KEY_PROCESSED, {});
+    console.log('[사줘] 붙여넣은 코드의 키로 바꿨다 — 옛 키로 처리한 주문 이력을 비웠다');
   }
-
-  return null;
+  return nsec;
 }
 
 // ── 처리된 주문 관리 ────────────────────────────────
